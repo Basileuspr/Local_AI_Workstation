@@ -11,6 +11,10 @@ from pydantic import BaseModel
 import httpx
 import json
 
+# Import route modules
+from routes.sessions import router as sessions_router
+from routes.files import router as files_router
+
 # --- App Setup ---
 
 app = FastAPI(title="Local AI Workstation")
@@ -24,6 +28,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Register route modules
+app.include_router(sessions_router)
+app.include_router(files_router)
 
 # Ollama runs on this address by default
 OLLAMA_BASE_URL = "http://localhost:11434"
@@ -41,6 +49,7 @@ class ChatRequest(BaseModel):
     model: str = "mistral"          # Which model to use (default: mistral)
     messages: list[ChatMessage]     # Conversation history
     stream: bool = True             # Stream tokens as they generate
+    use_knowledge_base: bool = False  # Whether to search KB for context
 
 
 # --- Routes ---
@@ -82,42 +91,78 @@ async def chat(request: ChatRequest):
     """
     Send a message to the LLM and stream the response back.
     
-    This is the core of the app:
-    1. Frontend sends the conversation history
-    2. We forward it to Ollama
-    3. Ollama generates tokens one at a time
-    4. We stream each token back to the frontend as it arrives
-    
-    Streaming means the user sees words appear in real-time,
-    not a long wait followed by a wall of text.
+    If use_knowledge_base is True, searches the knowledge base for
+    relevant context and injects it into the conversation before
+    sending to the LLM. This is the RAG part.
     """
+
+    messages_to_send = [
+        {"role": m.role, "content": m.content}
+        for m in request.messages
+    ]
+
+    # --- RAG: Inject knowledge base context if enabled ---
+    if request.use_knowledge_base and request.messages:
+        try:
+            from services.knowledge_base import query_knowledge_base
+
+            # Use the latest user message as the search query
+            last_user_msg = None
+            for m in reversed(request.messages):
+                if m.role == "user":
+                    last_user_msg = m.content
+                    break
+
+            if last_user_msg:
+                results = query_knowledge_base(last_user_msg, n_results=5)
+
+                if results:
+                    # Build context from relevant chunks
+                    context_parts = []
+                    for r in results:
+                        context_parts.append(
+                            f"[From: {r['filename']}]\n{r['text']}"
+                        )
+                    context_text = "\n\n---\n\n".join(context_parts)
+
+                    # Inject as a system message at the start
+                    rag_message = {
+                        "role": "system",
+                        "content": (
+                            "The following are relevant excerpts from the user's "
+                            "knowledge base. Use them to inform your response, but "
+                            "only reference them if they're relevant to the question. "
+                            "Cite the source filename when using information from these "
+                            "excerpts.\n\n"
+                            f"{context_text}"
+                        ),
+                    }
+                    messages_to_send.insert(0, rag_message)
+
+        except Exception as e:
+            # If RAG fails, continue without it — don't break the chat
+            print(f"[Backend] RAG query failed: {e}")
+
+    # --- Stream the response ---
 
     async def generate():
         try:
             async with httpx.AsyncClient(timeout=120.0) as client:
-                # Send the request to Ollama's chat endpoint
                 async with client.stream(
                     "POST",
                     f"{OLLAMA_BASE_URL}/api/chat",
                     json={
                         "model": request.model,
-                        "messages": [
-                            {"role": m.role, "content": m.content}
-                            for m in request.messages
-                        ],
+                        "messages": messages_to_send,
                         "stream": True,
                     },
                 ) as response:
-                    # Read each chunk as it arrives from Ollama
                     async for line in response.aiter_lines():
                         if line:
                             chunk = json.loads(line)
-                            # Each chunk has a "message" with a "content" field
-                            # containing the next token(s)
                             token = chunk.get("message", {}).get("content", "")
                             done = chunk.get("done", False)
 
-                            # Send it to the frontend as a Server-Sent Event
                             yield f"data: {json.dumps({'token': token, 'done': done})}\n\n"
 
                             if done:
@@ -135,7 +180,7 @@ async def chat(request: ChatRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    print("\n🟢 Local AI Workstation — Backend starting...")
+    print("\n[OK] Local AI Workstation — Backend starting...")
     print(f"   Ollama expected at: {OLLAMA_BASE_URL}")
     print(f"   API docs available at: http://localhost:8000/docs")
     print()

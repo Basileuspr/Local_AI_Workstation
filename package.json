@@ -1,0 +1,24 @@
+{
+  "name": "local_ai_workstation",
+  "version": "1.0.0",
+  "description": "This is a Local AI workstation Project with capability and access to the common tools and tool-ing that the best LLM's, the frontier models, also have access to. It should be able to assist in common inquiries as well as dedicated tasks.",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Basileuspr/Local_AI_Workstation.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/Basileuspr/Local_AI_Workstation/issues"
+  },
+  "homepage": "https://github.com/Basileuspr/Local_AI_Workstation#readme",
+  "devDependencies": {
+    "electron": "^40.6.1"
+  }
+}
