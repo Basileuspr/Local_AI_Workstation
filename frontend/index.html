@@ -212,6 +212,13 @@
         }
         #model-select:focus { border-color: var(--accent); }
 
+        #response-length {
+            background: var(--bg-input); border: 1px solid var(--border); border-radius: 6px;
+            color: var(--text); font-family: var(--font-mono); font-size: 10px;
+            padding: 5px 8px; cursor: pointer; outline: none;
+        }
+        #response-length:focus { border-color: var(--accent); }
+
         .kb-toggle {
             display: flex; align-items: center; gap: 6px; cursor: pointer;
             padding: 4px 10px; border-radius: 5px; border: 1px solid var(--border);
@@ -284,6 +291,37 @@
         }
         .message .content pre code { background: none; border: none; padding: 0; }
 
+        /* Copy button on messages */
+        .message-wrapper {
+            position: relative;
+            max-width: 720px;
+            width: 100%;
+            margin: 0 auto;
+        }
+        .message-actions {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            display: flex;
+            gap: 4px;
+            opacity: 0;
+            transition: opacity 0.15s;
+        }
+        .message-wrapper:hover .message-actions { opacity: 1; }
+        .copy-btn {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 5px;
+            color: var(--text-muted);
+            font-size: 10px;
+            padding: 3px 8px;
+            cursor: pointer;
+            font-family: var(--font-mono);
+            transition: all 0.15s;
+        }
+        .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+        .copy-btn.copied { color: var(--green); border-color: var(--green); }
+
         #drop-overlay {
             display: none;
             position: absolute;
@@ -312,18 +350,19 @@
         #welcome p { font-size: 13px; color: var(--text-dim); max-width: 400px; line-height: 1.6; }
 
         #input-area {
-            min-height: var(--input-height); max-height: var(--input-height);
+            min-height: var(--input-height); max-height: 160px;
             padding: 12px 20px; background: var(--bg-surface);
             border-top: 1px solid var(--border);
-            display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+            display: flex; align-items: flex-end; justify-content: center; flex-shrink: 0;
         }
-        #input-row { display: flex; align-items: center; gap: 10px; width: 100%; max-width: 720px; }
+        #input-row { display: flex; align-items: flex-end; gap: 10px; width: 100%; max-width: 720px; }
 
         #chat-input {
-            flex: 1; height: 44px; max-height: 44px; padding: 0 16px;
+            flex: 1; min-height: 44px; max-height: 120px; padding: 10px 16px;
             background: var(--bg-input); border: 1px solid var(--border); border-radius: 8px;
             color: var(--text); font-family: var(--font-body); font-size: 14px;
-            outline: none; transition: border-color 0.2s;
+            outline: none; transition: border-color 0.2s; resize: none;
+            line-height: 1.5; overflow-y: auto;
         }
         #chat-input:focus { border-color: var(--accent); }
         #chat-input::placeholder { color: var(--text-muted); }
@@ -336,6 +375,15 @@
         }
         #send-btn:hover { background: var(--accent); color: var(--bg-primary); }
         #send-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+        #stop-btn {
+            width: 44px; height: 44px; min-width: 44px;
+            background: rgba(239,83,80,0.1); border: 1px solid var(--red); border-radius: 8px;
+            color: var(--red); font-size: 16px; cursor: pointer;
+            display: none; align-items: center; justify-content: center; transition: all 0.15s;
+        }
+        #stop-btn:hover { background: var(--red); color: var(--bg-primary); }
+        #stop-btn.visible { display: flex; }
 
         .hidden-input { display: none; }
 
@@ -363,6 +411,102 @@
         }
         #toast.error { border-color: var(--red); color: var(--red); }
         #toast.success { border-color: var(--green); color: var(--green); }
+
+        /* --- Settings Panel (Profiles + Sliders) --- */
+        #settings-toggle {
+            display: flex; align-items: center; gap: 6px; cursor: pointer;
+            padding: 4px 10px; border-radius: 5px; border: 1px solid var(--border);
+            background: transparent; transition: all 0.15s; flex-shrink: 0;
+            font-family: var(--font-mono); font-size: 10px; color: var(--text-muted);
+        }
+        #settings-toggle:hover { border-color: var(--border-active); color: var(--text-dim); }
+        #settings-toggle.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+
+        #settings-panel {
+            display: none;
+            background: var(--bg-surface);
+            border-bottom: 1px solid var(--border);
+            padding: 14px 20px;
+            flex-shrink: 0;
+            overflow: hidden;
+        }
+        #settings-panel.visible { display: block; }
+
+        #settings-inner {
+            max-width: 720px;
+            margin: 0 auto;
+        }
+
+        .settings-section-label {
+            font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase;
+            color: var(--text-muted); margin-bottom: 10px; font-family: var(--font-mono);
+            font-weight: 600;
+        }
+
+        /* Profile buttons */
+        .profile-row {
+            display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap;
+        }
+        .profile-btn {
+            padding: 7px 14px; border-radius: 6px; cursor: pointer;
+            font-family: var(--font-body); font-size: 12px; font-weight: 500;
+            border: 1px solid var(--border); background: var(--bg-card);
+            color: var(--text-dim); transition: all 0.15s;
+        }
+        .profile-btn:hover { border-color: var(--border-active); color: var(--text); }
+        .profile-btn.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+
+        /* Sliders */
+        .sliders-toggle {
+            font-size: 10px; color: var(--text-muted); cursor: pointer;
+            font-family: var(--font-mono); margin-bottom: 10px; display: inline-block;
+        }
+        .sliders-toggle:hover { color: var(--text-dim); }
+
+        .sliders-grid {
+            display: none; grid-template-columns: 1fr 1fr; gap: 10px 20px;
+        }
+        .sliders-grid.visible { display: grid; }
+
+        .slider-group {
+            display: flex; flex-direction: column; gap: 4px;
+        }
+        .slider-label {
+            display: flex; justify-content: space-between; align-items: center;
+            font-size: 11px; color: var(--text-dim); font-family: var(--font-mono);
+        }
+        .slider-value {
+            color: var(--accent); font-weight: 600; min-width: 35px; text-align: right;
+        }
+        .slider-group input[type="range"] {
+            -webkit-appearance: none; appearance: none; width: 100%; height: 4px;
+            background: var(--border); border-radius: 2px; outline: none;
+            cursor: pointer;
+        }
+        .slider-group input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none; width: 14px; height: 14px;
+            border-radius: 50%; background: var(--accent); cursor: pointer;
+            border: 2px solid var(--bg-surface);
+        }
+        .slider-group input[type="range"]::-moz-range-thumb {
+            width: 14px; height: 14px; border-radius: 50%;
+            background: var(--accent); cursor: pointer; border: 2px solid var(--bg-surface);
+        }
+
+        .system-prompt-area {
+            margin-top: 10px; grid-column: 1 / -1;
+        }
+        .system-prompt-area textarea {
+            width: 100%; height: 52px; padding: 8px 12px;
+            background: var(--bg-input); border: 1px solid var(--border); border-radius: 6px;
+            color: var(--text); font-family: var(--font-body); font-size: 12px;
+            outline: none; resize: vertical; line-height: 1.5;
+        }
+        .system-prompt-area textarea:focus { border-color: var(--accent); }
+        .system-prompt-area textarea::placeholder { color: var(--text-muted); }
+        .system-prompt-label {
+            font-size: 11px; color: var(--text-dim); font-family: var(--font-mono); margin-bottom: 4px;
+        }
     </style>
 </head>
 <body>
@@ -389,9 +533,58 @@
                         <div class="kb-toggle-dot"></div>
                         <span class="kb-toggle-label">KB</span>
                     </div>
+                    <select id="response-length" title="Response length">
+                        <option value="256">Short</option>
+                        <option value="512">Brief</option>
+                        <option value="1024">Medium</option>
+                        <option value="2048" selected>Long</option>
+                        <option value="4096">Very Long</option>
+                        <option value="-1">Unlimited</option>
+                    </select>
+                    <button id="settings-toggle" title="Model settings">Settings</button>
                     <select id="model-select"><option>Loading...</option></select>
                     <div class="status-dot" id="status-dot"></div>
                     <span class="status-text" id="status-text">connecting...</span>
+                </div>
+            </div>
+
+            <!-- SETTINGS PANEL — collapsible -->
+            <div id="settings-panel">
+                <div id="settings-inner">
+                    <div class="settings-section-label">Profile</div>
+                    <div class="profile-row">
+                        <button class="profile-btn active" data-profile="balanced">Balanced</button>
+                        <button class="profile-btn" data-profile="precise">Precise</button>
+                        <button class="profile-btn" data-profile="creative">Creative</button>
+                        <button class="profile-btn" data-profile="coding">Coding</button>
+                    </div>
+                    <div class="sliders-toggle" id="sliders-toggle">+ Advanced parameters</div>
+                    <div class="sliders-grid" id="sliders-grid">
+                        <div class="slider-group">
+                            <div class="slider-label"><span>Temperature</span><span class="slider-value" id="temp-value">0.7</span></div>
+                            <input type="range" id="slider-temp" min="0" max="2" step="0.05" value="0.7" />
+                        </div>
+                        <div class="slider-group">
+                            <div class="slider-label"><span>Top P</span><span class="slider-value" id="topp-value">0.9</span></div>
+                            <input type="range" id="slider-topp" min="0" max="1" step="0.05" value="0.9" />
+                        </div>
+                        <div class="slider-group">
+                            <div class="slider-label"><span>Top K</span><span class="slider-value" id="topk-value">40</span></div>
+                            <input type="range" id="slider-topk" min="1" max="100" step="1" value="40" />
+                        </div>
+                        <div class="slider-group">
+                            <div class="slider-label"><span>Repeat Penalty</span><span class="slider-value" id="repeat-value">1.1</span></div>
+                            <input type="range" id="slider-repeat" min="1" max="2" step="0.05" value="1.1" />
+                        </div>
+                        <div class="slider-group">
+                            <div class="slider-label"><span>Max Tokens</span><span class="slider-value" id="tokens-value">2048</span></div>
+                            <input type="range" id="slider-tokens" min="128" max="8192" step="128" value="2048" />
+                        </div>
+                        <div class="system-prompt-area">
+                            <div class="system-prompt-label">System Prompt</div>
+                            <textarea id="system-prompt" placeholder="Optional: instruct the model how to behave..."></textarea>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -410,8 +603,9 @@
 
             <div id="input-area">
                 <div id="input-row">
-                    <input type="text" id="chat-input" placeholder="Type a message..." autocomplete="off" />
+                    <textarea id="chat-input" placeholder="Type a message... (Shift+Enter for new line)" autocomplete="off" rows="1"></textarea>
                     <button id="send-btn" title="Send">&#x2191;</button>
+                    <button id="stop-btn" title="Stop generating">&#x25A0;</button>
                 </div>
             </div>
         </div>
@@ -430,6 +624,7 @@
         const messagesEl = document.getElementById("messages");
         const inputEl = document.getElementById("chat-input");
         const sendBtn = document.getElementById("send-btn");
+        const stopBtn = document.getElementById("stop-btn");
         const modelSelect = document.getElementById("model-select");
         const statusDot = document.getElementById("status-dot");
         const statusText = document.getElementById("status-text");
@@ -445,8 +640,161 @@
         let currentSessionId = null;
         let conversationHistory = [];
         let isGenerating = false;
+        let abortController = null;
         let activeSidebarTab = "chats";
         let useKnowledgeBase = false;
+
+        // Settings DOM
+        var settingsToggle = document.getElementById("settings-toggle");
+        var settingsPanel = document.getElementById("settings-panel");
+        var slidersToggle = document.getElementById("sliders-toggle");
+        var slidersGrid = document.getElementById("sliders-grid");
+        var sliderTemp = document.getElementById("slider-temp");
+        var sliderTopP = document.getElementById("slider-topp");
+        var sliderTopK = document.getElementById("slider-topk");
+        var sliderRepeat = document.getElementById("slider-repeat");
+        var sliderTokens = document.getElementById("slider-tokens");
+        var systemPromptEl = document.getElementById("system-prompt");
+
+        // --- Profiles ---
+        var profiles = {
+            balanced: {
+                label: "Balanced",
+                system_prompt: "",
+                temperature: 0.7,
+                top_p: 0.9,
+                top_k: 40,
+                repeat_penalty: 1.1,
+                num_predict: 2048
+            },
+            precise: {
+                label: "Precise",
+                system_prompt: "You are a precise, factual assistant. Be concise and accurate. Avoid speculation. When making factual claims, cite sources if possible. Do not cite sources for creative writing, fiction, or hypothetical scenarios. If unsure, say so.",
+                temperature: 0.2,
+                top_p: 0.8,
+                top_k: 20,
+                repeat_penalty: 1.15,
+                num_predict: 2048
+            },
+            creative: {
+                label: "Creative",
+                system_prompt: "You are a creative and expressive assistant. Think outside the box. Use vivid language, metaphors, and explore ideas freely. Be imaginative and bold. Never cite sources in creative writing — just tell the story or express the idea naturally.",
+                temperature: 0.95,
+                top_p: 0.95,
+                top_k: 60,
+                repeat_penalty: 1.05,
+                num_predict: 4096
+            },
+            coding: {
+                label: "Coding",
+                system_prompt: "You are a technical coding assistant. Write clean, well-commented code. Explain your reasoning step by step. Use best practices. When showing code, always specify the language. Be precise with syntax.",
+                temperature: 0.2,
+                top_p: 0.85,
+                top_k: 30,
+                repeat_penalty: 1.1,
+                num_predict: 4096
+            }
+        };
+        var activeProfile = "balanced";
+
+        function applyProfile(profileName) {
+            var profile = profiles[profileName];
+            if (!profile) return;
+            activeProfile = profileName;
+
+            // Update sliders
+            sliderTemp.value = profile.temperature;
+            sliderTopP.value = profile.top_p;
+            sliderTopK.value = profile.top_k;
+            sliderRepeat.value = profile.repeat_penalty;
+            sliderTokens.value = profile.num_predict;
+            systemPromptEl.value = profile.system_prompt;
+
+            // Update slider value displays
+            document.getElementById("temp-value").textContent = profile.temperature;
+            document.getElementById("topp-value").textContent = profile.top_p;
+            document.getElementById("topk-value").textContent = profile.top_k;
+            document.getElementById("repeat-value").textContent = profile.repeat_penalty;
+            document.getElementById("tokens-value").textContent = profile.num_predict;
+
+            // Sync response length dropdown
+            var options = [256, 512, 1024, 2048, 4096];
+            var closest = options.reduce(function(prev, curr) {
+                return Math.abs(curr - profile.num_predict) < Math.abs(prev - profile.num_predict) ? curr : prev;
+            });
+            responseLengthEl.value = closest;
+
+            // Update profile button states
+            document.querySelectorAll(".profile-btn").forEach(function(btn) {
+                btn.classList.toggle("active", btn.dataset.profile === profileName);
+            });
+
+            showToast("Profile: " + profile.label, "success");
+        }
+
+        var responseLengthEl = document.getElementById("response-length");
+
+        function getModelOptions() {
+            // Response length dropdown overrides the Max Tokens slider
+            var numPredict = parseInt(responseLengthEl.value);
+            return {
+                temperature: parseFloat(sliderTemp.value),
+                top_p: parseFloat(sliderTopP.value),
+                top_k: parseInt(sliderTopK.value),
+                repeat_penalty: parseFloat(sliderRepeat.value),
+                num_predict: numPredict
+            };
+        }
+
+        // Sync response length dropdown with Max Tokens slider
+        responseLengthEl.addEventListener("change", function() {
+            var val = parseInt(this.value);
+            if (val > 0) {
+                sliderTokens.value = val;
+                document.getElementById("tokens-value").textContent = val;
+            }
+        });
+        sliderTokens.addEventListener("input", function() {
+            document.getElementById("tokens-value").textContent = this.value;
+            // Update dropdown to closest match
+            var val = parseInt(this.value);
+            var options = [256, 512, 1024, 2048, 4096];
+            var closest = options.reduce(function(prev, curr) {
+                return Math.abs(curr - val) < Math.abs(prev - val) ? curr : prev;
+            });
+            responseLengthEl.value = closest;
+        });
+
+        function getSystemPrompt() {
+            var val = systemPromptEl.value.trim();
+            return val || null;
+        }
+
+        // Settings panel toggle
+        settingsToggle.addEventListener("click", function() {
+            var visible = settingsPanel.classList.toggle("visible");
+            settingsToggle.classList.toggle("active", visible);
+        });
+
+        // Advanced sliders toggle
+        slidersToggle.addEventListener("click", function() {
+            var visible = slidersGrid.classList.toggle("visible");
+            slidersToggle.textContent = visible ? "- Advanced parameters" : "+ Advanced parameters";
+        });
+
+        // Profile button clicks
+        document.querySelectorAll(".profile-btn").forEach(function(btn) {
+            btn.addEventListener("click", function() {
+                applyProfile(btn.dataset.profile);
+            });
+        });
+
+        // Slider live value updates
+        sliderTemp.addEventListener("input", function() { document.getElementById("temp-value").textContent = this.value; });
+        sliderTopP.addEventListener("input", function() { document.getElementById("topp-value").textContent = this.value; });
+        sliderTopK.addEventListener("input", function() { document.getElementById("topk-value").textContent = this.value; });
+        sliderRepeat.addEventListener("input", function() { document.getElementById("repeat-value").textContent = this.value; });
+        sliderTokens.addEventListener("input", function() { document.getElementById("tokens-value").textContent = this.value; });
 
         // --- Toast notifications (replaces alert popups) ---
 
@@ -845,8 +1193,13 @@
             conversationHistory.push({ role: "user", content: text });
 
             inputEl.value = "";
+            inputEl.style.height = "44px";
             isGenerating = true;
             sendBtn.disabled = true;
+            stopBtn.classList.add("visible");
+
+            // Create abort controller for this request
+            abortController = new AbortController();
 
             var assistantEl = addMessageToUI("assistant", "");
             var contentEl = assistantEl.querySelector(".content");
@@ -855,6 +1208,7 @@
             contentEl.appendChild(cursor);
 
             var fullResponse = "";
+            var wasStopped = false;
 
             try {
                 var res = await fetch(API_BASE + "/chat", {
@@ -865,7 +1219,10 @@
                         messages: conversationHistory,
                         stream: true,
                         use_knowledge_base: useKnowledgeBase,
+                        system_prompt: getSystemPrompt(),
+                        options: getModelOptions(),
                     }),
+                    signal: abortController.signal,
                 });
 
                 var reader = res.body.getReader();
@@ -895,15 +1252,23 @@
                     }
                 }
             } catch (e) {
-                fullResponse = "[Error: Could not reach the backend. Is it running?]";
-                contentEl.textContent = fullResponse;
+                if (e.name === "AbortError") {
+                    wasStopped = true;
+                    showToast("Generation stopped", "");
+                } else {
+                    fullResponse = "[Error: Could not reach the backend. Is it running?]";
+                    contentEl.textContent = fullResponse;
+                }
             }
 
             var cursorEl = contentEl.querySelector(".cursor");
             if (cursorEl) cursorEl.remove();
 
-            conversationHistory.push({ role: "assistant", content: fullResponse });
-            await saveCurrentSession();
+            // Save whatever was generated, even if stopped early
+            if (fullResponse) {
+                conversationHistory.push({ role: "assistant", content: fullResponse });
+                await saveCurrentSession();
+            }
 
             if (sessionTitleEl.textContent === "New Chat" && conversationHistory.length >= 2) {
                 var firstMsg = null;
@@ -921,13 +1286,24 @@
             }
 
             isGenerating = false;
+            abortController = null;
             sendBtn.disabled = false;
+            stopBtn.classList.remove("visible");
             inputEl.focus();
+        }
+
+        function stopGenerating() {
+            if (abortController) {
+                abortController.abort();
+            }
         }
 
         // --- UI Helpers ---
 
         function addMessageToUI(role, text) {
+            var wrapper = document.createElement("div");
+            wrapper.className = "message-wrapper";
+
             var msg = document.createElement("div");
             msg.className = "message " + role;
 
@@ -943,7 +1319,34 @@
 
             msg.appendChild(avatar);
             msg.appendChild(content);
-            messagesEl.appendChild(msg);
+            wrapper.appendChild(msg);
+
+            // Add copy button for user and assistant messages
+            if (role === "user" || role === "assistant") {
+                var actions = document.createElement("div");
+                actions.className = "message-actions";
+
+                var copyBtn = document.createElement("button");
+                copyBtn.className = "copy-btn";
+                copyBtn.textContent = "Copy";
+                copyBtn.onclick = function(e) {
+                    e.stopPropagation();
+                    var textToCopy = content.textContent;
+                    navigator.clipboard.writeText(textToCopy).then(function() {
+                        copyBtn.textContent = "Copied";
+                        copyBtn.classList.add("copied");
+                        setTimeout(function() {
+                            copyBtn.textContent = "Copy";
+                            copyBtn.classList.remove("copied");
+                        }, 1500);
+                    });
+                };
+
+                actions.appendChild(copyBtn);
+                wrapper.appendChild(actions);
+            }
+
+            messagesEl.appendChild(wrapper);
             messagesEl.scrollTop = messagesEl.scrollHeight;
             return msg;
         }
@@ -951,11 +1354,18 @@
         // --- Event Listeners ---
 
         sendBtn.addEventListener("click", sendMessage);
+        stopBtn.addEventListener("click", stopGenerating);
         inputEl.addEventListener("keydown", function(e) {
             if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
                 sendMessage();
             }
+        });
+
+        // Auto-resize textarea as you type
+        inputEl.addEventListener("input", function() {
+            this.style.height = "44px";
+            this.style.height = Math.min(this.scrollHeight, 120) + "px";
         });
         newChatBtn.addEventListener("click", createNewSession);
 

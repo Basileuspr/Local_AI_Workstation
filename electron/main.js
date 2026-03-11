@@ -11,7 +11,7 @@
  * It does NOT do any AI logic. That's Python's job.
  */
 
-const { app, BrowserWindow, Tray, Menu, nativeImage } = require("electron");
+const { app, BrowserWindow, Tray, Menu, nativeImage, shell } = require("electron");
 const path = require("path");
 const { spawn } = require("child_process");
 const http = require("http");
@@ -156,6 +156,24 @@ function createWindow() {
 
     // Load the frontend
     mainWindow.loadFile(CONFIG.frontendPath);
+
+    // Enable right-click context menu
+    mainWindow.webContents.on("context-menu", (event, params) => {
+        const contextMenu = Menu.buildFromTemplate([
+            { label: "Cut", role: "cut", enabled: params.editFlags.canCut },
+            { label: "Copy", role: "copy", enabled: params.editFlags.canCopy },
+            { label: "Paste", role: "paste", enabled: params.editFlags.canPaste },
+            { label: "Select All", role: "selectAll" },
+            { type: "separator" },
+            {
+                label: "Inspect Element",
+                click: () => {
+                    mainWindow.webContents.inspectElement(params.x, params.y);
+                },
+            },
+        ]);
+        contextMenu.popup();
+    });
 
     // Show window when content is ready (prevents white flash)
     mainWindow.once("ready-to-show", () => {
