@@ -1,0 +1,15 @@
+FROM hf.co/mradermacher/OpenAI-gpt-oss-20B-Claude-4.5-Opus-Heretic-Uncensored-i1-GGUF:Q4_K_M
+PARAMETER temperature 0.7
+PARAMETER num_predict 512
+PARAMETER num_gpu 20
+PARAMETER stop <|return|>
+TEMPLATE """<|start|>system<|message|>You are ChatGPT, a large language model trained by OpenAI.
+# Valid channels: analysis, final.<|end|>
+{{- range .Messages }}
+{{- if eq .Role "user" }}
+<|start|>user<|message|>{{ .Content }}<|end|>
+{{- else if eq .Role "assistant" }}
+<|start|>assistant<|channel|>final<|message|>{{ .Content }}<|end|>
+{{- end }}
+{{- end }}
+<|start|>assistant"""

@@ -1,0 +1,377 @@
+ Modelfile-heretic                                  |     15 [32m+[m
+ backend/main.py                                    |      4 [32m+[m[31m-[m
+ backend/routes/__pycache__/export.cpython-313.pyc  |    Bin [31m0[m -> [32m5896[m bytes
+ backend/routes/export.py                           |    120 [32m+[m
+ data/knowledge_base/chroma.sqlite3                 |    Bin [31m0[m -> [32m3633152[m bytes
+ .../data_level0.bin                                |    Bin [31m0[m -> [32m1744116[m bytes
+ .../header.bin                                     |    Bin [31m0[m -> [32m100[m bytes
+ .../index_metadata.pickle                          |    Bin [31m0[m -> [32m4758[m bytes
+ .../length.bin                                     |    Bin [31m0[m -> [32m2172[m bytes
+ .../link_lists.bin                                 |    Bin [31m0[m -> [32m4416[m bytes
+ data/sessions/b3c72ffc.json                        |      8 [32m+[m
+ frontend/index.html                                |     68 [32m+[m[31m-[m
+ node_modules/.bin/electron                         |     16 [32m+[m
+ node_modules/.bin/electron.cmd                     |     17 [32m+[m
+ node_modules/.bin/electron.ps1                     |     28 [32m+[m
+ node_modules/.bin/extract-zip                      |     16 [32m+[m
+ node_modules/.bin/extract-zip.cmd                  |     17 [32m+[m
+ node_modules/.bin/extract-zip.ps1                  |     28 [32m+[m
+ node_modules/.bin/semver                           |     16 [32m+[m
+ node_modules/.bin/semver.cmd                       |     17 [32m+[m
+ node_modules/.bin/semver.ps1                       |     28 [32m+[m
+ node_modules/.package-lock.json                    |    864 [32m+[m
+ node_modules/@electron/get/LICENSE                 |     21 [32m+[m
+ node_modules/@electron/get/README.md               |    138 [32m+[m
+ node_modules/@electron/get/dist/cjs/Cache.d.ts     |      8 [32m+[m
+ node_modules/@electron/get/dist/cjs/Cache.js       |     60 [32m+[m
+ node_modules/@electron/get/dist/cjs/Cache.js.map   |      1 [32m+[m
+ .../@electron/get/dist/cjs/Downloader.d.ts         |      3 [32m+[m
+ node_modules/@electron/get/dist/cjs/Downloader.js  |      3 [32m+[m
+ .../@electron/get/dist/cjs/Downloader.js.map       |      1 [32m+[m
+ .../@electron/get/dist/cjs/GotDownloader.d.ts      |     21 [32m+[m
+ .../@electron/get/dist/cjs/GotDownloader.js        |     76 [32m+[m
+ .../@electron/get/dist/cjs/GotDownloader.js.map    |      1 [32m+[m
+ .../@electron/get/dist/cjs/artifact-utils.d.ts     |      4 [32m+[m
+ .../@electron/get/dist/cjs/artifact-utils.js       |     66 [32m+[m
+ .../@electron/get/dist/cjs/artifact-utils.js.map   |      1 [32m+[m
+ .../get/dist/cjs/downloader-resolver.d.ts          |      3 [32m+[m
+ .../@electron/get/dist/cjs/downloader-resolver.js  |     12 [32m+[m
+ .../get/dist/cjs/downloader-resolver.js.map        |      1 [32m+[m
+ node_modules/@electron/get/dist/cjs/index.d.ts     |     18 [32m+[m
+ node_modules/@electron/get/dist/cjs/index.js       |    140 [32m+[m
+ node_modules/@electron/get/dist/cjs/index.js.map   |      1 [32m+[m
+ node_modules/@electron/get/dist/cjs/proxy.d.ts     |      4 [32m+[m
+ node_modules/@electron/get/dist/cjs/proxy.js       |     27 [32m+[m
+ node_modules/@electron/get/dist/cjs/proxy.js.map   |      1 [32m+[m
+ node_modules/@electron/get/dist/cjs/types.d.ts     |    129 [32m+[m
+ node_modules/@electron/get/dist/cjs/types.js       |      3 [32m+[m
+ node_modules/@electron/get/dist/cjs/types.js.map   |      1 [32m+[m
+ node_modules/@electron/get/dist/cjs/utils.d.ts     |     25 [32m+[m
+ node_modules/@electron/get/dist/cjs/utils.js       |    107 [32m+[m
+ node_modules/@electron/get/dist/cjs/utils.js.map   |      1 [32m+[m
+ node_modules/@electron/get/dist/esm/Cache.d.ts     |      8 [32m+[m
+ node_modules/@electron/get/dist/esm/Cache.js       |     57 [32m+[m
+ node_modules/@electron/get/dist/esm/Cache.js.map   |      1 [32m+[m
+ .../@electron/get/dist/esm/Downloader.d.ts         |      3 [32m+[m
+ node_modules/@electron/get/dist/esm/Downloader.js  |      1 [32m+[m
+ .../@electron/get/dist/esm/Downloader.js.map       |      1 [32m+[m
+ .../@electron/get/dist/esm/GotDownloader.d.ts      |     21 [32m+[m
+ .../@electron/get/dist/esm/GotDownloader.js        |     73 [32m+[m
+ .../@electron/get/dist/esm/GotDownloader.js.map    |      1 [32m+[m
+ .../@electron/get/dist/esm/artifact-utils.d.ts     |      4 [32m+[m
+ .../@electron/get/dist/esm/artifact-utils.js       |     61 [32m+[m
+ .../@electron/get/dist/esm/artifact-utils.js.map   |      1 [32m+[m
+ .../get/dist/esm/downloader-resolver.d.ts          |      3 [32m+[m
+ .../@electron/get/dist/esm/downloader-resolver.js  |      9 [32m+[m
+ .../get/dist/esm/downloader-resolver.js.map        |      1 [32m+[m
+ node_modules/@electron/get/dist/esm/index.d.ts     |     18 [32m+[m
+ node_modules/@electron/get/dist/esm/index.js       |    134 [32m+[m
+ node_modules/@electron/get/dist/esm/index.js.map   |      1 [32m+[m
+ node_modules/@electron/get/dist/esm/proxy.d.ts     |      4 [32m+[m
+ node_modules/@electron/get/dist/esm/proxy.js       |     24 [32m+[m
+ node_modules/@electron/get/dist/esm/proxy.js.map   |      1 [32m+[m
+ node_modules/@electron/get/dist/esm/types.d.ts     |    129 [32m+[m
+ node_modules/@electron/get/dist/esm/types.js       |      1 [32m+[m
+ node_modules/@electron/get/dist/esm/types.js.map   |      1 [32m+[m
+ node_modules/@electron/get/dist/esm/utils.d.ts     |     25 [32m+[m
+ node_modules/@electron/get/dist/esm/utils.js       |     95 [32m+[m
+ node_modules/@electron/get/dist/esm/utils.js.map   |      1 [32m+[m
+ node_modules/@electron/get/package.json            |    100 [32m+[m
+ node_modules/@sindresorhus/is/dist/index.d.ts      |    232 [32m+[m
+ node_modules/@sindresorhus/is/dist/index.js        |    434 [32m+[m
+ node_modules/@sindresorhus/is/dist/types.d.ts      |     25 [32m+[m
+ node_modules/@sindresorhus/is/dist/types.js        |      3 [32m+[m
+ node_modules/@sindresorhus/is/license              |      9 [32m+[m
+ node_modules/@sindresorhus/is/package.json         |     96 [32m+[m
+ node_modules/@sindresorhus/is/readme.md            |    669 [32m+[m
+ node_modules/@szmarczak/http-timer/LICENSE         |     21 [32m+[m
+ node_modules/@szmarczak/http-timer/README.md       |     93 [32m+[m
+ .../@szmarczak/http-timer/dist/source/index.d.ts   |     32 [32m+[m
+ .../@szmarczak/http-timer/dist/source/index.js     |    126 [32m+[m
+ node_modules/@szmarczak/http-timer/package.json    |     72 [32m+[m
+ node_modules/@types/cacheable-request/LICENSE      |     21 [32m+[m
+ node_modules/@types/cacheable-request/README.md    |     16 [32m+[m
+ node_modules/@types/cacheable-request/index.d.ts   |    137 [32m+[m
+ node_modules/@types/cacheable-request/package.json |     35 [32m+[m
+ node_modules/@types/http-cache-semantics/LICENSE   |     21 [32m+[m
+ node_modules/@types/http-cache-semantics/README.md |     15 [32m+[m
+ .../@types/http-cache-semantics/index.d.ts         |    251 [32m+[m
+ .../@types/http-cache-semantics/package.json       |     26 [32m+[m
+ node_modules/@types/keyv/LICENSE                   |     21 [32m+[m
+ node_modules/@types/keyv/README.md                 |     16 [32m+[m
+ node_modules/@types/keyv/index.d.ts                |     90 [32m+[m
+ node_modules/@types/keyv/package.json              |     32 [32m+[m
+ node_modules/@types/node/LICENSE                   |     21 [32m+[m
+ node_modules/@types/node/README.md                 |     15 [32m+[m
+ node_modules/@types/node/assert.d.ts               |   1115 [32m+[m
+ node_modules/@types/node/assert/strict.d.ts        |    111 [32m+[m
+ node_modules/@types/node/async_hooks.d.ts          |    623 [32m+[m
+ node_modules/@types/node/buffer.buffer.d.ts        |    472 [32m+[m
+ node_modules/@types/node/buffer.d.ts               |   1934 [32m+[m
+ node_modules/@types/node/child_process.d.ts        |   1476 [32m+[m
+ node_modules/@types/node/cluster.d.ts              |    578 [32m+[m
+ .../@types/node/compatibility/iterators.d.ts       |     21 [32m+[m
+ node_modules/@types/node/console.d.ts              |    453 [32m+[m
+ node_modules/@types/node/constants.d.ts            |     21 [32m+[m
+ node_modules/@types/node/crypto.d.ts               |   5417 [32m+[m
+ node_modules/@types/node/dgram.d.ts                |    600 [32m+[m
+ node_modules/@types/node/diagnostics_channel.d.ts  |    576 [32m+[m
+ node_modules/@types/node/dns.d.ts                  |    923 [32m+[m
+ node_modules/@types/node/dns/promises.d.ts         |    503 [32m+[m
+ node_modules/@types/node/domain.d.ts               |    170 [32m+[m
+ node_modules/@types/node/events.d.ts               |    976 [32m+[m
+ node_modules/@types/node/fs.d.ts                   |   4714 [32m+[m
+ node_modules/@types/node/fs/promises.d.ts          |   1330 [32m+[m
+ node_modules/@types/node/globals.d.ts              |    170 [32m+[m
+ node_modules/@types/node/globals.typedarray.d.ts   |     41 [32m+[m
+ node_modules/@types/node/http.d.ts                 |   2134 [32m+[m
+ node_modules/@types/node/http2.d.ts                |   2756 [32m+[m
+ node_modules/@types/node/https.d.ts                |    579 [32m+[m
+ node_modules/@types/node/index.d.ts                |    101 [32m+[m
+ node_modules/@types/node/inspector.d.ts            |    277 [32m+[m
+ node_modules/@types/node/inspector.generated.d.ts  |   4246 [32m+[m
+ node_modules/@types/node/module.d.ts               |    894 [32m+[m
+ node_modules/@types/node/net.d.ts                  |   1054 [32m+[m
+ node_modules/@types/node/os.d.ts                   |    507 [32m+[m
+ node_modules/@types/node/package.json              |    155 [32m+[m
+ node_modules/@types/node/path.d.ts                 |    200 [32m+[m
+ node_modules/@types/node/perf_hooks.d.ts           |    982 [32m+[m
+ node_modules/@types/node/process.d.ts              |   2083 [32m+[m
+ node_modules/@types/node/punycode.d.ts             |    117 [32m+[m
+ node_modules/@types/node/querystring.d.ts          |    152 [32m+[m
+ node_modules/@types/node/readline.d.ts             |    594 [32m+[m
+ node_modules/@types/node/readline/promises.d.ts    |    161 [32m+[m
+ node_modules/@types/node/repl.d.ts                 |    438 [32m+[m
+ node_modules/@types/node/sea.d.ts                  |    162 [32m+[m
+ node_modules/@types/node/sqlite.d.ts               |    935 [32m+[m
+ node_modules/@types/node/stream.d.ts               |   1683 [32m+[m
+ node_modules/@types/node/stream/consumers.d.ts     |     38 [32m+[m
+ node_modules/@types/node/stream/promises.d.ts      |     90 [32m+[m
+ node_modules/@types/node/stream/web.d.ts           |    573 [32m+[m
+ node_modules/@types/node/string_decoder.d.ts       |     67 [32m+[m
+ node_modules/@types/node/test.d.ts                 |   2340 [32m+[m
+ node_modules/@types/node/timers.d.ts               |    285 [32m+[m
+ node_modules/@types/node/timers/promises.d.ts      |    108 [32m+[m
+ node_modules/@types/node/tls.d.ts                  |   1273 [32m+[m
+ node_modules/@types/node/trace_events.d.ts         |    197 [32m+[m
+ node_modules/@types/node/ts5.6/buffer.buffer.d.ts  |    468 [32m+[m
+ .../node/ts5.6/compatibility/float16array.d.ts     |     71 [32m+[m
+ .../@types/node/ts5.6/globals.typedarray.d.ts      |     36 [32m+[m
+ node_modules/@types/node/ts5.6/index.d.ts          |    103 [32m+[m
+ .../node/ts5.7/compatibility/float16array.d.ts     |     72 [32m+[m
+ node_modules/@types/node/ts5.7/index.d.ts          |    103 [32m+[m
+ node_modules/@types/node/tty.d.ts                  |    208 [32m+[m
+ node_modules/@types/node/url.d.ts                  |   1057 [32m+[m
+ node_modules/@types/node/util.d.ts                 |   2325 [32m+[m
+ node_modules/@types/node/v8.d.ts                   |    952 [32m+[m
+ node_modules/@types/node/vm.d.ts                   |   1195 [32m+[m
+ node_modules/@types/node/wasi.d.ts                 |    202 [32m+[m
+ .../@types/node/web-globals/abortcontroller.d.ts   |     34 [32m+[m
+ node_modules/@types/node/web-globals/crypto.d.ts   |     32 [32m+[m
+ .../@types/node/web-globals/domexception.d.ts      |     68 [32m+[m
+ node_modules/@types/node/web-globals/events.d.ts   |     97 [32m+[m
+ node_modules/@types/node/web-globals/fetch.d.ts    |     62 [32m+[m
+ .../@types/node/web-globals/navigator.d.ts         |     25 [32m+[m
+ node_modules/@types/node/web-globals/storage.d.ts  |     24 [32m+[m
+ node_modules/@types/node/web-globals/streams.d.ts  |     22 [32m+[m
+ node_modules/@types/node/worker_threads.d.ts       |    896 [32m+[m
+ node_modules/@types/node/zlib.d.ts                 |    681 [32m+[m
+ node_modules/@types/responselike/LICENSE           |     21 [32m+[m
+ node_modules/@types/responselike/README.md         |     48 [32m+[m
+ node_modules/@types/responselike/index.d.ts        |     29 [32m+[m
+ node_modules/@types/responselike/package.json      |     27 [32m+[m
+ node_modules/@types/yauzl/LICENSE                  |     21 [32m+[m
+ node_modules/@types/yauzl/README.md                |     15 [32m+[m
+ node_modules/@types/yauzl/index.d.ts               |    110 [32m+[m
+ node_modules/@types/yauzl/package.json             |     27 [32m+[m
+ node_modules/boolean/.eslintrc.json                |      3 [32m+[m
+ node_modules/boolean/.npmpackagejsonlintrc.json    |      3 [32m+[m
+ node_modules/boolean/.releaserc.json               |      3 [32m+[m
+ node_modules/boolean/CHANGELOG.md                  |     70 [32m+[m
+ node_modules/boolean/LICENSE.txt                   |      8 [32m+[m
+ node_modules/boolean/README.md                     |     95 [32m+[m
+ node_modules/boolean/build/lib/boolean.d.ts        |      2 [32m+[m
+ node_modules/boolean/build/lib/boolean.js          |     16 [32m+[m
+ node_modules/boolean/build/lib/index.d.ts          |      3 [32m+[m
+ node_modules/boolean/build/lib/index.js            |      7 [32m+[m
+ node_modules/boolean/build/lib/isBooleanable.d.ts  |      2 [32m+[m
+ node_modules/boolean/build/lib/isBooleanable.js    |     19 [32m+[m
+ node_modules/boolean/lib/boolean.ts                |     17 [32m+[m
+ node_modules/boolean/lib/index.ts                  |      4 [32m+[m
+ node_modules/boolean/lib/isBooleanable.ts          |     20 [32m+[m
+ node_modules/boolean/licenseCheck.json             |     16 [32m+[m
+ node_modules/boolean/package.json                  |     46 [32m+[m
+ node_modules/boolean/tsconfig.json                 |     19 [32m+[m
+ node_modules/buffer-crc32/LICENSE                  |     19 [32m+[m
+ node_modules/buffer-crc32/README.md                |     47 [32m+[m
+ node_modules/buffer-crc32/index.js                 |    111 [32m+[m
+ node_modules/buffer-crc32/package.json             |     39 [32m+[m
+ node_modules/cacheable-lookup/LICENSE              |     21 [32m+[m
+ node_modules/cacheable-lookup/README.md            |    240 [32m+[m
+ node_modules/cacheable-lookup/index.d.ts           |    139 [32m+[m
+ node_modules/cacheable-lookup/package.json         |     45 [32m+[m
+ node_modules/cacheable-lookup/source/index.js      |    436 [32m+[m
+ node_modules/cacheable-request/LICENSE             |     21 [32m+[m
+ node_modules/cacheable-request/README.md           |    206 [32m+[m
+ node_modules/cacheable-request/package.json        |     56 [32m+[m
+ node_modules/cacheable-request/src/index.js        |    251 [32m+[m
+ node_modules/clone-response/LICENSE                |     21 [32m+[m
+ node_modules/clone-response/README.md              |     62 [32m+[m
+ node_modules/clone-response/package.json           |     41 [32m+[m
+ node_modules/clone-response/src/index.js           |     17 [32m+[m
+ node_modules/debug/LICENSE                         |     20 [32m+[m
+ node_modules/debug/README.md                       |    481 [32m+[m
+ node_modules/debug/package.json                    |     64 [32m+[m
+ node_modules/debug/src/browser.js                  |    272 [32m+[m
+ node_modules/debug/src/common.js                   |    292 [32m+[m
+ node_modules/debug/src/index.js                    |     10 [32m+[m
+ node_modules/debug/src/node.js                     |    263 [32m+[m
+ node_modules/decompress-response/index.d.ts        |     22 [32m+[m
+ node_modules/decompress-response/index.js          |     58 [32m+[m
+ node_modules/decompress-response/license           |      9 [32m+[m
+ .../node_modules/mimic-response/index.d.ts         |     17 [32m+[m
+ .../node_modules/mimic-response/index.js           |     77 [32m+[m
+ .../node_modules/mimic-response/license            |      9 [32m+[m
+ .../node_modules/mimic-response/package.json       |     42 [32m+[m
+ .../node_modules/mimic-response/readme.md          |     78 [32m+[m
+ node_modules/decompress-response/package.json      |     56 [32m+[m
+ node_modules/decompress-response/readme.md         |     48 [32m+[m
+ node_modules/defer-to-connect/LICENSE              |     21 [32m+[m
+ node_modules/defer-to-connect/README.md            |     38 [32m+[m
+ .../defer-to-connect/dist/source/index.d.ts        |     10 [32m+[m
+ node_modules/defer-to-connect/dist/source/index.js |     47 [32m+[m
+ node_modules/defer-to-connect/package.json         |     71 [32m+[m
+ node_modules/define-data-property/.eslintrc        |     24 [32m+[m
+ .../define-data-property/.github/FUNDING.yml       |     12 [32m+[m
+ node_modules/define-data-property/.nycrc           |     13 [32m+[m
+ node_modules/define-data-property/CHANGELOG.md     |     70 [32m+[m
+ node_modules/define-data-property/LICENSE          |     21 [32m+[m
+ node_modules/define-data-property/README.md        |     67 [32m+[m
+ node_modules/define-data-property/index.d.ts       |     12 [32m+[m
+ node_modules/define-data-property/index.js         |     56 [32m+[m
+ node_modules/define-data-property/package.json     |    106 [32m+[m
+ node_modules/define-data-property/test/index.js    |    392 [32m+[m
+ node_modules/define-data-property/tsconfig.json    |     59 [32m+[m
+ node_modules/define-properties/.editorconfig       |     13 [32m+[m
+ node_modules/define-properties/.eslintrc           |     19 [32m+[m
+ node_modules/define-properties/.github/FUNDING.yml |     12 [32m+[m
+ node_modules/define-properties/.nycrc              |      9 [32m+[m
+ node_modules/define-properties/CHANGELOG.md        |     91 [32m+[m
+ node_modules/define-properties/LICENSE             |     21 [32m+[m
+ node_modules/define-properties/README.md           |     84 [32m+[m
+ node_modules/define-properties/index.js            |     47 [32m+[m
+ node_modules/define-properties/package.json        |     88 [32m+[m
+ node_modules/detect-node/LICENSE                   |     21 [32m+[m
+ node_modules/detect-node/Readme.md                 |     30 [32m+[m
+ node_modules/detect-node/browser.js                |      2 [32m+[m
+ node_modules/detect-node/index.esm.js              |      2 [32m+[m
+ node_modules/detect-node/index.js                  |      2 [32m+[m
+ node_modules/detect-node/package.json              |     25 [32m+[m
+ node_modules/electron/LICENSE                      |     21 [32m+[m
+ node_modules/electron/README.md                    |    102 [32m+[m
+ node_modules/electron/abi_version                  |      1 [32m+[m
+ node_modules/electron/checksums.json               |     77 [32m+[m
+ node_modules/electron/cli.js                       |     28 [32m+[m
+ node_modules/electron/dist/LICENSE                 |     21 [32m+[m
+ node_modules/electron/dist/LICENSES.chromium.html  | 281310 [32m++++++++++++++++++[m
+ node_modules/electron/dist/chrome_100_percent.pak  |    Bin [31m0[m -> [32m114781[m bytes
+ node_modules/electron/dist/chrome_200_percent.pak  |    Bin [31m0[m -> [32m186658[m bytes
+ node_modules/electron/dist/d3dcompiler_47.dll      |    Bin [31m0[m -> [32m4741480[m bytes
+ node_modules/electron/dist/dxcompiler.dll          |    Bin [31m0[m -> [32m25619968[m bytes
+ node_modules/electron/dist/dxil.dll                |    Bin [31m0[m -> [32m1503600[m bytes
+ node_modules/electron/dist/electron.exe            |    Bin [31m0[m -> [32m213869056[m bytes
+ node_modules/electron/dist/ffmpeg.dll              |    Bin [31m0[m -> [32m3086848[m bytes
+ node_modules/electron/dist/icudtl.dat              |    Bin [31m0[m -> [32m10822192[m bytes
+ node_modules/electron/dist/libEGL.dll              |    Bin [31m0[m -> [32m512512[m bytes
+ node_modules/electron/dist/libGLESv2.dll           |    Bin [31m0[m -> [32m8010240[m bytes
+ node_modules/electron/dist/locales/af.pak          |    Bin [31m0[m -> [32m596607[m bytes
+ node_modules/electron/dist/locales/am.pak          |    Bin [31m0[m -> [32m969188[m bytes
+ node_modules/electron/dist/locales/ar.pak          |    Bin [31m0[m -> [32m1072290[m bytes
+ node_modules/electron/dist/locales/bg.pak          |    Bin [31m0[m -> [32m1105607[m bytes
+ node_modules/electron/dist/locales/bn.pak          |    Bin [31m0[m -> [32m1426968[m bytes
+ node_modules/electron/dist/locales/ca.pak          |    Bin [31m0[m -> [32m672659[m bytes
+ node_modules/electron/dist/locales/cs.pak          |    Bin [31m0[m -> [32m698954[m bytes
+ node_modules/electron/dist/locales/da.pak          |    Bin [31m0[m -> [32m628594[m bytes
+ node_modules/electron/dist/locales/de.pak          |    Bin [31m0[m -> [32m673735[m bytes
+ node_modules/electron/dist/locales/el.pak          |    Bin [31m0[m -> [32m1216545[m bytes
+ node_modules/electron/dist/locales/en-GB.pak       |    Bin [31m0[m -> [32m543897[m bytes
+ node_modules/electron/dist/locales/en-US.pak       |    Bin [31m0[m -> [32m550193[m bytes
+ node_modules/electron/dist/locales/es-419.pak      |    Bin [31m0[m -> [32m663039[m bytes
+ node_modules/electron/dist/locales/es.pak          |    Bin [31m0[m -> [32m660249[m bytes
+ node_modules/electron/dist/locales/et.pak          |    Bin [31m0[m -> [32m602773[m bytes
+ node_modules/electron/dist/locales/fa.pak          |    Bin [31m0[m -> [32m998667[m bytes
+ node_modules/electron/dist/locales/fi.pak          |    Bin [31m0[m -> [32m613518[m bytes
+ node_modules/electron/dist/locales/fil.pak         |    Bin [31m0[m -> [32m697137[m bytes
+ node_modules/electron/dist/locales/fr.pak          |    Bin [31m0[m -> [32m717708[m bytes
+ node_modules/electron/dist/locales/gu.pak          |    Bin [31m0[m -> [32m1408655[m bytes
+ node_modules/electron/dist/locales/he.pak          |    Bin [31m0[m -> [32m874753[m bytes
+ node_modules/electron/dist/locales/hi.pak          |    Bin [31m0[m -> [32m1491335[m bytes
+ node_modules/electron/dist/locales/hr.pak          |    Bin [31m0[m -> [32m672886[m bytes
+ node_modules/electron/dist/locales/hu.pak          |    Bin [31m0[m -> [32m719633[m bytes
+ node_modules/electron/dist/locales/id.pak          |    Bin [31m0[m -> [32m594046[m bytes
+ node_modules/electron/dist/locales/it.pak          |    Bin [31m0[m -> [32m651222[m bytes
+ node_modules/electron/dist/locales/ja.pak          |    Bin [31m0[m -> [32m792848[m bytes
+ node_modules/electron/dist/locales/kn.pak          |    Bin [31m0[m -> [32m1615323[m bytes
+ node_modules/electron/dist/locales/ko.pak          |    Bin [31m0[m -> [32m672972[m bytes
+ node_modules/electron/dist/locales/lt.pak          |    Bin [31m0[m -> [32m731816[m bytes
+ node_modules/electron/dist/locales/lv.pak          |    Bin [31m0[m -> [32m728832[m bytes
+ node_modules/electron/dist/locales/ml.pak          |    Bin [31m0[m -> [32m1666333[m bytes
+ node_modules/electron/dist/locales/mr.pak          |    Bin [31m0[m -> [32m1378315[m bytes
+ node_modules/electron/dist/locales/ms.pak          |    Bin [31m0[m -> [32m625550[m bytes
+ node_modules/electron/dist/locales/nb.pak          |    Bin [31m0[m -> [32m600651[m bytes
+ node_modules/electron/dist/locales/nl.pak          |    Bin [31m0[m -> [32m625155[m bytes
+ node_modules/electron/dist/locales/pl.pak          |    Bin [31m0[m -> [32m698421[m bytes
+ node_modules/electron/dist/locales/pt-BR.pak       |    Bin [31m0[m -> [32m654029[m bytes
+ node_modules/electron/dist/locales/pt-PT.pak       |    Bin [31m0[m -> [32m657293[m bytes
+ node_modules/electron/dist/locales/ro.pak          |    Bin [31m0[m -> [32m681997[m bytes
+ node_modules/electron/dist/locales/ru.pak          |    Bin [31m0[m -> [32m1132764[m bytes
+ node_modules/electron/dist/locales/sk.pak          |    Bin [31m0[m -> [32m710307[m bytes
+ node_modules/electron/dist/locales/sl.pak          |    Bin [31m0[m -> [32m680528[m bytes
+ node_modules/electron/dist/locales/sr.pak          |    Bin [31m0[m -> [32m1046634[m bytes
+ node_modules/electron/dist/locales/sv.pak          |    Bin [31m0[m -> [32m606558[m bytes
+ node_modules/electron/dist/locales/sw.pak          |    Bin [31m0[m -> [32m641444[m bytes
+ node_modules/electron/dist/locales/ta.pak          |    Bin [31m0[m -> [32m1657455[m bytes
+ node_modules/electron/dist/locales/te.pak          |    Bin [31m0[m -> [32m1532014[m bytes
+ node_modules/electron/dist/locales/th.pak          |    Bin [31m0[m -> [32m1286246[m bytes
+ node_modules/electron/dist/locales/tr.pak          |    Bin [31m0[m -> [32m653333[m bytes
+ node_modules/electron/dist/locales/uk.pak          |    Bin [31m0[m -> [32m1139851[m bytes
+ node_modules/electron/dist/locales/ur.pak          |    Bin [31m0[m -> [32m983549[m bytes
+ node_modules/electron/dist/locales/vi.pak          |    Bin [31m0[m -> [32m775577[m bytes
+ node_modules/electron/dist/locales/zh-CN.pak       |    Bin [31m0[m -> [32m556028[m bytes
+ node_modules/electron/dist/locales/zh-TW.pak       |    Bin [31m0[m -> [32m549406[m bytes
+ node_modules/electron/dist/resources.pak           |    Bin [31m0[m -> [32m6432209[m bytes
+ .../electron/dist/resources/default_app.asar       |    Bin [31m0[m -> [32m109371[m bytes
+ node_modules/electron/dist/snapshot_blob.bin       |    Bin [31m0[m -> [32m339863[m bytes
+ node_modules/electron/dist/v8_context_snapshot.bin |    Bin [31m0[m -> [32m713034[m bytes
+ node_modules/electron/dist/version                 |      1 [32m+[m
+ node_modules/electron/dist/vk_swiftshader.dll      |    Bin [31m0[m -> [32m5628928[m bytes
+ node_modules/electron/dist/vk_swiftshader_icd.json |      1 [32m+[m
+ node_modules/electron/dist/vulkan-1.dll            |    Bin [31m0[m -> [32m957440[m bytes
+ node_modules/electron/electron.d.ts                |  26211 [32m++[m
+ node_modules/electron/index.js                     |     21 [32m+[m
+ node_modules/electron/install.js                   |    109 [32m+[m
+ node_modules/electron/package.json                 |     27 [32m+[m
+ node_modules/electron/path.txt                     |      1 [32m+[m
+ node_modules/end-of-stream/LICENSE                 |     21 [32m+[m
+ node_modules/end-of-stream/README.md               |     54 [32m+[m
+ node_modules/end-of-stream/index.js                |     96 [32m+[m
+ node_modules/end-of-stream/package.json            |     37 [32m+[m
+ node_modules/env-paths/index.d.ts                  |    101 [32m+[m
+ node_modules/env-paths/index.js                    |     74 [32m+[m
+ node_modules/env-paths/license                     |      9 [32m+[m
+ node_modules/env-paths/package.json                |     45 [32m+[m
+ node_modules/env-paths/readme.md                   |    115 [32m+[m
+ node_modules/es-define-property/.eslintrc          |     13 [32m+[m
+ .../es-define-property/.github/FUNDING.yml         |     12 [32m+[m
+ node_modules/es-define-property/.nycrc             |      9 [32m+[m
+ node_modules/es-define-property/CHANGELOG.md       |     29 [32m+[m
+ node_modules/es-define-property/LICENSE            |     21 [32m+[m
+ node_modules/es-define-property/README.md          |     49 [32m+[m
+ node_modules/es-define-property/index.d.ts         |      3 [32m+[m
+ node_modules/es-define-property/index.js           |     14 [32m+[m
+ node_modules/es-define-property/package.json       |     81 [32m+[m
+ node_modules/es-define-property/test/index.js      |     56 [32m+[m
+ node_modules/es-define-property/tsconfig.json      |     10 [32m+[m
+ node_modules/es-errors/.eslintrc                   |      5 [32m+[m
+ node_modules/es-errors/.github/FUNDING.yml         |     12 [32m+[m
+ node_modules/es-errors/CHANGELOG.md             

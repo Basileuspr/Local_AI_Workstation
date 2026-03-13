@@ -14,6 +14,7 @@ import json
 # Import route modules
 from routes.sessions import router as sessions_router
 from routes.files import router as files_router
+from routes.export import router as export_router
 
 # --- App Setup ---
 
@@ -29,6 +30,7 @@ app.add_middleware(
 
 app.include_router(sessions_router)
 app.include_router(files_router)
+app.include_router(export_router)
 
 OLLAMA_BASE_URL = "http://localhost:11434"
 

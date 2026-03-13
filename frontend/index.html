@@ -322,6 +322,28 @@
         .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
         .copy-btn.copied { color: var(--green); border-color: var(--green); }
 
+        /* Export dropdown */
+        .export-wrapper { position: relative; flex-shrink: 0; }
+        #export-btn {
+            display: flex; align-items: center; gap: 6px; cursor: pointer;
+            padding: 4px 10px; border-radius: 5px; border: 1px solid var(--border);
+            background: transparent; transition: all 0.15s;
+            font-family: var(--font-mono); font-size: 10px; color: var(--text-muted);
+        }
+        #export-btn:hover { border-color: var(--border-active); color: var(--text-dim); }
+        .export-menu {
+            display: none; position: absolute; top: 100%; right: 0; margin-top: 4px;
+            background: var(--bg-card); border: 1px solid var(--border); border-radius: 7px;
+            padding: 4px; z-index: 150; min-width: 140px;
+        }
+        .export-menu.visible { display: block; }
+        .export-option {
+            display: block; width: 100%; padding: 7px 12px; background: none; border: none;
+            color: var(--text-dim); font-family: var(--font-mono); font-size: 11px;
+            text-align: left; cursor: pointer; border-radius: 5px; transition: all 0.1s;
+        }
+        .export-option:hover { background: var(--accent-dim); color: var(--accent); }
+
         #drop-overlay {
             display: none;
             position: absolute;
@@ -532,6 +554,14 @@
                     <div class="kb-toggle" id="kb-toggle" title="Toggle knowledge base context">
                         <div class="kb-toggle-dot"></div>
                         <span class="kb-toggle-label">KB</span>
+                    </div>
+                    <div class="export-wrapper">
+                        <button id="export-btn" title="Export conversation">Export</button>
+                        <div class="export-menu" id="export-menu">
+                            <button class="export-option" data-format="txt">Export as .txt</button>
+                            <button class="export-option" data-format="md">Export as .md</button>
+                            <button class="export-option" data-format="json">Export as .json</button>
+                        </div>
                     </div>
                     <select id="response-length" title="Response length">
                         <option value="256">Short</option>
@@ -1176,6 +1206,42 @@
                 kbToggle.classList.remove("active");
                 showToast("Knowledge base context OFF", "");
             }
+        });
+
+        // --- Export ---
+
+        var exportBtn = document.getElementById("export-btn");
+        var exportMenu = document.getElementById("export-menu");
+
+        exportBtn.addEventListener("click", function(e) {
+            e.stopPropagation();
+            exportMenu.classList.toggle("visible");
+        });
+
+        // Close export menu when clicking elsewhere
+        document.addEventListener("click", function() {
+            exportMenu.classList.remove("visible");
+        });
+
+        document.querySelectorAll(".export-option").forEach(function(btn) {
+            btn.addEventListener("click", function(e) {
+                e.stopPropagation();
+                var format = btn.dataset.format;
+                exportMenu.classList.remove("visible");
+                if (!currentSessionId) {
+                    showToast("No conversation to export", "error");
+                    return;
+                }
+                // Trigger download by opening the export URL
+                var url = API_BASE + "/export/" + currentSessionId + "/" + format;
+                var link = document.createElement("a");
+                link.href = url;
+                link.download = "";
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                showToast("Exported as ." + format, "success");
+            });
         });
 
         // --- Sending Messages ---
