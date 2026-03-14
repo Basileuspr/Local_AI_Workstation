@@ -1,0 +1,25 @@
+{
+  "id": "36a3b006",
+  "title": "what is your most recent information available?",
+  "created_at": "2026-03-13T23:53:40.435079",
+  "updated_at": "2026-03-14T00:02:29.122312",
+  "model": "gpt-oss:20b",
+  "messages": [
+    {
+      "role": "user",
+      "content": "what is your most recent information available?"
+    },
+    {
+      "role": "assistant",
+      "content": " My knowledge is up-to-date as of **September 2021**, with the real-time current date being **May 2024**."
+    },
+    {
+      "role": "user",
+      "content": "In markdown text, give me a to do list."
+    },
+    {
+      "role": "assistant",
+      "content": "```markdown\n# To‑Do List\n\n- [ ] Finish project proposal\n- [ ] Review budget spreadsheet\n- [ ] Schedule meeting with the design team\n- [ ] Update website content\n- [ ] Backup all critical files\n- [ ] Plan team outing for next month\n- [ ] Submit expense reports\n- [ ] Read the latest industry report\n- [ ] Respond to client emails\n- [ ] Prepare presentation slides for Friday\n```\n"
+    }
+  ]
+}

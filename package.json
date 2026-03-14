@@ -3,8 +3,11 @@
   "version": "1.0.0",
   "description": "This is a Local AI workstation Project with capability and access to the common tools and tool-ing that the best LLM's, the frontier models, also have access to. It should be able to assist in common inquiries as well as dedicated tasks.",
   "main": "electron/main.js",
-  "scripts": {
+  "type": "commonjs",
+"scripts": {
     "start": "electron .",
+    "vite": "vite --config vite.config.mjs",
+    "build": "vite build --config vite.config.mjs",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -19,6 +22,12 @@
   },
   "homepage": "https://github.com/Basileuspr/Local_AI_Workstation#readme",
   "devDependencies": {
-    "electron": "^40.6.1"
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^40.6.1",
+    "vite": "^6.3.5"
+  },
+  "dependencies": {
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
   }
 }
