@@ -1,0 +1,18 @@
+.image-studio-header-actions { display: flex; align-items: center; gap: 12px; }
+.image-info-button { width: 34px; height: 34px; padding: 0; border: 1px solid var(--border); border-radius: 50%; background: var(--bg-primary); color: var(--accent); font-size: 23px; cursor: pointer; }
+.image-reset-btn { padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-card); color: var(--text-dim); font: 11px var(--font-mono); cursor: pointer; }
+.image-reset-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.image-reset-btn:disabled { opacity: .45; cursor: not-allowed; }
+.image-info-button:focus-visible, .image-reset-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.lora-help-dialog.image-help-dialog { width: min(820px, calc(100vw - 32px)); }
+.image-help-dialog.lora-help-dialog p, .image-help-dialog.lora-help-dialog dd { color: var(--text-dim); }
+.image-help-scale { width: 100%; border-collapse: collapse; font-size: 13px; line-height: 1.6; }
+.image-help-scale caption { text-align: left; color: var(--text-dim); font-size: 11px; padding-bottom: 8px; }
+.image-help-scale th, .image-help-scale td { padding: 10px; text-align: left; vertical-align: top; border: 1px solid var(--border); }
+.image-help-scale th { color: var(--text); font-weight: 600; }
+.image-help-scale tbody th { width: 30%; }
+.image-help-scale td { color: var(--text-dim); }
+.image-help-scale thead { background: var(--bg-card); }
+.image-guidance-example { margin-top: 16px; padding: 16px; border-left: 3px solid var(--accent); background: var(--bg-card); border-radius: 6px; }
+.image-guidance-example h4 { font-size: 14px; color: var(--text); }
+.image-help-dialog a { color: var(--accent); }

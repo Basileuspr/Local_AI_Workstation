@@ -1,0 +1,29 @@
+{
+  "name": "local_ai_workstation",
+  "version": "1.0.0",
+  "description": "This is a Local AI workstation Project with capability and access to the common tools and tool-ing that the best LLM's, the frontier models, also have access to. It should be able to assist in common inquiries as well as dedicated tasks.",
+  "main": "electron/main.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "electron .",
+    "vite": "vite --config vite.config.mjs",
+    "build": "vite build --config vite.config.mjs",
+    "test": "vitest run --config vitest.config.mjs",
+    "test:watch": "vitest --config vitest.config.mjs",
+    "test:backend": "venv\\Scripts\\python.exe -m pytest",
+    "verify": "npm run test && npm run test:backend && npm run build"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.7.0",
+    "electron": "^40.10.6",
+    "vite": "^6.4.3",
+    "vitest": "^3.2.7"
+  },
+  "dependencies": {
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  }
+}

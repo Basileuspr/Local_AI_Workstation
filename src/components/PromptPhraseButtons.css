@@ -1,0 +1,32 @@
+.prompt-phrases { padding: 8px 4px; }
+.prompt-phrases-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.prompt-phrases h3 { font: 12px var(--font-mono); color: var(--text-dim); }
+.prompt-phrases button {
+    padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--bg-input); color: var(--text-dim); font: 11px var(--font-mono); cursor: pointer;
+}
+.prompt-phrases button:hover { border-color: var(--accent); color: var(--accent); }
+.prompt-phrases button:focus-visible, .prompt-phrase-editor input:focus, .prompt-phrase-editor textarea:focus {
+    outline: 1px solid var(--accent); outline-offset: 2px;
+}
+.prompt-phrases button:disabled { opacity: 0.45; cursor: default; }
+.prompt-phrases-hint { margin: 10px 0; color: var(--text-dim); font-size: 11px; line-height: 1.6; }
+.prompt-phrases .prompt-phrases-toggle { border: 0; background: none; padding-left: 0; text-align: left; }
+.prompt-phrases-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.prompt-phrase-row { display: flex; gap: 5px; align-items: center; max-width: 100%; min-width: 0; }
+.prompt-phrases-list.is-managing .prompt-phrase-row { width: 100%; }
+.prompt-phrase-row .prompt-phrase-copy {
+    flex: 1; min-width: 0; padding: 7px 9px; color: var(--text); text-align: left;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px;
+}
+.prompt-phrase-editor { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.prompt-phrase-editor label { display: block; margin-bottom: 10px; color: var(--text-dim); font-size: 11px; }
+.prompt-phrase-editor input, .prompt-phrase-editor textarea {
+    display: block; width: 100%; margin-top: 6px; padding: 8px; border-radius: 5px;
+    border: 1px solid var(--border); background: var(--bg-input); color: var(--text); font: 12px var(--font-body);
+}
+.prompt-phrase-editor textarea { resize: vertical; min-height: 90px; }
+.prompt-phrase-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.prompt-phrases-feedback, .prompt-phrases-error { margin-top: 10px; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.prompt-phrases-feedback { color: var(--accent); }
+.prompt-phrases-error { color: var(--red); }

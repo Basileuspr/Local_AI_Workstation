@@ -1,0 +1,13 @@
+.web-access { flex-shrink: 0; margin: 0 20px 8px; padding: 10px 14px; border: 1px solid var(--border, #333); border-radius: 10px; font-size: 13px; max-height: 44vh; overflow: auto; }
+.web-access summary { cursor: pointer; font-weight: 600; }
+.web-access p { margin: 8px 0; line-height: 1.5; }
+.web-access label { display: block; margin-bottom: 6px; }
+.web-access-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.web-access input { flex: 1; min-width: 200px; color: inherit; background: var(--bg-input, #181818); border: 1px solid var(--border, #444); padding: 8px; border-radius: 6px; }
+.web-access button { color: inherit; background: var(--bg-input, #282828); border: 1px solid var(--border, #444); padding: 8px 12px; border-radius: 6px; cursor: pointer; }
+.web-access button:disabled { opacity: .5; cursor: default; }
+.web-access-note { opacity: .7; font-size: 12px; }
+.web-access [role="alert"] { color: #f6a49a; }
+.web-source-preview { border-top: 1px solid var(--border, #333); padding-top: 10px; }
+.web-source-preview pre { white-space: pre-wrap; font: inherit; opacity: .85; line-height: 1.5; max-height: 100px; overflow: auto; }
+.web-access a { color: var(--accent, #9db6fc); }

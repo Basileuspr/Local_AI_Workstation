@@ -1,0 +1,7 @@
+--index-url https://download.pytorch.org/whl/cu128
+--extra-index-url https://pypi.org/simple
+
+# NVIDIA CUDA build validated on this Windows/Python 3.13 installation.
+torch==2.11.0+cu128
+torchvision==0.26.0+cu128
+-r requirements.txt

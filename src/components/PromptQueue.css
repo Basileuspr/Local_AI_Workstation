@@ -1,0 +1,21 @@
+.prompt-queue { flex: 1; overflow: auto; padding: 28px; min-width: 0; background: var(--bg-primary); }
+.prompt-queue > * { max-width: 1000px; margin-left: auto; margin-right: auto; }
+.prompt-queue header { padding-bottom: 20px; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+.prompt-queue h1 { font-size: 24px; color: var(--text); margin-bottom: 10px; }
+.prompt-queue h2 { font-size: 16px; color: var(--text); margin-top: 26px; margin-bottom: 14px; }
+.prompt-queue p { color: var(--text-dim); font-size: 13px; line-height: 1.6; }
+.prompt-queue .queue-eyebrow { color: var(--accent); font: 10px var(--font-mono); text-transform: uppercase; margin-bottom: 8px; }
+.queue-summary { padding: 14px; border: 1px solid var(--border); border-radius: 8px; color: var(--accent); background: var(--bg-card); font-size: 13px; }
+.queue-job { padding: 18px; margin-bottom: 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg-surface); }
+.queue-job-heading { display: flex; justify-content: space-between; gap: 12px; font: 11px var(--font-mono); margin-bottom: 12px; }
+.queue-kind { color: var(--accent); }
+.queue-state { color: var(--text-dim); text-transform: capitalize; }
+.queue-running { border-color: var(--accent); }
+.queue-job h3 { font-size: 14px; color: var(--text); margin-bottom: 10px; overflow-wrap: anywhere; white-space: pre-wrap; }
+.queue-job button, .queue-request-status button { padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; color: var(--accent); background: var(--bg-card); font-size: 11px; cursor: pointer; }
+.queue-job button { margin-top: 12px; }
+.queue-job button:disabled { opacity: .5; cursor: wait; }
+.queue-job button:focus-visible, .queue-request-status button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.prompt-queue .queue-error { color: var(--red); }
+.queue-empty, .queue-footnote { padding: 12px 0; }
+.queue-request-status { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; color: var(--accent); font-size: 12px; }
