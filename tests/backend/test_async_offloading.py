@@ -88,7 +88,6 @@ BLOCKING_ROUTES = [
     # Image generation now awaits queue admission asynchronously and explicitly
     # offloads its worker. test_request_queue exercises cancellation while that
     # worker is blocked and verifies it runs on a different thread.
-    ("/files/knowledge-base/query", "GET"),
     ("/files/knowledge-base/list", "GET"),
 ]
 
@@ -116,6 +115,7 @@ def test_blocking_routes_run_in_a_threadpool(app_module, path, method):
         ("/health", "GET"),
         ("/runtime/status", "GET"),
         ("/runtime/reset", "POST"),
+        ("/files/knowledge-base/query", "GET"),
     ],
 )
 def test_genuinely_async_routes_stay_async(app_module, path, method):
@@ -144,12 +144,17 @@ def test_health_answers_while_a_slow_upload_is_running(app_module, monkeypatch):
 
     started = threading.Event()
 
-    def slow_add_document(text, filename):
+    def slow_add_document(text, filename, *, cancel_event=None):
         started.set()
         time.sleep(1.0)
         return {"filename": filename, "doc_id": "abc123", "chunks": 1, "error": None}
 
     monkeypatch.setattr(files_route, "add_document", slow_add_document)
+    from services.gpu_coordination import GpuCoordinator
+    from services.request_queue import RequestQueue
+    monkeypatch.setattr(files_route, "queue", RequestQueue(GpuCoordinator()))
+    async def prepare(_kind): pass
+    monkeypatch.setattr(files_route, "prepare_runtime", prepare)
     monkeypatch.setattr(
         files_route,
         "parse_file",

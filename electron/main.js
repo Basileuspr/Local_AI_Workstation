@@ -11,20 +11,24 @@
  * It does NOT do any AI logic. That's Python's job.
  */
 
-const { app, BrowserWindow, Tray, Menu, nativeImage, shell, ipcMain, dialog, protocol, net } = require("electron");
+const { app, BrowserWindow, WebContentsView, session, Tray, Menu, nativeImage, shell, ipcMain, dialog, protocol, net } = require("electron");
 const fs = require("fs");
 const path = require("path");
 const { spawn } = require("child_process");
 const http = require("http");
 const { createLogger, logFilePath } = require("./logger");
 const { openDriveRoot } = require("./driveFolders");
+const { createDriveSpace } = require("./driveSpace");
+const { buildContextMenu } = require("./contextMenu");
 const { pathToFileURL } = require("url");
 const { randomUUID } = require("crypto");
 const { pickFiles } = require("./filePicker");
 const { createFaceImports, saveFaceFolder } = require("./faceFiles");
 const { createMaintenance } = require("./maintenance");
+const { clearDesktopStorage } = require("./maintenanceStorage");
 const { trustedUrl, externalUrl, appAsset, APP_HEADERS } = require("./security");
 const { migratePreferences } = require("./preferenceMigration");
+const { createMediaManager } = require("./mediaManager");
 if (process.env.LAW_USER_DATA_DIR) app.setPath("userData", path.resolve(process.env.LAW_USER_DATA_DIR));
 const maintenanceToken = randomUUID();
 const launchId = randomUUID();
@@ -54,6 +58,9 @@ let isQuitting = false;
 
 // --- Configuration ---
 const isDev = !app.isPackaged;
+// The Vite dev server is used, and trusted with the session token, only when
+// explicitly requested; otherwise any process answering on its port would be.
+const useViteDev = isDev && process.env.LAW_VITE_DEV === "1";
 
 // Environment overrides use the same LAW_ prefix as the Python side, so one
 // variable configures both halves of the app.
@@ -77,22 +84,61 @@ const CONFIG = {
 };
 
 CONFIG.viteDevUrl = `http://localhost:${CONFIG.vitePort}`;
+const driveSpace = createDriveSpace({
+    startWorker: root => spawn(CONFIG.pythonPath, [path.join(__dirname, "..", "backend", "drive_space.py"), root], {
+        cwd: path.join(__dirname, ".."), windowsHide: true, stdio: ["ignore", "pipe", "ignore"],
+        env: { ...process.env, PYTHONUTF8: "1", PYTHONIOENCODING: "utf-8" },
+    }),
+});
+
+const mediaManager = createMediaManager({
+    WebContentsView, session, getWindow: () => mainWindow,
+    python: process.env.LAW_MEDIA_MANAGER_PYTHON || CONFIG.pythonPath,
+    directory: process.env.LAW_MEDIA_MANAGER_DIR || path.join(app.getPath("desktop"), "Media Organizer"),
+    reports: process.env.LAW_MEDIA_MANAGER_REPORTS,
+});
 
 function trustedDesktop(event) {
     const contents = mainWindow?.webContents;
     if (!contents || event.sender !== contents || event.senderFrame !== contents.mainFrame) {
         return false;
     }
-    return trustedUrl(event.senderFrame.url, isDev ? CONFIG.viteDevUrl : null);
+    return trustedUrl(event.senderFrame.url, useViteDev ? CONFIG.viteDevUrl : null);
 }
 
 ipcMain.on("app:connection", event => {
     event.returnValue = trustedDesktop(event) ? { base: `http://127.0.0.1:${CONFIG.backendPort}`, token: sessionToken } : null;
 });
 
+ipcMain.handle("media-manager:start", event => trustedDesktop(event) ? mediaManager.start() : { error: "Desktop access required." });
+ipcMain.handle("media-manager:status", event => trustedDesktop(event) ? mediaManager.status() : { error: "Desktop access required." });
+ipcMain.handle("media-manager:place", (event, value) => { if (trustedDesktop(event)) mediaManager.place(value); });
+ipcMain.handle("media-manager:focus", event => { if (trustedDesktop(event)) return mediaManager.focus(); });
+ipcMain.handle("media-manager:refresh", event => trustedDesktop(event) ? mediaManager.refresh() : { error: "Desktop access required." });
+
 ipcMain.handle("dashboard:open-drive-root", async (event, root) => {
     if (!trustedDesktop(event)) return { error: "Open drive is only available in the desktop app." };
     return openDriveRoot(root, (target) => shell.openPath(target));
+});
+ipcMain.handle("dashboard:scan-drive", (event, root) => trustedDesktop(event) ? driveSpace.start(root) : { error: "Desktop access required." });
+ipcMain.handle("dashboard:drive-scan-status", (event, id) => trustedDesktop(event) ? driveSpace.status(id) : { error: "Desktop access required." });
+ipcMain.handle("dashboard:cancel-drive-scan", (event, id) => trustedDesktop(event) ? driveSpace.cancel(id) : { error: "Desktop access required." });
+
+ipcMain.handle("dashboard:software-runtime", event => trustedDesktop(event) ? {
+    app: app.getVersion(), electron: process.versions.electron, chromium: process.versions.chrome,
+    node: process.versions.node, v8: process.versions.v8, architecture: process.arch,
+} : null);
+
+ipcMain.handle("dashboard:open-app-folder", async (event) => {
+    if (!trustedDesktop(event)) return { error: "Open app folder is only available in the desktop app." };
+    // Resolve the running app's location here; the renderer supplies no path.
+    const folder = app.isPackaged ? path.dirname(app.getPath("exe")) : path.resolve(__dirname, "..");
+    try {
+        const error = await shell.openPath(folder);
+        return { error: error || null };
+    } catch {
+        return { error: "Could not open the app folder in File Explorer." };
+    }
 });
 
 let pickerOpen = false;
@@ -151,7 +197,7 @@ ipcMain.handle("faces:save-folder", async (event, selection) => {
 function runMaintenance(request) {
     return new Promise((resolve, reject) => {
         const child = spawn(CONFIG.pythonPath, [path.join(__dirname, "..", "backend", "maintenance.py")], {
-            cwd: path.join(__dirname, ".."), env: process.env, windowsHide: true, stdio: ["pipe", "pipe", "pipe"],
+            cwd: path.join(__dirname, ".."), env: { ...process.env, PYTHONUTF8: "1", PYTHONIOENCODING: "utf-8" }, windowsHide: true, stdio: ["pipe", "pipe", "pipe"],
         });
         let output = "";
         child.stdout.on("data", chunk => { output += chunk.toString(); });
@@ -199,29 +245,25 @@ async function stopBackendForReset() {
 }
 
 const maintenance = createMaintenance({
-    chooseArchive: () => dialog.showSaveDialog(mainWindow, {
-        title: "Save metadata inventory (not a content backup)",
-        defaultPath: path.join(app.getPath("documents"), `workstation-inventory-${Date.now()}.zip`),
-        filters: [{ name: "Metadata ZIP", extensions: ["zip"] }], properties: ["dontAddToRecent"],
+    chooseArchive: (kind = "inventory") => dialog.showSaveDialog(mainWindow, {
+        title: kind === "backup" ? "Export private application backup" : "Save metadata inventory (not a content backup)",
+        defaultPath: path.join(app.getPath("documents"), `workstation-${kind}-${Date.now()}.zip`),
+        filters: [{ name: "ZIP archive", extensions: ["zip"] }], properties: ["dontAddToRecent"],
+    }),
+    chooseImport: () => dialog.showOpenDialog(mainWindow, {
+        title: "Import a Workstation backup", defaultPath: app.getPath("documents"),
+        filters: [{ name: "Workstation backup ZIP", extensions: ["zip"] }], properties: ["openFile", "dontAddToRecent"],
     }),
     run: runMaintenance,
     ownsBackend: () => Boolean(pythonProcess), backendHealthy: isBackendHealthy,
     lockBackend: () => maintenanceRequest("lock"), unlockBackend: () => maintenanceRequest("unlock"),
     stopBackend: stopBackendForReset,
-    checkRenderer: () => mainWindow.webContents.executeJavaScript(`JSON.parse(localStorage.getItem('local-ai-workstation-preferences-v1') || '{}') !== null`),
-    clearRenderer: async () => {
-        // Preserve only explicit user-created buttons. Reload removes all old
-        // chat/media state from React before the new backend accepts writes.
-        await mainWindow.webContents.executeJavaScript(`(() => {
-            const key = 'local-ai-workstation-preferences-v1';
-            const saved = JSON.parse(localStorage.getItem(key) || '{}');
-            localStorage.setItem(key, JSON.stringify({customProfiles: Array.isArray(saved.customProfiles) ? saved.customProfiles : []}));
-            localStorage.removeItem('local-ai-workstation-roleplay');
-            sessionStorage.clear();
-            localStorage.setItem('app-reset-notice', 'App data was cleared. Your prompt buttons, custom profiles, and image tag buttons were preserved.');
-            window.dispatchEvent(new Event('app-data-reset'));
-        })()`);
-    },
+    checkRenderer: () => mainWindow.webContents.executeJavaScript(`Boolean(window.localStorage)`),
+    freezeRenderer: () => mainWindow.webContents.executeJavaScript(`document.getElementById('root').inert = true`),
+    thawRenderer: () => mainWindow.webContents.executeJavaScript(`document.getElementById('root').inert = false`),
+    readStorage: () => mainWindow.webContents.executeJavaScript(`Object.fromEntries(Object.keys(localStorage).map(key => [key, localStorage.getItem(key)]))`),
+    clearRenderer: () => clearDesktopStorage(mainWindow.webContents),
+    restoreRenderer: (values, notice) => clearDesktopStorage(mainWindow.webContents, values, notice),
     clearCache: async () => { await mainWindow.webContents.session.clearCache(); },
     startBackend: async () => { startPythonBackend(); await waitForBackend(); },
     notifyComplete: () => mainWindow?.webContents.send("maintenance:result", { ok: true }),
@@ -229,6 +271,12 @@ const maintenance = createMaintenance({
 });
 
 ipcMain.handle("maintenance:export", async event => trustedDesktop(event) ? maintenance.exportInventory() : { error: "Desktop access required." });
+ipcMain.handle("maintenance:prepare-reset", async event => trustedDesktop(event) ? maintenance.prepareReset() : { error: "Desktop access required." });
+ipcMain.handle("maintenance:backup", async event => trustedDesktop(event) ? maintenance.exportBackup() : { error: "Desktop access required." });
+ipcMain.handle("maintenance:prepare-import", async event => trustedDesktop(event) ? maintenance.prepareImport() : { error: "Desktop access required." });
+ipcMain.handle("maintenance:import", async (event, value) => trustedDesktop(event) ? maintenance.importBackup(value) : { error: "Desktop access required." });
+ipcMain.handle("maintenance:import-status", async event => trustedDesktop(event) ? maintenance.importStatus() : { error: "Desktop access required." });
+ipcMain.handle("maintenance:recover-import", async event => trustedDesktop(event) ? maintenance.recoverImport() : { error: "Desktop access required." });
 ipcMain.handle("maintenance:reset", async (event, value) => trustedDesktop(event) ? maintenance.reset(value) : { error: "Desktop access required." });
 
 /**
@@ -456,7 +504,7 @@ function guardNavigation(contents) {
         if (externalUrl(url) && !trustedUrl(url, CONFIG.viteDevUrl)) void shell.openExternal(url).catch(() => {});
         return { action: "deny" };
     });
-    const allowed = url => trustedUrl(url, isDev ? CONFIG.viteDevUrl : null);
+    const allowed = url => trustedUrl(url, useViteDev ? CONFIG.viteDevUrl : null);
     contents.on("will-navigate", (event, url) => {
         if (allowed(url)) return;
         event.preventDefault();
@@ -474,17 +522,19 @@ async function createWindow() {
         title: "Local AI Workstation",
         backgroundColor: "#080c14",
         show: false,
-        webPreferences: { nodeIntegration: false, contextIsolation: true, preload: path.join(__dirname, "preload.js") },
+        webPreferences: { nodeIntegration: false, contextIsolation: true, spellcheck: true, preload: path.join(__dirname, "preload.js") },
     });
 
     guardNavigation(mainWindow.webContents);
+    mainWindow.webContents.on("did-start-navigation", (_event, _url, _inPlace, isMainFrame) => { if (isMainFrame) mediaManager.hide(); });
+    mainWindow.webContents.on("render-process-gone", () => mediaManager.hide());
     mainWindow.once("ready-to-show", () => mainWindow.show());
     if (fs.existsSync(CONFIG.frontendDistPath)) {
         try { await migratePreferences({ BrowserWindow, oldPath: CONFIG.frontendDistPath, appUrl: `${APP_ORIGIN}/index.html` }); }
         catch { log.warn("Preference migration was not completed; original preferences were preserved and migration will retry next launch."); }
     }
 
-    if (isDev) {
+    if (useViteDev) {
         let viteReady = false;
         try {
             await new Promise((resolve) => {
@@ -518,14 +568,7 @@ async function createWindow() {
     }
 
     mainWindow.webContents.on("context-menu", (event, params) => {
-        Menu.buildFromTemplate([
-            { label: "Cut", role: "cut", enabled: params.editFlags.canCut },
-            { label: "Copy", role: "copy", enabled: params.editFlags.canCopy },
-            { label: "Paste", role: "paste", enabled: params.editFlags.canPaste },
-            { label: "Select All", role: "selectAll" },
-            { type: "separator" },
-            { label: "Inspect Element", click: () => mainWindow.webContents.inspectElement(params.x, params.y) },
-        ]).popup();
+        Menu.buildFromTemplate(buildContextMenu(params, mainWindow.webContents)).popup({ window: mainWindow });
     });
 
     mainWindow.on("close", (event) => {
@@ -563,7 +606,7 @@ app.on("activate", () => {
     else mainWindow.show();
 });
 
-app.on("before-quit", () => { isQuitting = true; stopPythonBackend(); });
+app.on("before-quit", () => { isQuitting = true; driveSpace.dispose(); mediaManager.dispose(); stopPythonBackend(); });
 app.on("will-quit", () => { stopPythonBackend(); });
 
 const gotLock = app.requestSingleInstanceLock();

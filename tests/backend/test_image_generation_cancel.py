@@ -72,7 +72,6 @@ def configure_manager(monkeypatch, tmp_path, pipeline):
     def load(_model):
         manager._pipeline = manager._active_pipeline = pipeline
     monkeypatch.setattr(manager, "_load", load)
-    monkeypatch.setattr(manager, "_set_lora", lambda *_args: None)
     return manager, coordinator
 
 
@@ -88,6 +87,40 @@ def generation_options(request_id="image-request-1"):
         "guidance_scale": 5.5,
         "seed": 7,
     }
+
+
+@pytest.mark.parametrize("previous_lora", [None, "previous-adapter"])
+def test_base_model_generation_never_requires_lora_discovery(monkeypatch, tmp_path, previous_lora):
+    from PIL import Image
+    from services import lora_store
+
+    class Pipeline:
+        active_lora = previous_lora
+        unloads = 0
+
+        def unload_lora_weights(self):
+            self.active_lora = None
+            self.unloads += 1
+
+        def __call__(self, **kwargs):
+            assert self.active_lora is None
+            return SimpleNamespace(images=[Image.new("RGB", (8, 8))])
+
+    def unavailable():
+        pytest.fail("Base-model generation must not discover or load a LoRA")
+
+    monkeypatch.setattr(lora_store, "list_adapters", unavailable)
+    pipeline = Pipeline()
+    manager, coordinator = configure_manager(monkeypatch, tmp_path, pipeline)
+    manager._lora_id = previous_lora
+    manager._workflow_pipelines["cached"] = object()
+    result = manager.generate(**generation_options())
+    assert (tmp_path / result["filename"]).is_file()
+    assert manager._lora_id is None
+    assert pipeline.unloads == (1 if previous_lora else 0)
+    if previous_lora:
+        assert manager._workflow_pipelines == {}
+    assert coordinator.current_owner() is None
 
 
 def test_cancel_reaches_the_diffusers_step_callback(monkeypatch, tmp_path):
@@ -111,13 +144,15 @@ def test_cancel_reaches_the_diffusers_step_callback(monkeypatch, tmp_path):
     assert coordinator.current_owner() is None
 
 
-def test_progress_tracks_real_steps_and_cleans_up(monkeypatch, tmp_path):
+@pytest.mark.parametrize("steps,guidance", [(12, 5.5), (200, 30)])
+def test_progress_tracks_real_steps_and_cleans_up(monkeypatch, tmp_path, steps, guidance):
     from PIL import Image
     holder = {}
     observed = []
 
     class Pipeline:
         def __call__(self, **kwargs):
+            assert kwargs["guidance_scale"] == guidance
             for step in range(kwargs["num_inference_steps"]):
                 kwargs["callback_on_step_end"](self, step, None, {})
                 observed.append(holder["manager"].generation_progress("image-request-1"))
@@ -126,8 +161,9 @@ def test_progress_tracks_real_steps_and_cleans_up(monkeypatch, tmp_path):
     manager, coordinator = configure_manager(monkeypatch, tmp_path, Pipeline())
     holder["manager"] = manager
     assert manager.generation_progress("other-request") is None
-    result = manager.generate(**generation_options())
-    assert [item["step"] for item in observed] == list(range(1, 13))
+    result = manager.generate(**{**generation_options(), "steps": steps, "guidance_scale": guidance})
+    assert [item["step"] for item in observed] == list(range(1, steps + 1))
+    assert all(item["total_steps"] == steps for item in observed)
     assert observed[-1]["phase"] == "Decoding image"
     assert all(item["elapsed_seconds"] >= 0 for item in observed)
     assert "started" not in observed[0]

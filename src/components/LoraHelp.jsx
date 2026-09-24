@@ -44,19 +44,38 @@ const sections = [
   ]],
 ];
 
-export default function LoraHelp() {
+export default function LoraHelp({learningRate=0.0001}) {
   const dialogRef = useRef(null);
   return (
     <div className="lora-help">
       <button className="lora-info-button" type="button" aria-label="LoRA help: functions and definitions" title="Functions and definitions" aria-haspopup="dialog" onClick={() => dialogRef.current?.showModal()}>
-        <span aria-hidden="true">ⓘ</span>
+        <span aria-hidden="true">ⓘ</span> Settings guide
       </button>
       <dialog ref={dialogRef} className="lora-help-dialog" aria-labelledby="lora-help-title">
         <header className="lora-help-heading">
-          <h2 id="lora-help-title">LoRA functions & definitions</h2>
+          <h2 id="lora-help-title">LoRA settings · strength & functions</h2>
           <button type="button" autoFocus onClick={() => dialogRef.current?.close()} aria-label="Close LoRA help">Close</button>
         </header>
         <p>Prepare images, review captions, choose training settings, then start local training. Help can stay available while a run is active.</p>
+        <section><h3>Learning rate · how large each training update is</h3>
+          <p>App default: <strong>0.0001 = 1e-4</strong>. Your setting: <strong>{Number(learningRate).toExponential()} · {Number((Number(learningRate)/0.0001).toFixed(3))}× the default</strong>. This multiplier describes the configured learning rate, not a measured multiplier in image quality or training speed.</p>
+          <table className="image-help-scale"><caption>Learning-rate comparison for this app's AdamW LoRA trainer</caption><thead><tr><th>Example value</th><th>Relative update scale</th><th>How to interpret it</th></tr></thead><tbody>
+            <tr><th>0.00001 · 1e-5</th><td>0.1× default</td><td>Gentler updates; changes may need more training to become visible.</td></tr>
+            <tr><th>0.00005 · 5e-5</th><td>0.5× default</td><td>A smaller step to compare if the default changes results too aggressively.</td></tr>
+            <tr><th>0.0001 · 1e-4</th><td>1× · app default</td><td>A starting comparison point, not a universally best setting.</td></tr>
+            <tr><th>0.0002 · 2e-4</th><td>2× default</td><td>More aggressive updates; watch for instability, repeated poses or loss of flexibility.</td></tr>
+            <tr><th>0.001 · 1e-3</th><td>10× default</td><td>A large experimental jump. A permitted value is not a quality recommendation.</td></tr>
+          </tbody></table>
+          <p>Keep the dataset, captions, seed, rank and training length fixed when comparing learning rates. Compare saved checkpoints with the same generation prompt and seed. If the character barely appears, review captions and training length too; if results become rigid or distorted, compare an earlier checkpoint or a smaller learning rate. Lower training loss alone does not prove better images.</p>
+          <p>Learning rate changes training. Generate's LoRA strength changes how much a finished adapter influences an image. They are separate controls. Reference: <a href="https://huggingface.co/docs/diffusers/main/training/lora" target="_blank" rel="noreferrer">Diffusers LoRA training guide</a>.</p>
+        </section>
+        <section><h3>Other settings · what increasing them changes</h3><table className="image-help-scale"><thead><tr><th>Setting</th><th>App default / comparison</th><th>Increasing it</th></tr></thead><tbody>
+          <tr><th>Epochs / max steps</th><td>10 epochs; max steps 0</td><td>More exposure to the dataset and longer training; may overfit. Nonzero max steps replaces the epoch count.</td></tr>
+          <tr><th>Rank / alpha</th><td>8 / 8</td><td>Rank increases adapter capacity and size. Alpha scales its contribution relative to rank; alpha/rank is 1 at the default.</td></tr>
+          <tr><th>Batch / accumulation</th><td>1 image × 4 steps = 4 images per full update</td><td>Batch uses more VRAM. Accumulation combines more batches per optimizer update; the last update can be smaller.</td></tr>
+          <tr><th>Resolution</th><td>512 square; 1024 square has 4× as many pixels</td><td>More input detail and memory/computation. It does not guarantee better identity or style.</td></tr>
+          <tr><th>Save interval</th><td>100 batch steps</td><td>Larger intervals save fewer checkpoints. Smaller intervals give more comparison points and use more storage.</td></tr>
+        </tbody></table></section>
         {sections.map(([heading, entries]) => (
           <section key={heading}>
             <h3>{heading}</h3>

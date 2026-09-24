@@ -8,6 +8,7 @@ below is the whole of what that package would add. Weights live under
 from __future__ import annotations
 
 import threading
+import os
 
 import numpy as np
 from PIL import Image
@@ -152,6 +153,11 @@ class InsightOnnxProvider:
             order = [p for p in ("CUDAExecutionProvider", "CPUExecutionProvider") if p in available]
             options = onnxruntime.SessionOptions()
             options.log_severity_level = 3
+            # Detection and recognition each create a thread pool. Letting
+            # both use every physical core oversubscribes hybrid desktop CPUs.
+            # Six threads was faster on the 12-core i7-12700K; 0 opts back into
+            # ONNX Runtime's automatic policy on other machines.
+            options.intra_op_num_threads = min(settings.face_intra_op_threads, os.cpu_count() or 1)
             self._detector = onnxruntime.InferenceSession(str(root() / "det_10g.onnx"), options, providers=order)
             self._recognizer = onnxruntime.InferenceSession(str(root() / "w600k_r50.onnx"), options, providers=order)
             self._device = "cuda" if "CUDAExecutionProvider" in self._detector.get_providers() else "cpu"

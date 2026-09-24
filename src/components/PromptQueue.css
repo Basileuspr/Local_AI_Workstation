@@ -19,3 +19,8 @@
 .prompt-queue .queue-error { color: var(--red); }
 .queue-empty, .queue-footnote { padding: 12px 0; }
 .queue-request-status { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; color: var(--accent); font-size: 12px; }
+@container workspace (max-width: 600px) {
+  .prompt-queue { padding: 16px; }
+  .queue-job { padding: 14px; }
+  .queue-job-heading { flex-wrap: wrap; }
+}

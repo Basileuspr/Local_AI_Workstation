@@ -1,17 +1,12 @@
 import { useEffect, useState } from "react";
 import DashboardReset from "./DashboardReset";
+import SoftwareSpecs from "./SoftwareSpecs";
+import DriveFolderSizes from "./DriveFolderSizes";
 import { apiUrl } from "../api";
+import { formatBytes, formatNumber, formatSystemSpecs } from "../systemSpecs";
 import "./Dashboard.css";
 
-export function formatNumber(value, unit = "", digits = 0) {
-  return typeof value === "number" && Number.isFinite(value) ? `${value.toFixed(digits)}${unit}` : "Unavailable";
-}
-
-export function formatBytes(value) {
-  if (typeof value !== "number" || !Number.isFinite(value)) return "Unavailable";
-  const unit = value >= 1024 ** 4 ? "TiB" : "GiB";
-  return `${(value / 1024 ** (unit === "TiB" ? 4 : 3)).toFixed(1)} ${unit}`;
-}
+export { formatBytes, formatNumber } from "../systemSpecs";
 
 function Meter({ label, value }) {
   if (typeof value !== "number" || !Number.isFinite(value)) return null;
@@ -44,6 +39,7 @@ function OpenDriveButton({ root }) {
   return <div className="dashboard-drive-actions">
     {error && <p className="dashboard-note" role="alert">{error}</p>}
     <button type="button" onClick={openDrive} disabled={opening} aria-label={`Open ${root} in File Explorer`} title={`Open the top-level folder of ${root}`}>{opening ? "Opening…" : "Open drive"}</button>
+    <DriveFolderSizes root={root} />
   </div>;
 }
 
@@ -118,6 +114,43 @@ export function DashboardReadings({ stats }) {
 export default function Dashboard() {
   const [stats, setStats] = useState(null);
   const [error, setError] = useState("");
+  const [copyState, setCopyState] = useState("");
+  const [openingAppFolder, setOpeningAppFolder] = useState(false);
+  const [appFolderError, setAppFolderError] = useState("");
+  useEffect(() => {
+    if (copyState !== "copied") return;
+    const timer = setTimeout(() => setCopyState(""), 3000);
+    return () => clearTimeout(timer);
+  }, [copyState]);
+
+  async function copySpecs() {
+    if (!stats || copyState === "copying") return;
+    setCopyState("copying");
+    try {
+      await navigator.clipboard.writeText(formatSystemSpecs(stats, { error }));
+      setCopyState("copied");
+    } catch {
+      setCopyState("error");
+    }
+  }
+
+  async function openAppFolder() {
+    setAppFolderError("");
+    if (!window.workstationDesktop?.openAppFolder) {
+      setAppFolderError("Open or restart the desktop app to open its source folder in File Explorer.");
+      return;
+    }
+    setOpeningAppFolder(true);
+    try {
+      const result = await window.workstationDesktop.openAppFolder();
+      if (result?.error) setAppFolderError(result.error);
+    } catch {
+      setAppFolderError("Could not open the app folder in File Explorer.");
+    } finally {
+      setOpeningAppFolder(false);
+    }
+  }
+
   useEffect(() => {
     // This pane stays mounted when another tab is selected. Keep one light,
     // non-overlapping polling loop running so prompting usage remains current.
@@ -144,9 +177,25 @@ export default function Dashboard() {
   }, []);
 
   return <section className="dashboard">
-    <header className="dashboard-header"><div><p className="dashboard-eyebrow">Your workstation</p><h1>Dashboard</h1><p>PC statistics</p></div><div className="dashboard-status" role="status">{error ? "Readings interrupted" : stats ? "Live · refresh about every 5 seconds" : "Reading hardware…"}{stats && <span>Last reading: {new Date(stats.sampled_at).toLocaleTimeString()}</span>}</div></header>
+    <header className="dashboard-header">
+      <div><p className="dashboard-eyebrow">Your workstation</p><h1>Dashboard</h1><p>PC statistics</p></div>
+      <div className="dashboard-header-actions">
+        <div className="dashboard-status" role="status">{error ? "Readings interrupted" : stats ? "Live · refresh about every 5 seconds" : "Reading hardware…"}{stats && <span>Last reading: {new Date(stats.sampled_at).toLocaleTimeString()}</span>}</div>
+        <div className="dashboard-header-buttons">
+          <button type="button" className="dashboard-header-button" onClick={openAppFolder} disabled={openingAppFolder} title="Open the app's source folder in File Explorer">
+            {openingAppFolder ? "Opening…" : "Open app folder"}
+          </button>
+          <button type="button" className="dashboard-header-button" onClick={copySpecs} disabled={!stats || copyState === "copying"} title="Copy hardware models, firmware and driver versions, and the latest readings">
+            {copyState === "copying" ? "Copying…" : copyState === "copied" ? "Copied!" : "Copy specs"}
+          </button>
+        </div>
+        <span className="dashboard-copy-feedback" role="status" aria-live="polite">{copyState === "copied" ? "Specs copied to clipboard." : copyState === "error" ? "Could not copy specs to the clipboard. Try again." : ""}</span>
+        {appFolderError && <span className="dashboard-copy-feedback" role="alert">{appFolderError}</span>}
+      </div>
+    </header>
     {error && <p className="dashboard-notice" role="alert">{error}{stats ? " Showing the last successful sample; these readings are stale." : ""}</p>}
     <DashboardReset />
+    <SoftwareSpecs />
     {stats ? <DashboardReadings stats={stats} /> : <p className="dashboard-note">{error ? "Waiting for the local backend." : "Collecting CPU, GPU, memory and drive readings…"}</p>}
   </section>;
 }

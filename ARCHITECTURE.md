@@ -137,6 +137,8 @@ Electron processes.
 | `LAW_HOST` | `127.0.0.1` | Backend bind address. Loopback only. |
 | `LAW_PORT` | `8000` | Backend port; Electron overrides when busy. |
 | `LAW_OLLAMA_URL` | `http://localhost:11434` | Chat and embeddings endpoint. |
+| `LAW_OLLAMA_KEEP_ALIVE_SECONDS` | `300` | Retain idle chat, vision, and embedding models between requests. Set `0` for immediate unloading. GPU handoff/reset still unloads them explicitly. |
+| `LAW_FACE_INTRA_OP_THREADS` | `6` | Threads per face ONNX session, capped at the machine's logical CPU count; `0` uses ONNX Runtime's automatic policy. |
 | `LAW_EMBEDDING_MODEL` | `nomic-embed-text` | Knowledge-base embedding model. |
 | `LAW_CHAT_MODEL` | `mistral` | Default when a request omits one. |
 | `LAW_DATA_DIR` | `<repo>/data` | Root for **all** writable state. |
@@ -197,8 +199,9 @@ first-run failure on an unfamiliar machine. The sequence:
 If nothing in range is free, the backend probes the bind itself and exits with
 an actionable message rather than a traceback.
 
-Renderer choice, in order: Vite dev server if it answers, then
-`dist/index.html`, then `frontend/index.html` (legacy fallback).
+Renderer choice, in order: the Vite dev server (only when `LAW_VITE_DEV=1` is
+set and it answers), then `dist/index.html`, then `frontend/index.html`
+(legacy fallback).
 
 ---
 
@@ -224,6 +227,7 @@ Deliberately still `async`:
 | `/health` | must answer *while* workers are busy |
 | `/chat/stop/{id}` | touches asyncio task state, not thread-safe |
 | `/files/parse`, `/files/knowledge-base/add` | await `file.read()`; their synchronous work is explicitly wrapped in `run_in_threadpool` |
+| `/files/knowledge-base/query` | awaits GPU queue admission, then runs embedding/retrieval in the worker pool |
 | `/lora/projects/{id}/images` | awaits `file.read()`; storage offloaded |
 
 `tests/backend/test_async_offloading.py` enforces this structurally (asserting
@@ -389,8 +393,12 @@ Permanent deletion is the only path that reclaims blobs, and it is careful:
 8 GB GPU never holds two. Discovery reads each folder's native
 `model_index.json` and accepts only `StableDiffusionXLPipeline`.
 
-Memory measures applied on load: attention slicing, VAE slicing and tiling,
-model CPU offload, fp16, TF32 matmul.
+Memory measures applied on load: native SDPA when supported by PyTorch (attention
+slicing only as the legacy fallback), VAE slicing and tiling, model CPU offload,
+fp16, TF32 matmul. Workflow frames reuse both weights and the active offload hook
+chain until they actually switch pipeline type or adapter. Variants call
+`from_pipe(torch_dtype=None)` to preserve each shared component's current dtype;
+Diffusers' default float32 conversion would also recast the base pipeline.
 
 ### Long-prompt encoding
 
@@ -424,7 +432,7 @@ and required GPU/Stop/Reset integration before future execution is enabled.
 
 Newest and largest addition. Four backend layers plus the LoRA Studio UI:
 
-**`lora_store.py`** â€” projects at `data/lora/projects/<32 hex>/project.json`
+**`lora_store.py`** — projects at `data/lora/projects/<32 hex>/project.json`
 with images alongside. Project ids are validated against `[a-f0-9]{32}` before
 any path is built. Writes are atomic via a `.partial` file. Images are
 de-duplicated by content hash, dimensions read through PIL, captions stored per
@@ -459,22 +467,24 @@ estimate_gib = 6.8 + (resolution/512)^2 * 1.8 + (batch - 1) * 1.2
 described in its own comment as "a conservative warning, not a promise".
 Missing CUDA is an *error*; insufficient VRAM is a *warning*.
 
-**`lora_vision.py`** â€” discovers installed Ollama models whose reported
+**`lora_vision.py`** — discovers installed Ollama models whose reported
 capabilities include both `completion` and `vision`, then uses the selected
-model for a local, review-first pass over up to 24 resized copies of project
-images. It separates repeated visible traits from per-image view, action,
+model for a local, review-first pass over project images in bounded batches of
+resized copies. It separates repeated visible traits from per-image view, action,
 expression, scene, and quality flags. The prompt explicitly prohibits
 real-person identification, face matching, and sensitive-trait inference:
 this is descriptive consistency assistance, not biometric verification.
 Original images are never modified and suggested captions do not replace user
 captions until the user applies them. The request owns the shared GPU lease,
-unloads an idle SDXL pipeline, sends `keep_alive: 0` to release Ollama model
-memory, and releases the lease in `finally`; the Stop route cancels the live
+unloads an idle SDXL pipeline, retains Ollama weights between batches using
+`LAW_OLLAMA_KEEP_ALIVE_SECONDS`, and releases the lease in `finally`. The queue
+explicitly unloads retained Ollama models before image inference or training;
+the Stop route cancels the live
 upstream HTTP task. The adapter also handles an observed Ollama/Qwen3-VL quirk
 where schema output arrives in `message.thinking` despite `think: false`; that
 field is used only when content is empty and is parsed immediately as JSON.
 
-**`lora_training.py`** â€” a process manager permitting exactly one run. Guards
+**`lora_training.py`** — a process manager permitting exactly one run. Guards
 include an in-process lock, a live `Popen` check, an on-disk `training.lock`, and
 a process-wide GPU lease shared with image generation. Before spawning, it
 unloads any resident generation pipeline. It spawns the worker with
@@ -482,7 +492,7 @@ unloads any resident generation pipeline. It spawns the worker with
 newline-delimited JSON events (`progress`, `log`, `completed`, `cancelled`,
 `failed`) and persisting them. Logs are capped at the last 120 lines.
 
-**`lora_worker.py`** â€” a separate process that owns the GPU for the run. It
+**`lora_worker.py`** — a separate process that owns the GPU for the run. It
 loads both CLIP text encoders, the VAE, and the UNet from the base model,
 attaches a `peft` `LoraConfig` to the UNet only, and trains with gradient
 checkpointing and accumulation. Model and checkpoint files are written to a run
@@ -506,7 +516,16 @@ from Ollama's `nomic-embed-text`; Chroma persistent client with cosine space.
 Documents are keyed by an MD5 of the filename, so re-uploading replaces rather
 than duplicates.
 
-`count_documents()` exists as a deliberately cheap probe for `/status` â€” it
+Embedding requests contain at most 16 chunks and reuse a local HTTP connection.
+All responses are validated before updating a document; failed or cancelled
+embedding batches preserve its previous stored chunks. Upserts replace current
+chunk IDs, then remove obsolete IDs. Document lists request metadata only.
+Standalone indexing and searches use the shared GPU queue; chat retrieval runs
+inside the chat's existing lease. Cancellation retains admission until the
+blocking embedding call exits. CPU-only face extraction is tracked by the queue
+without claiming its GPU slot, so it can run alongside GPU inference.
+
+`count_documents()` exists as a deliberately cheap probe for `/status` — it
 must not pull every document's metadata just to report whether the index opens.
 
 **Known limitation:** ingest embeds one chunk at a time. Roughly 43 seconds for
@@ -517,7 +536,7 @@ bounded-concurrency opportunity.
 
 ## 11. Failure reporting
 
-`/health` only proves the process is alive â€” the least interesting failure.
+`/health` only proves the process is alive — the least interesting failure.
 `/status` reports what a user must actually fix:
 
 ```json
@@ -532,7 +551,7 @@ bounded-concurrency opportunity.
 }
 ```
 
-It returns **200 even when everything is broken** â€” problems belong in the
+It returns **200 even when everything is broken** — problems belong in the
 body, not the status code, or the probe becomes indistinguishable from the
 outage it reports. Model matching tolerates Ollama's tag suffixes, so
 `nomic-embed-text` matches `nomic-embed-text:latest`.
@@ -544,12 +563,12 @@ explanation, and where one exists the exact command to run:
 
 | Condition | Severity | Action offered |
 |---|---|---|
-| Backend unreachable | blocked | â€” |
+| Backend unreachable | blocked | — |
 | Ollama not running | blocked | `ollama serve` |
-| Ollama timeout / unreachable | blocked | â€” |
+| Ollama timeout / unreachable | blocked | — |
 | No chat models | blocked | `ollama pull mistral` |
 | Embedding model missing | degraded | `ollama pull <configured model>` |
-| Knowledge base unreadable | degraded | â€” |
+| Knowledge base unreadable | degraded | — |
 
 The welcome screen renders this with a copy button; the header indicator names
 the problem instead of a generic state. `/chat` additionally emits in-band
@@ -557,7 +576,7 @@ the problem instead of a generic state. `/chat` additionally emits in-band
 is never mistaken for a normal one.
 
 This replaced a state machine where every failure rendered as "almost ready"
-forever â€” while the backend already knew the answer and `api.js` was
+forever — while the backend already knew the answer and `api.js` was
 discarding it.
 
 ---
@@ -595,8 +614,8 @@ Deliberate and **must both remain**: a `+` attachment menu beside the composer
 message box) and an "Add file to this chat" button plus drag-and-drop over the
 transcript (one combined input, type routing, transient in-transcript status).
 
-`useChatUploads.js` shares only the *implementation* â€” validation, reading,
-message construction, persistence, error handling â€” and each surface supplies
+`useChatUploads.js` shares only the *implementation* — validation, reading,
+message construction, persistence, error handling — and each surface supplies
 `onStart`/`onSuccess`/`onError`. Errors carry a `userFacing` flag so existing
 wording survives verbatim.
 
@@ -613,17 +632,17 @@ messages.
 Neither process had any logging: eight `print()` calls and thirteen `console`
 calls, all going to a console that does not exist in a packaged build.
 
-**Backend** (`services/app_logging.py`) â€” rotating handler at
+**Backend** (`services/app_logging.py`) — rotating handler at
 `data/logs/backend.log`, 2 MB x 5, with timestamps, levels, and logger names.
 Handlers attach to the **root** logger and uvicorn starts with
 `log_config=None`, so uvicorn's startup and access lines land in the same
 chronological file. An unparseable level falls back to INFO; an unwritable
 directory degrades to console-only. Logging must never stop the app starting.
 
-**Electron** (`electron/logger.js`) â€” same treatment at
+**Electron** (`electron/logger.js`) — same treatment at
 `data/logs/electron.log`, dependency-free and synchronous because a log line
 arriving after a crash is worthless. Backend stdout is piped in, which is the
-*only* record available when the backend dies before its own logging is up â€”
+*only* record available when the backend dies before its own logging is up —
 the most likely failure on an unfamiliar machine. Lines already stamped by the
 backend pass through unchanged rather than being double-prefixed, and
 multi-line chunks are split so continuation lines stay labelled.
@@ -635,7 +654,7 @@ failures carry tracebacks.
 
 ## 14. Tests
 
-`npm run verify` â€” frontend tests, backend tests, and the production build.
+`npm run verify` — frontend tests, backend tests, and the production build.
 About 35 seconds.
 
 | Backend (pytest, 213) | | Frontend (vitest, 154) | |
@@ -678,7 +697,7 @@ Local-only by design and by configuration:
   anyone on the LAN.
 - The renderer is served over its own `app://local` scheme and CORS is
   restricted to that origin plus the Vite dev origins. It previously allowed
-  the `file://` renderer's `"null"` origin â€” the same origin every sandboxed
+  the `file://` renderer's `"null"` origin — the same origin every sandboxed
   iframe on the web carries, which made "is this our window?" unanswerable and
   let any page the user visited read this API.
 - Every request but `/health` carries a per-launch session credential generated
@@ -695,8 +714,8 @@ Local-only by design and by configuration:
 
 Requests now need the session credential, which closes the browser-to-localhost
 path: a page the user merely visits has no way to obtain it. **Any other local
-process running as this user can still read it** â€” from the backend's
-environment or a compromised trusted renderer â€” so this is a boundary against the
+process running as this user can still read it** — from the backend's
+environment or a compromised trusted renderer — so this is a boundary against the
 browser, not against local malware. `/thinking/open-terminal` still spawns a
 real PowerShell window and is worth keeping in mind for that reason.
 
@@ -709,7 +728,7 @@ Nothing here is urgent; the application is stable.
 1. **Uncommitted work in the tree.** The LoRA subsystem, long-prompt encoding,
    blob GC, and permanent deletion are all unstaged. Multiple architectural
    files are untracked. There is no restore point for any of it.
-2. **LoRA test coverage is still incomplete** â€” project storage, completion
+2. **LoRA test coverage is still incomplete** — project storage, completion
    packaging, and GPU lease behavior are covered, but the subprocess manager and
    real worker are not demonstrated end to end.
 3. **Unreachable project schema.** `project_name` flows through `ChatRequest`
@@ -718,12 +737,12 @@ Nothing here is urgent; the application is stable.
 4. **Auto-title inconsistency.** The frontend skips `[File uploaded:` messages
    when auto-titling; `session_store.update_session` does not, so uploading a
    file first produces a title containing the file body.
-5. **Knowledge-base ingest speed** â€” one chunk at a time, ~43 s per 60 KB.
+5. **Knowledge-base ingest speed** — one chunk at a time, ~43 s per 60 KB.
 6. **Blob GC is O(sessions) per deletion.** `_reference_is_retained()` reads
    and parses every session file for each reference. Fine at current scale,
    quadratic as sessions accumulate.
 7. **SQLite message log** duplicates conversation text nothing reads.
-8. **Trash retention** â€” deleted sessions accumulate indefinitely.
+8. **Trash retention** — deleted sessions accumulate indefinitely.
 9. **Legacy `frontend/index.html`** (1466 lines) can drift from the React app
    and should be excluded from any package.
 10. **README** still documents none of setup, architecture, testing, or

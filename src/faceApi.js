@@ -29,13 +29,16 @@ export const deleteDataset = (id) => request(`/datasets/${id}`, { method: "DELET
 export const saveSettings = (id, settings) =>
   request(`/datasets/${id}/settings`, { ...json({ settings }), method: "PUT" });
 
-export const extractFrom = (id, sources) => request(`/datasets/${id}/extract`, json({ sources }));
+export const extractFrom = (id, sources, name = "") => request(`/datasets/${id}/extract`, json({ sources, name }));
+export const listRuns = id => request(`/datasets/${id}/runs`);
+export const renameRun = (id, runId, name) => request(`/datasets/${id}/runs/${runId}`, { ...json({ name }), method: "PUT" });
 export const getRun = (id) => request(`/datasets/${id}/run`);
 export const stopRun = (id, runId) => request(`/datasets/${id}/run/stop${runId ? `?run_id=${encodeURIComponent(runId)}` : ""}`, { method: "POST" });
 export const recrop = (id, faceIds) => request(`/datasets/${id}/recrop`, json({ face_ids: faceIds || [] }));
 
-export function uploadImages(id, files) {
+export function uploadImages(id, files, name = "") {
   const body = new FormData();
+  body.append("name", name);
   for (const file of files) body.append("files", file, file.name);
   return request(`/datasets/${id}/upload`, { method: "POST", body });
 }
@@ -83,6 +86,16 @@ export function curationGroups(character) {
 export const cropUrl = (datasetId, faceId, revision = 0) =>
   apiUrl(`/faces/datasets/${datasetId}/faces/${faceId}/crop?v=${revision}`);
 export const exportUrl = (datasetId) => apiUrl(`/faces/datasets/${datasetId}/export`);
+
+/** Each claim returns a check that stays true only until the next claim, so
+ *  out-of-order responses from superseded loads can be discarded. */
+export function latestRequest() {
+  let latest = 0;
+  return () => {
+    const mine = ++latest;
+    return () => mine === latest;
+  };
+}
 
 /** Sort and filter the contact sheet. Similarity is only offered once a reference exists. */
 export function arrangeFaces(faces, { sort, order, filter, scores, threshold, search }) {

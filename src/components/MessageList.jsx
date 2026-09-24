@@ -1,5 +1,6 @@
 import FreshFileInput from "./FreshFileInput";
 import ProtectedImage from "../ImagePrivacy";
+import ImageItemActions from "./ImageItemActions";
 import { useEffect, useRef, useState } from "react";
 import { useStore, useDispatch } from "../useStore.jsx";
 import MarkdownMessage from "./MarkdownMessage";
@@ -8,6 +9,8 @@ import { isImageFile, useChatUploads } from "../useChatUploads";
 import { SEVERITY, describeStatus } from "../serviceStatus";
 import * as api from "../api";
 import { isStoredReference } from "../imageRefs";
+import ImageViewer from "./ImageViewer";
+import { chatImage } from "../chatImages";
 
 function summarizeContent(message) {
   const content = String(message.content || "");
@@ -37,6 +40,7 @@ export default function MessageList({ onNewChat, onSessionSaved }) {
   const dispatch = useDispatch();
   const fileInputRef = useRef(null);
   const [dragActive, setDragActive] = useState(false);
+  const [imagePreview, setImagePreview] = useState(null);
   const [copiedIndex, setCopiedIndex] = useState(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState("");
   const messageNodes = useRef(new Map());
@@ -235,17 +239,18 @@ export default function MessageList({ onNewChat, onSessionSaved }) {
                     <div className="image-preview-grid">
                       {[...(message.imagePreviews || []), ...(message.generatedImages || [])].map((image, imageIndex) => (
                         <figure className="image-preview" key={image.id || imageIndex}>
-                          <ProtectedImage
+                          <button type="button" className="chat-image-open" aria-label={`Enlarge ${image.name || "chat image"}`} onClick={() => setImagePreview(chatImage(image, messageId, currentSessionId, imageIndex, imageSourceFor(image, messageId)))}><ProtectedImage
                             src={imageSourceFor(image, messageId)}
                             alt={image.name || "Generated image"}
                             loading="lazy"
-                          />
+                          /></button>
                           <figcaption>{image.name || "Generated image"}</figcaption>
+                          <ImageItemActions chat image={chatImage(image, messageId, currentSessionId, imageIndex, imageSourceFor(image, messageId))} />
                         </figure>
                       ))}
                     </div>
                   )}
-                  <MarkdownMessage>{summarizeContent(message)}</MarkdownMessage>
+                  <MarkdownMessage onImageClick={image => setImagePreview({ ...image, chat_session_id: currentSessionId, id: `${messageId}:inline:${image.url}` })}>{summarizeContent(message)}</MarkdownMessage>
                 </div>
               </div>
               <div className="message-actions">
@@ -270,6 +275,7 @@ export default function MessageList({ onNewChat, onSessionSaved }) {
         accept=".txt,.md,.pdf,.docx,.png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp"
         onChange={(e) => handleFiles(e.target.files)}
       />
+      <ImageViewer images={imagePreview ? [imagePreview] : []} selectedId={imagePreview?.id} onSelect={() => {}} onClose={() => setImagePreview(null)} active={["chats", "knowledge"].includes(state.activeSidebarTab)} />
     </div>
   );
 }

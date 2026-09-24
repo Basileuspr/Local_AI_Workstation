@@ -321,3 +321,33 @@ def test_locked_liked_review_image_is_absent_everywhere_and_restores_its_metadat
     restored = isolated.post(f"/image-library/vault/images/{private['id']}/restore", headers=headers).json()
     assert restored["review_only"] and restored["rating"] == "liked"
     assert restored["annotations"]["caption"] == "Private notes" and restored["tag_ids"] == [face["id"]]
+
+
+def test_review_zip_exports_exact_selection_and_metadata_without_modifying_copies(isolated):
+    import zipfile
+    a = library.import_image(picture(), "../same.png", {"kind":"review"})
+    b = library.import_image(picture("blue"), "same.png", {"kind":"review"})
+    tag = library.tag("Skin tone")
+    library.edit_image(a["id"], rating="liked", set_rating=True, caption="Warm portrait", tag_ids=[tag["id"]])
+    before = library.read_index()
+    response = isolated.post("/image-library/export", json={"ids":[b["id"],a["id"],a["id"]]})
+    assert response.status_code == 200 and response.headers["cache-control"] == "no-store"
+    with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+        items = json.loads(archive.read("manifest.json"))["images"]
+        assert len(items) == 2 and items[1]["tags"] == ["Skin tone"] and items[1]["rating"] == "liked"
+        assert archive.read(items[1]["file"]) == picture()
+        assert archive.read(items[1]["file"].replace(".png",".txt")) == b"Warm portrait"
+        assert all(not name.startswith("/") and ".." not in name for name in archive.namelist())
+    assert library.read_index() == before
+    assert isolated.post("/image-library/export", json={"ids":["../invalid"]}).status_code == 422
+    assert isolated.post("/image-library/export", json={"ids":[]}).status_code == 422
+
+
+def test_review_export_rejects_vault_locked_and_modified_images(isolated):
+    a = library.import_image(picture(), "private.png", {"kind":"review"})
+    headers = auth(isolated)
+    assert isolated.post("/image-library/vault/import",headers=headers,json={"kind":"library","id":a["id"]}).status_code == 200
+    assert isolated.post("/image-library/export",json={"ids":[a["id"]]}).status_code == 403
+    b = library.import_image(picture("green"), "changed.png", {"kind":"review"})
+    (library.ROOT/"images"/(b["id"]+".image")).write_bytes(picture("blue"))
+    assert isolated.post("/image-library/export",json={"ids":[b["id"]]}).status_code == 422

@@ -63,6 +63,102 @@ def test_external_gpu_owner_and_pause_hold_waiters():
     queue.finish(job)
 
 
+def test_cpu_jobs_do_not_reserve_gpu_or_block_gpu_fifo():
+    gpu = GpuCoordinator()
+    queue = RequestQueue(gpu)
+    cpu = queue.enqueue("faces", "CPU faces", requires_gpu=False)
+    first = queue.enqueue("image", "first GPU")
+    second = queue.enqueue("chat", "second GPU")
+    assert queue.try_start(first)  # A queued CPU job is not a GPU waiter.
+    assert queue.try_start(cpu)
+    assert cpu.status == "running" and cpu.started_at
+    assert not queue.try_start(second)
+    queue.finish(cpu)
+    assert gpu.current_owner() == first.owner
+    assert queue.active is first
+    queue.finish(first)
+    assert queue.try_start(second)
+    queue.finish(second)
+    assert not queue.try_start(cpu)  # Completed CPU work cannot restart.
+
+
+def test_cpu_cancel_calls_provider_and_pause_holds_new_cpu_work():
+    async def scenario():
+        gpu = GpuCoordinator()
+        queue = RequestQueue(gpu)
+        stopped = []
+        cpu = queue.enqueue("faces", "CPU faces", requires_gpu=False, cancel=lambda: stopped.append(True))
+        queue.paused = True
+        assert not queue.try_start(cpu)
+        queue.paused = False
+        assert queue.try_start(cpu)
+        assert gpu.current_owner() is None
+        image = queue.enqueue("image", "GPU image")
+        assert queue.try_start(image)
+        assert await queue.cancel(cpu)
+        assert stopped == [True] and cpu.status == "cancelling"
+        assert gpu.current_owner() == image.owner
+        queue.finish(cpu)
+        assert cpu.status == "cancelled" and queue.active is image
+        queue.finish(image)
+    asyncio.run(scenario())
+
+
+def test_face_extractor_registers_cpu_work_without_delaying_gpu(monkeypatch):
+    from services.faces import pipeline
+    gpu = GpuCoordinator()
+    queue = RequestQueue(gpu)
+    monkeypatch.setattr(pipeline, "queue", queue)
+    monkeypatch.setattr(pipeline, "get_provider", lambda: SimpleNamespace(uses_gpu=lambda: False))
+    monkeypatch.setattr(pipeline.store, "mark_duplicates", lambda _id: None)
+    monkeypatch.setattr(pipeline.store, "cluster", lambda _id: None)
+    monkeypatch.setattr(pipeline.store, "save_run", lambda _snapshot: None)
+    image = queue.enqueue("image", "active GPU")
+    assert queue.try_start(image)
+    extractor = pipeline.FaceExtractor()
+    async def one_source(run, source, provider, job):
+        assert job.status == "running" and not job.requires_gpu
+        assert gpu.current_owner() == image.owner
+    monkeypatch.setattr(extractor, "_one_source", one_source)
+    run = pipeline.FaceRun("dataset", 1)
+    asyncio.run(extractor._execute(run, [{}]))
+    assert run.status == "complete"
+    assert queue.active is image
+    queue.finish(image)
+
+
+@pytest.mark.parametrize("kind", ["image", "workflow", "training"])
+def test_gpu_handoff_unloads_all_retained_ollama_models(monkeypatch, kind):
+    import httpx
+    import json
+    from services.request_queue import prepare_runtime
+    unloaded = []
+    async def handler(request):
+        if request.url.path == "/api/ps":
+            return httpx.Response(200, json={"models": [{"name": "chat"}, {"model": "embedding"}]})
+        assert request.url.path == "/api/generate"
+        payload = json.loads(request.content)
+        assert payload["keep_alive"] == 0
+        unloaded.append(payload["model"])
+        return httpx.Response(200, json={"done": True})
+    client_type = httpx.AsyncClient
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **kwargs:
+        client_type(transport=httpx.MockTransport(handler), **kwargs))
+    asyncio.run(prepare_runtime(kind))
+    assert unloaded == ["chat", "embedding"]
+
+
+@pytest.mark.parametrize("kind", ["chat", "compact", "analysis", "embedding"])
+def test_ollama_handoff_releases_sdxl_off_the_event_loop(monkeypatch, kind):
+    from services.request_queue import prepare_runtime
+    from services.image_generation import manager
+    caller = threading.get_ident()
+    threads = []
+    monkeypatch.setattr(manager, "unload_for_training", lambda: threads.append(threading.get_ident()))
+    asyncio.run(prepare_runtime(kind))
+    assert threads and threads[0] != caller
+
+
 def test_disconnected_waiter_never_starts():
     async def scenario():
         queue = RequestQueue(GpuCoordinator())
@@ -342,7 +438,7 @@ def test_real_chat_stream_wrapper_closes_upstream_before_queue_release(monkeypat
             async def __aenter__(self): return self
             async def __aexit__(self, *_args): pass
             def stream(self, _method, _url, json):
-                assert json["keep_alive"] == 0
+                assert json["keep_alive"] == main.settings.ollama_keep_alive_seconds
                 return Response()
         monkeypatch.setattr(main.httpx, "AsyncClient", Provider)
         class Client:

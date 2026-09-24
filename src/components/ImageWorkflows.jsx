@@ -1,29 +1,41 @@
+import ImageResolutionControls from './ImageResolutionControls';
 import FreshFileInput from "./FreshFileInput";
 import ProtectedImage from "../ImagePrivacy";
 import { useEffect, useRef, useState } from "react";
 import * as api from "../imageWorkflowApi";
-import { imageSourceOptions, stageWithProvider, parseSource, runIsActive } from "../imageWorkflow";
+import { imageSourceOptions, stageWithProvider, parseSource, runIsActive, resolveStageSources, sourceDimensions } from "../imageWorkflow";
 import WorkflowRunPanel from "./WorkflowRunPanel";
 import BulkActions, { SelectionCheckbox } from "./BulkActions";
 import { useSelection } from "../useSelection";
 import WorkflowDeleteDialog from "./WorkflowDeleteDialog";
 import SceneStudio from "./SceneStudio";
+import { useDispatch, useStore } from "../useStore";
+import { MAX_IMAGE_STEPS, MAX_IMAGE_GUIDANCE } from "../imageGenerationLimits";
 
 function Field({ label, help, children }) {
   return <label className="workflow-field"><span>{label}</span>{children}{help && <small>{help}</small>}</label>;
 }
 
 export default function ImageWorkflows({ active }) {
+  const state = useStore(), dispatch = useDispatch();
   const [mode, setMode] = useState(() => typeof localStorage === "undefined" ? "stages" : localStorage.getItem("law-workflow-mode-v1") || "stages");
   function choose(value) { setMode(value); localStorage.setItem("law-workflow-mode-v1", value); }
+  useEffect(() => { if (state?.sceneToOpen) choose("scene"); }, [state?.sceneToOpen]);
+  useEffect(() => { if (state?.workflowToOpen) choose("stages"); }, [state?.workflowToOpen]);
   return <><nav className="workflow-mode-tabs" aria-label="Image workflow mode">
     <button aria-pressed={mode === "stages"} onClick={() => choose("stages")}>Processing stages</button>
     <button aria-pressed={mode === "scene"} onClick={() => choose("scene")}>Iterative scenes</button>
   </nav><div className="workflow-mode-panel" hidden={mode !== "stages"}><StageWorkflows active={active && mode === "stages"} /></div>
-    <div className="workflow-mode-panel" hidden={mode !== "scene"}><SceneStudio active={active && mode === "scene"} /></div></>;
+    <div className="workflow-mode-panel" hidden={mode !== "scene"}><SceneStudio active={active && mode === "scene"} sceneToOpen={state?.sceneToOpen} onSceneOpened={id => dispatch?.({ type: "ITERATIVE_SCENE_OPENED", payload: id })} /></div></>;
 }
 
 function StageWorkflows({ active }) {
+  const navigationState = useStore(), dispatch = useDispatch();
+  useEffect(() => {
+    if (!active || !navigationState?.workflowToOpen) return;
+    const id = navigationState.workflowToOpen;
+    void load(id).then(() => dispatch({ type: "IMAGE_WORKFLOW_OPENED", payload: id })).catch(error => setError(error.message));
+  }, [active, navigationState?.workflowToOpen]);
   const [catalog, setCatalog] = useState(null);
   const [library, setLibrary] = useState([]);
   const workflowSelection = useSelection(library);
@@ -152,7 +164,7 @@ function StageWorkflows({ active }) {
   }
 
   function change(update) {
-    setDraft(current => ({ ...current, ...update }));
+    setDraft(current => {const next=typeof update==="function"?update(current):{...current,...update};return {...next,stages:resolveStageSources(next.stages)};});
     setDirty(true);
     setReport(null);
     setSnapshot(null);
@@ -160,7 +172,7 @@ function StageWorkflows({ active }) {
   }
 
   function changeStage(id, update) {
-    change({ stages: draft.stages.map(stage => stage.id === id ? { ...stage, ...update } : stage) });
+    change(current=>({...current,stages:current.stages.map(stage=>stage.id===id?{...stage,...update}:stage)}));
   }
 
   async function run(action) {
@@ -292,12 +304,12 @@ function StageWorkflows({ active }) {
             <Field label="Negative prompt" help="Describe things to avoid. Some model families do not support negative prompts; their adapter must report that."><textarea rows={2} maxLength={12000} value={draft.prompt_settings.negative_prompt} onChange={event => change({ prompt_settings: { ...draft.prompt_settings, negative_prompt: event.target.value } })} /></Field>
             <div className="workflow-numbers">{[
               ["seed", "Seed", -1, 4294967295, 1, "-1 requests a new random seed. A fixed seed helps comparisons but does not guarantee identical results across models or hardware."],
-              ["steps", "Steps", 1, 60, 1, "SDXL refinement steps, up to 60. Steps multiplied by strength must be at least 1 unless strength is 0."],
-              ["guidance", "Guidance", 0, 30, 0.1, "How strongly a compatible model follows your prompt. Too much can introduce harsh or distorted details."],
+              ["steps", "Steps", 1, MAX_IMAGE_STEPS, 1, `SDXL refinement steps, up to ${MAX_IMAGE_STEPS}. Steps multiplied by strength must be at least 1 unless strength is 0.`],
+              ["guidance", "Guidance", 0, MAX_IMAGE_GUIDANCE, 0.1, "How strongly a compatible model follows your prompt. Too much can introduce harsh or distorted details."],
             ].map(([key, label, min, max, step, help]) => <Field key={key} label={label} help={help}><input type="number" min={min} max={max} step={step} value={draft.prompt_settings[key]} onChange={event => change({ prompt_settings: { ...draft.prompt_settings, [key]: Number(event.target.value) } })} /></Field>)}</div>
           </section>
           <section className="workflow-card">
-            <h2>3 · Processing stages</h2><p>Work flows from top to bottom. Reordering or removing a stage may break references; Validate explains what needs attention.</p>
+            <h2>3 · Processing stages</h2><p>Work flows from top to bottom. Previous-image links follow the processing order when stages change. Choose a particular image or stage only when you want a fixed source.</p>
             <BulkActions selection={stageSelection} items={draft.stages} label="stages" disabled={busy}
               actions={[{label:"Remove selected stages", danger:true, onClick:items => {
                 if (!window.confirm(`Remove ${items.length} selected stage(s) from this draft? Remaining stages may need new source selections. Save changes to keep this edit.`)) return;
@@ -307,7 +319,8 @@ function StageWorkflows({ active }) {
             {draft.stages.map((stage, index) => {
               const metadata = catalog.operations.find(item => item.id === stage.operation);
               const options = imageSourceOptions(draft, index);
-              const sourceValue = stage.source ? `${stage.source.kind}:${stage.source.id}` : "";
+              const previous=draft.stages.slice(0,index).filter(item=>item.operation!=="describe").at(-1);
+              const sourceValue = stage.source_mode==="previous"?"previous":stage.source ? `${stage.source.kind}:${stage.source.id}` : "";
               return <article className="workflow-stage" key={stage.id}>
                 <SelectionCheckbox selection={stageSelection} item={stage} label={`stage ${index + 1}`} disabled={busy} />
                 <div className="workflow-stage-heading"><h3>{index + 1} · {metadata.label}</h3><div>
@@ -316,9 +329,10 @@ function StageWorkflows({ active }) {
                   <button aria-label={`Remove stage ${index + 1}`} onClick={() => change({ stages: draft.stages.filter(item => item.id !== stage.id) })}>Remove stage</button>
                 </div></div>
                 <p>{metadata.help}</p>
-                {stage.operation !== "txt2img" && <Field label={`Stage ${index + 1} source`}><select value={sourceValue} onChange={event => changeStage(stage.id, { source: parseSource(event.target.value) })}>
+                {stage.operation !== "txt2img" && <Field label={`Stage ${index + 1} source`}><select value={sourceValue} onChange={event => changeStage(stage.id,event.target.value==="previous"?{source_mode:"previous"}:{source_mode:"selected",source:parseSource(event.target.value)})}>
                   <option value="">Choose a source</option>
-                  {sourceValue && !options.some(item => item.value === sourceValue) && <option value={sourceValue}>Invalid reference — choose another source</option>}
+                  <option value="previous" disabled={!previous}>Previous image stage{previous?` · Stage ${draft.stages.indexOf(previous)+1} output`:" · none yet"}</option>
+                  {sourceValue && sourceValue!=="previous" && !options.some(item => item.value === sourceValue) && <option value={sourceValue}>Invalid reference — choose another source</option>}
                   {options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select></Field>}
                 {stage.operation === "inpaint" && <Field label={`Stage ${index + 1} mask`} help="White = edit, black = preserve. Match the source dimensions; this release does not include a mask painter.">{assetSelect(stage.mask_asset_id, value => changeStage(stage.id, { mask_asset_id: value }), `Stage ${index + 1} mask`)}</Field>}
@@ -339,7 +353,9 @@ function StageWorkflows({ active }) {
                   <option value="">Choose an installed model</option>
                   {(catalog.providers.find(p => p.id === stage.provider_slot)?.models || []).map(model => <option key={model.id} value={model.id}>{model.name}</option>)}
                 </select></Field>}
-                {["txt2img", "img2img", "inpaint"].includes(stage.operation) && <div className="workflow-numbers">{["width", "height"].map(key => <Field key={key} label={`Stage ${index + 1} output ${key}`} help="Output dimensions: 256–1024, multiples of 8. Sources and masks resize to match."><input type="number" min={256} max={1024} step={8} value={stage[key] || 512} onChange={event => changeStage(stage.id, { [key]: Number(event.target.value) })} /></Field>)}</div>}
+                {stage.operation!=="txt2img"&&<p className="workflow-source-summary">{stage.source?.kind==='stage'?`Input: Stage ${draft.stages.findIndex(item=>item.id===stage.source.id)+1} image output → Stage ${index+1}`:stage.source?'Input: uploaded image':'Choose a source image.'}</p>}
+                {["txt2img", "img2img", "inpaint"].includes(stage.operation) && <ImageResolutionControls width={stage.width} height={stage.height} min={256} max={1024} prefix={`Stage ${index+1} `} locked={stage.lock_aspect_ratio!==false} onLock={locked=>changeStage(stage.id,{lock_aspect_ratio:locked})} sourceSize={sourceDimensions(draft,stage.source)} onChange={size=>changeStage(stage.id,size)}/>}
+
                 {!metadata.supported && <p className="workflow-error">No installed adapter supports this stage. Remove it or choose a supported operation before running.</p>}
               </article>;
             })}

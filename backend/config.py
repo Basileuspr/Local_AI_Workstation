@@ -121,6 +121,8 @@ class Settings:
     chunk_overlap: int
 
     warnings: tuple[str, ...] = field(default=())
+    ollama_keep_alive_seconds: int = 300
+    face_intra_op_threads: int = 6
 
     # --- derived paths -----------------------------------------------------
     # Everything the app writes hangs off data_dir, so a portable build can
@@ -175,6 +177,8 @@ class Settings:
         return [
             f"listening on {self.host}:{self.port}",
             f"ollama at {self.ollama_base_url}",
+            f"Ollama idle model retention {self.ollama_keep_alive_seconds} seconds",
+            f"face inference threads per session {self.face_intra_op_threads} (0 = runtime default)",
             f"embedding model {self.embedding_model}",
             f"PDF OCR model {self.ocr_model}",
             f"data dir {self.data_dir}",
@@ -225,6 +229,8 @@ def load_settings() -> Settings:
         knowledge_base_max_chars=_env_int("KNOWLEDGE_BASE_MAX_CHARS", 8000, warnings, minimum=200),
         chunk_size=chunk_size,
         chunk_overlap=chunk_overlap,
+        ollama_keep_alive_seconds=_env_int("OLLAMA_KEEP_ALIVE_SECONDS", 300, warnings, minimum=0),
+        face_intra_op_threads=_env_int("FACE_INTRA_OP_THREADS", 6, warnings, minimum=0),
         warnings=tuple(warnings),
     )
 

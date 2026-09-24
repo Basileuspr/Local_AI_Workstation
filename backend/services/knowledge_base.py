@@ -11,6 +11,7 @@ Everything runs locally. No internet required.
 """
 
 import hashlib
+import math
 import httpx
 from pathlib import Path
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -18,6 +19,7 @@ import chromadb
 
 from config import settings
 from services.app_logging import get_logger
+from services.request_queue import QueueCancelled
 
 logger = get_logger("backend.knowledge_base")
 
@@ -29,6 +31,7 @@ OLLAMA_BASE_URL = settings.ollama_base_url
 EMBEDDING_MODEL = settings.embedding_model
 CHUNK_SIZE = settings.chunk_size
 CHUNK_OVERLAP = settings.chunk_overlap
+EMBEDDING_BATCH_SIZE = 16
 
 
 def _get_collection():
@@ -41,20 +44,42 @@ def _get_collection():
     )
 
 
-def _create_embedding(text: str) -> list[float]:
-    """
-    Create an embedding vector for a piece of text using Ollama.
-    Uses nomic-embed-text which is already installed.
-    """
-    response = httpx.post(
-        f"{OLLAMA_BASE_URL}/api/embed",
-        json={"model": EMBEDDING_MODEL, "input": text},
-        timeout=30.0,
-    )
-    response.raise_for_status()
-    data = response.json()
-    # Ollama returns embeddings in data["embeddings"] as a list of lists
-    return data["embeddings"][0]
+def _check_cancelled(cancel_event):
+    if cancel_event is not None and cancel_event.is_set():
+        raise QueueCancelled("Knowledge-base request cancelled")
+
+
+def _create_embeddings(texts: list[str], cancel_event=None) -> list[list[float]]:
+    """Embed bounded batches in order, reusing one local HTTP connection."""
+    vectors = []
+    dimensions = None
+    with httpx.Client(timeout=httpx.Timeout(60, connect=10), trust_env=False) as client:
+        for offset in range(0, len(texts), EMBEDDING_BATCH_SIZE):
+            _check_cancelled(cancel_event)
+            batch = texts[offset:offset + EMBEDDING_BATCH_SIZE]
+            response = client.post(
+                f"{OLLAMA_BASE_URL}/api/embed",
+                json={"model": EMBEDDING_MODEL, "input": batch,
+                      "keep_alive": settings.ollama_keep_alive_seconds},
+            )
+            response.raise_for_status()
+            embedded = response.json().get("embeddings")
+            if not isinstance(embedded, list) or len(embedded) != len(batch):
+                raise ValueError("Ollama returned an incomplete embedding batch")
+            for vector in embedded:
+                if (not isinstance(vector, list) or not vector
+                        or any(not isinstance(value, (int, float)) or not math.isfinite(value) for value in vector)):
+                    raise ValueError("Ollama returned an invalid embedding vector")
+                dimensions = dimensions or len(vector)
+                if len(vector) != dimensions:
+                    raise ValueError("Ollama returned inconsistent embedding dimensions")
+            vectors.extend(embedded)
+    _check_cancelled(cancel_event)
+    return vectors
+
+
+def _create_embedding(text: str, cancel_event=None) -> list[float]:
+    return _create_embeddings([text], cancel_event)[0]
 
 
 def _chunk_text(text: str) -> list[str]:
@@ -71,7 +96,7 @@ def _chunk_text(text: str) -> list[str]:
     return splitter.split_text(text)
 
 
-def add_document(text: str, filename: str) -> dict:
+def add_document(text: str, filename: str, *, cancel_event=None) -> dict:
     """
     Add a document to the knowledge base.
     
@@ -86,17 +111,6 @@ def add_document(text: str, filename: str) -> dict:
     # Create a document ID from the filename
     doc_id = hashlib.md5(filename.encode()).hexdigest()[:12]
 
-    # Remove existing chunks for this document (in case of re-upload)
-    try:
-        existing = collection.get(where={"doc_id": doc_id})
-        if existing["ids"]:
-            collection.delete(ids=existing["ids"])
-            logger.info("Replaced %d existing chunks for %s", len(existing["ids"]), filename)
-    except Exception:
-        # Best effort: a failed cleanup leaves stale chunks but must not block
-        # the re-upload. Logged because duplicate chunks skew later retrieval.
-        logger.warning("Could not clear existing chunks for %s", filename, exc_info=True)
-
     # Chunk the text
     chunks = _chunk_text(text)
 
@@ -109,16 +123,15 @@ def add_document(text: str, filename: str) -> dict:
 
     # Create embeddings and store
     ids = []
-    embeddings = []
+    # Keep the previous document intact if an embedding batch fails or is
+    # cancelled. Chunk boundaries and the embedding model are unchanged.
+    embeddings = _create_embeddings(chunks, cancel_event)
     documents = []
     metadatas = []
 
     for i, chunk in enumerate(chunks):
         chunk_id = f"{doc_id}_chunk_{i}"
-        embedding = _create_embedding(chunk)
-
         ids.append(chunk_id)
-        embeddings.append(embedding)
         documents.append(chunk)
         metadatas.append({
             "doc_id": doc_id,
@@ -127,12 +140,17 @@ def add_document(text: str, filename: str) -> dict:
             "total_chunks": len(chunks),
         })
 
-    collection.add(
+    existing = collection.get(where={"doc_id": doc_id}, include=[])
+    _check_cancelled(cancel_event)
+    collection.upsert(
         ids=ids,
         embeddings=embeddings,
         documents=documents,
         metadatas=metadatas,
     )
+    obsolete = sorted(set(existing["ids"]) - set(ids))
+    if obsolete:
+        collection.delete(ids=obsolete)
 
     return {
         "filename": filename,
@@ -142,7 +160,7 @@ def add_document(text: str, filename: str) -> dict:
     }
 
 
-def query_knowledge_base(query: str, n_results: int = 5) -> list[dict]:
+def query_knowledge_base(query: str, n_results: int = 5, *, cancel_event=None) -> list[dict]:
     """
     Search the knowledge base for chunks relevant to the query.
     
@@ -160,7 +178,7 @@ def query_knowledge_base(query: str, n_results: int = 5) -> list[dict]:
         return []
 
     # Embed the query
-    query_embedding = _create_embedding(query)
+    query_embedding = _create_embedding(query, cancel_event)
 
     # Search for similar chunks
     results = collection.query(
@@ -202,7 +220,7 @@ def list_documents() -> list[dict]:
         return []
 
     # Get all metadata
-    all_data = collection.get()
+    all_data = collection.get(include=["metadatas"])
 
     # Group by document
     docs = {}
@@ -223,9 +241,11 @@ def remove_document(doc_id: str) -> bool:
     collection = _get_collection()
 
     try:
-        existing = collection.get(where={"doc_id": doc_id})
+        existing = collection.get(where={"doc_id": doc_id}, include=[])
         if existing["ids"]:
             collection.delete(ids=existing["ids"])
+            from services.knowledge_graph import forget_document
+            forget_document(doc_id)
             logger.info("Removed %d chunks for doc_id %s", len(existing["ids"]), doc_id)
             return True
         logger.info("No chunks found for doc_id %s", doc_id)

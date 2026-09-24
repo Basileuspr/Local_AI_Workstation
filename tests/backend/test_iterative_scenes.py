@@ -91,8 +91,12 @@ async def generate(workflow, manager):
     return {"workflow_id": workflow.id, "job_id": run["id"], "output_id": record["outputs"][0]["id"]}
 
 
-def test_first_frame_continuation_restore_and_branch_preserve_snapshots(runtime):
+@pytest.mark.parametrize("steps,guidance", [(30, 7), (200, 30)])
+def test_first_frame_continuation_restore_and_branch_preserve_snapshots(runtime, steps, guidance):
     workflow, manager, requests = runtime
+    workflow.prompt_settings.steps = steps
+    workflow.prompt_settings.guidance = guidance
+    workflow = scenes.save(workflow)
     async def scenario():
         first = await generate(workflow, manager)
         snapshot_path = runner._job_dir(workflow.id, first["job_id"]) / "job.json"
@@ -106,11 +110,13 @@ def test_first_frame_continuation_restore_and_branch_preserve_snapshots(runtime)
         assert requests[1].source.is_file() and requests[1].stage.operation == "img2img"
         assert "70% inserted" in requests[1].prompt_settings.prompt
         assert requests[1].stage.strength == .25
+        assert all(request.prompt_settings.steps == steps and request.prompt_settings.guidance == guidance for request in requests)
         assert snapshot_path.read_bytes() == immutable
         frames = scenes.frames(workflow.id)["frames"]
         assert len(frames) == 2 and frames[0]["scene"]["parent_frame"] == first
         restored = scenes.choose_frame(current.id, SceneFrameRequest(revision=current.revision, frame=first, action="restore"))
         assert restored.scene.source_asset_id is None and restored.prompt_settings.seed == 42
+        assert restored.prompt_settings.steps == steps and restored.prompt_settings.guidance == guidance
         assert restored.scene.state.objects[1].progression.startswith("50%")
         branch = scenes.choose_frame(restored.id, SceneFrameRequest(revision=restored.revision, frame=second, action="branch"))
         assert branch.id != restored.id and branch.parent.workflow_id == restored.id

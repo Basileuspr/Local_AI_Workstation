@@ -1,7 +1,19 @@
-import { Fragment } from "react";
+import { Fragment, createContext, useContext, useState } from "react";
+import ProtectedImage from "../ImagePrivacy";
+import { localImageUrl } from "../chatImages";
+import ImageViewer from "./ImageViewer";
+
+const ImageClick = createContext(null);
+function InlineImage({ text }) {
+  const open = useContext(ImageClick), match = text.match(/^!\[([^\]]*)\]\(([^\s)]+)\)$/);
+  const url = match && localImageUrl(match[2]);
+  if (!url) return text;
+  const image = { id: url, url, name: match[1] || "Inline image" };
+  return <button type="button" className="chat-image-open inline-chat-image" aria-label={`Enlarge ${image.name}`} onClick={() => open?.(image)}><ProtectedImage src={url} alt={image.name} loading="lazy" /></button>;
+}
 
 const listPattern = /^(\s*)([-+*]|\d+[.)])\s+(.*)$/;
-const inlinePattern = /(`[^`]+`|\*\*[^*]+\*\*|__[^_]+__|\*[^*\n]+\*|_[^_\n]+_)/g;
+const inlinePattern = /(!\[[^\]\n]*\]\([^\s)]+\)|`[^`]+`|\*\*[^*]+\*\*|__[^_]+__|\*[^*\n]+\*|_[^_\n]+_)/g;
 
 function renderInline(value, keyPrefix) {
   const text = String(value || "");
@@ -9,6 +21,7 @@ function renderInline(value, keyPrefix) {
   return parts.map((part, index) => {
     const key = `${keyPrefix}-${index}`;
     if (!part) return null;
+    if (part.startsWith("![")) return <InlineImage key={key} text={part} />;
     if (part.startsWith("`") && part.endsWith("`")) {
       return <code key={key}>{part.slice(1, -1)}</code>;
     }
@@ -64,7 +77,8 @@ function readList(lines, startIndex, baseIndent) {
   };
 }
 
-export default function MarkdownMessage({ children }) {
+export default function MarkdownMessage({ children, onImageClick }) {
+  const [selectedImage, setSelectedImage] = useState(null);
   const lines = String(children || "").replace(/\r\n?/g, "\n").split("\n");
   const blocks = [];
   let index = 0;
@@ -130,5 +144,7 @@ export default function MarkdownMessage({ children }) {
     blocks.push(<p key={`paragraph-${blocks.length}`}>{paragraph.map((item, itemIndex) => <Fragment key={itemIndex}>{renderInline(item, `paragraph-${blocks.length}-${itemIndex}`)}{itemIndex < paragraph.length - 1 && <br />}</Fragment>)}</p>);
   }
 
-  return <div className="message-markdown">{blocks}</div>;
+  return <ImageClick.Provider value={onImageClick || setSelectedImage}><div className="message-markdown">{blocks}</div>
+    {!onImageClick && selectedImage && <ImageViewer images={[selectedImage]} selectedId={selectedImage.id} onSelect={() => {}} onClose={() => setSelectedImage(null)} />}
+  </ImageClick.Provider>;
 }

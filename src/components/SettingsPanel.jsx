@@ -90,6 +90,183 @@ export default function SettingsPanel() {
   return (
     <div id="settings-panel" className="visible">
       <div id="settings-inner">
+        <div className="roleplay-area">
+          <div className="settings-top-actions">
+            <div className="roleplay-toolbar">
+              <button
+                className={`roleplay-toggle ${roleplay.enabled ? "active" : ""}`}
+                type="button"
+                onClick={() => setRoleplayField("enabled", !roleplay.enabled)}
+              >
+                Roleplay {roleplay.enabled ? "On" : "Off"}
+              </button>
+              <button
+                className="roleplay-link"
+                type="button"
+                aria-expanded={roleplayOpen}
+                aria-controls="character-fields"
+                onClick={() => dispatch({ type: "TOGGLE_ROLEPLAY_OPEN" })}
+              >
+                {roleplayOpen ? "- Character fields" : "+ Character fields"}
+              </button>
+              {roleplay.enabled && (
+                <span className="roleplay-active-name">
+                  {roleplay.characterName || "Character"}
+                </span>
+              )}
+            </div>
+            <div className="preferences-actions">
+              <button type="button" onClick={resetAllPreferences}>
+                Reset Startup Preferences
+              </button>
+            </div>
+          </div>
+
+          {roleplayOpen && (
+            <div id="character-fields" className="roleplay-grid">
+              <label>
+                <span>Character</span>
+                <input
+                  value={roleplay.characterName}
+                  onChange={(e) =>
+                    setRoleplayField("characterName", e.target.value)
+                  }
+                  placeholder="Character name"
+                />
+              </label>
+              <label>
+                <span>User Name</span>
+                <input
+                  value={roleplay.userName}
+                  onChange={(e) => setRoleplayField("userName", e.target.value)}
+                  placeholder="Optional"
+                />
+              </label>
+              <label className="roleplay-wide">
+                <span>Greeting</span>
+                <textarea
+                  value={roleplay.greeting}
+                  onChange={(e) => setRoleplayField("greeting", e.target.value)}
+                  placeholder="Opening message or setup beat"
+                />
+              </label>
+              <label className="roleplay-wide">
+                <span>Description</span>
+                <textarea
+                  value={roleplay.description}
+                  onChange={(e) =>
+                    setRoleplayField("description", e.target.value)
+                  }
+                  placeholder="Character traits, personality, appearance, boundaries, voice"
+                />
+              </label>
+              <label className="roleplay-wide">
+                <span>Scenario</span>
+                <input
+                  value={roleplay.scenario}
+                  onChange={(e) => setRoleplayField("scenario", e.target.value)}
+                  placeholder="Current scene or situation"
+                />
+              </label>
+              <label className="roleplay-wide">
+                <span>Example Dialogs</span>
+                <textarea
+                  value={roleplay.exampleDialogs}
+                  onChange={(e) =>
+                    setRoleplayField("exampleDialogs", e.target.value)
+                  }
+                  placeholder="<START> Character: ..."
+                />
+              </label>
+              <label className="roleplay-wide">
+                <span>Pre-History Instructions</span>
+                <textarea
+                  value={roleplay.preHistoryInstructions}
+                  onChange={(e) =>
+                    setRoleplayField("preHistoryInstructions", e.target.value)
+                  }
+                  placeholder="Narration, pacing, style, and GM behavior"
+                />
+              </label>
+              <label className="roleplay-wide">
+                <span>Post-History Instructions</span>
+                <textarea
+                  value={roleplay.postHistoryInstructions}
+                  onChange={(e) =>
+                    setRoleplayField("postHistoryInstructions", e.target.value)
+                  }
+                  placeholder="Response style after chat history"
+                />
+              </label>
+              <label className="roleplay-wide">
+                <span>Character System Prompt</span>
+                <input
+                  value={roleplay.characterSystemPrompt}
+                  onChange={(e) =>
+                    setRoleplayField("characterSystemPrompt", e.target.value)
+                  }
+                  placeholder="Optional extra system rule"
+                />
+              </label>
+              <label className="roleplay-wide">
+                <span>Character Post-History Instruction</span>
+                <input
+                  value={roleplay.characterPostHistoryInstruction}
+                  onChange={(e) =>
+                    setRoleplayField(
+                      "characterPostHistoryInstruction",
+                      e.target.value
+                    )
+                  }
+                  placeholder="Optional final instruction"
+                />
+              </label>
+              <label className="roleplay-wide">
+                <span>Character Note</span>
+                <input
+                  value={roleplay.characterNote}
+                  onChange={(e) =>
+                    setRoleplayField("characterNote", e.target.value)
+                  }
+                  placeholder="Short note injected into the prompt"
+                />
+              </label>
+
+              <div className="roleplay-check-row">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={roleplay.includeNames}
+                    onChange={(e) =>
+                      setRoleplayField("includeNames", e.target.checked)
+                    }
+                  />
+                  <span>Include names</span>
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={roleplay.banEmojis}
+                    onChange={(e) =>
+                      setRoleplayField("banEmojis", e.target.checked)
+                    }
+                  />
+                  <span>Ban emojis</span>
+                </label>
+              </div>
+
+              <div className="roleplay-actions">
+                <button type="button" onClick={resetRoleplayPreset}>
+                  Reset
+                </button>
+                <button type="button" onClick={saveRoleplayPreset}>
+                  Save Character
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
         <div className="settings-section-label">Profile</div>
         <div className="profile-row">
           {Object.entries(profiles).map(([key, profile]) => (
@@ -245,180 +422,6 @@ export default function SettingsPanel() {
             />
             <button type="button" onClick={saveDurableMemory} disabled={savingDurableMemory}>
               {savingDurableMemory ? "Saving..." : "Save durable memory"}
-            </button>
-          </div>
-
-          <div className="roleplay-area">
-            <div className="roleplay-toolbar">
-              <button
-                className={`roleplay-toggle ${roleplay.enabled ? "active" : ""}`}
-                type="button"
-                onClick={() => setRoleplayField("enabled", !roleplay.enabled)}
-              >
-                Roleplay {roleplay.enabled ? "On" : "Off"}
-              </button>
-              <button
-                className="roleplay-link"
-                type="button"
-                onClick={() => dispatch({ type: "TOGGLE_ROLEPLAY_OPEN" })}
-              >
-                {roleplayOpen ? "- Character fields" : "+ Character fields"}
-              </button>
-              {roleplay.enabled && (
-                <span className="roleplay-active-name">
-                  {roleplay.characterName || "Character"}
-                </span>
-              )}
-            </div>
-
-            {roleplayOpen && (
-              <div className="roleplay-grid">
-                <label>
-                  <span>Character</span>
-                  <input
-                    value={roleplay.characterName}
-                    onChange={(e) =>
-                      setRoleplayField("characterName", e.target.value)
-                    }
-                    placeholder="Character name"
-                  />
-                </label>
-                <label>
-                  <span>User Name</span>
-                  <input
-                    value={roleplay.userName}
-                    onChange={(e) => setRoleplayField("userName", e.target.value)}
-                    placeholder="Optional"
-                  />
-                </label>
-                <label className="roleplay-wide">
-                  <span>Greeting</span>
-                  <textarea
-                    value={roleplay.greeting}
-                    onChange={(e) => setRoleplayField("greeting", e.target.value)}
-                    placeholder="Opening message or setup beat"
-                  />
-                </label>
-                <label className="roleplay-wide">
-                  <span>Description</span>
-                  <textarea
-                    value={roleplay.description}
-                    onChange={(e) =>
-                      setRoleplayField("description", e.target.value)
-                    }
-                    placeholder="Character traits, personality, appearance, boundaries, voice"
-                  />
-                </label>
-                <label className="roleplay-wide">
-                  <span>Scenario</span>
-                  <input
-                    value={roleplay.scenario}
-                    onChange={(e) => setRoleplayField("scenario", e.target.value)}
-                    placeholder="Current scene or situation"
-                  />
-                </label>
-                <label className="roleplay-wide">
-                  <span>Example Dialogs</span>
-                  <textarea
-                    value={roleplay.exampleDialogs}
-                    onChange={(e) =>
-                      setRoleplayField("exampleDialogs", e.target.value)
-                    }
-                    placeholder="<START> Character: ..."
-                  />
-                </label>
-                <label className="roleplay-wide">
-                  <span>Pre-History Instructions</span>
-                  <textarea
-                    value={roleplay.preHistoryInstructions}
-                    onChange={(e) =>
-                      setRoleplayField("preHistoryInstructions", e.target.value)
-                    }
-                    placeholder="Narration, pacing, style, and GM behavior"
-                  />
-                </label>
-                <label className="roleplay-wide">
-                  <span>Post-History Instructions</span>
-                  <textarea
-                    value={roleplay.postHistoryInstructions}
-                    onChange={(e) =>
-                      setRoleplayField("postHistoryInstructions", e.target.value)
-                    }
-                    placeholder="Response style after chat history"
-                  />
-                </label>
-                <label className="roleplay-wide">
-                  <span>Character System Prompt</span>
-                  <input
-                    value={roleplay.characterSystemPrompt}
-                    onChange={(e) =>
-                      setRoleplayField("characterSystemPrompt", e.target.value)
-                    }
-                    placeholder="Optional extra system rule"
-                  />
-                </label>
-                <label className="roleplay-wide">
-                  <span>Character Post-History Instruction</span>
-                  <input
-                    value={roleplay.characterPostHistoryInstruction}
-                    onChange={(e) =>
-                      setRoleplayField(
-                        "characterPostHistoryInstruction",
-                        e.target.value
-                      )
-                    }
-                    placeholder="Optional final instruction"
-                  />
-                </label>
-                <label className="roleplay-wide">
-                  <span>Character Note</span>
-                  <input
-                    value={roleplay.characterNote}
-                    onChange={(e) =>
-                      setRoleplayField("characterNote", e.target.value)
-                    }
-                    placeholder="Short note injected into the prompt"
-                  />
-                </label>
-
-                <div className="roleplay-check-row">
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={roleplay.includeNames}
-                      onChange={(e) =>
-                        setRoleplayField("includeNames", e.target.checked)
-                      }
-                    />
-                    <span>Include names</span>
-                  </label>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={roleplay.banEmojis}
-                      onChange={(e) =>
-                        setRoleplayField("banEmojis", e.target.checked)
-                      }
-                    />
-                    <span>Ban emojis</span>
-                  </label>
-                </div>
-
-                <div className="roleplay-actions">
-                  <button type="button" onClick={resetRoleplayPreset}>
-                    Reset
-                  </button>
-                  <button type="button" onClick={saveRoleplayPreset}>
-                    Save Character
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="preferences-actions">
-            <button type="button" onClick={resetAllPreferences}>
-              Reset Startup Preferences
             </button>
           </div>
         </div>

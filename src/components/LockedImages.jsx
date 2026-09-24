@@ -25,7 +25,7 @@ function VaultImage({ image, token, onExpired }) {
   return url ? <img src={url} alt={image.name} /> : <span role="status">{error || "Loading…"}</span>;
 }
 
-export default function LockedImages({ active, pending = [], onImported }) {
+export default function LockedImages({ active, pending = [], onImported, searchQuery = "" }) {
   const [configured, setConfigured] = useState(null);
   const [token, setToken] = useState("");
   const [pin, setPin] = useState("");
@@ -95,7 +95,9 @@ export default function LockedImages({ active, pending = [], onImported }) {
     } catch (failure) { setError(failure.message); setPin(""); }
     finally { setBusy(false); }
   }
-  const pages = Math.max(1, Math.ceil(images.length / 12)), current = Math.min(page, pages - 1);
+  const filtered = images.filter(image => image.name.toLowerCase().includes(searchQuery.trim().toLowerCase()));
+  useEffect(() => { setPage(0); }, [searchQuery]);
+  const pages = Math.max(1, Math.ceil(filtered.length / 12)), current = Math.min(page, pages - 1);
   return <section className="locked-images" aria-label="Locked Images">
     <h3>🔒 Locked Images</h3>
     <p>Locked images and identical copies are hidden throughout the app until restored. Unlocking this folder does not expose them in other views.</p>
@@ -115,12 +117,13 @@ export default function LockedImages({ active, pending = [], onImported }) {
         <button disabled={busy}>Save PIN</button>
       </form>}
       {pending.length > 0 && <button type="button" disabled={batch.busy} onClick={addPending}>Lock {pending.length} selected image(s)</button>}
-      <BulkActions selection={selection} items={images} label="locked images" batch={batch} actions={[{ label: "Restore selected images", onClick: items => batch.run({ items, selection, action: image => api.request(`/vault/images/${image.id}/restore`, "POST", null, token), verb: "Restored:", confirm: `Restore ${items.length} image(s) to their original collections and allow their originals to appear throughout the app again? Review uploads stay out of General Images.`, after: async () => { api.changed(); await refresh(token); } }) }]} />
+      <BulkActions selection={selection} items={filtered} label="locked images" batch={batch} actions={[{ label: "Restore selected images", onClick: items => batch.run({ items, selection, action: image => api.request(`/vault/images/${image.id}/restore`, "POST", null, token), verb: "Restored:", confirm: `Restore ${items.length} image(s) to their original collections and allow their originals to appear throughout the app again? Review uploads stay out of General Images.`, after: async () => { api.changed(); await refresh(token); } }) }]} />
       <CollectionPager label="locked images" page={current} pages={pages} onChange={setPage} />
-      <div className="image-gallery image-gallery-compact">{images.slice(current * 12, (current + 1) * 12).map(image => <div className="gallery-item-row" key={image.id}><SelectionCheckbox selection={selection} item={image} label={`locked image ${image.name}`} disabled={batch.busy} />
+      <div className="image-gallery image-gallery-compact">{filtered.slice(current * 12, (current + 1) * 12).map(image => <div className="gallery-item-row" key={image.id}><SelectionCheckbox selection={selection} item={image} label={`locked image ${image.name}`} disabled={batch.busy} />
         <button className={`gallery-item ${selection.has(image) ? "is-selected" : ""}`} disabled={batch.busy} aria-pressed={selection.enabled ? selection.has(image) : undefined} onClick={() => selection.enabled ? selection.toggle(image) : setView(image.id)}><span className="gallery-thumbnail"><VaultImage image={image} token={token} onExpired={clear} /></span><span className="gallery-name">{image.name}</span></button>
       </div>)}</div>
       {!images.length && <p>No locked images yet. Select images in another folder and choose Lock selected images.</p>}
+      {images.length > 0 && !filtered.length && <p>No matching locked images.</p>}
       <ImageViewer images={images} selectedId={view} onSelect={setView} onClose={() => setView(null)} active={active && !!token && !selection.enabled} renderImage={image => <VaultImage image={image} token={token} onExpired={clear} />} />
     </>}
     {pending.length > 0 && !token && <p>{pending.length} selected image(s) waiting. Unlock to move them here.</p>}

@@ -6,7 +6,7 @@ import "./ChatImageControls.css";
 export default function ChatImageControls({ active = true, onGenerate }) {
   const { imageSettings: settings } = useStore();
   const dispatch = useDispatch();
-  const { models, loras, runtime, catalogError, refreshModels, isGenerating, stop } = useImageGeneration();
+  const { models, loras, runtime, catalogError, loraError, refreshModels, isGenerating, stop } = useImageGeneration();
   const change = (payload) => dispatch({ type: "SET_IMAGE_SETTINGS", payload });
   const compatible = loras.filter((adapter) => adapter.base_model_id === settings.modelId);
   const missingModel = settings.modelId && !models.some((model) => model.id === settings.modelId);
@@ -24,10 +24,10 @@ export default function ChatImageControls({ active = true, onGenerate }) {
           {models.map((model) => <option key={model.id} value={model.id}>{model.name}</option>)}
         </select>
       </label>
-      <label>Image LoRA
+      <label>Image LoRA (optional)
         <select aria-label="Chat image LoRA" value={settings.loraId || ""} disabled={!settings.modelId}
           onChange={(event) => change({ loraId: event.target.value })}>
-          <option value="">None (base model)</option>
+          <option value="">None (base model only)</option>
           {missingLora && <option value={settings.loraId}>Selected LoRA unavailable or incompatible</option>}
           {compatible.map((adapter) => <option key={adapter.id} value={adapter.id}>{adapter.name}</option>)}
         </select>
@@ -42,9 +42,10 @@ export default function ChatImageControls({ active = true, onGenerate }) {
         disabled={!settings.modelId || missingModel || missingLora || !runtime?.ready || !!catalogError}
         title="Generate an image from the text in the message box">{isGenerating ? "Queue image" : "Generate image"}</button>
     </div>
-    <p className="chat-image-hint">Generate image uses your message text and Generate settings. Send / Enter sends a text chat. Image LoRAs affect pictures.</p>
+    <p className="chat-image-hint">Generate image uses your message text and Generate settings. LoRAs are optional; None uses the base image model. Send / Enter sends a text chat.</p>
     {catalogError && <p className="chat-image-error" role="alert">{catalogError}</p>}
-    {!catalogError && !models.length && <p className="chat-image-hint">No image models found. Add a model in Generate to use image LoRAs.</p>}
+    {loraError && <p className="chat-image-hint" role="status">{loraError}</p>}
+    {!catalogError && !models.length && <p className="chat-image-hint">No image models found. Add a base image model to use image generation.</p>}
     {!catalogError && models.length > 0 && !runtime?.ready && <p className="chat-image-error">Image runtime unavailable. Check Image settings.</p>}
     <ImageRequests active={active} />
     </div>

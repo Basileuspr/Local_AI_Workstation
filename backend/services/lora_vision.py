@@ -239,7 +239,9 @@ async def analyze_project(project: dict, model: str) -> dict:
                 "model": model,
                 "stream": False,
                 "think": False,
-                "keep_alive": 0,
+                # Reuse the same weights across batches and split retries.
+                # GPU queue handoff unloads Ollama before SDXL or training.
+                "keep_alive": settings.ollama_keep_alive_seconds,
                 "format": _analysis_schema(),
                 "options": {"temperature": 0.1},
                 "messages": [{"role": "user", "content": prompt, "images": encoded_images}],

@@ -1,10 +1,12 @@
 import { useState } from "react";
+import { sortNamedItems } from "../alphabetical";
 import { useDispatch, useStore } from "../useStore.jsx";
 import BulkActions, { SelectionCheckbox } from "./BulkActions";
 import { useSelection } from "../useSelection";
 
 export default function CustomProfileControls() {
-  const { customProfiles, activeCustomProfileId } = useStore();
+  const { customProfiles: savedProfiles, activeCustomProfileId } = useStore();
+  const customProfiles = sortNamedItems(savedProfiles);
   const dispatch = useDispatch();
   const [mode, setMode] = useState("");
   const selectedProfile = customProfiles.find((profile) => profile.id === activeCustomProfileId);

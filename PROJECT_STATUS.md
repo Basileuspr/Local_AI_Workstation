@@ -1,17 +1,16 @@
 # Project status
 
-Verified 2026-09-19 against the publication candidate.
+Verified 2026-09-23 on the local `baseline/v1.0.0-portable` checkout. The
+known limitations below were last reviewed on 2026-09-19.
 
 The application is a working local desktop development checkout. It is not a
 packaged release, and the checks below do not establish production readiness.
 
 ## Verification
 
-- 585 backend tests passed with isolated data, log, model and test directories.
-- 286 frontend tests passed.
+- 735 backend tests passed with isolated data, log, model and test directories.
+- 410 frontend tests passed.
 - The Vite production build passed.
-- Application source and tests match the latest working implementation; the
-  publication preparation changes documentation and ignore rules only.
 - Existing FastAPI lifecycle deprecation warnings and a Vite bundle-size
   warning remain.
 
@@ -29,6 +28,9 @@ publication check.
 - LoRA dataset preparation, training orchestration and adapter controls.
 - Face detection, crop curation, similarity grouping and character profiles.
 - Persistent scene state and reviewed transitions between generated frames.
+- Image collections, media manager, image editor and character parts.
+- Knowledge vault and knowledge graph.
+- Dashboard drive space, system stats, CPU assistance, maintenance and reset.
 
 ## Known limitations
 

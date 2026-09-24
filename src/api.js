@@ -214,6 +214,15 @@ export async function listKnowledgeBase() {
   return data.documents || [];
 }
 
+export async function knowledgeGraphRequest(path = "", method = "GET", body, graph = true) {
+  const res = await fetch(apiUrl(`/files/knowledge-base${graph ? "/graph" : ""}${path}`), {
+    method, ...(body === undefined ? {} : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(typeof data.detail === "string" ? data.detail : "Could not load or update Knowledge");
+  return data;
+}
+
 export async function addToKnowledgeBase(file) {
   const formData = new FormData();
   formData.append("file", file);
@@ -254,6 +263,7 @@ export async function streamChat({
   model,
   messages,
   useKnowledgeBase,
+  useMemory = true,
   systemPrompt,
   options,
   sessionId,
@@ -269,6 +279,7 @@ export async function streamChat({
       messages,
       stream: true,
       use_knowledge_base: useKnowledgeBase,
+      use_memory: useMemory,
       system_prompt: systemPrompt,
       options,
       session_id: sessionId,

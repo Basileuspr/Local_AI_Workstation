@@ -43,7 +43,7 @@ function createFaceImports({ io = fs } = {}) {
             try {
                 while (grant.index < grant.paths.length && consumed < BATCH_FILES) {
                     const selected = grant.paths[grant.index];
-                    const name = path.basename(selected);
+                    const name = path.win32.basename(selected);
                     try {
                         const type = TYPES[path.extname(selected).slice(1).toLowerCase()];
                         const info = await io.lstat(selected);

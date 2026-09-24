@@ -6,7 +6,7 @@ Inspection and first implementation: September 7, 2026 (America/Denver).
 
 Add deliberate public-source imports to the existing local chat pipeline. Keep network fetching in FastAPI, and keep inference, source storage, and conversations on the workstation. Begin with reviewed public sources, then extend coverage behind the same request scheduler and provenance model.
 
-In Chat, expand **Internet Â· Import a public page**, enter a supported HTTPS URL, select **Import page**, review the preview, and select **Open new chat with source**. Ask a question in that chat using the existing composer and selected local model.
+In Chat, expand **Internet · Import a public page**, enter a supported HTTPS URL, select **Import page**, review the preview, and select **Open new chat with source**. Ask a question in that chat using the existing composer and selected local model.
 
 This version supports arbitrary public `https://` pages, including query parameters, fragments and ordinary redirects. Wikipedia keeps a richer adapter that returns article text and a revision id. It reads one selected page per import; it does not recursively crawl, search the entire internet, sign in, execute website JavaScript, or let model-generated instructions initiate network requests. Those are distinct expansion decisions, not implied by an imported URL.
 
@@ -20,7 +20,7 @@ The checkout is `baseline/v1.0.0-portable`, HEAD `6c46a0e` (`feat: prepare porta
 | Active UI | React/Vite in `src/`; pane state remains mounted. `dist/` is generated output; `frontend/index.html` is the legacy fallback. |
 | Chat | `src/components/InputBar.jsx`, `src/api.js`, `backend/main.py`: SSE streaming from local Ollama, model controls, durable memory, rolling context compaction, and request-ID cancellation. There is no general model tool-execution engine. |
 | Direct document import | `src/useChatUploads.js`, `backend/routes/files.py`, `backend/services/file_parser.py`: documents become chat messages. Both existing attachment surfaces remain. PDF text extraction now includes a local vision OCR fallback under GPU coordination; the older architecture documents predate this. |
-| Knowledge base | `backend/services/knowledge_base.py`: text chunks â†’ local Ollama embeddings â†’ persistent Chroma collection â†’ query excerpts injected into chat. Metadata is currently filename/chunk based. |
+| Knowledge base | `backend/services/knowledge_base.py`: text chunks → local Ollama embeddings → persistent Chroma collection → query excerpts injected into chat. Metadata is currently filename/chunk based. |
 | Sessions | `backend/routes/sessions.py`, `backend/services/session_store.py`: session JSON is authoritative for conversations. Blob storage supports images; trash/recovery is separate. SQLite stores durable memories and a secondary message log. |
 | Image generation | Local Diffusers/SDXL, model discovery, prompt-token handling, optional adapters, generation progress, cancellation, output persistence. |
 | LoRA | Dataset projects, local vision analysis, captions, preflight, subprocess training, adapter/completion outputs, and progress UI. The dirty tree contains active improvements here. |

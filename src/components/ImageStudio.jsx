@@ -1,3 +1,4 @@
+import ImageBatchControls from './ImageBatchControls';
 import ProtectedImage from "../ImagePrivacy";
 import { useEffect, useState } from "react";
 import { useDispatch, useRefs, useStore, profiles } from "../useStore.jsx";
@@ -7,15 +8,19 @@ import ImageSettingsControls from "./ImageSettingsControls";
 import ImageGenerationHelp from "./ImageGenerationHelp";
 import CustomProfileControls from "./CustomProfileControls";
 import { useImageGeneration } from "../ImageGenerationContext";
+import { useAnalyzeIterate } from "../AnalyzeIterateContext";
 
 export default function ImageStudio({ active = true }) {
   const state = useStore();
+  const iterate = useAnalyzeIterate();
   const dispatch = useDispatch();
   const refs = useRefs();
-  const { models, loras, runtime, catalogError, isGenerating,
-    result, setResult, generate, stop: handleStop } = useImageGeneration();
+  const { models, loras, runtime, catalogError, loraError, isGenerating,
+    result, setResult, generate, generateBatch, stop: handleStop } = useImageGeneration();
   const [promptTokens, setPromptTokens] = useState(null);
   const settings = state.imageSettings;
+  const compatibleLoras = loras.filter(adapter => adapter.base_model_id === settings.modelId);
+  const missingLora = settings.loraId && !compatibleLoras.some(adapter => adapter.id === settings.loraId);
 
   function setImageSettings(changes) {
     dispatch({ type: "SET_IMAGE_SETTINGS", payload: changes });
@@ -83,16 +88,19 @@ export default function ImageStudio({ active = true }) {
               {models.map((model) => <option value={model.id} key={model.id}>{model.name} ({model.pipeline})</option>)}
             </select>
           </label>
-          <label>LoRA Adapter
+          <label>LoRA Adapter (optional)
             <select value={settings.loraId || ""} onChange={(event) => setImageSettings({ loraId: event.target.value })}>
               <option value="">None (base model only)</option>
-              {loras.filter((adapter) => adapter.base_model_id === settings.modelId).map((adapter) => <option value={adapter.id} key={adapter.id}>{adapter.name} ({adapter.id.slice(0, 8)})</option>)}
+              {missingLora && <option value={settings.loraId}>Selected LoRA unavailable or incompatible</option>}
+              {compatibleLoras.map((adapter) => <option value={adapter.id} key={adapter.id}>{adapter.name} ({adapter.id.slice(0, 8)})</option>)}
             </select>
           </label>
+          <small>LoRAs are optional. Choose None to generate with the base image model.</small>
+          {loraError && <p role="status">{loraError}</p>}
           {settings.loraId && <label>LoRA strength
             <input type="number" min="0" max="2" step="0.05" value={settings.loraScale ?? 1} onChange={(event) => setImageSettings({ loraScale: event.target.value })} />
           </label>}
-          <label>Built-in Profile
+          <label>Built-in chat profile (replaces chat settings and system prompt)
             <select value={state.activeProfile} onChange={(event) => dispatch({ type: "APPLY_PROFILE", payload: event.target.value })}>
               <option value="">No built-in profile selected</option>
               {Object.entries(profiles).map(([key, profile]) => <option value={key} key={key}>{profile.label}</option>)}
@@ -119,7 +127,9 @@ export default function ImageStudio({ active = true }) {
           </label>
           <div className="image-settings-heading">Generation Settings</div>
           <ImageSettingsControls settings={settings} onChange={setImageSettings} />
+          <ImageBatchControls settings={settings} onChange={setImageSettings} onSubmit={generateBatch} disabled={!settings.modelId || !settings.prompt.trim() || !runtime?.ready}/>
           <ImageRequests active={active} />
+          <button className="analyze-iterate-button" type="button" disabled={!settings.prompt.trim() || !iterate} onClick={() => iterate.prompts()} title="Analyze and refine the current prompts for your next image">Analyze &amp; Iterate</button>
           <button className="image-generate-btn" type="submit" disabled={!settings.modelId || !settings.prompt.trim() || !runtime?.ready}>{isGenerating ? "Queue image" : "Generate"}</button>
           {isGenerating && <button className="image-stop-btn" type="button" onClick={handleStop}>Stop all image requests</button>}
           <button className="image-reset-btn" type="button" onClick={handleReset} title="Clear prompts and selections, and restore generation defaults">RESET DEFAULT</button>

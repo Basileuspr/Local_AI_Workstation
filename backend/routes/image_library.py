@@ -1,3 +1,5 @@
+from fastapi.responses import StreamingResponse
+from starlette.background import BackgroundTask
 from typing import Literal
 from fastapi import APIRouter, Depends, File, Header, HTTPException, Response, UploadFile
 from pydantic import BaseModel, Field
@@ -187,3 +189,17 @@ def lock_source(request: Source, authorization: str | None = Header(default=None
 @router.post("/vault/images/{image_id}/restore")
 def restore(image_id: str, authorization: str | None = Header(default=None)):
     return call(vault.restore, token(authorization), image_id)
+
+
+class ExportImages(BaseModel):
+    ids: list[str] = Field(min_length=1, max_length=500)
+
+
+@router.post("/export")
+async def export_images(request: ExportImages):
+    archive = await run_in_threadpool(call, library.export_images, request.ids)
+    def chunks():
+        while data := archive.read(1024 * 1024):
+            yield data
+    return StreamingResponse(chunks(), media_type="application/zip", background=BackgroundTask(archive.close),
+        headers={"Content-Disposition": 'attachment; filename="review-images.zip"', "Cache-Control": "no-store"})

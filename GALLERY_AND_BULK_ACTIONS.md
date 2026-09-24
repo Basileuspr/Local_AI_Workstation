@@ -6,8 +6,9 @@ and Next arrows, or the left/right keyboard keys, browse every image in the
 current filtered folder, including images on other thumbnail pages. Navigation
 wraps at the ends. Close or Escape returns to the same gallery without switching
 chats, resetting its thumbnail size, or clearing the chat draft. **Go to source
-chat** is a separate action for general images. Compact view and Larger
-thumbnails still control the gallery.
+chat** is a separate action for general images. The full library occupies the
+main workspace, with collections in the sidebar and one toolbar for search and
+**Comfortable** / **Compact** thumbnails. Small windows have a collection selector.
 
 The viewer also works in **Workflow Images**, across matching runs and their
 stitched images. **Save / stitch this run** opens that run's export controls.
@@ -19,8 +20,9 @@ Use the collection's **Select …** button to reveal checkboxes. Select individu
 items, or **Select all (N)** for all current search matches across pages. A
 selection stays selected when it is outside the current search; the selected
 count is the total that the action will affect. **Clear selection** unchecks all
-items, and **Done selecting** exits selection mode. In the image gallery,
-checkboxes select and clicking the image still enlarges it.
+items, and **Done selecting** exits selection mode. While selection mode is
+active, either the checkbox or thumbnail toggles selection; exit it to enlarge
+an image again.
 
 | Collection | Batch action | Behavior |
 | --- | --- | --- |

@@ -13,7 +13,8 @@ afterEach(() => vi.unstubAllGlobals());
 
 it("keeps both thumbnail modes while image clicks offer enlargement", () => {
   const html = renderToStaticMarkup(<ImageGallery images={[{id:"i",name:"Scene",url:"/image",session_title:"Chat",session_id:"s"}]} />);
-  expect(html).toContain("Larger thumbnails");
+  expect(html).toContain("Comfortable");
+  expect(html).toContain("Compact");
   expect(html).toContain('title="Enlarge Scene"');
   expect(html).not.toContain("Open Scene in Chat");
 });

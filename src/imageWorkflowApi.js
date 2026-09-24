@@ -26,6 +26,7 @@ export const create = (mode = "stages") => request("", "POST", { name: mode === 
 export const sceneFrames = id => request(`${path(id)}/scene/frames`);
 export const sceneFrame = (workflow, frame, action) => request(`${path(workflow.id)}/scene/frame`, "POST", { revision: workflow.revision, frame, action });
 export const sceneIdentity = (workflow, characterId) => request(`${path(workflow.id)}/scene/identity`, "POST", { revision: workflow.revision, character_id: characterId });
+export const importSource = (workflow, source) => request(`${path(workflow.id)}/source`, "POST", { revision: workflow.revision, source });
 export const patchScene = (workflow, changes, remove_objects = []) => request(`${path(workflow.id)}/scene`, "PATCH", { revision: workflow.revision, changes, remove_objects });
 export const get = id => request(path(id));
 export const save = workflow => request(path(workflow.id), "PUT", workflowUpdate(workflow));

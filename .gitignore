@@ -75,3 +75,4 @@ ROADMAP_ORIGINAL*.md
 *.tar
 *.gz
 *.rar
+.law-import-*

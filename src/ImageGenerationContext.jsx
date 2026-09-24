@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { useDispatch, useRefs, useStore } from "./useStore";
 import * as api from "./api";
 import { createMessageId } from "./messageIds";
-import { generateImageForSession, validateImageSelection } from "./chatImageGeneration";
+import { generateImageForSession, reconcileImageLora, validateImageSelection } from "./chatImageGeneration";
 
 const ImageGenerationContext = createContext(null);
 
@@ -14,7 +14,7 @@ export function ImageGenerationProvider({ children, onSessionSaved }) {
   latest.current = state;
   const sessionSaved = useRef(onSessionSaved);
   sessionSaved.current = onSessionSaved;
-  const [catalog, setCatalog] = useState({ models: [], loras: [], runtime: null });
+  const [catalog, setCatalog] = useState({ models: [], loras: [], runtime: null, loraError: "" });
   const [catalogError, setCatalogError] = useState("");
   const [requests, setRequests] = useState([]);
   const running = useRef(new Map());
@@ -27,13 +27,19 @@ export function ImageGenerationProvider({ children, onSessionSaved }) {
     try {
       const data = await api.loadImageGenerationModels();
       if (serial !== refreshSerial.current) return;
-      setCatalog({ models: data.models || [], loras: data.loras || [], runtime: data.runtime || null });
+      setCatalog({ models: data.models || [], loras: data.loras || [], runtime: data.runtime || null, loraError: data.lora_error || "" });
       setCatalogError("");
     } catch (error) {
       if (serial === refreshSerial.current) setCatalogError(error.message);
     }
   }, []);
   useEffect(() => { void refreshModels(); }, [refreshModels, state.activeSidebarTab]);
+  useEffect(() => {
+    const settings = state.imageSettings;
+    if (catalogError || reconcileImageLora(settings, catalog) === settings) return;
+    dispatch({ type: "CLEAR_UNAVAILABLE_IMAGE_LORA", payload: settings });
+    dispatch({ type: "SHOW_TOAST", payload: { message: "Saved LoRA unavailable for this model. Using the base model only; saved profiles are preserved.", type: "" } });
+  }, [catalog, catalogError, state.imageSettings.modelId, state.imageSettings.loraId, dispatch]);
   useEffect(() => {
     if (!pendingSessionSync || state.isGenerating) return;
     if (state.currentSessionId !== pendingSessionSync) { setPendingSessionSync(null); return; }
@@ -62,9 +68,10 @@ export function ImageGenerationProvider({ children, onSessionSaved }) {
     return () => { refs.imageResetUi?.(); refs.imageResetUi = null; refreshSerial.current++; };
   }, [refs]);
 
-  async function generate(settings, { onSubmitted } = {}) {
+  async function generate(settings, { onSubmitted, requestLabel } = {}) {
     try {
       if (catalogError) throw new Error(catalogError);
+      settings = reconcileImageLora(settings, catalog);
       validateImageSelection(settings, catalog);
     } catch (error) { toast(error.message); return false; }
     const id = createMessageId();
@@ -73,7 +80,7 @@ export function ImageGenerationProvider({ children, onSessionSaved }) {
     const chatModel = latest.current.selectedModel;
     const captured = { ...settings };
     running.current.set(id, controller);
-    setRequests(current => [...current, { id, prompt: captured.prompt }]);
+    setRequests(current => [...current, { id, prompt: captured.prompt, label: requestLabel }]);
     refs.imageGenerationRequestId = running.current.keys().next().value;
     refs.imageAbortController = { abort: () => { for (const item of running.current.values()) item.abort(); } };
     const showSession = (session) => {
@@ -95,7 +102,7 @@ export function ImageGenerationProvider({ children, onSessionSaved }) {
         sessionId = (await newSession.current).id;
       }
       const generated = await generateImageForSession({
-        api, settings: captured, requestId: id, signal: controller.signal, sessionId, chatModel,
+        api, settings: captured, requestLabel, requestId: id, signal: controller.signal, sessionId, chatModel,
         onSubmitted: (session) => { showSession(session); newSession.current = null; onSubmitted?.(session.id); }, onCompleted: showSession,
       });
       setResult(generated);
@@ -113,7 +120,19 @@ export function ImageGenerationProvider({ children, onSessionSaved }) {
     }
   }
 
-  return <ImageGenerationContext.Provider value={{ ...catalog, catalogError, refreshModels, requests, requestId: requests[0]?.id, isGenerating: requests.length > 0, result, setResult, generate, stop }}>
+  async function generateBatch(items) {
+    try {
+      if(!Array.isArray(items)||!items.length||items.length>32)throw new Error('Choose 1–32 batch requests.');
+      if(catalogError)throw new Error(catalogError);
+      for(const item of items)validateImageSelection(reconcileImageLora(item.settings,catalog),catalog);
+    } catch(error){toast(error.message);return false;}
+    // Every request captures its settings and original chat before any await.
+    // The existing server queue serializes model work and supports individual Stop.
+    const pending=items.map(item=>generate({...item.settings},{requestLabel:item.label}));
+    void Promise.allSettled(pending);return true;
+  }
+
+  return <ImageGenerationContext.Provider value={{ ...catalog, catalogError, refreshModels, requests, requestId: requests[0]?.id, isGenerating: requests.length > 0, result, setResult, generate, generateBatch, stop }}>
     {children}
   </ImageGenerationContext.Provider>;
 }

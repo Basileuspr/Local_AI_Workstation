@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from services.gpu_coordination import gpu_coordinator
+from services.image_generation_limits import MAX_IMAGE_STEPS
 from services.request_queue import queue, QueueCancelled, prepare_runtime
 from . import store, providers
 from .adapters import get_providers
@@ -72,8 +73,8 @@ def preflight(workflow):
             prompts = workflow.prompt_settings
             if not prompts.prompt.strip():
                 issue("prompt_required", f"Stage {number}: enter a positive prompt.", stage.id)
-            if prompts.steps > 60 or (stage.operation != "txt2img" and stage.strength > 0 and int(prompts.steps * stage.strength) < 1):
-                issue("steps_unsupported", f"Stage {number}: SDXL supports at most 60 steps and requires steps × strength ≥ 1 (or strength 0 to preserve the source).", stage.id)
+            if prompts.steps > MAX_IMAGE_STEPS or (stage.operation != "txt2img" and stage.strength > 0 and int(prompts.steps * stage.strength) < 1):
+                issue("steps_unsupported", f"Stage {number}: use at most {MAX_IMAGE_STEPS} steps and steps × strength ≥ 1 (or strength 0 to preserve the source).", stage.id)
             if prompts.guidance <= 1 and prompts.negative_prompt.strip():
                 issue("negative_prompt_unsupported", f"Stage {number}: set guidance above 1 to use a negative prompt with SDXL.", stage.id)
             if provider and stage.provider_slot == "local-sdxl" and stage.model_id in {m["id"] for m in provider["models"]}:

@@ -5,6 +5,8 @@ import * as api from "../imageWorkflowApi";
 import CollectionPager from "./CollectionPager";
 import WorkflowExportControls from "./WorkflowExportControls";
 import ImageViewer from "./ImageViewer";
+import ImageItemActions from "./ImageItemActions";
+import { useAnalyzeIterate } from "../AnalyzeIterateContext";
 import BulkActions from "./BulkActions";
 import { useSelection } from "../useSelection";
 
@@ -22,21 +24,23 @@ export function WorkflowImageCards({ runs, onOpen, selection }) {
     <div className="image-gallery image-gallery-compact">
       {[...run.outputs.map(output => ({ ...output, name: `Stage ${output.stage_number}` })),
         ...run.composites.map(item => ({ ...item, id: item.layout, name: `Stitched ${item.layout}` }))].map(image =>
-        <button className="gallery-item" type="button" key={image.id} title={`Open ${image.name} · ${run.workflow_name}`}
+        <div className="gallery-item-row" key={image.id}><button className="gallery-item" type="button" title={`Open ${image.name} · ${run.workflow_name}`}
           aria-pressed={selection?.enabled ? selection.ids.has(`${run.workflow_id}:${run.id}:${image.id}`) : undefined}
           onClick={() => onOpen({ run, image })}>
           <span className="gallery-thumbnail"><ProtectedImage loading="lazy" src={apiUrl(image.url)} alt={`${run.workflow_name} · ${image.name}`} /></span>
           <span className="gallery-details"><span className="gallery-name">{image.name}</span></span>
-        </button>)}
+        </button>{selection?.ids.has(`${run.workflow_id}:${run.id}:${image.id}`) && <ImageItemActions image={{ ...image, run, id: `${run.workflow_id}:${run.id}:${image.id}`, url: apiUrl(image.url) }} />}</div>)}
     </div>
     <button type="button" onClick={() => onOpen({ run, image: null })}>Save / stitch this run ({run.outputs.length})</button>
   </section>);
 }
 
-export default function WorkflowImageLibrary({ active, onFile, onLock }) {
+export default function WorkflowImageLibrary({ active, onFile, onLock, searchQuery, workspace = false }) {
+  const iterate = useAnalyzeIterate();
   const [runs, setRuns] = useState([]);
   const [warnings, setWarnings] = useState([]);
-  const [query, setQuery] = useState("");
+  const [localQuery, setQuery] = useState("");
+  const query = searchQuery ?? localQuery;
   const [error, setError] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [page, setPage] = useState(0);
@@ -46,6 +50,7 @@ export default function WorkflowImageLibrary({ active, onFile, onLock }) {
   const dialog = useRef(null);
   const allImages = workflowViewerImages(runs);
   const selection = useSelection(allImages);
+  useEffect(() => { setPage(0); }, [query]);
 
   useEffect(() => {
     if (!active) return;
@@ -78,11 +83,11 @@ export default function WorkflowImageLibrary({ active, onFile, onLock }) {
   const pages = Math.max(1, Math.ceil(filtered.length / 4));
   const currentPage = Math.min(page, pages - 1);
   return <section className="workflow-image-library" aria-label="Workflow Images folder">
-    <div className="collection-toolbar">
+    <div className={`collection-toolbar ${workspace ? "image-library-results" : ""}`}>
       <div className="collection-heading"><span>Workflow Images ({runs.reduce((count, run) => count + run.outputs.length + run.composites.length, 0)})</span>
         <button type="button" onClick={() => setRefresh(value => value + 1)}>Refresh</button></div>
-      <input type="search" aria-label="Search workflow images" placeholder="Search workflows or runs…" value={query}
-        onChange={event => { setQuery(event.target.value); setPage(0); }} />
+      {!workspace && <input type="search" aria-label="Search workflow images" placeholder="Search workflows or runs…" value={query}
+        onChange={event => { setQuery(event.target.value); setPage(0); }} />}
       <CollectionPager label="workflow runs" page={currentPage} pages={pages} onChange={setPage} />
     </div>
     <p className="workflow-muted">Completed workflow images and stitched references, separate from Generate and chat images.</p>
@@ -102,6 +107,7 @@ export default function WorkflowImageLibrary({ active, onFile, onLock }) {
       } else setSelected(picked);
     }} />
     <ImageViewer images={workflowViewerImages(filtered)} selectedId={selectedImageId} active={active && !selection.enabled}
+      onAnalyze={iterate?.image}
       onSelect={setSelectedImageId} onClose={() => setSelectedImageId(null)}
       actions={image => <><button type="button" onClick={() => { setSelectedImageId(null); setSelected({run:image.run, image:null}); }}>Save / stitch this run</button>
         {onFile && <button type="button" onClick={() => { setSelectedImageId(null); onFile([image]); }}>Add to folder</button>}

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import asyncio
+import logging
 import uuid
 from contextlib import suppress
 from pathlib import Path
@@ -15,6 +16,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, field_validator
 
 from services import image_store
+from services.image_generation_limits import MAX_IMAGE_STEPS, MAX_IMAGE_GUIDANCE
 from services.image_generation import (
     OUTPUT_DIR,
     ImageGenerationCancelled,
@@ -25,6 +27,7 @@ from services.image_generation import (
 
 
 router = APIRouter(prefix="/image-generation", tags=["image-generation"])
+logger = logging.getLogger(__name__)
 
 
 class ImageGenerationRequest(BaseModel):
@@ -34,8 +37,8 @@ class ImageGenerationRequest(BaseModel):
     negative_prompt: str | None = Field(default=None, max_length=12000)
     width: int = 1024
     height: int = 1024
-    steps: int = Field(default=24, ge=1, le=60)
-    guidance_scale: float = Field(default=5.5, ge=1, le=20)
+    steps: int = Field(default=24, ge=1, le=MAX_IMAGE_STEPS)
+    guidance_scale: float = Field(default=5.5, ge=1, le=MAX_IMAGE_GUIDANCE)
     seed: int | None = Field(default=None, ge=0, le=2_147_483_647)
     lora_id: str | None = None
     lora_scale: float = Field(default=1.0, ge=0, le=2)
@@ -52,7 +55,15 @@ class ImageGenerationRequest(BaseModel):
 @router.get("/models")
 def list_image_models():
     from services.lora_store import list_adapters
-    return {"models": discover_models(), "loras": list_adapters(), "runtime": manager.runtime_status()}
+    # Optional adapter discovery must not prevent base-model generation.
+    lora_error = None
+    try:
+        loras = list_adapters()
+    except (OSError, ValueError, TypeError, AttributeError):
+        logger.warning("Could not list optional image LoRAs", exc_info=True)
+        loras = []
+        lora_error = "Optional LoRAs could not be loaded. You can still generate with None (base model only)."
+    return {"models": discover_models(), "loras": loras, "lora_error": lora_error, "runtime": manager.runtime_status()}
 
 
 @router.post("/generate")

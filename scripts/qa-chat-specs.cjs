@@ -1,0 +1,93 @@
+const { app, BrowserWindow, ipcMain, protocol, net } = require("electron");
+const fs = require("node:fs"), os = require("node:os"), path = require("node:path");
+const { spawn, spawnSync } = require("node:child_process");
+const { pathToFileURL } = require("node:url");
+const assert = require("node:assert/strict");
+const { appAsset, APP_HEADERS, trustedUrl } = require("../electron/security");
+const root = path.resolve(__dirname, ".."), work = fs.mkdtempSync(path.join(os.tmpdir(), "law-chat-specs-qa-"));
+const resultFile = process.env.LAW_CHAT_SPECS_QA_RESULT || path.join(work, "result.json");
+const python = path.join(root, "venv", "Scripts", "python.exe");
+app.setPath("userData", path.join(work, "profile"));
+protocol.registerSchemesAsPrivileged([{ scheme: "app", privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }]);
+let child, win; const checks = [], downloads = [];
+const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
+async function until(predicate, label, timeout = 20000) {
+    const end = Date.now() + timeout;
+    while (Date.now() < end) { if (await predicate()) return; await pause(100); }
+    throw new Error(`Timed out: ${label}`);
+}
+app.whenReady().then(async () => {
+    child = spawn(python, [path.join(__dirname, "qa-chat-specs-fixture.py"), work], { cwd: root, windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
+    child.stderr.on("data", data => process.stderr.write(data));
+    const connection = await new Promise((resolve, reject) => {
+        let output = ""; const timer = setTimeout(() => reject(new Error("Fixture timeout")), 15000);
+        child.stdout.on("data", data => { output += data; if (output.includes("\n")) { clearTimeout(timer); resolve(JSON.parse(output.split("\n")[0])); } });
+        child.once("error", reject);
+    });
+    const request = async route => (await fetch(connection.base + route, { headers: { "X-LAW-Session": connection.token } })).json();
+    await until(async () => { try { return (await request("/sessions/list")).sessions.length === 1; } catch { return false; } }, "fixture server");
+    protocol.handle("app", async request => {
+        const result = await net.fetch(pathToFileURL(appAsset(path.join(root, "dist"), request.url)).toString());
+        return new Response(result.body, { headers: { ...Object.fromEntries(result.headers), ...APP_HEADERS } });
+    });
+    win = new BrowserWindow({ show: false, width: 1400, height: 1000, webPreferences: { preload: path.join(root, "electron", "preload.js"), contextIsolation: true, nodeIntegration: false, offscreen: true, backgroundThrottling: false } });
+    ipcMain.on("app:connection", event => { event.returnValue = event.sender === win.webContents && event.senderFrame === win.webContents.mainFrame && trustedUrl(event.senderFrame.url) ? connection : null; });
+    ipcMain.handle("media-manager:place", () => {});
+    ipcMain.handle("dashboard:software-runtime", () => ({ electron: process.versions.electron, node: process.versions.node }));
+    win.webContents.session.on("will-download", (_event, item) => { const file = path.join(work, item.getFilename()); item.setSavePath(file); item.once("done", (_event, state) => downloads.push({ file, state })); });
+    const js = source => win.webContents.executeJavaScript(source, true);
+    const click = label => js(`(() => { const button=[...document.querySelectorAll('button')].find(b=>b.textContent.trim()===${JSON.stringify(label)}); if(!button) throw Error('Missing button '+${JSON.stringify(label)}); button.click(); })()`);
+    await win.loadURL("app://local/index.html");
+    await until(() => js("!![...document.querySelectorAll('.session-item')].find(b=>b.textContent.includes('Image destination QA'))"), "chat navigation");
+    await js("[...document.querySelectorAll('.session-item')].find(b=>b.textContent.includes('Image destination QA')).click()");
+    await until(() => js("document.querySelectorAll('.chat-image-open img').length===2"), "stored and inline image thumbnails");
+    await js("document.querySelector('.image-preview .chat-image-open').click()");
+    await until(() => js("!!document.querySelector('.image-viewer[open] img')?.naturalWidth"), "enlarged image");
+    fs.writeFileSync(path.join(work, 'chat-image.png'), (await win.webContents.capturePage(undefined, {stayHidden:true,stayAwake:true})).toPNG());
+    await click("Edit Image");
+    await until(() => js("!!document.querySelector('.pane:not([hidden]) .ie-stage img')?.naturalWidth"), "exact image in editor");
+    assert.equal(await js("document.querySelector('.ie-stage img').naturalWidth"), 640);
+    await click("Chats");
+    await js("document.querySelector('.inline-chat-image').click()");
+    await until(() => js("!!document.querySelector('.image-viewer[open]')"), "inline enlargement");
+    await click("Start Workflow");
+    await until(async () => (await request('/image-workflows')).workflows.length === 1, "workflow created");
+    const workflowId = (await request('/image-workflows')).workflows[0].id;
+    const workflow = await request('/image-workflows/' + workflowId);
+    assert.equal(workflow.assets.length, 1);
+    await until(() => js("!!document.querySelector('.pane:not([hidden]) .image-workflows')"), "workflow tab opens");
+    checks.push("chat and markdown image enlargement; editor receives source image; workflow receives one image asset");
+    await click("Faces");
+    await until(() => js("!!document.querySelector('.face-run-name input')"), "face run name");
+    await js("(() => { const input=document.querySelector('.face-run-name input'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'Outdoor named run'); input.dispatchEvent(new Event('input',{bubbles:true})); })()");
+    const payload = fs.readFileSync(path.join(work, 'source.png')).toString('base64');
+    // Dispatch the normal file input change; bypass only the native chooser.
+    await js(`(() => { const transfer=new DataTransfer(); transfer.items.add(new File([Uint8Array.from(atob(${JSON.stringify(payload)}), c=>c.charCodeAt(0))], 'source.png',{type:'image/png'})); const input=document.querySelector('.face-import input[type=file]'); input.files=transfer.files; input.dispatchEvent(new Event('change',{bubbles:true})); })()`);
+    await until(() => js("document.querySelector('.face-run-history').textContent.includes('Outdoor named run') && document.querySelector('.face-run-history').textContent.includes('complete')"), "persisted named extraction");
+    await js("document.querySelector('.face-run-history').open=true; document.querySelector('.face-run-history button').click()");
+    await until(() => js("!!document.querySelector('dialog[aria-label=\"Rename face run\"][open]')"), "rename run dialog");
+    await js("(() => { const input=document.querySelector('dialog[aria-label=\"Rename face run\"] input'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'Renamed portrait run'); input.dispatchEvent(new Event('input',{bubbles:true})); })()");
+    await click('Save run name');
+    await until(() => js("document.querySelector('.face-run-history').textContent.includes('Renamed portrait run')"), "saved renamed run");
+    checks.push("named face extraction and rename persist in API history (synthetic provider)");
+    await click("Dashboard");
+    // Inspect the precise clipboard payload without altering the user's clipboard.
+    await js("Object.defineProperty(navigator,'clipboard',{value:{writeText:async text=>{window.__copiedSpecs=text;}}}); document.querySelectorAll('.software-spec-groups input').forEach(input=>{if(input.parentElement.textContent!=='Dependencies only')input.click()})");
+    await click("Copy app specs");
+    await until(() => js("!!window.__copiedSpecs"), "copied specs payload");
+    const copied = await js("window.__copiedSpecs");
+    assert.ok(copied.includes('python_installed') && copied.includes('react'));
+    assert.ok(!copied.includes('Backend\n') && !copied.includes('Model list\n'));
+    assert.ok(!copied.includes(connection.token));
+    await click("Export app logs (ZIP)");
+    await until(() => downloads.length === 1, "log ZIP download");
+    assert.equal(downloads[0].state, 'completed');
+    const verified = spawnSync(python, ['-c', "import sys,zipfile; z=zipfile.ZipFile(sys.argv[1]); text=z.read('backend.log').decode(); assert 'REDACTED' in text and sys.argv[2] not in text; assert 'manifest.json' in z.namelist()", downloads[0].file, connection.token], {windowsHide:true,encoding:'utf8'});
+    assert.equal(verified.status,0,verified.stderr);
+    checks.push("selected software-spec clipboard payload and actual redacted app-log ZIP verified");
+    win.webContents.reload(); await new Promise(resolve => win.webContents.once('did-finish-load',resolve));
+    await until(() => js("!![...document.querySelectorAll('button')].find(b=>b.textContent==='Faces')"), "reloaded app");
+    await click('Faces');
+    await until(() => js("document.querySelector('.face-run-history')?.textContent.includes('Renamed portrait run')"), "name survives reload");
+    fs.writeFileSync(resultFile, JSON.stringify({ok:true,checks,work},null,2));
+}).catch(error => {fs.writeFileSync(resultFile,JSON.stringify({error:error.stack,checks,work},null,2));process.exitCode=1;}).finally(()=>{child?.stdin.end();win?.destroy();app.quit();});

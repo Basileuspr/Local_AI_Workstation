@@ -18,9 +18,9 @@ export function FolderEditor({ folder, onClose, onSaved }) {
   </dialog>;
 }
 
-export default function FileImagesDialog({ images, folders, onClose }) {
+export default function FileImagesDialog({ images, folders, onClose, createNew = false }) {
   const dialog = useRef(null);
-  const [destination, setDestination] = useState(folders[0]?.id || "");
+  const [destination, setDestination] = useState(createNew ? "" : folders[0]?.id || "");
   const [newName, setNewName] = useState("");
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState("");
@@ -33,7 +33,15 @@ export default function FileImagesDialog({ images, folders, onClose }) {
       const id = newName.trim() ? (await api.folder(newName)).id : destination;
       if (!id) throw new Error("Choose a folder or enter a new folder name");
       setDestination(id); setNewName("");
-      const result = await processBatch(remaining.current, image => api.importSource(api.sourceFor(image), id));
+      const result = await processBatch(remaining.current, async image => {
+        if (image.file && !image.session_id && !image.library && !image.run) {
+          const uploaded = await api.upload([image.file]);
+          const saved = uploaded.images[0];
+          if (!saved) throw new Error(uploaded.errors?.[0]?.error || "Could not save this image.");
+          return api.importSource({ kind: "library", id: saved.id }, id);
+        }
+        return api.importSource(api.sourceFor(image), id);
+      });
       remaining.current = result.failed.map(item => item.item);
       setFeedback(batchFeedback(result, "Added to folder:")); api.changed();
       if (!result.failed.length) onClose();
@@ -42,11 +50,11 @@ export default function FileImagesDialog({ images, folders, onClose }) {
   }
   return <dialog ref={dialog} className="collection-dialog" aria-label="Add images to folder" onCancel={event => { if (busy) event.preventDefault(); }} onClose={onClose}>
     <form onSubmit={save}><h2>Add {images.length} image(s) to a folder</h2>
-      <label>Choose folder<select value={destination} onChange={event => setDestination(event.target.value)}><option value="">Choose…</option>{folders.map(folder => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></label>
-      <label>Or create a folder<input value={newName} maxLength={120} onChange={event => setNewName(event.target.value)} placeholder="Folder name" /></label>
+      {!createNew && <label>Choose folder<select value={destination} onChange={event => setDestination(event.target.value)}><option value="">Choose…</option>{folders.map(folder => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></label>}
+      <label>{createNew ? "New folder name" : "Or create a folder"}<input autoFocus={createNew} value={newName} maxLength={120} onChange={event => setNewName(event.target.value)} placeholder="Folder name" /></label>
       <p>Folder images are saved copies with links to their source. Removing a source chat won't remove these copies.</p>
       {feedback && <p role="status">{feedback}</p>}
-      <footer><button type="button" disabled={busy} onClick={onClose}>Close</button><button disabled={busy}>{busy ? "Saving…" : "Add to folder"}</button></footer>
+      <footer><button type="button" disabled={busy} onClick={onClose}>Close</button><button disabled={busy || (createNew && !newName.trim() && !destination)}>{busy ? "Saving…" : "Add to folder"}</button></footer>
     </form>
   </dialog>;
 }

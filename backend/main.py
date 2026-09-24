@@ -21,9 +21,14 @@ from pathlib import Path
 
 # Import route modules
 from config import settings
+from services.maintenance_paths import import_journal
+if import_journal(settings.data_dir).exists():
+    raise RuntimeError("A backup import was interrupted. Use Recover previous data in the desktop Dashboard.")
 if __name__ == "__main__":
     from services.process_lock import acquire
     _data_lock = acquire(settings.data_dir)
+    if import_journal(settings.data_dir).exists():
+        raise RuntimeError("A backup import is in progress. The backend must remain stopped.")
 if (settings.data_dir / ".reset-in-progress.json").exists():
     raise RuntimeError("An app reset was interrupted. Complete Reset in the desktop Dashboard before opening app data.")
 
@@ -79,9 +84,9 @@ if not session_configured():
 
 app.add_middleware(
     CORSMiddleware,
-    # Electron loads the packaged app from file:// (serialized as the "null"
-    # origin) and the Vite dev server from localhost:5173. No other origin
-    # should be able to read responses from this local-only API.
+    # Electron loads the built app from app://local (see config.APP_ORIGIN)
+    # and the Vite dev server from localhost:5173. No other origin should be
+    # able to read responses from this local-only API.
     allow_origins=list(settings.allowed_origins),
     allow_credentials=False,
     allow_methods=["*"],
@@ -105,6 +110,8 @@ from routes.image_library import router as image_library_router
 app.include_router(image_library_router)
 from routes.faces import router as faces_router
 app.include_router(faces_router)
+from routes.character_parts import router as character_parts_router
+app.include_router(character_parts_router)
 
 from services.image_vault import LockedImageError
 @app.exception_handler(LockedImageError)
@@ -153,6 +160,8 @@ class ChatRequest(BaseModel):
     messages: list[ChatMessage]
     stream: bool = True
     use_knowledge_base: bool = False
+    # Auxiliary prompt reviews must neither consume nor create chat memories.
+    use_memory: bool = True
     system_prompt: str | None = None
     options: ModelOptions | None = None
     username: str = "local-user"
@@ -671,7 +680,7 @@ async def _compact_memory(request: CompactMemoryRequest):
                 json={
                     "model": request.model,
                     "stream": False,
-                    "keep_alive": 0,
+                    "keep_alive": settings.ollama_keep_alive_seconds,
                     "think": _ollama_think_setting(request.model),
                     "messages": [
                         {
@@ -831,7 +840,7 @@ async def _chat(request: ChatRequest, client_request: Request):
 
     memory_session_id = None
     try:
-        memory_session_id, relevant_memories = await run_in_threadpool(_load_durable_memory)
+        memory_session_id, relevant_memories = await run_in_threadpool(_load_durable_memory) if request.use_memory else (None, [])
 
         if relevant_memories:
             memory_lines = []
@@ -959,7 +968,7 @@ async def _chat(request: ChatRequest, client_request: Request):
         "model": request.model,
         "messages": messages_to_send,
         "stream": True,
-        "keep_alive": 0,
+        "keep_alive": settings.ollama_keep_alive_seconds,
         # Thinking-capable models can otherwise spend the full token budget in
         # Ollama's hidden `thinking` field and leave the chat response empty.
         "think": _ollama_think_setting(request.model),

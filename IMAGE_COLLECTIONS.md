@@ -1,13 +1,15 @@
 # Image collections and review
 
-The Images tab retains its compact and larger thumbnail modes. Opening a thumbnail enlarges it with previous/next navigation; while **Select images** is active, the same click only changes the selection.
+The Images tab opens a full image library in the main workspace. The sidebar contains collections and custom folders; a single toolbar provides search and **Comfortable** / **Compact** thumbnail sizes. On narrower windows, a collection selector appears above the gallery and the app navigation moves into **Menu**. The grid wraps to the available width, with 36 compact or 18 comfortable thumbnails per page in general and saved collections. Chat stays mounted, so switching back to **Chats** keeps an unfinished draft.
+
+Opening a thumbnail enlarges it with previous/next navigation. Image details and individual actions appear in the viewer; while **Select images** is active, clicking a thumbnail changes its selection. Bulk actions appear only in selection mode.
 
 ## Finding and organizing images
 
 - **General Images** contains chat/generation images. **Workflow Images** keeps workflow outputs and stitched runs together. Image Review uploads (including older uploads) stay out of General Images and the ordinary Saved Images list.
-- **See hidden Images** lists images removed from the normal gallery. Click it again to fold away hidden images and return to General Images. Restore an individual image or select several and restore them together. Hiding does not remove chat history.
-- Selecting a custom, Saved, Liked, Disliked, Workflow, or Locked folder starts with its contents collapsed. Use **Show [folder name]** beside the folder contents to expand it, and **Hide [folder name]** to fold it away. Switching folders resets this disclosure. Collapsing Locked Images clears its private view and locks it again.
-- **New folder** creates a named image collection. Select images and choose **Add selected to folder**, or use the action inside a workflow image viewer. Folder names can be renamed later.
+- **Hidden Images** lists images removed from the normal gallery. Restore an individual image in its viewer or select several and restore them together. Hiding does not remove chat history.
+- Selecting a collection opens its contents directly in the workspace. Workflow, Hidden, and Locked collections remain distinct. Locked Images requires its PIN before showing contents; leaving it clears its private view and locks it again.
+- The **+** button beside **Folders** creates a named image collection. Select images and choose **Add selected to folder**, or use the action inside a workflow image viewer. **Folder options** in the main toolbar provides rename and delete actions for a selected custom folder.
 - Filing an image saves an owned copy with its source information. Deleting its source chat does not delete that copy. Deleting a folder removes its memberships; its images remain in Saved Images or Image Review, according to their origin. Deleting a saved copy does not delete its source chat or workflow.
 - **Liked** is a visible folder button in Images. Liked and disliked collections are also available in Image Review. Review uploads can be explicitly added to custom folders. Locked images are excluded from all these public lists, regardless of their rating or tags.
 
@@ -34,6 +36,26 @@ Use **+ Add** under **Tag this image** to create a named tag (including emoji) a
 The **Filter by image tags** controls apply to To review, Liked Images, and Disliked Images. Every selected tag must match, and images can have additional tags. GOOD FACE alone includes both a face-only image and an image tagged GOOD FACE plus GOOD LIGHTING. Selecting both filters requires both tags. Removing a filter broadens the results; **Clear tag filters** shows all images in the current folder. Text search also searches captions. Images excluded by the current filters cannot remain selected for Start slideshow.
 
 Uploads accept up to 100 PNG, JPEG, WebP, or single-frame GIF files at once, up to 20 MiB and 24 megapixels per image. Valid images are retained when another file fails, and failures are reported. Byte-identical uploads reuse their saved image and existing rating.
+
+## Image Review destinations and exports
+
+Each review card and slideshow offers **Edit Image** and **Start Workflow**.
+Selected images can start one workflow together (up to 100 references), be filed
+in a custom folder, exported, or rated together. Workflow imports create owned
+references; editor changes require an explicit export or save. Media Manager
+remains a separate library.
+
+**Export selected**, **Export liked**, **Export disliked**, and the slideshow's
+**Export image & caption** download ZIPs containing original image bytes,
+matching caption text files and a manifest with IDs, names, hashes, dimensions,
+ratings and tags. Liked/disliked exports include the entire rating group; selected
+exports follow the current selection. Pending captions are saved before export
+or destination handoff. One export supports 1–500 images and up to 512 MiB.
+Locked or altered source bytes are rejected before returning an archive.
+
+Isolated backend tests check exact ZIP contents, selection order, captions,
+privacy and integrity. Hidden desktop QA also verifies the actual downloads and
+review-to-editor/workflow navigation with synthetic images.
 
 ## Emoji input
 

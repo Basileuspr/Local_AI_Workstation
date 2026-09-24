@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { defaultImageSettings } from "../../src/preferences";
-import { generateImageForSession, imageRequest, validateImageSelection } from "../../src/chatImageGeneration";
+import { generateImageForSession, imageRequest, reconcileImageLora, validateImageSelection } from "../../src/chatImageGeneration";
 
 const settings = { ...defaultImageSettings, modelId: "image-model", loraId: "image-lora", loraScale: "0.65", prompt: "  A forest  ", negativePrompt: "text", seed: "0" };
 function setup() {
@@ -14,6 +14,43 @@ function setup() {
 }
 
 describe("images submitted from chat or Generate", () => {
+  it.each([[61, 20.1], [200, 30]])("submits %i steps and %f guidance without clamping", async (steps, guidanceScale) => {
+    const draft = { ...settings, steps: String(steps), guidanceScale: String(guidanceScale) };
+    const catalog = { models: [{ id: "image-model" }], loras: [{ id: "image-lora", base_model_id: "image-model" }], runtime: { ready: true } };
+    expect(() => validateImageSelection(draft, catalog)).not.toThrow();
+    const { api, args } = setup();
+    await generateImageForSession({ ...args, settings: draft });
+    expect(api.generateImage.mock.calls[0][0]).toMatchObject({ steps, guidance_scale: guidanceScale, seed: 0, lora_scale: 0.65 });
+  });
+  it.each([["steps", 201], ["steps", 200.5], ["guidanceScale", 30.1], ["guidanceScale", Infinity]])("rejects invalid %s = %s before submission", (key, value) => {
+    const catalog = { models: [{ id: "image-model" }], loras: [], runtime: { ready: true } };
+    expect(() => validateImageSelection({ ...settings, loraId: "", [key]: value }, catalog)).toThrow("through");
+  });
+  it("submits base-model images with no adapters and ignores unused saved LoRA strength", async () => {
+    const base = { ...settings, loraId: "", loraScale: "invalid old value" };
+    const catalog = { models: [{ id: "image-model" }], loras: [], runtime: { ready: true } };
+    expect(() => validateImageSelection(base, catalog)).not.toThrow();
+    const { api, args } = setup();
+    await generateImageForSession({ ...args, settings: base });
+    expect(api.generateImage.mock.calls[0][0]).toMatchObject({ model_id: "image-model", lora_id: null, lora_scale: 1 });
+    expect(api.appendSessionMessages).toHaveBeenCalledTimes(2);
+  });
+  it("recovers an unavailable saved adapter without requiring another LoRA", () => {
+    const catalog = { models: [{ id: "image-model" }], loras: [], runtime: { ready: true } };
+    const recovered = reconcileImageLora(settings, catalog);
+    expect(recovered).toEqual({ ...settings, loraId: "" });
+    expect(settings.loraId).toBe("image-lora");
+    expect(() => validateImageSelection(recovered, catalog)).not.toThrow();
+    expect(reconcileImageLora(settings, { ...catalog, loras: [{ id: "image-lora", base_model_id: "other" }] }).loraId).toBe("");
+    expect(reconcileImageLora(settings, { ...catalog, loras: [{ id: "image-lora", base_model_id: "image-model" }] })).toBe(settings);
+  });
+  it("retains saved adapters during pending or failed discovery while allowing explicit base-model generation", () => {
+    const catalog = { models: [{ id: "image-model" }], loras: [], runtime: { ready: true }, loraError: "Cannot read adapters" };
+    expect(reconcileImageLora(settings, { models: [], loras: [] })).toBe(settings);
+    expect(reconcileImageLora(settings, catalog)).toBe(settings);
+    expect(() => validateImageSelection(settings, catalog)).toThrow("Choose None");
+    expect(() => validateImageSelection({ ...settings, loraId: "" }, catalog)).not.toThrow();
+  });
   it("uses the image model, compatible LoRA strength and Generate settings", () => {
     expect(imageRequest(settings, "request")).toMatchObject({ model_id: "image-model", lora_id: "image-lora", lora_scale: 0.65, seed: 0, prompt: "A forest", negative_prompt: "text", width: 1024 });
     expect(imageRequest({ ...settings, seed: "", loraId: "" }, "request")).toMatchObject({ seed: null, lora_id: null });

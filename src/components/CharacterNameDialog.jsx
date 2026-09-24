@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-export default function CharacterNameDialog({ title, initialName = "", description, onSave, onClose }) {
+export default function CharacterNameDialog({ title, initialName = "", description, onSave, onClose, fieldLabel = "Character name", saveLabel = "Save character" }) {
   const dialog = useRef(null);
   const submitting = useRef(false);
   const [name, setName] = useState(initialName);
@@ -38,11 +38,11 @@ export default function CharacterNameDialog({ title, initialName = "", descripti
     <form onSubmit={save}>
       <h2>{title}</h2>
       {description && <p>{description}</p>}
-      <label>Character name<input autoFocus required maxLength={120} value={name} disabled={saving} onChange={event => setName(event.target.value)} /></label>
+      <label>{fieldLabel}<input autoFocus required maxLength={120} value={name} disabled={saving} onChange={event => setName(event.target.value)} /></label>
       {error && <p className="face-alert" role="alert">{error}</p>}
       <footer>
         <button type="button" disabled={saving} onClick={onClose}>Cancel</button>
-        <button type="submit" disabled={saving || !name.trim()}>{saving ? "Saving…" : "Save character"}</button>
+        <button type="submit" disabled={saving || !name.trim()}>{saving ? "Saving…" : saveLabel}</button>
       </footer>
     </form>
   </dialog>;

@@ -107,6 +107,36 @@ def list_datasets():
         return sorted(found, key=lambda item: item["updated_at"], reverse=True)
 
 
+def save_run(record):
+    with LOCK:
+        root = dataset_dir(record["dataset_id"])
+        target = root / "runs" / f"{identity(record['id'])}.json"
+        previous = json.loads(target.read_text()) if target.exists() else {}
+        value = {**record, "name": previous.get("name", record["name"])}
+        atomic(target, json.dumps(value).encode())
+        return value
+
+
+def list_runs(dataset_id):
+    with LOCK:
+        _read(dataset_id)
+        return sorted([json.loads(file.read_text()) for file in (dataset_dir(dataset_id) / "runs").glob("*.json")], key=lambda item: item["started_at"], reverse=True)
+
+
+def rename_run(dataset_id, run_id, name):
+    name = (name or "").strip()
+    if not name or len(name) > 120:
+        raise ValueError("Run names need 1-120 characters")
+    with LOCK:
+        _read(dataset_id)
+        target = dataset_dir(dataset_id) / "runs" / f"{identity(run_id)}.json"
+        if not target.is_file():
+            raise ValueError("Run no longer exists")
+        record = json.loads(target.read_text()); record["name"] = name
+        atomic(target, json.dumps(record).encode())
+        return record
+
+
 def create_dataset(name):
     name = (name or "").strip() or "Face dataset"
     if len(name) > 120:

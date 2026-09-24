@@ -1,5 +1,6 @@
 import { useRef } from "react";
 import { defaultImageSettings } from "../preferences";
+import { MAX_IMAGE_STEPS, MAX_IMAGE_GUIDANCE } from "../imageGenerationLimits";
 import "./ImageGenerationHelp.css";
 
 const scales = [
@@ -11,7 +12,8 @@ const scales = [
       ["2–4 · Low", "Gentler prompt influence; some requested details may be missed."],
       ["5–7 · Moderate", "A middle range for comparing prompt adherence with a less forced appearance."],
       ["8–12 · Strong", "More pressure toward the wording; check for exaggerated details."],
-      ["13–20 · Highest", "Very strong pressure; image quality can worsen. Watch for harsh contrast, excessive color or distorted details."],
+      ["13–20 · Very strong", "Very strong pressure; image quality can worsen. Watch for harsh contrast, excessive color or distorted details."],
+      [`21–${MAX_IMAGE_GUIDANCE} · Highest`, "Extreme prompt influence for experimentation. Increasing this further can worsen color, contrast and detail; compare against a lower setting."],
     ],
   },
   {
@@ -20,7 +22,8 @@ const scales = [
     rows: [
       ["1–10 · Fewest", "A quick experiment; standard SDXL may leave shapes or textures unresolved."],
       ["11–30 · Middle", "More refinement. The app starts at 24 steps."],
-      ["31–60 · Most", "Longer generation; compare whether extra passes actually help your model."],
+      ["31–60 · More", "Longer generation; compare whether extra passes actually help your model."],
+      [`61–${MAX_IMAGE_STEPS} · Most`, "Many more denoising passes and longer generation. Extra refinement can be small; compare results using the same prompt and seed."],
     ],
   },
   {

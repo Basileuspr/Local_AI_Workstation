@@ -28,10 +28,10 @@ export default function PromptPhraseButtons() {
 
   function persist(next) {
     try {
-      savePromptPhrases(next);
-      setPhrases(next);
+      const sorted = savePromptPhrases(next);
+      setPhrases(sorted);
       setError("");
-      return true;
+      return sorted;
     } catch {
       setError("Could not save buttons locally. Your changes have not been saved.");
       return false;
@@ -45,11 +45,12 @@ export default function PromptPhraseButtons() {
     const next = phrases.some((item) => item.id === entry.id)
       ? phrases.map((item) => item.id === entry.id ? entry : item)
       : [...phrases, entry];
-    if (persist(next)) {
+    const saved = persist(next);
+    if (saved) {
       setDraft(null);
       setFeedback("");
       setQuery("");
-      setPage(Math.floor(next.findIndex((item) => item.id === entry.id) / 12));
+      setPage(Math.floor(saved.findIndex((item) => item.id === entry.id) / 12));
     }
   }
 

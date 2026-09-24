@@ -61,6 +61,20 @@ def test_the_requested_context_window_is_configurable_and_sane():
     assert load_settings().num_ctx >= 2048
 
 
+@pytest.mark.parametrize("key, attribute, default", [
+    ("OLLAMA_KEEP_ALIVE_SECONDS", "ollama_keep_alive_seconds", 300),
+    ("FACE_INTRA_OP_THREADS", "face_intra_op_threads", 6),
+])
+def test_performance_defaults_support_opt_out_and_reject_negative_values(monkeypatch, key, attribute, default):
+    assert getattr(load_settings(), attribute) == default
+    env(monkeypatch, key, "0")
+    assert getattr(load_settings(), attribute) == 0
+    env(monkeypatch, key, "-1")
+    settings = load_settings()
+    assert getattr(settings, attribute) == default
+    assert settings.warnings
+
+
 # --- overrides -------------------------------------------------------------
 
 def test_host_and_port_are_overridable(monkeypatch):

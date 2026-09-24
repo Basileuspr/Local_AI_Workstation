@@ -42,6 +42,7 @@ class Job:
     cancel_event: threading.Event = field(default_factory=threading.Event)
     cancel_callback: object = None
     stage: str | None = None
+    requires_gpu: bool = True
 
 
 class RequestQueue:
@@ -52,13 +53,15 @@ class RequestQueue:
         self.active: Job | None = None
         self.paused = False
 
-    def enqueue(self, kind, label, request_id=None, *, owner=None, project_id=None, session_id=None, cancel=None):
+    def enqueue(self, kind, label, request_id=None, *, owner=None, project_id=None, session_id=None, cancel=None,
+                requires_gpu=True):
         request_id = request_id or uuid.uuid4().hex
         with self._lock:
             if any(job.kind == kind and job.request_id == request_id and job.status not in TERMINAL for job in self.jobs):
                 raise ValueError("This request is already in the queue")
             job = Job(kind, str(label)[:160], request_id, owner or f"{kind}:{request_id}", project_id, session_id)
             job.cancel_callback = cancel
+            job.requires_gpu = requires_gpu
             finished = [entry for entry in self.jobs if entry.status in TERMINAL]
             remove = {entry.id for entry in finished[:-99]}
             self.jobs = [entry for entry in self.jobs if entry.id not in remove]
@@ -78,14 +81,19 @@ class RequestQueue:
         with self._lock:
             if job.cancel_event.is_set():
                 raise QueueCancelled("Request cancelled")
-            if self.active is job:
+            if job.status == "running":
                 return True
-            waiting = next((entry for entry in self.jobs if entry.status == "queued"), None)
-            if self.paused or self.active is not None or waiting is not job:
+            if self.paused or job.status != "queued":
                 return False
-            if not self.coordinator.reserve(job.owner):
-                return False
-            self.active = job
+            if job.requires_gpu:
+                waiting = next((entry for entry in self.jobs if entry.status == "queued" and entry.requires_gpu), None)
+                if self.active is not None or waiting is not job:
+                    return False
+                if not self.coordinator.reserve(job.owner):
+                    return False
+                self.active = job
+            # CPU providers remain visible and cancellable without reserving
+            # VRAM or delaying the GPU FIFO. Pause still holds new CPU work.
             job.status = "running"
             job.started_at = now()
             return True
@@ -119,7 +127,7 @@ class RequestQueue:
             if job.status in TERMINAL or job.cancel_event.is_set():
                 return False
             job.cancel_event.set()
-            running = self.active is job
+            running = job.status == "running"
             job.status = "cancelling" if running else "cancelled"
             if not running:
                 job.finished_at = now()
@@ -150,7 +158,7 @@ class RequestQueue:
                     position += 1
                 entries.append({key: getattr(job, key) for key in (
                     "id", "kind", "label", "request_id", "project_id", "session_id",
-                    "status", "created_at", "started_at", "finished_at", "error", "stage")})
+                    "status", "created_at", "started_at", "finished_at", "error", "stage", "requires_gpu")})
                 entries[-1]["position"] = position if job.status == "queued" else None
             return {"jobs": entries, "paused": self.paused, "gpu_owner": self.coordinator.current_owner()}
 
@@ -163,7 +171,7 @@ async def prepare_runtime(kind):
     from config import settings
     from starlette.concurrency import run_in_threadpool
     from services.image_generation import manager as image_manager
-    if kind in {"chat", "compact", "analysis"}:
+    if kind in {"chat", "compact", "analysis", "embedding"}:
         await run_in_threadpool(image_manager.unload_for_training)
     else:
         import httpx

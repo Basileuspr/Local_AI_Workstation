@@ -30,7 +30,7 @@ class MaintenanceMiddleware:
         if scope["type"] != "http" or scope["path"] in {"/maintenance/lock", "/maintenance/unlock"}:
             return await self.app(scope, receive, send)
         if gate.blocked():
-            return await JSONResponse({"detail": "App reset in progress."}, status_code=503)(scope, receive, send)
+            return await JSONResponse({"detail": "App maintenance in progress."}, status_code=503)(scope, receive, send)
         gate.active += 1
         try: await self.app(scope, receive, send)
         finally: gate.active -= 1
@@ -40,7 +40,7 @@ def authorize(request):
     expected = os.environ.get("LAW_DESKTOP_MAINTENANCE_TOKEN", "")
     supplied = request.headers.get("x-desktop-maintenance", "")
     if not expected or not secrets.compare_digest(expected, supplied):
-        raise HTTPException(403, "Reset is available only to the owning desktop process.")
+        raise HTTPException(403, "Maintenance is available only to the owning desktop process.")
 
 
 def workers_busy():
@@ -57,14 +57,14 @@ def workers_busy():
 @router.post("/lock")
 async def lock(request: Request):
     authorize(request)
-    if gate.blocked(): raise HTTPException(409, "A reset is already preparing.")
+    if gate.blocked(): raise HTTPException(409, "Maintenance is already preparing.")
     gate.locked = True
     gate.expires = time.monotonic() + 60
     try:
         # Block new traffic first; let existing requests finish. Busy inference
         # is never killed just to make the reset available.
         for _ in range(50):
-            if workers_busy(): raise HTTPException(409, "Finish or cancel queued/running work before resetting.")
+            if workers_busy(): raise HTTPException(409, "Finish or cancel queued/running work before reset or backup.")
             if gate.active == 0: return {"locked": True}
             await asyncio.sleep(0.1)
         raise HTTPException(409, "Requests are still active. Wait for them to finish, then retry.")

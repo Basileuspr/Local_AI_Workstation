@@ -3,6 +3,8 @@ import * as faces from "../faceApi";
 import { list as listLibrary, imageUrl } from "../imageLibraryApi";
 import FreshFileInput from "./FreshFileInput";
 import FaceBank from "./FaceBank";
+import ProtectedImage from "../ImagePrivacy";
+import MediaCardActions from "./MediaCardActions";
 import CharacterNameDialog from "./CharacterNameDialog";
 import { browserFaceSource, desktopFaceSource, scanFaceBatches } from "../faceImport";
 import "./FaceStudio.css";
@@ -34,6 +36,9 @@ export default function FaceStudio({ active }) {
   const [datasetId, setDatasetId] = useState("");
   const [dataset, setDataset] = useState(null);
   const [run, setRun] = useState(null);
+  const [runName, setRunName] = useState("");
+  const [runHistory, setRunHistory] = useState([]);
+  const [renamingRun, setRenamingRun] = useState(null);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -63,14 +68,21 @@ export default function FaceStudio({ active }) {
     return data.datasets;
   }, []);
 
+  // Switching datasets quickly can resolve loads out of order; only the most
+  // recently requested dataset may update the view.
+  const claimLoad = useMemo(() => faces.latestRequest(), []);
   const loadDataset = useCallback(async (id) => {
+    const isCurrent = claimLoad();
     if (!id) return setDataset(null);
     const data = await faces.getDataset(id);
+    const runs = (await faces.listRuns(id)).runs;
+    if (!isCurrent()) return null;
     setDataset(data);
     setRun(data.run);
+    setRunHistory(runs);
     if (data.settings) setThreshold(data.settings.similar_threshold);
     return data;
-  }, []);
+  }, [claimLoad]);
 
   useEffect(() => {
     if (!active) return;
@@ -152,7 +164,7 @@ export default function FaceStudio({ active }) {
     try {
       const source = await openSource();
       if (!source) return;
-      const result = await scanFaceBatches({ datasetId, source, api: faces, signal: controller.signal, onProgress: setImportProgress });
+      const result = await scanFaceBatches({ datasetId, source, api: faces, signal: controller.signal, onProgress: setImportProgress, runName });
       setNotice(result.message);
     } catch (failure) { setError(failure.message); }
     finally {
@@ -180,7 +192,7 @@ export default function FaceStudio({ active }) {
   const scanLibrary = (ids) => guard("scan", async () => {
     setImportProgress(null);
     const sources = ids.map((id) => ({ kind: "library", id }));
-    setRun(await faces.extractFrom(datasetId, sources));
+    setRun(await faces.extractFrom(datasetId, sources, runName));
     setLibrary(null);
   });
 
@@ -330,6 +342,7 @@ export default function FaceStudio({ active }) {
            onDragLeave={() => setDragging(false)}
            onDrop={onDrop}>
         <h2>1 · Import images</h2>
+        <label className="face-run-name">Run name<input value={runName} maxLength={120} disabled={running} onChange={event => setRunName(event.target.value)} placeholder="e.g. Alex · outdoor portraits" /></label>
         <p className="face-note">Drop images here, choose files or folders, or pick from your image library. Every visible face is detected — not just the largest. Large file and folder selections are processed in batches automatically.</p>
         <div className="face-row">
           <FreshFileInput ref={fileRef} accept="image/png,image/jpeg,image/webp,image/gif" multiple
@@ -342,13 +355,16 @@ export default function FaceStudio({ active }) {
         </div>
         {running && <div className="face-progress">
           <progress aria-label="Images scanned" max={progress?.total || 1} value={progress ? progress.processed : undefined} />
-          <span>{progress ? `${progress.processed} / ${progress.total} images · ${progress.faces || 0} faces. ${progress.message}` : "Opening image selection…"}</span>
+          <span>{runName || run?.name || "Face scan"} · {progress ? `${progress.processed} / ${progress.total} images · ${progress.faces || 0} faces. ${progress.message}` : "Opening image selection…"}</span>
         </div>}
         {!running && (importProgress || run)?.errors?.length > 0 && <details className="face-errors">
           <summary>{(importProgress || run).error_count || (importProgress || run).errors.length} image(s) could not be scanned</summary>
           <ul>{(importProgress || run).errors.map((item, index) => <li key={index}>{item.source}: {item.error}</li>)}</ul>
         </details>}
       </div>
+
+      <details className="face-run-history"><summary>Named run history ({runHistory.length})</summary>{runHistory.map(item => <div className="face-row" key={item.id}><span><strong>{item.name}</strong> · {item.status} · {item.processed}/{item.total} images · {new Date(item.started_at).toLocaleString()}</span><button disabled={running || Boolean(busy)} onClick={() => setRenamingRun(item)}>Rename</button></div>)}</details>
+      {renamingRun && <CharacterNameDialog initialName={renamingRun.name} fieldLabel="Run name" saveLabel="Save run name" title="Rename face run" onClose={() => setRenamingRun(null)} onSave={async name => { await faces.renameRun(datasetId, renamingRun.id, name); setRunHistory((await faces.listRuns(datasetId)).runs); setRenamingRun(null); }} />}
 
       {library && <div className="face-library" role="dialog" aria-label="Choose library images">
         <div className="face-row face-library-head">
@@ -452,7 +468,7 @@ export default function FaceStudio({ active }) {
             return <figure key={face.id} className={`face-card ${selected.has(face.id) ? "selected" : ""} ${face.id === reference ? "reference" : ""} state-${face.state}`}>
               <button type="button" className="face-thumb" onClick={() => toggle(face.id)}
                       aria-pressed={selected.has(face.id)} aria-label={`Face ${face.face_index + 1} from ${face.source_name}`}>
-                <img src={faces.cropUrl(datasetId, face.id, revision)} alt="" loading="lazy" />
+                <ProtectedImage src={faces.cropUrl(dataset.id, face.id, revision)} alt="" loading="lazy" />
               </button>
               <figcaption>
                 <span className="face-source" title={face.source_name}>{face.source_name}</span>
@@ -463,6 +479,7 @@ export default function FaceStudio({ active }) {
                 {face.duplicate_of && <span className="face-flag">duplicate</span>}
                 {face.flags.map((flag) => <span key={flag} className="face-flag">{flag}</span>)}
                 <button type="button" className="face-link" onClick={() => findSimilar(face.id)}>Find similar to this</button>
+                {selected.has(face.id) && <MediaCardActions image={{ id: face.id, name: `Face ${face.face_index + 1} from ${face.source_name}`, url: faces.cropUrl(dataset.id, face.id, revision) }} />}
               </figcaption>
             </figure>;
           })}

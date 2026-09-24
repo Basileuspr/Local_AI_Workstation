@@ -64,9 +64,9 @@ unavailable models block a run. Refresh providers after local setup changes
 (Ollama discovery is cached for up to 30 seconds). No LoRA adapter is applied by
 this workflow provider.
 
-SDXL accepts 256-1024 pixels per side in multiples of 8, up to 60 steps and four
-CLIP prompt chunks. Steps multiplied by strength must be at least one unless
-strength is zero, which returns the resized source. Negative prompts require
+SDXL accepts 256-1024 pixels per side in multiples of 8, up to 200 steps,
+guidance from 0 to 30, and four CLIP prompt chunks. Steps multiplied by strength
+must be at least one unless strength is zero, which returns the resized source. Negative prompts require
 guidance above one. Seeds resolve once per run; later stages use successive
 seeds. Repeating a seed does not guarantee identical output across hardware or
 library versions.
@@ -182,7 +182,27 @@ stage chaining, confinement, integrity, acceptance, FIFO cancellation, worker
 exit before GPU release, seed persistence and restart recovery. Frontend tests
 cover provider selection, the execution client and result-review controls.
 Real-model smoke checks are separate from these deterministic tests.
-# Workflow deletion
+## Stage sources and dimensions
+
+New image-processing stages use **Previous image stage** when an earlier image
+stage exists. This choice remains available after selecting a fixed asset or
+stage. It resolves again when stages are reordered or removed, skipping text-only
+Describe stages. The UI shows the resolved connection. `source_mode` persists
+that intent; the backend also resolves it before validation and execution.
+Older workflows without the field retain their explicit source selections.
+A previous-stage choice without an earlier image requires correction before run.
+
+SDXL stages share Generate's resolution controls, with the workflow provider's
+existing 256–1024 pixel limits. Aspect ratio is locked by default and saved per
+stage. New image stages inherit the source proportions when supported. Width,
+Height and Scale preserve that ratio; presets or unlocking deliberately change
+it. **Match source proportions** reapplies the source dimensions within provider
+limits. Extremely narrow/tall sources may require a supported output ratio.
+
+Tests cover save/reload, settings changes, reordering, legacy fixed sources and
+actual chained input paths using synthetic providers in hidden desktop QA.
+
+## Workflow deletion
 
 Use **Delete workflow** for the open workflow, or **Select workflows → Delete selected workflows** for a batch. Confirming discards unsaved edits to those workflows and permanently removes their owned assets, snapshots, outputs, stitched images, and storage directories. External source files and downloaded exports are outside app storage.
 

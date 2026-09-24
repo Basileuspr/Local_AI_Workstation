@@ -3,6 +3,7 @@
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from services.image_generation_limits import MAX_IMAGE_STEPS, MAX_IMAGE_GUIDANCE
 from .scene_state import Scene, build_prompt, FrameRef
 
 Id = Annotated[str, Field(pattern=r"^[0-9a-f]{32}$")]
@@ -19,8 +20,8 @@ class PromptSettings(Record):
     prompt: str = Field(default="", max_length=12000)
     negative_prompt: str = Field(default="", max_length=12000)
     seed: int = Field(default=-1, ge=-1, le=4294967295)
-    steps: int = Field(default=30, ge=1, le=200)
-    guidance: float = Field(default=7, ge=0, le=30)
+    steps: int = Field(default=30, ge=1, le=MAX_IMAGE_STEPS)
+    guidance: float = Field(default=7, ge=0, le=MAX_IMAGE_GUIDANCE)
 
 
 class Source(Record):
@@ -41,6 +42,8 @@ class Stage(Record):
     id: Id
     operation: Operation
     source: Source | None = None
+    source_mode: Literal["selected", "previous"] = "selected"
+    lock_aspect_ratio: bool = True
     mask_asset_id: AssetId | None = None
     control_asset_id: AssetId | None = None
     reference_asset_ids: list[AssetId] = Field(default_factory=list, max_length=8)
@@ -53,6 +56,8 @@ class Stage(Record):
     control_scale: float = Field(default=1, ge=0, le=2)
     control_kind: Literal["edges", "depth", "pose", "other"] = "edges"
     upscale_factor: int = Field(default=2, ge=2, le=4)
+    analysis_kind: Literal["description", "scene", "edit_guidance"] = "description"
+    reference_roles: list[Annotated[str, Field(min_length=1, max_length=300)]] = Field(default_factory=list, max_length=8)
 
 
 class CreateRequest(Record):
@@ -85,6 +90,13 @@ class Draft(CreateRequest):
                 strength=scene.denoise, reference_asset_ids=scene.identity_asset_ids)]
         elif self.scene is not None:
             raise ValueError("Scene state requires iterative scene mode")
+        if self.mode == "stages":
+            previous = None
+            for stage in self.stages:
+                if stage.source_mode == "previous":
+                    stage.source = Source(kind="stage", id=previous.id) if previous and stage.operation != "txt2img" else None
+                if stage.operation != "describe":
+                    previous = stage
         return self
 
     @field_validator("stages")

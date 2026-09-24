@@ -1,20 +1,24 @@
+import { sortNamedItems } from "./alphabetical";
+
 export const PHRASES_STORAGE_KEY = "local-ai-workstation-prompt-phrases-v1";
 
 export function loadPromptPhrases() {
   const saved = JSON.parse(localStorage.getItem(PHRASES_STORAGE_KEY) || "[]");
   if (!Array.isArray(saved)) throw new Error("Invalid phrase buttons");
   const ids = new Set();
-  return saved.filter((item) => {
+  return sortNamedItems(saved.filter((item) => {
     if (!item || typeof item.id !== "string" || ids.has(item.id)
       || typeof item.name !== "string" || !item.name.trim()
       || typeof item.text !== "string" || !item.text.trim()) return false;
     ids.add(item.id);
     return true;
-  });
+  }));
 }
 
 export function savePromptPhrases(phrases) {
-  localStorage.setItem(PHRASES_STORAGE_KEY, JSON.stringify(phrases));
+  const sorted = sortNamedItems(phrases);
+  localStorage.setItem(PHRASES_STORAGE_KEY, JSON.stringify(sorted));
+  return sorted;
 }
 
 export async function copyPromptPhrase(text, target) {

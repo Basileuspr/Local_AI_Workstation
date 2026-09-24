@@ -240,3 +240,38 @@ def source_bytes(source):
             path, item = runner.output_path(source.get("workflow_id"), source.get("job_id"), source.get("output_id"))
         return path.read_bytes(), {"name": source.get("name") or item.get("name") or "Workflow image", "origin": source}
     raise ValueError("Unknown image source")
+
+
+def export_images(ids):
+    """Export explicit public selections with ratings/captions, without changing them."""
+    import zipfile
+    if not isinstance(ids, list) or not 1 <= len(ids) <= 500:
+        raise ValueError("Select 1–500 images for one export")
+    ids = list(dict.fromkeys(identity(value) for value in ids))
+    archive = tempfile.SpooledTemporaryFile(max_size=8 * 1024 * 1024, mode="w+b")
+    try:
+        with LOCK, zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_STORED) as output:
+            index = read_index()
+            items = {item["id"]: item for item in index["images"]}
+            if any(item_id not in items for item_id in ids): raise ValueError("A selected image is no longer available. Refresh the review list.")
+            if sum(items[item_id]["size"] for item_id in ids) > 512 * 1024 * 1024:
+                raise ValueError("Export up to 512 MiB at a time. Select fewer images.")
+            tags = {tag["id"]: tag["name"] for tag in index["tags"]}
+            manifest = []
+            for number, item_id in enumerate(ids, 1):
+                data, item = image_bytes(item_id)  # Enforces vault privacy and verifies SHA-256.
+                stem = re.sub(r"[^A-Za-z0-9._-]", "_", Path(item["name"]).stem).strip(".")[:100] or "image"
+                suffix = {"image/png":".png", "image/jpeg":".jpg", "image/webp":".webp", "image/gif":".gif"}[item["type"]]
+                name = f"images/{number:04d}-{stem}{suffix}"
+                output.writestr(name, data)
+                caption = item.get("annotations", {}).get("caption", "")
+                output.writestr(str(Path(name).with_suffix(".txt")).replace("\\", "/"), caption.encode("utf-8"))
+                manifest.append(dict(id=item_id, name=item["name"], file=name, sha256=item["sha256"],
+                    width=item["width"], height=item["height"], rating=item.get("rating"), caption=caption,
+                    tags=[tags[tag] for tag in item.get("tag_ids", []) if tag in tags]))
+            output.writestr("manifest.json", json.dumps({"images":manifest}, ensure_ascii=False, indent=2).encode("utf-8"))
+        archive.seek(0)
+        return archive
+    except Exception:
+        archive.close()
+        raise

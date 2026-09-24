@@ -10,6 +10,7 @@ from services.image_workflows.contracts import CreateRequest, RevisionRequest, U
 from services.image_workflows.contracts import DeleteWorkflowRequest, DeleteWorkflowsRequest
 from services.image_workflows import deletion, scenes
 from services.image_workflows.contracts import ScenePatchRequest, SceneFrameRequest, SceneIdentityRequest
+from services.image_workflows.scene_analysis import ImportSourceRequest, import_source
 from services.image_vault import PinError
 
 router = APIRouter(prefix="/image-workflows", tags=["image-workflows"])
@@ -118,6 +119,11 @@ async def upload(workflow_id: str, revision: int = Form(..., ge=1), file: Upload
         return await run_in_threadpool(call, store.add_asset, workflow_id, revision, file.filename or "image", content)
     finally:
         await file.close()
+
+
+@router.post("/{workflow_id}/source")
+def source(workflow_id: str, request: ImportSourceRequest):
+    return call(import_source, workflow_id, request)
 
 
 @router.get("/{workflow_id}/assets/{asset_id}")

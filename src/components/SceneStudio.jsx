@@ -5,17 +5,19 @@ import { runIsActive } from "../imageWorkflow";
 import { scenePrompt, SCENE_FIELDS, newSceneObject, DENOISE_PRESETS } from "../sceneState";
 import ProtectedImage from "../ImagePrivacy";
 import FreshFileInput from "./FreshFileInput";
+import { MAX_IMAGE_STEPS, MAX_IMAGE_GUIDANCE } from "../imageGenerationLimits";
 
 const LAST_SCENE = "law-last-iterative-scene-v1";
 const Field = ({label, help, children}) => <label className="workflow-field"><span>{label}</span>{children}{help && <small>{help}</small>}</label>;
 
-export default function SceneStudio({ active }) {
+export default function SceneStudio({ active, sceneToOpen, onSceneOpened }) {
   const [catalog, setCatalog] = useState(null), [library, setLibrary] = useState([]), [characters, setCharacters] = useState([]);
   const [draft, setDraft] = useState(null), [dirty, setDirty] = useState(false), [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState(false), [error, setError] = useState(""), [notice, setNotice] = useState("");
   const [frames, setFrames] = useState([]), [runs, setRuns] = useState([]), [execution, setExecution] = useState(null);
   const [advanced, setAdvanced] = useState(""), [characterId, setCharacterId] = useState("");
   const current = useRef(null), version = useRef(0), savedVersion = useRef(0), savingTask = useRef(null), actionLock = useRef(false);
+  const openingScene = useRef(null);
 
   function accept(value) {
     current.current = value; version.current = 0; savedVersion.current = 0;
@@ -55,8 +57,10 @@ export default function SceneStudio({ active }) {
     if (results.warnings.length) setNotice(results.warnings.join(" "));
   }
   async function refreshLibrary() { const data = await api.list(); setLibrary(data.workflows.filter(item => item.mode === "scene")); }
-  async function load(id) {
-    const value = await api.get(id); accept(value); await history(id);
+  async function load(id, cancelled = () => false) {
+    const value = await api.get(id);
+    if (cancelled()) return;
+    accept(value); await history(id);
     const jobs = await api.jobs(id), latest = jobs.jobs.find(item => item.execution);
     setExecution(latest ? await api.runState(id, latest.id) : null);
   }
@@ -73,12 +77,24 @@ export default function SceneStudio({ active }) {
     let ignore = false;
     Promise.all([api.catalog(), api.list(), faces.listCharacters()]).then(async ([metadata, listed, bank]) => {
       if (ignore) return;
-      setCatalog(metadata); if (!current.current) setLibrary(listed.workflows.filter(item => item.mode === "scene")); setCharacters(bank.characters);
+      if (!current.current) setLibrary(listed.workflows.filter(item => item.mode === "scene")); setCharacters(bank.characters);
       const last = localStorage.getItem(LAST_SCENE);
-      if (listed.workflows.some(item => item.id === last && item.mode === "scene")) await load(last);
+      if (!sceneToOpen && !current.current && listed.workflows.some(item => item.id === last && item.mode === "scene")) await load(last, () => ignore);
+      if (!ignore) setCatalog(metadata);
     }).catch(err => { if (!ignore) setError(err.message); });
     return () => { ignore = true; };
-  }, [active, catalog]);
+  }, [active, catalog, sceneToOpen]);
+
+  async function openRequestedScene() {
+    await load(sceneToOpen);
+    setNotice("Source image and observed scene details loaded. Review the fields and analysis notes, then describe your next frame.");
+    onSceneOpened?.(sceneToOpen);
+  }
+  useEffect(() => {
+    if (!active || !catalog || !sceneToOpen || busy || openingScene.current === sceneToOpen) return;
+    openingScene.current = sceneToOpen;
+    void run(openRequestedScene);
+  }, [active, catalog, sceneToOpen, busy]);
 
   useEffect(() => {
     if (!dirty || busy || error) return;
@@ -118,6 +134,7 @@ export default function SceneStudio({ active }) {
   return <section className="image-workflows scene-studio" aria-label="Iterative scenes">
     <header className="workflow-heading"><div><p className="workflow-eyebrow">PERSISTENT SCENES · ONE FRAME AT A TIME</p><h1>Iterative scenes</h1><p>Describe what stays in view, change a few details, then continue from a chosen frame.</p></div><span className="workflow-badge">Review each result before continuing</span></header>
     {error && <p className="workflow-error" role="alert">{error}</p>}{notice && <p className="workflow-notice" role="status">{notice}</p>}
+    {error && sceneToOpen && <button disabled={busy} onClick={() => run(openRequestedScene)}>Retry opening analyzed scene</button>}
     <fieldset className="workflow-toolbar" disabled={busy}>
       <select aria-label="Saved iterative scene" value={draft?.id || ""} onChange={e => run(() => load(e.target.value))}><option value="" disabled>Choose a scene</option>{library.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
       <button onClick={() => run(async () => { accept(await api.create("scene")); setFrames([]); setRuns([]); setExecution(null); await refreshLibrary(); })}>+ New iterative scene</button>
@@ -127,6 +144,7 @@ export default function SceneStudio({ active }) {
     {!draft ? <div className="workflow-empty"><h2>Keep the scene between frames</h2><p>Create a scene to save character details, camera, lighting, pose and objects. Generate the first frame from text or attach a starting image.</p></div> : <div className="workflow-layout">
       <fieldset className="workflow-editor" disabled={busy}>
         <section className="workflow-card"><Field label="Scene name"><input maxLength={120} value={draft.name} onChange={e => change({name:e.target.value})} /></Field>
+          <details><summary>Source analysis and notes</summary><textarea aria-label="Scene analysis notes" rows={8} maxLength={8000} value={draft.scene_notes} onChange={e => change({scene_notes:e.target.value})} /></details>
           <Field label="Visible action" help="Describe the resulting pose and contact: right hand grips the screwdriver, wrist rotated clockwise, screw sits deeper in the board."><textarea maxLength={400} rows={3} value={state.current_action} onChange={e => changeState({current_action:e.target.value})} /></Field>
           <Field label="Visual style"><input maxLength={400} value={state.visual_style} onChange={e => changeState({visual_style:e.target.value})} /></Field>
           <p className="workflow-muted">Edits save automatically. Describe each change in the fields below; all other details carry forward. Natural-language action planning is a later feature.</p>
@@ -152,17 +170,17 @@ export default function SceneStudio({ active }) {
           <Field label="Denoising strength" help="Small changes: 0.15–0.30. Moderate changes: 0.30–0.50. Higher values can redesign the scene; 0 preserves the source."><input type="number" min={0} max={1} step={.01} value={scene.denoise} onChange={e => changeScene({denoise:Number(e.target.value)})} /></Field>
           <div className="workflow-actions">{DENOISE_PRESETS.map(item => <button key={item.value} onClick={() => changeScene({denoise:item.value})}>{item.label}</button>)}</div>
           <p className="workflow-muted">Denoising applies when a source is selected. Continuity depends on the model; review hands, objects and identity after every frame.</p>
-          <div className="workflow-numbers">{[["seed", "Seed (−1 = random)",-1,4294967295,1],["steps","Steps",1,60,1],["guidance","Guidance",0,30,.1]].map(([key,label,min,max,step]) => <Field label={label} key={key}><input type="number" min={min} max={max} step={step} value={draft.prompt_settings[key]} onChange={e => change({prompt_settings:{...draft.prompt_settings,[key]:Number(e.target.value)}})} /></Field>)}</div>
+          <div className="workflow-numbers">{[["seed", "Seed (−1 = random)",-1,4294967295,1],["steps","Steps",1,MAX_IMAGE_STEPS,1],["guidance","Guidance",0,MAX_IMAGE_GUIDANCE,.1]].map(([key,label,min,max,step]) => <Field label={label} key={key}><input type="number" min={min} max={max} step={step} value={draft.prompt_settings[key]} onChange={e => change({prompt_settings:{...draft.prompt_settings,[key]:Number(e.target.value)}})} /></Field>)}</div>
           <Field label="Negative prompt"><textarea maxLength={12000} rows={2} value={draft.prompt_settings.negative_prompt} onChange={e => change({prompt_settings:{...draft.prompt_settings,negative_prompt:e.target.value}})} /></Field>
           <details><summary>Complete prompt for the next frame</summary><p className="workflow-result-text">{scenePrompt(state) || "Enter visible scene details above."}</p></details>
           <button className="scene-generate" disabled={runIsActive(execution) || !scene.model_id || !models?.available} onClick={() => run(async () => { setExecution(await api.execute(current.current)); await history(current.current.id); })}>{scene.source_asset_id ? "Generate next frame" : "Generate first frame"}</button>
           {models && !models.available && <p className="workflow-muted">CUDA is unavailable. You can edit and save scenes; generation requires the local SDXL runtime.</p>}
         </fieldset>
-        {execution && <section className="workflow-card"><h2>Generation · {execution.status}</h2><p role="status">{execution.phase}</p>{execution.total_steps > 0 && <progress value={execution.step} max={execution.total_steps} aria-label="Scene generation progress" />}{execution.error && <p className="workflow-error">{execution.error}</p>}{runIsActive(execution) && <button disabled={execution.status === "cancelling"} onClick={() => { void api.stop(execution.workflow_id, execution.id).then(setExecution).catch(err => setError(err.message)); }}>{execution.status === "cancelling" ? "Stopping safely…" : "Stop generation"}</button>}</section>}
+        {execution && <section className="workflow-card"><h2>Run · {execution.status}</h2><p role="status">{execution.phase}</p>{execution.total_steps > 0 && <progress value={execution.step} max={execution.total_steps} aria-label="Scene generation progress" />}{execution.error && <p className="workflow-error">{execution.error}</p>}{runIsActive(execution) && <button disabled={execution.status === "cancelling"} onClick={() => { void api.stop(execution.workflow_id, execution.id).then(setExecution).catch(err => setError(err.message)); }}>{execution.status === "cancelling" ? "Stopping safely…" : "Stop generation"}</button>}</section>}
         <section className="workflow-card"><h2>Frame history</h2><p>Choosing a frame restores its state. Continue edits from there, restore its original inputs to regenerate, or create a separate branch. Earlier frames remain saved.</p><button disabled={busy} onClick={() => run(() => history(draft.id))}>Refresh history</button>
           {frames.map((item, index) => <article className="scene-frame" key={item.frame.output_id}><ProtectedImage src={api.outputUrl(draft.id,item.frame.job_id,item.frame.output_id)} alt={`Scene frame ${frames.length - index}`} /><p>Frame {frames.length - index} · {item.operation} · seed {item.seed}{item.operation === "img2img" ? ` · denoise ${item.scene.denoise}` : ""}</p><div className="workflow-actions"><button disabled={busy} onClick={() => run(() => chooseFrame(item.frame,"continue"))}>Use as next source</button><button disabled={busy} onClick={() => run(() => chooseFrame(item.frame,"restore"))}>Restore inputs</button><button disabled={busy} onClick={() => run(() => chooseFrame(item.frame,"branch"))}>Branch from frame</button></div><details><summary>State, prompt and generation record</summary><pre>{JSON.stringify(item,null,2)}</pre></details></article>)}
           {!frames.length && <p>No frames yet. Your scene can be saved before a model is available.</p>}
-          <details><summary>All generation attempts</summary>{runs.map(item => <button className="scene-attempt" key={item.id} disabled={busy} onClick={() => run(async () => setExecution(await api.runState(draft.id,item.id)))}>{new Date(item.created_at).toLocaleString()} · {item.status}</button>)}</details>
+          <details><summary>Analysis and generation attempts</summary>{runs.map(item => <button className="scene-attempt" key={item.id} disabled={busy} onClick={() => run(async () => setExecution(await api.runState(draft.id,item.id)))}>{new Date(item.created_at).toLocaleString()} · {item.status}</button>)}</details>
         </section>
       </aside>
     </div>}

@@ -1,5 +1,7 @@
 // SDXL-sized presets within the local API's 512–1536, multiple-of-eight limits.
 export const imageSizes = [
+  { label: "Small square · 1:1", width: 512, height: 512 },
+  { label: "Medium square · 1:1", width: 768, height: 768 },
   { label: "Square · 1:1", width: 1024, height: 1024 },
   { label: "Landscape · 4:3", width: 1152, height: 864 },
   { label: "Landscape · 3:2", width: 1152, height: 768 },

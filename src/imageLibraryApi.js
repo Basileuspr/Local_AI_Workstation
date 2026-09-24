@@ -39,3 +39,10 @@ export function sourceFor(image) {
     ...(image.layout ? { layout: image.layout } : { output_id: image.output_id || image.id.split(":").pop() }), name: image.name };
   return { kind: "library", id: image.id };
 }
+
+
+export async function exportImages(ids) {
+  const response=await fetch(apiUrl('/image-library/export'),{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids})});
+  if(!response.ok){const value=await response.json().catch(()=>({}));throw new Error(typeof value.detail==='string'?value.detail:'Could not export these images.');}
+  return response.blob();
+}

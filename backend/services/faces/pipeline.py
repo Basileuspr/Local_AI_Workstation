@@ -1,7 +1,7 @@
 """Background face extraction. One run at a time, through the shared queue.
 
-Detection joins the existing FIFO queue like chat, image generation and LoRA,
-so it waits its turn rather than competing. The GPU lease is only claimed when
+GPU detection joins the existing FIFO queue like chat, image generation and
+LoRA, so it waits its turn. The GPU lease is only claimed when
 the provider would actually run on CUDA; on a CPU-only ONNX build face work
 never blocks image generation.
 """
@@ -26,7 +26,7 @@ from services.request_queue import QueueCancelled, queue
 
 
 class FaceRun:
-    def __init__(self, dataset_id, total):
+    def __init__(self, dataset_id, total, name=""):
         self.id = uuid.uuid4().hex
         self.dataset_id = dataset_id
         self.status = "queued"
@@ -36,10 +36,11 @@ class FaceRun:
         self.faces = 0
         self.errors: list[dict] = []
         self.started_at = datetime.now(timezone.utc).isoformat()
+        self.name = name.strip() or f"Face scan {self.started_at[:19].replace('T', ' ')}"
         self.cancel_event = threading.Event()
 
     def snapshot(self):
-        return {"id": self.id, "dataset_id": self.dataset_id, "status": self.status,
+        return {"id": self.id, "name": self.name, "dataset_id": self.dataset_id, "status": self.status,
                 "message": self.message, "processed": self.processed, "total": self.total,
                 "faces": self.faces, "errors": self.errors[:50], "error_count": len(self.errors), "started_at": self.started_at}
 
@@ -59,13 +60,16 @@ class FaceExtractor:
             return current.snapshot()
         return None
 
-    def start(self, dataset_id, sources):
+    def start(self, dataset_id, sources, name=""):
         if self.active():
             raise ValueError("A face extraction is already running. Wait for it or stop it first.")
         store.get_dataset(dataset_id)
         if not sources:
             raise ValueError("Choose at least one image to scan")
-        self.run = FaceRun(dataset_id, len(sources))
+        if len(name.strip()) > 120:
+            raise ValueError("Run names need at most 120 characters")
+        self.run = FaceRun(dataset_id, len(sources), name)
+        store.save_run(self.run.snapshot())
         self.job = None
         self.task = asyncio.create_task(self._execute(self.run, sources))
         return self.run.snapshot()
@@ -98,17 +102,13 @@ class FaceExtractor:
             provider = get_provider()
             # Only take the GPU lease when the provider would really use CUDA.
             owner = f"faces:{run.id}" if provider.uses_gpu() else None
-            job = queue.enqueue("faces", f"Face extraction ({run.total} images)", run.id,
-                                owner=owner or f"faces-cpu:{run.id}", cancel=self.stop)
+            job = queue.enqueue("faces", f"{run.name} ({run.total} images)", run.id,
+                                owner=owner or f"faces-cpu:{run.id}", cancel=self.stop,
+                                requires_gpu=bool(owner))
             self.job = job
             if run.cancel_event.is_set():
                 job.cancel_event.set()
-            if owner:
-                await queue.wait(job)
-            else:
-                # CPU-only work still appears in the queue for visibility, but
-                # must not hold the GPU slot that image generation needs.
-                queue.try_start(job)
+            await queue.wait(job)
             run.status = "running"
             run.message = "Detecting faces"
             for index, source in enumerate(sources, start=1):
@@ -146,6 +146,7 @@ class FaceExtractor:
         finally:
             if job:
                 queue.finish(job, error)
+            await run_in_threadpool(store.save_run, run.snapshot())
 
     async def _one_source(self, run, source, provider, job):
         data, meta = await run_in_threadpool(self._load, source)

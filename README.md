@@ -12,10 +12,13 @@ from the repository directory in PowerShell:
 ```powershell
 npm ci
 python -m venv venv
-.\venv\Scripts\python.exe -m pip install -r requirements.txt
+.\venv\Scripts\python.exe -m pip install -r requirements.lock.txt
 npm run build
 npm start
 ```
+
+`requirements.lock.txt` pins the exact versions the tests were run against.
+`requirements.txt` lists the direct dependencies without pins, for upgrading.
 
 Chat and embeddings require suitable models installed in Ollama. Image
 generation requires a compatible local model and PyTorch runtime; see

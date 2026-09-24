@@ -43,7 +43,8 @@ async function pickFiles({ accept, multiple, directory }, { showDialog, home, re
         if (!info.isFile() || info.size > 100 * 1024 ** 2 || total > 512 * 1024 ** 2) throw new Error("Choose files up to 100 MiB each, and batches up to 512 MiB.");
         const bytes = await readFile(selected);
         if (bytes.length !== info.size) throw new Error("A selected file changed while opening. Please choose it again.");
-        files.push({ name: path.basename(selected), type: TYPES[ext], lastModified: info.mtimeMs, bytes });
+        // win32 handles both separators, so the name never carries a folder path on any OS.
+        files.push({ name: path.win32.basename(selected), type: TYPES[ext], lastModified: info.mtimeMs, bytes });
     }
     return { canceled: false, files };
 }

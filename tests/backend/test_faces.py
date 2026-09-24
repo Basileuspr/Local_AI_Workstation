@@ -19,6 +19,29 @@ def face_root(tmp_path, monkeypatch):
     return tmp_path
 
 
+@pytest.mark.parametrize("configured, cores, expected", [(6, 20, 6), (6, 4, 4), (0, 20, 0)])
+def test_face_session_threads_are_bounded_and_can_use_runtime_default(monkeypatch, configured, cores, expected):
+    import sys
+    from dataclasses import replace
+    from types import SimpleNamespace
+    from services.faces import insight_onnx
+    options_used = []
+    def session(path, options, providers):
+        options_used.append(options.intra_op_num_threads)
+        assert providers == ["CPUExecutionProvider"]
+        return SimpleNamespace(get_providers=lambda: providers)
+    monkeypatch.setitem(sys.modules, "onnxruntime", SimpleNamespace(
+        get_available_providers=lambda: ["CPUExecutionProvider"],
+        SessionOptions=SimpleNamespace, InferenceSession=session))
+    monkeypatch.setattr(insight_onnx, "settings", replace(insight_onnx.settings, face_intra_op_threads=configured))
+    monkeypatch.setattr(insight_onnx.os, "cpu_count", lambda: cores)
+    provider = insight_onnx.InsightOnnxProvider()
+    monkeypatch.setattr(provider, "missing", lambda: [])
+    first = provider._sessions()
+    assert provider._sessions() == first
+    assert options_used == [expected, expected]
+
+
 def photo(width=400, height=300, colour=(120, 90, 70)):
     image = Image.new("RGB", (width, height), colour)
     # Texture keeps the sharpness measure from being exactly zero.
@@ -444,3 +467,18 @@ def test_routes_cover_the_whole_workflow(face_root, fake_provider):
         assert export.status_code == 200 and export.headers["content-type"] == "application/zip"
         assert client.delete(f"/faces/datasets/{dataset_id}").json()["deleted"] is True
         assert client.get(f"/faces/datasets/{dataset_id}").status_code == 400
+
+
+def test_named_runs_persist_and_renames_survive_later_progress(face_root):
+    dataset = store.create_dataset("Named runs")
+    run = pipeline.FaceRun(dataset["id"], 2, "Outdoor portraits")
+    store.save_run(run.snapshot())
+    renamed = store.rename_run(dataset["id"], run.id, "Approved outdoor batch")
+    assert renamed["name"] == "Approved outdoor batch"
+    run.status = "complete"; run.processed = 2
+    store.save_run(run.snapshot())
+    saved = store.list_runs(dataset["id"])[0]
+    assert saved["name"] == "Approved outdoor batch" and saved["status"] == "complete"
+    assert store.get_dataset(dataset["id"])["name"] == "Named runs"
+    with pytest.raises(ValueError): store.rename_run(dataset["id"], run.id, "  ")
+    with pytest.raises(ValueError): store.rename_run(dataset["id"], "../bad", "Name")

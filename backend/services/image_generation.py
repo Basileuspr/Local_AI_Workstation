@@ -193,8 +193,13 @@ class ImageGenerationManager:
             local_files_only=True,
         )
 
-        # These preserve the repository's own components while keeping 8 GB cards stable.
-        pipeline.enable_attention_slicing("auto")
+        # Diffusers already selects memory-efficient SDPA on modern PyTorch.
+        # Slicing replaces that processor with slower, explicit attention
+        # matrices. Keep slicing only for runtimes without native SDPA.
+        functional = getattr(getattr(torch, "nn", None), "functional", None)
+        if not hasattr(functional, "scaled_dot_product_attention"):
+            pipeline.enable_attention_slicing("auto")
+        # Retain model offload and VAE memory protections for 8 GB cards.
         vae = getattr(pipeline, "vae", None)
         if vae and hasattr(vae, "enable_slicing"):
             vae.enable_slicing()
@@ -235,8 +240,9 @@ class ImageGenerationManager:
                 context.check_cancelled()
                 self._load(model)
                 context.check_cancelled()
-                self._activate_pipeline(self._pipeline)
-                self._set_lora(None, 1)
+                if self._lora_id is not None:
+                    self._activate_pipeline(self._pipeline)
+                    self._set_lora(None, 1)
                 if operation == "txt2img":
                     pipeline = self._pipeline
                 else:
@@ -245,7 +251,12 @@ class ImageGenerationManager:
                         cls = StableDiffusionXLInpaintPipeline if operation == "inpaint" else StableDiffusionXLImg2ImgPipeline
                         # from_pipe shares UNet, VAE, and both text encoders.
                         # No checkpoint load or tensor copies per frame.
-                        self._workflow_pipelines[operation] = cls.from_pipe(self._pipeline, add_watermarker=False)
+                        # Diffusers defaults from_pipe to float32, which casts
+                        # these shared weights too. Preserve each component's
+                        # dtype (including any upcast VAE) instead of doubling
+                        # UNet memory or copying all weights on every switch.
+                        self._workflow_pipelines[operation] = cls.from_pipe(
+                            self._pipeline, torch_dtype=None, add_watermarker=False)
                     pipeline = self._workflow_pipelines[operation]
                 self._activate_pipeline(pipeline)
                 try:

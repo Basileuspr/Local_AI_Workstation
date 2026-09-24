@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { sortNamedItems } from "../alphabetical";
 import * as api from "../imageLibraryApi";
 import BulkActions, { SelectionCheckbox } from "./BulkActions";
 import { useSelection, useBatchAction } from "../useSelection";
@@ -11,7 +12,7 @@ export default function ImageTagButtons({ tags, selected = [], onToggle, onChang
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const selection = useSelection(tags), batch = useBatchAction();
-  const filtered = tags.filter(tag => tag.name.toLowerCase().includes(query.toLowerCase()));
+  const filtered = sortNamedItems(tags).filter(tag => tag.name.toLowerCase().includes(query.toLowerCase()));
   async function run(action) {
     if (busy || disabled) return;
     setBusy(true); setError("");

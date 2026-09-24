@@ -4,12 +4,18 @@ import { StoreProvider, useStore, useDispatch } from "./useStore.jsx";
 import * as api from "./api";
 import { mergeKnownModels, pickDefaultModel } from "./modelCatalog";
 import { pickPreferences, savePreferences } from "./preferences";
+import { loadNavigation, saveNavigation } from "./navigation";
 
 import { ImageGenerationProvider } from "./ImageGenerationContext";
+import { AnalyzeIterateProvider } from "./AnalyzeIterateContext";
 import { ImagePrivacyProvider } from "./ImagePrivacy";
 import EmojiPicker from "./components/EmojiPicker";
 import ImageReview from "./components/ImageReview";
 import Sidebar from "./components/Sidebar";
+import AppLayout from "./components/AppLayout";
+import MediaManager from "./components/MediaManager";
+import ImageEditor from "./components/ImageEditor";
+import { ImageDestinationsProvider } from "./ImageDestinations";
 import Header from "./components/Header";
 import SettingsPanel from "./components/SettingsPanel";
 import MessageList from "./components/MessageList";
@@ -19,15 +25,38 @@ import ImageStudio from "./components/ImageStudio";
 import LoraStudio from "./components/LoraStudio";
 import ImageWorkflows from "./components/ImageWorkflows";
 import FaceStudio from "./components/FaceStudio";
+import CharacterStudio from "./components/CharacterStudio";
 import Toast from "./components/Toast";
 import WebAccess from "./components/WebAccess";
 import Dashboard from "./components/Dashboard";
 import PromptQueue, { PromptQueueProvider } from "./components/PromptQueue";
+import KnowledgeVault from "./components/KnowledgeVault";
 
 function AppInner() {
   const state = useStore();
   const dispatch = useDispatch();
   const sessionNavigation = useRef(0);
+  const [startupNavigation] = useState(loadNavigation);
+  const [refreshing, setRefreshing] = useState(false);
+  const [imageLibraryTarget, setImageLibraryTarget] = useState(null);
+  useEffect(() => {
+    saveNavigation(state.activeSidebarTab, state.currentSessionId || startupNavigation.sessionId);
+  }, [state.activeSidebarTab, state.currentSessionId, startupNavigation]);
+
+  async function refreshCurrentView() {
+    setRefreshing(true);
+    saveNavigation(state.activeSidebarTab, state.currentSessionId || startupNavigation.sessionId);
+    try {
+      if (state.activeSidebarTab === "media-manager" && window.workstationDesktop?.refreshMediaManager) {
+        const result = await window.workstationDesktop.refreshMediaManager();
+        if (result?.error) throw new Error(result.error);
+      }
+      window.location.reload();
+    } catch (error) {
+      setRefreshing(false);
+      dispatch({ type: "SHOW_TOAST", payload: { message: error.message || "Could not refresh this view", type: "error" } });
+    }
+  }
   useEffect(() => {
     const notice = localStorage.getItem("app-reset-notice");
     if (notice) {
@@ -91,12 +120,13 @@ function AppInner() {
           });
         }
 
-        // Restore the most recent chat. A new session is created only when the
+        // Restore the selected chat without changing the active workspace. A new session is created only when the
         // user explicitly chooses New Chat or sends/attaches content with none open.
         const sessions = await api.listSessions();
         dispatch({ type: "SET_SESSIONS", payload: sessions });
         if (sessions.length > 0 && sessionNavigation.current === 0) {
-          await handleLoadSession(sessions[0].id);
+          const savedSession = sessions.find(session => session.id === startupNavigation.sessionId);
+          await handleLoadSession((savedSession || sessions[0]).id);
         }
       }
     }
@@ -234,20 +264,22 @@ function AppInner() {
     }
   }, [dispatch, state]);
 
-  // Chats, images, and knowledge all share the chat pane; only the library and
-  // generate tabs replace it.
+  // Keep chat mounted while dedicated workspaces occupy the main pane.
   const activeTab =
-    state.activeSidebarTab === "review" || state.activeSidebarTab === "library" || state.activeSidebarTab === "generate" || state.activeSidebarTab === "lora" || state.activeSidebarTab === "workflows" || state.activeSidebarTab === "dashboard" || state.activeSidebarTab === "queue" || state.activeSidebarTab === "faces"
+    state.activeSidebarTab === "knowledge" || state.activeSidebarTab === "image-editor" || state.activeSidebarTab === "media-manager" || state.activeSidebarTab === "images" || state.activeSidebarTab === "review" || state.activeSidebarTab === "library" || state.activeSidebarTab === "generate" || state.activeSidebarTab === "lora" || state.activeSidebarTab === "workflows" || state.activeSidebarTab === "dashboard" || state.activeSidebarTab === "queue" || state.activeSidebarTab === "faces" || state.activeSidebarTab === "character-parts"
       ? state.activeSidebarTab
       : "chat";
 
   return (
     <ImageGenerationProvider onSessionSaved={handleSessionSaved}>
-      <div id="app">
-        <Sidebar
-          onNewChat={handleNewChat}
-          onLoadSession={handleLoadSession}
-        />
+    <AnalyzeIterateProvider>
+    <ImageDestinationsProvider>
+      <AppLayout activeTab={state.activeSidebarTab} onRefresh={refreshCurrentView} refreshing={refreshing} sidebar={closeNavigation => <Sidebar
+        imageLibraryTarget={imageLibraryTarget}
+        onNavigate={closeNavigation}
+        onNewChat={() => { closeNavigation(); return handleNewChat(); }}
+        onLoadSession={(...args) => { closeNavigation(); return handleLoadSession(...args); }}
+      />}>
         {/*
           Every pane stays mounted and is hidden with CSS rather than being
           swapped out. Switching tabs used to unmount the whole chat pane, and
@@ -255,15 +287,18 @@ function AppInner() {
           in the DOM and died with the component. The same applied to the image
           studio's result and the transcript's scroll position.
         */}
-          <div id="main">
-            <div className="pane" hidden={activeTab !== "review"}><ImageReview active={activeTab === "review"} onOpenSource={handleLoadSession} /></div>
+          <div className="pane" hidden={activeTab !== "media-manager"}><MediaManager active={activeTab === "media-manager"} /></div>
+          <div className="pane" hidden={activeTab !== "knowledge"}><KnowledgeVault active={activeTab === "knowledge"} /></div>
+          <div className="pane" hidden={activeTab !== "image-editor"}><ImageEditor /></div>
+          <div className="pane image-library-pane" hidden={activeTab !== "images"} ref={setImageLibraryTarget} />
+          <div className="pane" hidden={activeTab !== "review"}><ImageReview active={activeTab === "review"} onOpenSource={handleLoadSession} /></div>
           <div className="pane" hidden={activeTab !== "queue"}>
             <PromptQueue />
           </div>
           <div className="pane" hidden={activeTab !== "dashboard"}>
             <Dashboard />
           </div>
-          <div className="pane" hidden={activeTab !== "chat"}>
+          <div className="pane chat-pane" hidden={activeTab !== "chat"}>
             <Header
               onSessionRenamed={handleSessionRenamed}
               onCompactMemory={handleCompactMemory}
@@ -304,10 +339,14 @@ function AppInner() {
           <div className="pane" hidden={activeTab !== "faces"}>
             <FaceStudio active={activeTab === "faces"} />
           </div>
-        </div>
-      </div>
+          <div className="pane" hidden={activeTab !== "character-parts"}>
+            <CharacterStudio active={activeTab === "character-parts"} />
+          </div>
+      </AppLayout>
         <Toast />
         <EmojiPicker />
+    </ImageDestinationsProvider>
+    </AnalyzeIterateProvider>
     </ImageGenerationProvider>
   );
 }
@@ -324,7 +363,7 @@ export default function App() {
     });
     return () => { window.removeEventListener("app-data-reset", cleared); unsubscribe?.(); };
   }, []);
-  if (reset) return <section className="dashboard"><h1>App data cleared</h1><p className="dashboard-note">User-created buttons are preserved. Reopening the app…</p>{resetError && <><p role="alert">{resetError}</p><button onClick={() => window.location.reload()}>Return to Dashboard</button></>}</section>;
+  if (reset) return <section className="dashboard"><h1>Updating app data</h1><p className="dashboard-note">Applying desktop settings and reopening the app…</p>{resetError && <><p role="alert">{resetError}</p><button onClick={() => { localStorage.setItem("app-reset-notice", resetError); window.location.reload(); }}>Return to Dashboard</button></>}</section>;
   return (
     <StoreProvider>
         <PromptQueueProvider><ImagePrivacyProvider><AppInner /></ImagePrivacyProvider></PromptQueueProvider>

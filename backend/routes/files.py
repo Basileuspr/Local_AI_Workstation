@@ -15,13 +15,18 @@ Two distinct features, one set of routes:
 The file_parser service is shared by both paths.
 """
 
-from fastapi import APIRouter, UploadFile, File, HTTPException, Query
+import asyncio
+from contextlib import suppress
+
+from fastapi import APIRouter, UploadFile, File, HTTPException, Query, Request
 from starlette.concurrency import run_in_threadpool
+from pydantic import BaseModel, Field
 
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from services.file_parser import parse_file
+from services.request_queue import queue, QueueCancelled, prepare_runtime
 from services.knowledge_base import (
     add_document,
     query_knowledge_base,
@@ -30,6 +35,109 @@ from services.knowledge_base import (
 )
 
 router = APIRouter(prefix="/files", tags=["files"])
+
+
+class KnowledgeLink(BaseModel):
+    source: str = Field(min_length=1, max_length=100)
+    target: str = Field(min_length=1, max_length=100)
+
+
+class KnowledgePosition(BaseModel):
+    x: float = Field(ge=-100000, le=100000, allow_inf_nan=False)
+    y: float = Field(ge=-100000, le=100000, allow_inf_nan=False)
+
+
+@router.get("/knowledge-base/graph")
+def knowledge_graph():
+    from services.knowledge_graph import graph
+    return graph()
+
+
+@router.post("/knowledge-base/graph/links")
+def add_knowledge_link(link: KnowledgeLink):
+    return _change_knowledge_link(link)
+
+
+@router.delete("/knowledge-base/graph/links")
+def delete_knowledge_link(link: KnowledgeLink):
+    return _change_knowledge_link(link, remove=True)
+
+
+def _change_knowledge_link(link, remove=False):
+    from services.knowledge_graph import set_link
+    try:
+        set_link(link.source, link.target, remove=remove)
+    except LookupError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    return {"ok": True}
+
+
+@router.put("/knowledge-base/graph/positions/{doc_id}")
+def save_knowledge_position(doc_id: str, position: KnowledgePosition):
+    from services.knowledge_graph import set_position
+    try:
+        set_position(doc_id, position.x, position.y)
+    except LookupError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    return {"ok": True}
+
+
+@router.get("/knowledge-base/documents/{doc_id}")
+def read_knowledge_document(doc_id: str, offset: int = Query(0, ge=0), limit: int = Query(30, ge=1, le=100)):
+    from services.knowledge_graph import document
+    try:
+        return document(doc_id, offset, limit)
+    except LookupError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+async def _embedding_work(client_request, label, operation, *args):
+    """Serialize Ollama embeddings with inference; retain the lease until exit."""
+    job = queue.enqueue("embedding", label)
+    worker = monitor = None
+    finished = asyncio.Event()
+    error = None
+
+    async def watch_disconnect():
+        while not finished.is_set():
+            if await client_request.is_disconnected() and not finished.is_set():
+                await queue.cancel(job)
+                return
+            try:
+                await asyncio.wait_for(finished.wait(), timeout=0.5)
+            except asyncio.TimeoutError:
+                pass
+
+    try:
+        await queue.wait(job, client_request)
+        monitor = asyncio.create_task(watch_disconnect())
+        await prepare_runtime("embedding")
+        if job.cancel_event.is_set():
+            raise QueueCancelled()
+        worker = asyncio.create_task(run_in_threadpool(operation, *args, cancel_event=job.cancel_event))
+        result = await asyncio.shield(worker)
+        if job.cancel_event.is_set():
+            raise QueueCancelled()
+        return result
+    except (QueueCancelled, asyncio.CancelledError):
+        job.cancel_event.set()
+        if worker:
+            with suppress(Exception):
+                await asyncio.shield(worker)
+        raise HTTPException(499, "Knowledge-base request cancelled")
+    except Exception as exc:
+        error = str(exc)
+        raise
+    finally:
+        finished.set()
+        try:
+            if monitor:
+                with suppress(asyncio.CancelledError):
+                    await monitor
+        finally:
+            queue.finish(job, error)
 
 
 # =============================================
@@ -64,7 +172,7 @@ async def parse_uploaded_file(file: UploadFile = File(...)):
 # =============================================
 
 @router.post("/knowledge-base/add")
-async def add_to_knowledge_base(file: UploadFile = File(...)):
+async def add_to_knowledge_base(client_request: Request, file: UploadFile = File(...)):
     """
     Add a document to the knowledge base for RAG.
     
@@ -85,10 +193,8 @@ async def add_to_knowledge_base(file: UploadFile = File(...)):
     if not parsed["text"].strip():
         raise HTTPException(status_code=400, detail="No text content found in file")
 
-    # The heaviest call in the app: one synchronous embedding request per
-    # chunk, so a 50 KB document is ~100 sequential round trips to Ollama.
-    # On the event loop that froze every other request, including /health.
-    result = await run_in_threadpool(add_document, parsed["text"], file.filename)
+    result = await _embedding_work(client_request, f"Index document: {file.filename}",
+                                   add_document, parsed["text"], file.filename)
 
     if result.get("error"):
         raise HTTPException(status_code=500, detail=result["error"])
@@ -105,7 +211,8 @@ async def add_to_knowledge_base(file: UploadFile = File(...)):
 
 
 @router.get("/knowledge-base/query")
-def search_knowledge_base(
+async def search_knowledge_base(
+    client_request: Request,
     q: str = Query(..., description="Search query"),
     n: int = Query(5, description="Number of results to return"),
 ):
@@ -115,7 +222,7 @@ def search_knowledge_base(
     Returns the most relevant text chunks along with their source documents.
     The frontend can inject these into the LLM context before sending a message.
     """
-    results = query_knowledge_base(q, n_results=n)
+    results = await _embedding_work(client_request, "Search knowledge base", query_knowledge_base, q, n)
     return {"query": q, "results": results, "count": len(results)}
 
 

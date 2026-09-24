@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ChatSubmissionQueue } from "../../src/chatSubmissionQueue";
 import { imageSizes, adjustNumber, seedMax } from "../../src/imageSettingsControls";
+import { MAX_IMAGE_STEPS, MAX_IMAGE_GUIDANCE } from "../../src/imageGenerationLimits";
 import ImageSettingsControls from "../../src/components/ImageSettingsControls";
 import { defaultImageSettings } from "../../src/preferences";
 import { uploadMany } from "../../src/imageWorkflowApi";
@@ -57,14 +58,19 @@ describe("generation control limits", () => {
     }
   });
   it("clamps jumps, preserves zero seeds, and avoids floating point drift", () => {
-    expect(adjustNumber(58, 15, 1, 60)).toBe(60);
-    expect(adjustNumber(2, -15, 1, 60)).toBe(1);
-    expect(adjustNumber(5.6, 0.1, 1, 20)).toBe(5.7);
+    expect(adjustNumber(58, 15, 1, MAX_IMAGE_STEPS)).toBe(73);
+    expect(adjustNumber(198, 15, 1, MAX_IMAGE_STEPS)).toBe(200);
+    expect(adjustNumber(2, -15, 1, MAX_IMAGE_STEPS)).toBe(1);
+    expect(adjustNumber(5.6, 0.1, 1, MAX_IMAGE_GUIDANCE)).toBe(5.7);
+    expect(adjustNumber(20, 2, 1, MAX_IMAGE_GUIDANCE)).toBe(22);
+    expect(adjustNumber(29.5, 2, 1, MAX_IMAGE_GUIDANCE)).toBe(30);
     expect(adjustNumber(seedMax - 2, 1000, 0, seedMax)).toBe(seedMax);
     expect(adjustNumber("", -1, 0, seedMax)).toBe(0);
     const html = renderToStaticMarkup(<ImageSettingsControls settings={defaultImageSettings} onChange={() => {}} />);
     expect(html).toContain('aria-label="Steps plus 15"');
     expect(html).toContain('aria-label="Guidance plus 0.1"');
+    expect(html).toMatch(/aria-label="Steps"[^>]*max="200"/);
+    expect(html).toMatch(/aria-label="Guidance"[^>]*max="30"/);
     expect(html).toContain('max="2147483647"');
     expect(html).toContain('Portrait · 9:16');
   });

@@ -1,8 +1,11 @@
 import ProtectedImage from "../ImagePrivacy";
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import CollectionPager from "./CollectionPager";
 import WorkflowImageLibrary from "./WorkflowImageLibrary";
 import ImageViewer from "./ImageViewer";
+import ImageItemActions from "./ImageItemActions";
+import { useAnalyzeIterate } from "../AnalyzeIterateContext";
 import BulkActions, { SelectionCheckbox } from "./BulkActions";
 import { useSelection, useBatchAction } from "../useSelection";
 import * as api from "../api";
@@ -13,9 +16,10 @@ import FileImagesDialog, { FolderEditor } from "./ImageFolderTools";
 import LockedImages from "./LockedImages";
 import { orderImageDeletions } from "../bulkActions";
 import { isReviewUpload } from "../imageReview";
-import CollapsibleImageFolder from "./CollapsibleImageFolder";
+import "./ImageLibrary.css";
 
-export default function ImageGallery({ images, onOpen, onRemove, onDelete, onImagesRemoved, active = true }) {
+export default function ImageGallery({ images, onOpen, onRemove, onDelete, onImagesRemoved, active = true, workspaceTarget, onNavigate }) {
+  const iterate = useAnalyzeIterate();
   const [folder, setFolder] = useState("general");
   const [selectedImageId, setSelectedImageId] = useState(null);
   const [query, setQuery] = useState("");
@@ -54,48 +58,59 @@ export default function ImageGallery({ images, onOpen, onRemove, onDelete, onIma
   }
   const filtered = shown.filter((image) => [image.name, image.session_title, image.source]
     .some((value) => value?.toLowerCase().includes(query.trim().toLowerCase())));
-  const pageSize = compact ? 12 : 6;
+  const pageSize = compact ? 36 : 18;
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, pages - 1);
 
-  return <section aria-label="Image library">
-    <nav className="image-folders" aria-label="Image folders">
-      <button type="button" aria-pressed={folder === "general"} onClick={() => setFolder("general")}>General Images</button>
-      <button type="button" aria-pressed={folder === "workflows"} onClick={() => setFolder("workflows")}>📁 Workflow Images</button>
-      <button type="button" aria-pressed={folder === "liked"} onClick={() => setFolder("liked")}>👍 Liked</button>
-    </nav>
-    <div className="collection-toolbar">
-      <button type="button" aria-pressed={hidden} aria-expanded={hidden} onClick={() => setFolder(value => value === "hidden" ? "general" : "hidden")}>See hidden Images</button>
-      <button type="button" aria-pressed={folder === "locked"} onClick={() => setFolder("locked")}>🔒 Locked Images</button>
-      <label>Image folder<select aria-label="Image folder" value={folder.startsWith("folder:") || ["saved", "liked", "disliked"].includes(folder) ? folder : ""} onChange={event => { if (event.target.value) setFolder(event.target.value); }}>
-        <option value="">Choose a folder…</option><option value="saved">Saved Images</option><option value="liked">Liked Images</option><option value="disliked">Disliked Images</option>
+  const collections = [
+    ["general", "General Images"], ["workflows", "Workflow Images"], ["saved", "Saved Images"],
+    ["liked", "Liked Images"], ["disliked", "Disliked Images"], ["hidden", "Hidden Images"], ["locked", "Locked Images"],
+  ];
+  const title = selectedFolder?.name || collections.find(([id]) => id === folder)?.[1] || "Images";
+  function chooseFolder(value) { setFolder(value); setPage(0); setQuery(""); setSelectedImageId(null); onNavigate?.(); }
+  const navigation = <nav className="image-library-navigation" aria-label="Image collections">
+    <p className="image-library-nav-label">Collections</p>
+    {collections.map(([id, name]) => <button type="button" key={id} aria-current={folder === id ? "page" : undefined}
+      className={id === "hidden" ? "image-library-private-start" : ""} onClick={() => chooseFolder(id)}>{name}</button>)}
+    <div className="image-library-folder-heading"><p className="image-library-nav-label">Folders</p>
+      <button type="button" aria-label="New image folder" title="New folder" onClick={() => { setFolderEditor({}); onNavigate?.(); }}>+</button></div>
+    {library.folders.map(item => <button type="button" key={item.id} title={item.name}
+      aria-current={folder === `folder:${item.id}` ? "page" : undefined} onClick={() => chooseFolder(`folder:${item.id}`)}>{item.name}</button>)}
+    {!library.folders.length && <p className="image-library-folder-note">Create folders to organize your images.</p>}
+  </nav>;
+
+  const workspace = <section className="image-library-workspace" aria-label="Image library" data-density={compact ? "compact" : "comfortable"}>
+    <header className="image-library-header"><div><p className="image-library-eyebrow">Image library</p><h1>{title}</h1></div>
+      <span className="image-library-description">Browse, organize, and open your images.</span></header>
+    <div className="image-library-toolbar">
+      <label className="image-library-mobile-collection">Collection<select aria-label="Image collection" value={folder} onChange={event => chooseFolder(event.target.value)}>
+        {collections.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
         {library.folders.map(item => <option key={item.id} value={`folder:${item.id}`}>{item.name}</option>)}
       </select></label>
-      <button type="button" onClick={() => setFolderEditor({})}>+ New folder</button>
-      {selectedFolder && <><button type="button" onClick={() => setFolderEditor(selectedFolder)}>Rename folder</button><button type="button" onClick={async () => {
-        if (!window.confirm(`Delete folder "${selectedFolder.name}"? Its images stay in Saved Images.`)) return;
-        try { await libraryApi.deleteFolder(selectedFolder.id); setFolder("saved"); libraryApi.changed(); } catch (failure) { setError(failure.message); }
-      }}>Delete folder</button></>}
+      <input type="search" aria-label="Search image library" placeholder={folder === "workflows" ? "Search workflows or runs…" : "Search images or chats…"}
+        value={query} onChange={event => { setQuery(event.target.value); setPage(0); }} />
+      <div className="image-library-density" role="group" aria-label="Thumbnail size">
+        <button type="button" aria-pressed={!compact} onClick={() => { setCompact(false); setPage(0); }}>Comfortable</button>
+        <button type="button" aria-pressed={compact} onClick={() => { setCompact(true); setPage(0); }}>Compact</button>
+      </div>
+      {selectedFolder && <details className="image-library-folder-menu"><summary>Folder options</summary><div>
+        <button type="button" onClick={() => setFolderEditor(selectedFolder)}>Rename folder</button><button type="button" onClick={async () => {
+          if (!window.confirm(`Delete folder "${selectedFolder.name}"? Its images stay in Saved Images.`)) return;
+          try { await libraryApi.deleteFolder(selectedFolder.id); chooseFolder("saved"); libraryApi.changed(); } catch (failure) { setError(failure.message); }
+        }}>Delete folder</button>
+      </div></details>}
     </div>
     {(error || library.error) && <p role="alert">{error || library.error}</p>}
-    {folder === "workflows" && <CollapsibleImageFolder key={folder} name="Workflow Images"><WorkflowImageLibrary active={active} onFile={setFiling} onLock={lockImages} /></CollapsibleImageFolder>}
-    {folder === "locked" && <CollapsibleImageFolder key={folder} name="Locked Images"><LockedImages active={active} pending={locking} onImported={result => setLocking(current => current.filter(image => !result.succeeded.some(done => done.id === image.id)))} /></CollapsibleImageFolder>}
-    {(selectedFolder || ["saved", "liked", "disliked"].includes(folder)) && <CollapsibleImageFolder key={folder} name={selectedFolder?.name || {saved:"Saved Images", liked:"Liked Images", disliked:"Disliked Images"}[folder]}><CollectionImages active={active} title={selectedFolder?.name || {saved:"Saved Images", liked:"Liked Images", disliked:"Disliked Images"}[folder]}
+    {folder === "workflows" && <WorkflowImageLibrary active={active} onFile={setFiling} onLock={lockImages} searchQuery={query} workspace />}
+    {folder === "locked" && <LockedImages active={active} pending={locking} searchQuery={query} onImported={result => setLocking(current => current.filter(image => !result.succeeded.some(done => done.id === image.id)))} />}
+    {(selectedFolder || ["saved", "liked", "disliked"].includes(folder)) && <CollectionImages key={folder} active={active} title={title} searchQuery={query} compactView={compact} workspace
       images={library.images.filter(image => !image.hidden && (selectedFolder ? image.folder_ids.includes(selectedFolder.id) : folder === "saved" ? !isReviewUpload(image) : image.rating === folder))}
-      folderId={selectedFolder?.id} folders={library.folders} tags={library.tags} onLock={lockImages} onOpenSource={onOpen} /></CollapsibleImageFolder>}
+      folderId={selectedFolder?.id} folders={library.folders} tags={library.tags} onLock={lockImages} onOpenSource={onOpen} />}
     {folderEditor && <FolderEditor folder={folderEditor.id ? folderEditor : null} onClose={() => setFolderEditor(null)} onSaved={saved => { setFolderEditor(null); setFolder(`folder:${saved.id}`); }} />}
     {filing && <FileImagesDialog images={filing} folders={library.folders} onClose={() => setFiling(null)} />}
     <div hidden={!["general", "hidden"].includes(folder)}>
-    <div className="collection-toolbar">
-      <div className="collection-heading">
-        <span>{hidden ? "Hidden Images" : "Images"} ({shown.length})</span>
-        <button type="button" onClick={() => {
-          setCompact(!compact); setPage(0);
-        }}>{compact ? "Larger thumbnails" : "Compact view"}</button>
-      </div>
-      <input type="search" aria-label="Search image library" placeholder="Search images or chats…"
-        value={query} onChange={(event) => { setQuery(event.target.value); setPage(0); }} />
-      {query && <small>{filtered.length} matching images</small>}
+    <div className="collection-toolbar image-library-results">
+      <span className="image-library-result-count">{filtered.length} {query ? "matching " : ""}image{filtered.length === 1 ? "" : "s"}</span>
       <CollectionPager label="images" page={currentPage} pages={pages} onChange={setPage} />
       <BulkActions selection={selection} items={filtered} label="images" batch={batch} actions={[
         {label:hidden ? "Restore selected images" : "Hide selected images", onClick:items => hidden ? restoreSelected(items) : removeSelected(items, false)},
@@ -104,32 +119,33 @@ export default function ImageGallery({ images, onOpen, onRemove, onDelete, onIma
         {label:"Delete selected images", danger:true, onClick:items => removeSelected(items, true)},
       ]} />
     </div>
-    {!filtered.length && <p className="gallery-empty">{images.length
-      ? "No matching images. Try another name or chat."
-      : "Images uploaded or generated in chats will appear here."}</p>}
+    {!filtered.length && <div className="image-library-empty"><strong>{query ? "No matching images" : hidden ? "No hidden images" : "Your images, in one place"}</strong>
+      <p>{query ? "Try another image name or chat title." : hidden ? "Images you hide from the gallery will appear here." : "Images uploaded or generated in chats will appear here. Choose Workflow Images to browse completed workflow runs."}</p>
+      {query && <button type="button" onClick={() => setQuery("")}>Clear search</button>}</div>}
     <div className={`image-gallery ${compact ? "image-gallery-compact" : ""}`}>
       {filtered.slice(currentPage * pageSize, (currentPage + 1) * pageSize).map((image) => (
         <div className="gallery-item-row" key={image.id}>
           <SelectionCheckbox selection={selection} item={image} label={`image ${image.name}`} disabled={batch.busy} />
-          <button className="gallery-item" type="button" title={`${selection.enabled ? "Select" : "Enlarge"} ${image.name}`}
+          <button className={`gallery-item ${selection.has(image) ? "is-selected" : ""}`} type="button" title={`${selection.enabled ? "Select" : "Enlarge"} ${image.name}`}
             aria-pressed={selection.enabled ? selection.has(image) : undefined} disabled={batch.busy} onClick={() => selection.enabled ? selection.toggle(image) : setSelectedImageId(image.id)}>
             <span className="gallery-thumbnail"><ProtectedImage loading="lazy" src={image.url} alt={image.name} /></span>
             <span className="gallery-details">
               <span className="gallery-name">{image.name}</span>
-              {!compact && <span className="gallery-meta">{image.source}</span>}
+              <span className="gallery-meta">{image.session_title || image.source || "Saved image"}</span>
             </span>
           </button>
-          <button className="gallery-remove-btn" type="button" title={hidden ? "Restore to gallery" : "Remove from gallery"}
-            disabled={batch.busy}
-            aria-label={hidden ? `Restore ${image.name} to gallery` : `Remove ${image.name} from gallery`} onClick={(event) => hidden ? restoreSelected([image]) : image.library ? removeSelected([image], false) : onRemove(image, event)}>{hidden ? "Restore" : "×"}</button>
-          <button className="gallery-purge-btn" type="button" title="Permanently delete from this chat and disk"
-            disabled={batch.busy}
-            aria-label={`Permanently delete ${image.name}`} onClick={(event) => image.library ? removeSelected([image], true) : onDelete(image, event)}>Del</button>
+          {selection.has(image) && <ImageItemActions image={image} />}
         </div>
       ))}
     </div>
     </div>
     <ImageViewer images={filtered.map(image => ({...image, caption: image.session_title}))} selectedId={selectedImageId}
-      active={active && ["general", "hidden"].includes(folder) && !selection.enabled} onSelect={setSelectedImageId} onClose={() => setSelectedImageId(null)} onOpenSource={onOpen} actions={image => <><button type="button" onClick={() => { setSelectedImageId(null); setFiling([image]); }}>Add to folder</button><button type="button" onClick={() => lockImages([image])}>Lock image</button></>} />
+      onAnalyze={iterate?.image}
+      active={active && ["general", "hidden"].includes(folder) && !selection.enabled} onSelect={setSelectedImageId} onClose={() => setSelectedImageId(null)} onOpenSource={onOpen} actions={image => <>
+        <button type="button" onClick={() => { setSelectedImageId(null); setFiling([image]); }}>Add to folder</button><button type="button" onClick={() => lockImages([image])}>Lock image</button>
+        <button type="button" disabled={batch.busy} onClick={event => hidden ? restoreSelected([image]) : image.library ? removeSelected([image], false) : onRemove(image, event)}>{hidden ? "Restore to gallery" : "Hide from gallery"}</button>
+        <button type="button" className="danger" disabled={batch.busy} onClick={event => image.library ? removeSelected([image], true) : onDelete(image, event)}>Delete image permanently</button>
+      </>} />
   </section>;
+  return <>{navigation}{workspaceTarget ? createPortal(workspace, workspaceTarget) : workspace}</>;
 }

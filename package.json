@@ -18,9 +18,9 @@
   "license": "Apache-2.0",
   "devDependencies": {
     "@vitejs/plugin-react": "^4.7.0",
-    "electron": "^40.10.6",
+    "electron": "^44.4.5",
     "vite": "^6.4.3",
-    "vitest": "^3.2.7"
+    "vitest": "^4.1.11"
   },
   "dependencies": {
     "react": "^19.2.8",

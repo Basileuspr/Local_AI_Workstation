@@ -281,6 +281,62 @@ def test_image_generation_rejects_an_empty_prompt(client):
     assert response.status_code == 422
 
 
+@pytest.mark.parametrize("numeric", [{"steps": 201}, {"steps": 200.5}, {"guidance_scale": 30.1}])
+def test_image_generation_rejects_values_beyond_expanded_limits(client, monkeypatch, numeric):
+    from routes import image_generation as routes
+
+    monkeypatch.setattr(routes.manager, "generate", lambda **kwargs: pytest.fail("Invalid settings reached inference"))
+    response = client.post("/image-generation/generate", json={"model_id": "base", "prompt": "A forest", **numeric})
+    assert response.status_code == 422
+
+
+def test_base_image_catalog_survives_optional_lora_discovery_failure(client, monkeypatch):
+    from routes import image_generation as routes
+    from services import lora_store
+
+    monkeypatch.setattr(routes, "discover_models", lambda: [{"id": "base", "name": "Base model"}])
+    monkeypatch.setattr(routes.manager, "runtime_status", lambda: {"ready": True})
+
+    def unavailable():
+        raise OSError("Adapter directory temporarily unreadable")
+
+    monkeypatch.setattr(lora_store, "list_adapters", unavailable)
+    response = client.get("/image-generation/models")
+    assert response.status_code == 200
+    assert response.json()["models"][0]["id"] == "base"
+    assert response.json()["runtime"]["ready"] is True
+    assert response.json()["loras"] == []
+    assert "base model only" in response.json()["lora_error"]
+
+
+@pytest.mark.parametrize("adapter_fields,numeric", [({}, {}),
+    ({"lora_id": None}, {"steps": 61, "guidance_scale": 20.1}),
+    ({"lora_id": ""}, {"steps": 200, "guidance_scale": 30})])
+def test_image_generation_http_accepts_base_model_without_lora(client, monkeypatch, tmp_path, adapter_fields, numeric):
+    from routes import image_generation as routes
+    from services.request_queue import RequestQueue
+
+    async def prepared(_kind):
+        pass
+
+    def generate(**request):
+        assert not request["lora_id"]
+        assert request["model_id"] == "base"
+        assert request["steps"] == numeric.get("steps", 24)
+        assert request["guidance_scale"] == numeric.get("guidance_scale", 5.5)
+        Image.new("RGB", (8, 8)).save(tmp_path / "base.png")
+        return {"filename": "base.png", "model_id": "base"}
+
+    monkeypatch.setattr(routes, "OUTPUT_DIR", tmp_path)
+    monkeypatch.setattr(routes, "queue", RequestQueue())
+    monkeypatch.setattr(routes, "prepare_runtime", prepared)
+    monkeypatch.setattr(routes.manager, "generate", generate)
+    response = client.post("/image-generation/generate", json={"model_id": "base", "prompt": "A forest", **adapter_fields, **numeric})
+    assert response.status_code == 200
+    assert response.json()["filename"] == "base.png"
+    assert response.json()["image_ref"].startswith("blob:")
+
+
 def test_image_generation_model_list_reports_runtime_status(client):
     """Must describe the runtime rather than crash when CUDA/torch are absent."""
     payload = client.get("/image-generation/models").json()

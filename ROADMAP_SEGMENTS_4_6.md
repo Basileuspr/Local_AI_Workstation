@@ -1,4 +1,4 @@
-# Roadmap segments 4â€“6 implementation
+# Roadmap segments 4–6 implementation
 
 Implementation reference for desktop security, persistent scene state and
 reviewed frame continuity. Normal Generate remains available separately.

@@ -27,6 +27,7 @@ def test_batches_cover_entire_dataset_and_split_context_errors(monkeypatch, limi
         async def __aenter__(self): return self
         async def __aexit__(self, *args): pass
         async def post(self, url, json):
+            assert json["keep_alive"] == lora_vision.settings.ollama_keep_alive_seconds
             images = json["messages"][0]["images"]
             request = httpx.Request("POST", url)
             if len(images) > limit:

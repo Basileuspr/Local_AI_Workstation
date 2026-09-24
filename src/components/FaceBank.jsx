@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import * as faces from "../faceApi";
 import CharacterNameDialog from "./CharacterNameDialog";
+import ProtectedImage from "../ImagePrivacy";
+import MediaCardActions from "./MediaCardActions";
 
 function Distribution({ values }) {
   if (values.length < 2) return null;
@@ -23,7 +25,7 @@ function Distribution({ values }) {
 function FaceTile({ member, datasetId, selected, onToggle, badge }) {
   return <figure className={`face-card bank-tile ${selected ? "selected" : ""} ${member.drift ? "drifting" : ""}`}>
     <button type="button" className="face-thumb" onClick={() => onToggle(member.face_id)} aria-pressed={selected}>
-      <img src={faces.cropUrl(datasetId || member.dataset_id, member.face_id)} alt="" loading="lazy" />
+      <ProtectedImage src={faces.cropUrl(datasetId || member.dataset_id, member.face_id)} alt="" loading="lazy" />
     </button>
     <figcaption>
       {badge && <span className="bank-badge">{badge}</span>}
@@ -33,6 +35,7 @@ function FaceTile({ member, datasetId, selected, onToggle, badge }) {
           : `similarity ${member.similarity.toFixed(3)}`}
       </span>
       {member.drift && <span className="face-flag">possible drift</span>}
+      {selected && <MediaCardActions image={{ id: member.face_id, name: "Face crop", url: faces.cropUrl(datasetId || member.dataset_id, member.face_id) }} />}
     </figcaption>
   </figure>;
 }

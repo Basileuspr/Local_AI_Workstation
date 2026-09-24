@@ -1,6 +1,7 @@
 import { createContext, useContext, useReducer, useRef, useCallback } from "react";
 import { defaultRoleplayConfig, mergeRoleplayConfig } from "./roleplayPrompt";
 import { defaultImageSettings, loadPreferences } from "./preferences";
+import { loadNavigation } from "./navigation";
 
 const StoreContext = createContext(null);
 const DispatchContext = createContext(null);
@@ -56,6 +57,7 @@ const initialState = {
   customProfiles: [],
   activeCustomProfileId: "",
   activeLoraProjectId: "",
+  sceneToOpen: null,
 
   // Toast
   toast: null, // { message, type }
@@ -66,6 +68,7 @@ function createInitialState() {
   return {
     ...initialState,
     ...preferences,
+    activeSidebarTab: loadNavigation().tab,
     roleplay: mergeRoleplayConfig(preferences.roleplay),
   };
 }
@@ -151,6 +154,14 @@ function updateActiveCustomProfile(nextState) {
 
 export function reducer(state, action) {
   switch (action.type) {
+    case "OPEN_IMAGE_WORKFLOW":
+      return { ...state, activeSidebarTab: "workflows", workflowToOpen: action.payload };
+    case "IMAGE_WORKFLOW_OPENED":
+      return { ...state, workflowToOpen: null };
+    case "OPEN_ITERATIVE_SCENE":
+      return { ...state, activeSidebarTab: "workflows", sceneToOpen: action.payload };
+    case "ITERATIVE_SCENE_OPENED":
+      return state.sceneToOpen === action.payload ? { ...state, sceneToOpen: null } : state;
     case "SET_CONNECTED":
       return { ...state, connected: action.payload };
 
@@ -265,6 +276,12 @@ export function reducer(state, action) {
         ...state,
         imageSettings: { ...state.imageSettings, ...action.payload },
       });
+
+    case "CLEAR_UNAVAILABLE_IMAGE_LORA":
+      // Ignore stale catalog results, and detach rather than autosaving this
+      // runtime repair over a reusable profile's original adapter selection.
+      if (state.imageSettings.modelId !== action.payload.modelId || state.imageSettings.loraId !== action.payload.loraId) return state;
+      return { ...state, imageSettings: { ...state.imageSettings, loraId: "" }, activeCustomProfileId: "" };
 
     case "RESET_IMAGE_SETTINGS":
       // Detach the active preset without autosaving blank settings over it.

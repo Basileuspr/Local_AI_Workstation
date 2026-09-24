@@ -6,7 +6,7 @@ import "./PromptQueue.css";
 
 const QueueContext = createContext({ jobs: [], error: "", paused: false });
 const pending = (job) => ["queued", "running", "cancelling"].includes(job.status);
-const names = { chat: "Chat", image: "Image", training: "LoRA training", analysis: "LoRA analysis", compact: "Chat memory", workflow: "Image workflow" };
+const names = { chat: "Chat", image: "Image", training: "LoRA training", analysis: "LoRA analysis", compact: "Chat memory", workflow: "Image workflow", "character-parts": "Character regions" };
 
 export function PromptQueueProvider({ children }) {
   const [data, setData] = useState({ jobs: [], error: "", paused: false });

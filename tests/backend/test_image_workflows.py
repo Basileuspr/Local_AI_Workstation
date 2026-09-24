@@ -255,3 +255,22 @@ def test_provider_contract_observes_cancellation(tmp_path):
     event.set()
     with pytest.raises(WorkflowCancelled):
         context.check_cancelled()
+
+
+def test_previous_image_source_survives_save_settings_changes_and_reorder(client):
+    project = upload(client, create(client)); asset = project["assets"][0]["id"]
+    items = [stage(source={"kind":"asset","id":asset}, width=640, height=400),
+             stage("describe", id="b"*32, source={"kind":"stage","id":"a"*32}),
+             stage(id="c"*32, source_mode="previous", lock_aspect_ratio=False)]
+    saved = update(client, project, stages=items).json()
+    assert saved["stages"][2]["source"] == {"kind":"stage", "id":"a"*32}
+    assert saved["stages"][2]["lock_aspect_ratio"] is False
+    saved["stages"][2]["strength"] = .2
+    saved = update(client, saved).json()
+    assert saved["stages"][2]["source"]["id"] == "a"*32
+    saved["stages"].insert(2, stage("upscale", id="d"*32, source_mode="previous"))
+    saved = update(client, saved).json()
+    assert saved["stages"][3]["source"]["id"] == "d"*32
+    saved["stages"] = [saved["stages"][3]]
+    saved = update(client, saved).json()
+    assert saved["stages"][0]["source"] is None  # No invalid future/self-reference.

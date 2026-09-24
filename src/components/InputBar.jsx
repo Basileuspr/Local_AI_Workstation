@@ -11,12 +11,22 @@ import { useChatUploads } from "../useChatUploads";
 import { QueueRequestStatus } from "./PromptQueue";
 import ChatImageControls from "./ChatImageControls";
 import { useImageGeneration } from "../ImageGenerationContext";
+import { useImageDestinations } from "../ImageDestinations";
+import { useImagePrivacy } from "../ImagePrivacy";
+import { isEditCommand, editCommandSettings } from "../chatEdit";
+import { localImageUrl, chatImage } from "../chatImages";
+import { readImageFile } from "../useChatUploads";
+import ImageEditor from "./ImageEditor";
+import { isStoredReference } from "../imageRefs";
 
 export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
   const state = useStore();
   const dispatch = useDispatch();
   const refs = useRefs();
   const imageGeneration = useImageGeneration();
+  const destinations = useImageDestinations(), privacy = useImagePrivacy();
+  const [editJob, setEditJob] = useState(null), [openingEdit, setOpeningEdit] = useState(false);
+  const editLock = useRef(false);
   const chatSubmissions = useSyncExternalStore(chatSubmissionQueue.subscribe, chatSubmissionQueue.getSnapshot);
   const textareaRef = useRef(null);
   const currentSessionRef = useRef(state.currentSessionId);
@@ -26,6 +36,57 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
   const documentInputRef = useRef(null);
   const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
   const { uploadImage, uploadDocument } = useChatUploads({ onNewChat, onSessionSaved });
+  const selectedEdit = destinations?.chatEdit?.sessionId === state.currentSessionId ? destinations.chatEdit : null;
+  useEffect(() => {
+    const focus = () => { if (active) { textareaRef.current.value = "/Edit "; textareaRef.current.focus(); } };
+    window.addEventListener("focus-chat-edit", focus);
+    return () => window.removeEventListener("focus-chat-edit", focus);
+  }, [active]);
+  useEffect(() => { setEditJob(null); }, [state.currentSessionId, privacy.revision]);
+
+  async function startChatEdit(text) {
+    if (editLock.current) return;
+    editLock.current = true; setOpeningEdit(true);
+    const sessionId = currentSessionRef.current;
+    try {
+      const settings = editCommandSettings(text);
+      if (!sessionId) throw new Error("Attach an image to this chat first, then send /Edit.");
+      let image = selectedEdit?.image;
+      if (!image) {
+        const saved = await api.loadSession(sessionId);
+        for (const message of [...saved.messages].reverse()) {
+          const candidate = [...(message.imagePreviews || []), ...(message.generatedImages || [])].at(-1);
+          if (!candidate) continue;
+          const value = candidate.src || candidate.url || candidate.data;
+          const url = localImageUrl(candidate.id && isStoredReference(value) ? api.getSessionImageUrl(sessionId, message.id, candidate.id) : value);
+          if (url) { image = chatImage(candidate, message.id, sessionId, 0, url); break; }
+        }
+      }
+      if (!image) throw new Error("Attach an image or choose Use with /Edit on a chat image first.");
+      const file = await destinations.readImage(image);
+      if (currentSessionRef.current !== sessionId) return;
+      setEditJob({ id: createMessageId(), replyId: createMessageId(), imageId: createMessageId(), file, image, settings, text, sessionId });
+      textareaRef.current.value = "";
+    } catch (error) { showToast(error.message, "error"); }
+    finally { editLock.current = false; setOpeningEdit(false); }
+  }
+  async function saveChatEdit(blob, name, settings) {
+    const job = editJob;
+    if (!job) return;
+    // Recheck the source's current privacy policy before publishing derived pixels.
+    await destinations.readImage(job.image);
+    const { dataUrl, base64 } = await readImageFile(blob);
+    const lockedStages = settings.stages || [];
+    const colorAreas = (settings.colorEdits?.length || 0) + lockedStages.reduce((count, stage) => count + (stage.colorEdits?.length || 0), 0);
+    const summary = `Edited with Image Editor: ${lockedStages.length ? `${lockedStages.length} locked stage(s); current pass: ` : ''}red reduction ${settings.red}%, contrast ${settings.contrast}%, exposure ${settings.exposure} EV, saturation ${settings.saturation}%, rotation ${settings.rotation || 0}°.${colorAreas ? ` ${colorAreas} reference-color area(s) applied.` : ''} Original retained.`;
+    const saved = await api.appendSessionMessages(job.sessionId, [
+      { id: job.id, role: "user", content: job.text },
+      { id: job.replyId, role: "assistant", content: summary, images: [base64], imagePreviews: [{ id: job.imageId, src: dataUrl, name, type: "image/png", size: blob.size }] },
+    ], selectedModel);
+    if (currentSessionRef.current === job.sessionId) dispatch({ type: "SET_SESSION", payload: { id: saved.id, messages: saved.messages, title: saved.title, memorySummary: saved.memory_summary || "", summarizedMessageCount: saved.summarized_message_count || 0 } });
+    setEditJob(null); destinations.clearChatEdit();
+    if (onSessionSaved) void Promise.resolve(onSessionSaved()).catch(error => showToast(error.message, "error"));
+  }
 
   const {
     isGenerating,
@@ -130,6 +191,7 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
   function sendMessage() {
     const text = textareaRef.current?.value.trim();
     if (!text) return;
+    if (isEditCommand(text)) { void startChatEdit(text); return; }
     const sourceId = currentSessionRef.current;
     // Creating a blank chat is shared by rapid submissions. Navigating away
     // while it is created must not redirect the user when it resolves.
@@ -342,6 +404,8 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
 
   return (
     <div id="input-area">
+      {active && editJob?.sessionId === currentSessionId && privacy.ready && <ImageEditor key={editJob.id} inlineInput={editJob} onSave={saveChatEdit} onCancel={() => setEditJob(null)} />}
+      <div className="chat-edit-command"><button type="button" disabled={openingEdit} onClick={() => { textareaRef.current.value = "/Edit "; textareaRef.current.focus(); }}>/Edit</button><span>{openingEdit ? "Opening image editor…" : selectedEdit ? `Selected: ${selectedEdit.image.name}` : "Edit the latest chat image, or select Use with /Edit on an image."}</span>{selectedEdit && <button onClick={() => destinations.clearChatEdit()}>Clear selection</button>}<details><summary>Edit commands</summary><p>/Edit opens image controls here. Try /Edit reduce red hue, increase contrast, decrease exposure, or /Edit rotate right. Preview, adjust, then send the edited copy.</p></details></div>
       <ChatImageControls active={active} onGenerate={generateChatImage} />
       <QueueRequestStatus requestId={refs.generationRequestId} />
       {chatSubmissions.some(job => job.status === "waiting") && <div className="chat-pending-requests" aria-label="Waiting chat prompts">

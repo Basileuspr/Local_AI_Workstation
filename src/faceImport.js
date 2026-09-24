@@ -49,7 +49,7 @@ function pause(milliseconds, signal) {
 
 // Wait for each worker to finish before reading/uploading the next batch.
 // The import lives in FaceStudio, which remains mounted across app tabs.
-export async function scanFaceBatches({ datasetId, source, api, signal, onProgress, pollInterval = 900 }) {
+export async function scanFaceBatches({ datasetId, source, api, signal, onProgress, pollInterval = 900, runName = "" }) {
   let processed = 0, found = 0, batchNumber = 0, errorCount = 0, currentRun = null;
   const errors = [];
   const collectErrors = (items = [], count = items.length) => { errors.push(...items.slice(0, 100 - errors.length)); errorCount += count; };
@@ -72,7 +72,7 @@ export async function scanFaceBatches({ datasetId, source, api, signal, onProgre
         report("uploading", `Sending batch ${batchNumber} (${batch.files.length} images)…`);
         // Do not abort this POST: receiving its run ID lets Stop cancel the
         // exact worker even if it was clicked while the upload was in flight.
-        currentRun = await api.uploadImages(datasetId, batch.files);
+        currentRun = await api.uploadImages(datasetId, batch.files, runName ? `${runName.slice(0, 95)} · batch ${batchNumber}` : "");
         let failures = 0;
         while (!TERMINAL.has(currentRun.status)) {
           if (signal?.aborted) {

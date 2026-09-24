@@ -1,5 +1,5 @@
 """Face dataset API. Detection runs in the background through the shared queue."""
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
@@ -29,6 +29,7 @@ class SettingsRequest(BaseModel):
 
 class ExtractRequest(BaseModel):
     sources: list[dict] = Field(default_factory=list, max_length=500)
+    name: str = Field(default="", max_length=120)
 
 
 class StateRequest(BaseModel):
@@ -90,11 +91,11 @@ async def update_settings(dataset_id: str, request: SettingsRequest):
 
 @router.post("/datasets/{dataset_id}/extract", status_code=202)
 async def extract(dataset_id: str, request: ExtractRequest):
-    return call(pipeline.extractor.start, dataset_id, request.sources)
+    return call(pipeline.extractor.start, dataset_id, request.sources, request.name)
 
 
 @router.post("/datasets/{dataset_id}/upload", status_code=202)
-async def upload(dataset_id: str, files: list[UploadFile] = File(...)):
+async def upload(dataset_id: str, files: list[UploadFile] = File(...), name: str = Form(default="", max_length=120)):
     if len(files) > MAX_UPLOAD_FILES:
         raise HTTPException(400, f"Choose up to {MAX_UPLOAD_FILES} images at a time")
     import base64
@@ -111,7 +112,28 @@ async def upload(dataset_id: str, files: list[UploadFile] = File(...)):
             raise HTTPException(400, "Send face images in batches up to 64 MiB")
         sources.append({"kind": "inline", "name": item.filename or "Upload",
                         "data": base64.b64encode(payload).decode("ascii")})
-    return call(pipeline.extractor.start, dataset_id, sources)
+    return call(pipeline.extractor.start, dataset_id, sources, name)
+
+
+@router.get("/datasets/{dataset_id}/runs")
+async def runs(dataset_id: str):
+    records = await run_in_threadpool(call, store.list_runs, dataset_id)
+    current = pipeline.extractor.status(dataset_id)
+    for record in records:
+        if current and current["id"] == record["id"]:
+            record.update(current)
+        elif record["status"] in {"queued", "running"}:
+            record["status"] = "interrupted"
+    return {"runs": records}
+
+
+@router.put("/datasets/{dataset_id}/runs/{run_id}")
+async def rename_run(dataset_id: str, run_id: str, request: NameRequest):
+    result = await run_in_threadpool(call, store.rename_run, dataset_id, run_id, request.name)
+    current = pipeline.extractor.run
+    if current and current.id == run_id and current.dataset_id == dataset_id:
+        current.name = result["name"]
+    return result
 
 
 @router.get("/datasets/{dataset_id}/run")
