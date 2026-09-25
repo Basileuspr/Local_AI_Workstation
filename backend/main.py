@@ -106,6 +106,8 @@ app.include_router(lora_router)
 app.include_router(image_workflows_router)
 app.include_router(system_stats_router)
 app.include_router(request_queue_router)
+from routes.bridge import router as bridge_router
+app.include_router(bridge_router)
 from routes.image_library import router as image_library_router
 app.include_router(image_library_router)
 from routes.faces import router as faces_router

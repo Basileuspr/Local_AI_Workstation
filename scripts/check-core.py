@@ -20,7 +20,7 @@ assert len(missing) == 4, "Run this check in the core-only venv before optional 
 results = {}
 with TestClient(main.app, base_url="http://127.0.0.1:8000", headers={"X-LAW-Session": "core-smoke-token"}) as client:
     for route in ("/health", "/sessions/list", "/sessions/images", "/image-generation/models",
-                  "/lora/hardware", "/lora/projects", "/faces/providers", "/faces/datasets", "/status"):
+                  "/lora/hardware", "/lora/projects", "/faces/providers", "/faces/datasets", "/status", "/bridge", "/bridge/jobs"):
         response = client.get(route)
         assert response.status_code == 200, (route, response.status_code, response.text)
         results[route] = response.status_code

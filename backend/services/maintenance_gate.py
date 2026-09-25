@@ -61,6 +61,9 @@ async def lock(request: Request):
     gate.locked = True
     gate.expires = time.monotonic() + 60
     try:
+        from routes.bridge import _instance as bridge
+        if bridge and bridge.running:
+            raise HTTPException(409, "Stop the PC bridge in Dashboard before reset or backup.")
         # Block new traffic first; let existing requests finish. Busy inference
         # is never killed just to make the reset available.
         for _ in range(50):

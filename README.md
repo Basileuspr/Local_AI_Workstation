@@ -6,6 +6,9 @@ image generation, LoRA workflows, face curation and persistent scene editing.
 
 From an already configured checkout, run `npm start`.
 
+To connect two PCs and delegate chat or image tasks, see the
+[PC bridge setup and first test](PC_BRIDGE.md). Bridge controls are in Dashboard.
+
 For a Windows 10/11 laptop, install Node.js 22 (with npm), 64-bit Python 3.13,
 and Ollama. From the repository directory in PowerShell:
 

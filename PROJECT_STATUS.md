@@ -1,5 +1,22 @@
 # Project status
 
+## PC bridge manual delegation — 2026-09-25
+
+- Dashboard can explicitly start an HTTPS peer listener, pair two PCs in both
+  directions, inspect worker models/resources and delegate standalone chat or
+  base-model image tasks. The normal desktop API remains loopback-only.
+- Persistent job IDs and records support reconnects, duplicate-delivery
+  protection, cancellation and deliberate recovery after worker restarts.
+  Returned results can be saved as separate local chats without overwriting edits.
+- Jobs execute through existing local routes, GPU coordination and queueing.
+  The bridge starts off on every app launch and blocks maintenance while listening.
+- Real HTTPS integration tests and local-route adapter tests cover the protocol;
+  inference is mocked. Headless UI checks cover pairing, discovery, submission
+  and result display. Actual two-PC network and inference performance remain to
+  be tested. See [PC bridge](PC_BRIDGE.md) for setup and the first test.
+- Automatic routing, batch splitting, distributed model execution, training
+  delegation and synchronization of existing workspaces are future work.
+
 ## Windows compatibility update — 2026-09-25
 
 - Added automatic live capability reporting, memory-aware chat defaults,

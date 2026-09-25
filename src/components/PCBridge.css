@@ -1,0 +1,21 @@
+.pc-bridge { margin-block: 1rem; }
+.pc-bridge p { line-height: 1.6; margin-block: .6rem; }
+.pc-bridge h3 { margin-top: 1.2rem; margin-bottom: .6rem; }
+.pc-bridge h4 { margin-bottom: .5rem; }
+.pc-bridge button { border: 1px solid var(--border, #555); border-radius: 6px; background: var(--bg-card, #20242b); color: var(--accent, #5dc9ff); padding: .6rem .85rem; font: inherit; cursor: pointer; }
+.pc-bridge button:hover:not(:disabled) { border-color: var(--accent, #5dc9ff); }
+.pc-bridge button:focus-visible, .pc-bridge input:focus-visible, .pc-bridge select:focus-visible, .pc-bridge textarea:focus-visible { outline: 2px solid var(--accent, #5dc9ff); outline-offset: 2px; }
+.pc-bridge summary { cursor: pointer; padding-block: .6rem; }
+.pc-bridge ul { padding-left: 1.2rem; }
+.pc-bridge li { margin-block: .5rem; overflow-wrap: anywhere; }
+.pc-bridge label { display: grid; gap: .35rem; margin-block: .65rem; min-width: 0; }
+.pc-bridge input, .pc-bridge select, .pc-bridge textarea { width: 100%; min-width: 0; padding: .55rem; color: inherit; background: var(--bg-secondary, #20242b); border: 1px solid var(--border-color, #555); border-radius: .3rem; }
+.pc-bridge textarea { resize: vertical; }
+.bridge-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: .8rem; align-items: end; }
+.bridge-actions { display: flex; gap: .6rem; flex-wrap: wrap; margin-block: .7rem; }
+.bridge-jobs { max-height: 32rem; overflow: auto; }
+.bridge-jobs article { border: 1px solid var(--border-color, #555); border-radius: .4rem; padding: .8rem; margin-block: .8rem; }
+.bridge-prompt { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 7rem; overflow: auto; }
+.bridge-result pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 30rem; overflow: auto; }
+.bridge-result img { max-width: 100%; max-height: 40rem; object-fit: contain; display: block; }
+.pc-bridge button:disabled { opacity: .5; cursor: not-allowed; }
