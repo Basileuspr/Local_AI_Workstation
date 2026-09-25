@@ -9,6 +9,8 @@ import ImageGenerationHelp from "./ImageGenerationHelp";
 import CustomProfileControls from "./CustomProfileControls";
 import { useImageGeneration } from "../ImageGenerationContext";
 import { useAnalyzeIterate } from "../AnalyzeIterateContext";
+import ImageRequestEditor from "./ImageRequestEditor";
+import { copyImage } from "../imageClipboard";
 
 export default function ImageStudio({ active = true }) {
   const state = useStore();
@@ -18,6 +20,8 @@ export default function ImageStudio({ active = true }) {
   const { models, loras, runtime, catalogError, loraError, isGenerating,
     result, setResult, generate, generateBatch, stop: handleStop } = useImageGeneration();
   const [promptTokens, setPromptTokens] = useState(null);
+  const [editingRequest, setEditingRequest] = useState(false);
+  const [copying, setCopying] = useState(false);
   const settings = state.imageSettings;
   const compatibleLoras = loras.filter(adapter => adapter.base_model_id === settings.modelId);
   const missingLora = settings.loraId && !compatibleLoras.some(adapter => adapter.id === settings.loraId);
@@ -131,13 +135,24 @@ export default function ImageStudio({ active = true }) {
           <ImageRequests active={active} />
           <button className="analyze-iterate-button" type="button" disabled={!settings.prompt.trim() || !iterate} onClick={() => iterate.prompts()} title="Analyze and refine the current prompts for your next image">Analyze &amp; Iterate</button>
           <button className="image-generate-btn" type="submit" disabled={!settings.modelId || !settings.prompt.trim() || !runtime?.ready}>{isGenerating ? "Queue image" : "Generate"}</button>
+          <button className="image-generate-btn" type="button" disabled={!settings.modelId || !runtime?.ready} onClick={() => setEditingRequest(true)}>Edit Image Request Before Send</button>
           {isGenerating && <button className="image-stop-btn" type="button" onClick={handleStop}>Stop all image requests</button>}
           <button className="image-reset-btn" type="button" onClick={handleReset} title="Clear prompts and selections, and restore generation defaults">RESET DEFAULT</button>
         </div>
         <div className="image-studio-result">
+          {result && <button type="button" className="generate-copy" disabled={copying} onClick={async () => {
+            setCopying(true);
+            try { await copyImage(api.apiUrl(result.url)); dispatch({ type: "SHOW_TOAST", payload: { message: "Image copied to clipboard", type: "success" } }); }
+            catch (error) { dispatch({ type: "SHOW_TOAST", payload: { message: error.message, type: "error" } }); }
+            finally { setCopying(false); }
+          }}>{copying ? "Copying…" : "Copy Image"}</button>}
           {result ? <><ProtectedImage src={api.apiUrl(result.url)} alt="Generated image" /><p>{result.filename} {result.generation_seconds != null ? `| generated in ${result.generation_seconds.toFixed(1)}s` : ""} {result.peak_vram_bytes ? `| peak ${(result.peak_vram_bytes / 1024 ** 3).toFixed(2)} GiB` : ""}</p></> : <p>Generated images will appear here and in the Images gallery.</p>}
         </div>
       </form>
+      <button type="button" className="generate-shortcut" onClick={() => dispatch({ type: "SET_SIDEBAR_TAB", payload: "chats" })}>Jump to Chat →</button>
+      {editingRequest && <ImageRequestEditor settings={settings} models={models} loras={loras} runtime={runtime} loraError={loraError} onClose={() => setEditingRequest(false)} onSend={request => {
+        setEditingRequest(false); setImageSettings(request); void generate(request);
+      }} />}
     </section>
   );
 }

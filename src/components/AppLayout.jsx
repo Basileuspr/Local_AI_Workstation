@@ -3,7 +3,7 @@ import "./AppLayout.css";
 
 const compactLayout = "(max-width: 900px)";
 export const NavigationOpenContext = createContext(false);
-const titles = { "image-editor": "Image Editor", "media-manager": "Media Manager", dashboard: "Dashboard", queue: "Prompt Queue", review: "Image Review", workflows: "Image Workflows", lora: "LoRA", faces: "Faces", "character-parts": "Character Parts", chats: "Chats", images: "Image Gallery", generate: "Generate Images", library: "Prompt Index", knowledge: "Knowledge" };
+const titles = { "image-editor": "Image Editor", "media-manager": "Media Manager", dashboard: "Dashboard", queue: "Prompt Queue", review: "Image Review", workflows: "Image Workflows", lora: "LoRA", faces: "Faces", "character-parts": "Character Parts", chats: "Chats", images: "Image Gallery", generate: "Generate Images", library: "Prompt Index", knowledge: "Knowledge", tools: "Functions" };
 
 export default function AppLayout({ activeTab, sidebar, children, onRefresh, refreshing = false }) {
   const [compact, setCompact] = useState(() => window.matchMedia(compactLayout).matches);
@@ -13,6 +13,19 @@ export default function AppLayout({ activeTab, sidebar, children, onRefresh, ref
   const closeButton = useRef(null);
   const wasOpen = useRef(false);
   const drawerOpen = compact && open;
+
+  useEffect(() => {
+    // Hidden elements report zero scroll offsets. Retain the last visible
+    // position for inert background captures without scrolling the real pane.
+    const rememberScroll = event => {
+      const node = event.target;
+      if (!node?.closest?.("#app") || !node.getClientRects().length) return;
+      node.dataset.captureScrollTop = node.scrollTop;
+      node.dataset.captureScrollLeft = node.scrollLeft;
+    };
+    document.addEventListener("scroll", rememberScroll, { capture: true, passive: true });
+    return () => document.removeEventListener("scroll", rememberScroll, true);
+  }, []);
 
   useEffect(() => window.workstationDesktop?.onMediaManagerNavigation?.(() => {
     if (compact) menuButton.current?.focus();

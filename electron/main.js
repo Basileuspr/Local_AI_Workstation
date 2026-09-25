@@ -11,7 +11,7 @@
  * It does NOT do any AI logic. That's Python's job.
  */
 
-const { app, BrowserWindow, WebContentsView, session, Tray, Menu, nativeImage, shell, ipcMain, dialog, protocol, net } = require("electron");
+const { app, BrowserWindow, WebContentsView, session, Tray, Menu, nativeImage, clipboard, ClipboardItem, screen, shell, ipcMain, dialog, protocol, net } = require("electron");
 const fs = require("fs");
 const path = require("path");
 const { spawn } = require("child_process");
@@ -29,6 +29,8 @@ const { clearDesktopStorage } = require("./maintenanceStorage");
 const { trustedUrl, externalUrl, appAsset, APP_HEADERS } = require("./security");
 const { migratePreferences } = require("./preferenceMigration");
 const { createMediaManager } = require("./mediaManager");
+const { createTabCapture } = require("./tabCapture");
+const { runDesktopAction, writeClipboardImage } = require("./desktopFunctions");
 if (process.env.LAW_USER_DATA_DIR) app.setPath("userData", path.resolve(process.env.LAW_USER_DATA_DIR));
 const maintenanceToken = randomUUID();
 const launchId = randomUUID();
@@ -105,6 +107,28 @@ function trustedDesktop(event) {
     }
     return trustedUrl(event.senderFrame.url, useViteDev ? CONFIG.viteDevUrl : null);
 }
+
+const tabCapture = createTabCapture({ BrowserWindow, screen, clipboard, ClipboardItem, getWindow: () => mainWindow, mediaManager });
+let desktopActionBusy = false;
+ipcMain.handle("functions:copy-image", async (event, value) => {
+    if (!trustedDesktop(event)) return { error: "Desktop access required." };
+    try { return await writeClipboardImage(value, { clipboard, nativeImage, ClipboardItem }); }
+    catch (error) { return { error: error.message }; }
+});
+ipcMain.handle("functions:capture-tab", async (event, tab) => {
+    if (!trustedDesktop(event)) return { error: "Desktop access required." };
+    try { return await tabCapture.capture(tab); }
+    catch (error) { return { error: error.message }; }
+});
+ipcMain.handle("functions:run-action", async (event, action) => {
+    if (!trustedDesktop(event)) return { error: "Desktop access required." };
+    if (desktopActionBusy) return { error: "Another desktop action is starting." };
+    desktopActionBusy = true;
+    try { return await runDesktopAction(action); }
+    catch (error) { return { error: error.message }; }
+    finally { desktopActionBusy = false; }
+});
+app.on("before-quit", () => tabCapture.dispose());
 
 ipcMain.on("app:connection", event => {
     event.returnValue = trustedDesktop(event) ? { base: `http://127.0.0.1:${CONFIG.backendPort}`, token: sessionToken } : null;

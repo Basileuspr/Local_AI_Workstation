@@ -56,7 +56,7 @@ export async function generateImageForSession({ api, settings, requestId, signal
   }], chatModel);
   onSubmitted?.(submitted);
   checkCancelled();
-  const generated = await api.generateImage(imageRequest(settings, requestId), { signal });
+  const generated = await api.generateImage({ ...imageRequest(settings, requestId), session_id: target }, { signal });
   checkCancelled();
   const completed = await api.appendSessionMessages(target, [{
     id: createMessageId(), role: "assistant", content: `[Image generated: ${generated.filename}]`,

@@ -31,6 +31,8 @@ import WebAccess from "./components/WebAccess";
 import Dashboard from "./components/Dashboard";
 import PromptQueue, { PromptQueueProvider } from "./components/PromptQueue";
 import KnowledgeVault from "./components/KnowledgeVault";
+import Tools from "./components/Tools";
+import { get as getWorkflow } from "./imageWorkflowApi";
 
 function AppInner() {
   const state = useStore();
@@ -39,6 +41,7 @@ function AppInner() {
   const [startupNavigation] = useState(loadNavigation);
   const [refreshing, setRefreshing] = useState(false);
   const [imageLibraryTarget, setImageLibraryTarget] = useState(null);
+  const [queueDataset, setQueueDataset] = useState(null);
   useEffect(() => {
     saveNavigation(state.activeSidebarTab, state.currentSessionId || startupNavigation.sessionId);
   }, [state.activeSidebarTab, state.currentSessionId, startupNavigation]);
@@ -210,7 +213,9 @@ function AppInner() {
         }
       } catch (err) {
         console.error("Failed to load session:", err);
+        return false;
       }
+      return true;
     },
     [dispatch]
   );
@@ -223,6 +228,20 @@ function AppInner() {
       dispatch({ type: "SET_SESSION_IMAGES", payload: images });
     }
   }, [dispatch, state.activeSidebarTab]);
+
+  async function openQueueDestination(destination) {
+    if (destination.sessionId && destination.sessionId !== state.currentSessionId) {
+      if (!await handleLoadSession(destination.sessionId)) throw new Error("The source chat could not be opened. It may have been removed.");
+    }
+    if (destination.workflowId) {
+      const workflow = await getWorkflow(destination.workflowId);
+      dispatch({ type: workflow.mode === "scene" ? "OPEN_ITERATIVE_SCENE" : "OPEN_IMAGE_WORKFLOW", payload: destination.workflowId });
+      return;
+    }
+    if (destination.projectId) dispatch({ type: "SET_ACTIVE_LORA_PROJECT", payload: destination.projectId });
+    if (destination.datasetId) setQueueDataset({ id: destination.datasetId, request: Date.now() });
+    dispatch({ type: "SET_SIDEBAR_TAB", payload: destination.tab });
+  }
 
   const handleSessionRenamed = useCallback(async () => {
     const sessions = await api.listSessions();
@@ -244,6 +263,7 @@ function AppInner() {
 
     try {
       const result = await api.compactMemory({
+        sessionId: state.currentSessionId,
         model: state.summaryModel || state.selectedModel,
         previousSummary: state.memorySummary,
         messages,
@@ -266,6 +286,7 @@ function AppInner() {
 
   // Keep chat mounted while dedicated workspaces occupy the main pane.
   const activeTab =
+    state.activeSidebarTab === "tools" ||
     state.activeSidebarTab === "knowledge" || state.activeSidebarTab === "image-editor" || state.activeSidebarTab === "media-manager" || state.activeSidebarTab === "images" || state.activeSidebarTab === "review" || state.activeSidebarTab === "library" || state.activeSidebarTab === "generate" || state.activeSidebarTab === "lora" || state.activeSidebarTab === "workflows" || state.activeSidebarTab === "dashboard" || state.activeSidebarTab === "queue" || state.activeSidebarTab === "faces" || state.activeSidebarTab === "character-parts"
       ? state.activeSidebarTab
       : "chat";
@@ -287,18 +308,19 @@ function AppInner() {
           in the DOM and died with the component. The same applied to the image
           studio's result and the transcript's scroll position.
         */}
-          <div className="pane" hidden={activeTab !== "media-manager"}><MediaManager active={activeTab === "media-manager"} /></div>
-          <div className="pane" hidden={activeTab !== "knowledge"}><KnowledgeVault active={activeTab === "knowledge"} /></div>
-          <div className="pane" hidden={activeTab !== "image-editor"}><ImageEditor /></div>
-          <div className="pane image-library-pane" hidden={activeTab !== "images"} ref={setImageLibraryTarget} />
-          <div className="pane" hidden={activeTab !== "review"}><ImageReview active={activeTab === "review"} onOpenSource={handleLoadSession} /></div>
-          <div className="pane" hidden={activeTab !== "queue"}>
-            <PromptQueue />
+          <div className="pane" data-capture-tab="media-manager" hidden={activeTab !== "media-manager"}><MediaManager active={activeTab === "media-manager"} /></div>
+          <div className="pane" data-capture-tab="knowledge" hidden={activeTab !== "knowledge"}><KnowledgeVault active={activeTab === "knowledge"} /></div>
+          <div className="pane" data-capture-tab="tools" hidden={activeTab !== "tools"}><Tools /></div>
+          <div className="pane" data-capture-tab="image-editor" hidden={activeTab !== "image-editor"}><ImageEditor /></div>
+          <div className="pane image-library-pane" data-capture-tab="images" hidden={activeTab !== "images"} ref={setImageLibraryTarget} />
+          <div className="pane" data-capture-tab="review" hidden={activeTab !== "review"}><ImageReview active={activeTab === "review"} onOpenSource={handleLoadSession} /></div>
+          <div className="pane" data-capture-tab="queue" hidden={activeTab !== "queue"}>
+            <PromptQueue onOpenDestination={openQueueDestination} />
           </div>
-          <div className="pane" hidden={activeTab !== "dashboard"}>
+          <div className="pane" data-capture-tab="dashboard" hidden={activeTab !== "dashboard"}>
             <Dashboard />
           </div>
-          <div className="pane chat-pane" hidden={activeTab !== "chat"}>
+          <div className="pane chat-pane" data-capture-tab="chats" hidden={activeTab !== "chat"}>
             <Header
               onSessionRenamed={handleSessionRenamed}
               onCompactMemory={handleCompactMemory}
@@ -316,11 +338,11 @@ function AppInner() {
             />
           </div>
 
-          <div className="pane" hidden={activeTab !== "library"}>
+          <div className="pane" data-capture-tab="library" hidden={activeTab !== "library"}>
             <PromptIndex active={activeTab === "library"} />
           </div>
 
-          <div className="pane" hidden={activeTab !== "generate"}>
+          <div className="pane" data-capture-tab="generate" hidden={activeTab !== "generate"}>
             <ImageStudio
               active={activeTab === "generate"}
               onNewChat={handleNewChat}
@@ -328,19 +350,19 @@ function AppInner() {
             />
           </div>
 
-          <div className="pane" hidden={activeTab !== "lora"}>
+          <div className="pane" data-capture-tab="lora" hidden={activeTab !== "lora"}>
             <LoraStudio active={activeTab === "lora"} />
           </div>
 
-          <div className="pane" hidden={activeTab !== "workflows"}>
+          <div className="pane" data-capture-tab="workflows" hidden={activeTab !== "workflows"}>
             <ImageWorkflows active={activeTab === "workflows"} />
           </div>
 
-          <div className="pane" hidden={activeTab !== "faces"}>
+          <div className="pane" data-capture-tab="faces" hidden={activeTab !== "faces"}>
             <FaceStudio active={activeTab === "faces"} />
           </div>
-          <div className="pane" hidden={activeTab !== "character-parts"}>
-            <CharacterStudio active={activeTab === "character-parts"} />
+          <div className="pane" data-capture-tab="character-parts" hidden={activeTab !== "character-parts"}>
+            <CharacterStudio active={activeTab === "character-parts"} openDataset={queueDataset} />
           </div>
       </AppLayout>
         <Toast />

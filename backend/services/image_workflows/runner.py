@@ -196,7 +196,7 @@ class Runner:
                                created_at=store._now(), updated_at=store._now(), seed=secrets.randbits(32) if seed == -1 else seed,
                                stage_count=len(snapshot["snapshot"]["stages"]))
             store._write(_job_dir(workflow_id, job_id) / "run.json", record.model_dump())
-            job = queue.enqueue("workflow", snapshot["snapshot"]["name"], job_id, owner=f"workflow:{job_id}")
+            job = queue.enqueue("workflow", snapshot["snapshot"]["name"], job_id, owner=f"workflow:{job_id}", project_id=workflow_id)
             active = ActiveRun(job)
             self.active[(workflow_id, job_id)] = active
             def signal():

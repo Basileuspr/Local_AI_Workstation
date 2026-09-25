@@ -216,10 +216,11 @@ export default function Sidebar({ onLoadSession, onNewChat, onNavigate, imageLib
 
       <div id="sidebar-content">
         {contentHeading && <h2 className="sidebar-content-heading">{contentHeading}</h2>}
-        <div hidden={activeSidebarTab !== "generate"}>
+        <div data-capture-sidebar="generate" hidden={activeSidebarTab !== "generate"}>
           <PromptPhraseButtons />
         </div>
-        {activeSidebarTab === "chats" && deleted.length > 0 && (
+        <div data-capture-sidebar="chats" hidden={activeSidebarTab !== "chats"}>
+        {deleted.length > 0 && (
           <details className="trash-section">
             <summary>Recently deleted ({deleted.length})</summary>
             <BulkActions selection={trashSelection} items={deleted} label="deleted chats" batch={trashBatch}
@@ -252,9 +253,9 @@ export default function Sidebar({ onLoadSession, onNewChat, onNavigate, imageLib
           </details>
         )}
 
-        {activeSidebarTab === "chats" && <BulkActions selection={chatSelection} items={sessions} label="chats" batch={chatBatch}
-          actions={[{label:"Delete selected chats", danger:true, onClick:deleteChats}]} />}
-        {activeSidebarTab === "chats" && (
+        <BulkActions selection={chatSelection} items={sessions} label="chats" batch={chatBatch}
+          actions={[{label:"Delete selected chats", danger:true, onClick:deleteChats}]} />
+        {(
           sessions.map((s) => (
             <div
               key={s.id}
@@ -277,6 +278,8 @@ export default function Sidebar({ onLoadSession, onNewChat, onNavigate, imageLib
             </div>
           ))
         )}
+
+        </div>
 
         <div hidden={activeSidebarTab !== "images"}>
           <ImageGallery images={sessionImages} onOpen={onLoadSession} active={activeSidebarTab === "images"}

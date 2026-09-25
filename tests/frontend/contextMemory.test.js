@@ -383,6 +383,7 @@ describe("rotateContextMemory", () => {
       summarizedMessageCount: 0,
       force: true,
       requestId: "req-1",
+      sessionId: "source-chat",
       signal,
     });
 
@@ -392,6 +393,7 @@ describe("rotateContextMemory", () => {
         previousSummary: "previous summary",
         targetTokens: contextDefaults.summaryTargetTokens,
         requestId: "req-1",
+        sessionId: "source-chat",
         signal,
       })
     );

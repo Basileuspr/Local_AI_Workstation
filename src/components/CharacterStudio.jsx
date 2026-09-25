@@ -42,9 +42,10 @@ function LibraryPicker({ images, onImport, onClose, busy }) {
   </dialog>;
 }
 
-export default function CharacterStudio({ active }) {
+export default function CharacterStudio({ active, openDataset }) {
   const [catalog, setCatalog] = useState(null), [datasets, setDatasets] = useState([]), [datasetId, setDatasetId] = useState(() => typeof localStorage === "undefined" ? "" : localStorage.getItem(LAST_DATASET) || "");
   const [dataset, setDataset] = useState(null), [sourceId, setSourceId] = useState(""), [run, setRun] = useState(null);
+  useEffect(() => { if (openDataset?.id) setDatasetId(openDataset.id); }, [openDataset]);
   const [newName, setNewName] = useState(""), [model, setModel] = useState(""), [parts, setParts] = useState(["buttocks"]), [subjectHint, setSubjectHint] = useState("");
   const [focusId, setFocusId] = useState(""), [focusNotes, setFocusNotes] = useState("");
   const [busy, setBusy] = useState(false), [error, setError] = useState(""), [notice, setNotice] = useState("");

@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, useSyncExternalStore } 
 import { chatSubmissionQueue } from "../chatSubmissionQueue";
 import { apiUrl } from "../api";
 import { useDispatch } from "../useStore.jsx";
+import { queueDestination } from "../queueNavigation";
 import "./PromptQueue.css";
 
 const QueueContext = createContext({ jobs: [], error: "", paused: false });
@@ -45,13 +46,20 @@ export function QueueRequestStatus({ requestId, projectId, kind }) {
   return <div className="queue-request-status" role="status"><span>{job.status === "queued" ? `Queued · waiting position ${job.position}` : job.status === "cancelling" ? "Stopping safely…" : "Running"}</span><button type="button" onClick={() => dispatch({ type: "SET_SIDEBAR_TAB", payload: "queue" })}>View Prompt Queue</button></div>;
 }
 
-export default function PromptQueue() {
+export default function PromptQueue({ onOpenDestination }) {
   const followUps = useSyncExternalStore(chatSubmissionQueue.subscribe, chatSubmissionQueue.getSnapshot).filter(job => job.status === "waiting");
   const { jobs, error, paused, gpu_owner: gpuOwner } = useContext(QueueContext);
   const [actionError, setActionError] = useState("");
   const [cancelling, setCancelling] = useState([]);
   const active = jobs.filter(pending);
   const history = jobs.filter((job) => !pending(job)).slice(-30).reverse();
+  async function open(job) {
+    const destination = queueDestination(job);
+    if (!destination || !onOpenDestination) return;
+    setActionError("");
+    try { await onOpenDestination(destination); }
+    catch (error) { setActionError(error.message || "Could not open this request's destination."); }
+  }
   async function cancel(job) {
     setActionError("");
     setCancelling((current) => [...current, job.id]);
@@ -68,9 +76,11 @@ export default function PromptQueue() {
     }
   }
   function jobCard(job) {
-    return <article className={`queue-job queue-${job.status}`} key={job.id}>
+    const canOpen = !!onOpenDestination && !!queueDestination(job);
+    return <article className={`queue-job queue-${job.status}${canOpen ? " queue-navigable" : ""}`} key={job.id}
+      onClick={event => { if (canOpen && !event.target.closest("button, a, input")) void open(job); }}>
       <div className="queue-job-heading"><span className="queue-kind">{names[job.kind] || job.kind}</span><span className="queue-state">{job.status === "queued" ? `Waiting · #${job.position}` : job.status}</span></div>
-      <h3>{job.label}</h3>
+      <h3>{canOpen ? <button type="button" className="queue-open" onClick={() => open(job)} title="Open this request's destination">{job.label}</button> : job.label}</h3>
       {job.stage && <p>Stage: {job.kind === "workflow" ? job.stage : job.stage === "analysis" ? "Dataset analysis" : "Local training"}</p>}
       <p>Submitted {new Date(job.created_at).toLocaleTimeString()}{job.started_at ? ` · started ${new Date(job.started_at).toLocaleTimeString()}` : ""}{job.finished_at ? ` · finished ${new Date(job.finished_at).toLocaleTimeString()}` : ""}</p>
       {job.error && <p className="queue-error">{job.error}</p>}
@@ -85,7 +95,7 @@ export default function PromptQueue() {
     {active.length ? active.map(jobCard) : <p className="queue-empty">No pending requests. Start a chat, generate an image, or start LoRA training.</p>}
     {followUps.length > 0 && <section aria-label="Chat follow-ups"><h2>Waiting for earlier chat replies</h2>
       <p>These prompts join the shared queue after earlier replies are saved, so they include the latest chat context.</p>
-      {followUps.map(job => <article className="queue-job" key={job.id}><h3>{job.label}</h3><button type="button" onClick={() => chatSubmissionQueue.cancel(job.id)}>Cancel waiting prompt</button></article>)}
+      {followUps.map(job => <article className="queue-job" key={job.id}><h3><button type="button" className="queue-open" onClick={() => open({ ...job, kind: "chat" })}>{job.label}</button></h3><button type="button" onClick={() => chatSubmissionQueue.cancel(job.id)}>Cancel waiting prompt</button></article>)}
     </section>}
     <h2>Recent requests</h2>
     {history.length ? history.map(jobCard) : <p className="queue-empty">Completed, cancelled and failed requests will appear here.</p>}

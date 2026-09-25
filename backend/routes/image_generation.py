@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 
 
 class ImageGenerationRequest(BaseModel):
+    session_id: str | None = Field(default=None, max_length=100)
     request_id: str | None = Field(default=None, max_length=100)
     model_id: str
     prompt: str = Field(min_length=1, max_length=12000)
@@ -70,6 +71,7 @@ def list_image_models():
 async def generate_image(request: ImageGenerationRequest, client_request: Request):
     request.request_id = request.request_id or uuid.uuid4().hex
     job = queue.enqueue("image", request.prompt, request.request_id,
+                        session_id=request.session_id,
                         owner=f"image-generation:{request.request_id}",
                         cancel=lambda: manager.cancel(request.request_id))
     worker = None

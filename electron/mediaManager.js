@@ -3,6 +3,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
 const { randomUUID } = require("node:crypto");
+const { snapshotDocument } = require("./captureSnapshot");
 
 function childEnvironment(environment) {
     const allowed = /^(path|pathext|systemroot|windir|comspec|temp|tmp|userprofile|appdata|localappdata|programfiles|programfiles\(x86\)|programdata|homedrive|homepath|home|lang)$/i;
@@ -133,6 +134,13 @@ function createMediaManager({ WebContentsView, session, getWindow, python, direc
     }
     return {
         start, place,
+        snapshot: async () => {
+            if (!view || failure || view.webContents.isDestroyed()) {
+                const result = await start();
+                if (result.error) throw new Error(result.error);
+            }
+            return view.webContents.executeJavaScript(`(${snapshotDocument.toString()})({embedded:true})`);
+        },
         refresh: async () => {
             if (!view || failure || view.webContents.isDestroyed()) return start();
             try {

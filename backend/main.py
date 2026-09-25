@@ -171,6 +171,7 @@ class ChatRequest(BaseModel):
 
 
 class CompactMemoryRequest(BaseModel):
+    session_id: str | None = None
     model: str = settings.default_chat_model
     previous_summary: str | None = None
     messages: list[ChatMessage]
@@ -628,6 +629,7 @@ def _fallback_memory_summary(previous_summary: str, messages: list[ChatMessage],
 async def compact_memory(request: CompactMemoryRequest, client_request: Request):
     request.request_id = request.request_id or uuid.uuid4().hex
     job = queue.enqueue("compact", "Chat context compaction", request.request_id,
+                        session_id=request.session_id,
                         cancel=lambda: _stop_chat_task(request.request_id))
     error = None
     try:

@@ -321,13 +321,14 @@ export function getThinkingExportUrl() {
   return apiUrl(`/thinking/export`);
 }
 
-export async function compactMemory({ model, previousSummary, messages, targetTokens, requestId, signal }) {
+export async function compactMemory({ model, previousSummary, messages, targetTokens, requestId, sessionId, signal }) {
   const res = await fetch(apiUrl(`/memory/compact`), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       model,
       previous_summary: previousSummary,
+      session_id: sessionId,
       messages,
       target_tokens: targetTokens,
       request_id: requestId,

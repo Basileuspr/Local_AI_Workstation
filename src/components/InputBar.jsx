@@ -209,12 +209,14 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
     const prepared = target.then(session => ({ session }), error => ({ error }));
     textareaRef.current.value = "";
     textareaRef.current.style.height = "44px";
-    chatSubmissionQueue.enqueue({ id: createMessageId(), label: text, onError: error => showToast(error.message, "error"), run: async signal => {
+    const followUpId = createMessageId();
+    chatSubmissionQueue.enqueue({ id: followUpId, label: text, session_id: sourceId, onError: error => showToast(error.message, "error"), run: async signal => {
       const { session, error } = await prepared;
       if (signal.aborted) return;
       if (error) { showToast(error.message, "error"); return; }
       await runMessage(text, session.id, signal);
     } });
+    void prepared.then(({ session }) => { if (session) chatSubmissionQueue.setSession(followUpId, session.id); });
   }
 
   async function runMessage(text, sessionId, signal) {
@@ -258,7 +260,7 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
       let contextMessages = buildContextMessages(updatedHistory, nextMemorySummary, nextSummarizedMessageCount);
       try {
         const rotatedMemory = await rotateContextMemory({
-          api, model: effectiveSummaryModel, messages: updatedHistory,
+          api, sessionId, model: effectiveSummaryModel, messages: updatedHistory,
           memorySummary: nextMemorySummary, summarizedMessageCount: nextSummarizedMessageCount,
           contextWindow, responseLength, systemPrompt: systemPromptValue, useKnowledgeBase,
           triggerRatio: contextDefaults.hardTriggerRatio, requestId, signal: abortController.signal,
@@ -332,7 +334,7 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
           if (!wasStopped()) {
             try {
               const rotated = await rotateContextMemory({
-                api, model: summaryModel || selectedModel, messages: saved.messages,
+                api, sessionId, model: summaryModel || selectedModel, messages: saved.messages,
                 memorySummary: nextMemorySummary, summarizedMessageCount: nextSummarizedMessageCount,
                 contextWindow: getSelectedContextWindow(), responseLength, systemPrompt: getSystemPromptValue(),
                 useKnowledgeBase, triggerRatio: contextDefaults.normalTriggerRatio, requestId, signal: abortController.signal,

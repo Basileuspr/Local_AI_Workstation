@@ -10,14 +10,18 @@ export class ChatSubmissionQueue {
     this.snapshot = this.jobs.map(({ run, onError, controller, ...job }) => job);
     this.listeners.forEach(listener => listener());
   }
-  enqueue({ id, label, run, onError = console.error }) {
-    this.jobs.push({ id, label, run, onError, controller: new AbortController(), status: "waiting", created_at: new Date().toISOString() });
+  enqueue({ id, label, session_id = null, run, onError = console.error }) {
+    this.jobs.push({ id, label, session_id, run, onError, controller: new AbortController(), status: "waiting", created_at: new Date().toISOString() });
     this.publish();
     void this.advance();
   }
   cancel(id) {
     this.jobs = this.jobs.filter(job => job.id !== id || job.status === "running");
     this.publish();
+  }
+  setSession(id, sessionId) {
+    const job = this.jobs.find(item => item.id === id);
+    if (job) { job.session_id = sessionId; this.publish(); }
   }
   clearWaiting() {
     this.jobs = this.jobs.filter(job => job.status === "running");

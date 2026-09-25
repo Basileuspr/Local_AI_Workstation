@@ -136,6 +136,7 @@ export async function rotateContextMemory({
   triggerRatio = COMPACTION_TRIGGER_RATIO,
   force = false,
   requestId,
+  sessionId,
   signal,
 }) {
   let nextSummary = memorySummary || "";
@@ -170,6 +171,7 @@ export async function rotateContextMemory({
         messages: messagesToCompact,
         targetTokens: SUMMARY_TARGET_TOKENS,
         requestId,
+        sessionId,
         signal,
       });
       nextSummary = result.summary || nextSummary;

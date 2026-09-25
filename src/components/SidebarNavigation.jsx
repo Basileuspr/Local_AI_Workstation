@@ -66,5 +66,8 @@ export default function SidebarNavigation({ activeTab, onSelect }) {
         </div>;
       })}
     </div>
+    <div className="sidebar-functions">
+      {itemButton({ id: "tools", label: "Functions" })}
+    </div>
   </nav>;
 }

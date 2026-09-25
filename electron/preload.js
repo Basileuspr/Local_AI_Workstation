@@ -2,6 +2,9 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("workstationDesktop", {
     connection: ipcRenderer.sendSync("app:connection"),
+    copyImage: (dataUrl) => ipcRenderer.invoke("functions:copy-image", dataUrl),
+    runAction: (action) => ipcRenderer.invoke("functions:run-action", action),
+    captureTab: (tab) => ipcRenderer.invoke("functions:capture-tab", tab),
     softwareRuntime: () => ipcRenderer.invoke("dashboard:software-runtime"),
     startMediaManager: () => ipcRenderer.invoke("media-manager:start"),
     mediaManagerStatus: () => ipcRenderer.invoke("media-manager:status"),
