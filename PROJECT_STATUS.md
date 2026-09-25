@@ -1,5 +1,29 @@
 # Project status
 
+## Windows compatibility update — 2026-09-25
+
+- Added automatic live capability reporting, memory-aware chat defaults,
+  model-list refresh after service/install changes, feature-specific controls,
+  CPU fallback for failed face GPU initialization and low-VRAM SDXL offload.
+  These policies preserve explicit selections and do not download models.
+
+- Added a core Windows setup path, optional knowledge/face dependencies,
+  feature-local native-library failures, startup guidance, renderer recovery,
+  software rendering, and image-memory-failure cleanup.
+- A separate checkout completed the setup script under Windows PowerShell 5.1,
+  including a fresh Python environment, dependency consistency check and build.
+  Its backend served saved-data APIs and knowledge listings without PyTorch.
+- A second core-only environment started and served sessions, images, face/LoRA
+  listings and text parsing with Torch, Chroma, ONNX and text splitters absent;
+  knowledge search returned a deliberate 503 with setup guidance.
+- Frontend tests (443), the full backend suite, targeted capability/memory-failure tests,
+  and the production build passed. Data and build outputs were isolated.
+- This does not establish operation on every Windows version or laptop, live
+  Electron recovery behavior, or real inference/training performance. See
+  [Windows compatibility](WINDOWS_COMPATIBILITY.md).
+
+## Earlier publication validation
+
 Verified 2026-09-23 on the local `baseline/v1.0.0-portable` checkout. The
 known limitations below were last reviewed on 2026-09-19.
 

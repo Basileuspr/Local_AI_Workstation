@@ -1976,3 +1976,6 @@ html, body {
 .review-destinations button {padding:8px 10px;background:var(--bg-input);color:var(--accent);border:1px solid var(--border);border-radius:6px;cursor:pointer;}
 .review-destinations small {flex-basis:100%;}
 @media(max-width:600px){.image-batch-fields>div {grid-template-columns:1fr 1fr;}.image-batch-fields>div>.image-ratio-lock{grid-column:1/-1;}}
+/* A backend setup failure must remain visible outside the chat workspace. */
+.compatibility-notice { margin: 8px 16px; padding: 12px 16px; border: 1px solid #977743; border-radius: 8px; background: #241e15; color: #f1dfbe; flex-shrink: 0; max-height: 30vh; overflow: auto; }
+.compatibility-notice p { margin: 6px 0; }

@@ -88,6 +88,7 @@ class InsightOnnxProvider:
         self._detector = None
         self._recognizer = None
         self._device = "cpu"
+        self._cpu_fallback = False
 
     # --- model files -----------------------------------------------------
 
@@ -99,19 +100,20 @@ class InsightOnnxProvider:
         try:
             import onnxruntime
             providers = onnxruntime.get_available_providers()
-        except ImportError:
+        except (ImportError, OSError, RuntimeError):
             return ProviderStatus(self.key, self.name, False, "unavailable",
-                                  "onnxruntime is not installed in this environment.", list(FILES))
+                                  "Face detection is unavailable: ONNX Runtime is missing or could not load. Install requirements-faces.txt and restart. Other workspaces remain available.", list(FILES))
         cuda = "CUDAExecutionProvider" in providers
-        device = self._device if self._detector else ("cuda" if cuda else "cpu")
+        device = self._device if self._detector else ("cuda" if cuda and not self._cpu_fallback else "cpu")
         if missing:
             total = sum(item["bytes"] for item in missing) / 1024 ** 2
             detail = f"{len(missing)} model file(s) not installed ({total:.0f} MB to download)."
-        elif cuda:
+        elif self._cpu_fallback:
+            detail = "Ready on CPU. GPU initialization failed, so this provider automatically uses CPU for this app session."
+        elif device == "cuda":
             detail = "Ready. Runs on the GPU under the shared runtime lease."
         else:
-            detail = ("Ready. Runs on the CPU: this build has CPU-only onnxruntime, so face work never "
-                      "competes with image generation for VRAM. Installing onnxruntime-gpu enables CUDA.")
+            detail = "Ready. Runs on the CPU, so face work does not reserve image-generation VRAM."
         return ProviderStatus(self.key, self.name, not missing, device, detail,
                               [{**item, "installed": not any(m["name"] == item["name"] for m in missing)}
                                for item in FILES])
@@ -150,7 +152,7 @@ class InsightOnnxProvider:
             if missing:
                 raise ValueError("Face models are not installed yet. Install them from the Faces tab first.")
             available = onnxruntime.get_available_providers()
-            order = [p for p in ("CUDAExecutionProvider", "CPUExecutionProvider") if p in available]
+            order = [p for p in ("CUDAExecutionProvider", "CPUExecutionProvider") if p in available and (not self._cpu_fallback or p != "CUDAExecutionProvider")]
             options = onnxruntime.SessionOptions()
             options.log_severity_level = 3
             # Detection and recognition each create a thread pool. Letting
@@ -158,8 +160,21 @@ class InsightOnnxProvider:
             # Six threads was faster on the 12-core i7-12700K; 0 opts back into
             # ONNX Runtime's automatic policy on other machines.
             options.intra_op_num_threads = min(settings.face_intra_op_threads, os.cpu_count() or 1)
-            self._detector = onnxruntime.InferenceSession(str(root() / "det_10g.onnx"), options, providers=order)
-            self._recognizer = onnxruntime.InferenceSession(str(root() / "w600k_r50.onnx"), options, providers=order)
+            detector = recognizer = None
+            try:
+                detector = onnxruntime.InferenceSession(str(root() / "det_10g.onnx"), options, providers=order)
+                recognizer = onnxruntime.InferenceSession(str(root() / "w600k_r50.onnx"), options, providers=order)
+            except Exception:
+                detector = recognizer = None
+                if "CUDAExecutionProvider" not in order or "CPUExecutionProvider" not in available:
+                    raise
+                # Initialization only: retry once on a supported CPU provider.
+                # Commit the pair atomically so a failed recognizer never leaves
+                # a half-initialized detector that is reused on the next request.
+                detector = onnxruntime.InferenceSession(str(root() / "det_10g.onnx"), options, providers=["CPUExecutionProvider"])
+                recognizer = onnxruntime.InferenceSession(str(root() / "w600k_r50.onnx"), options, providers=["CPUExecutionProvider"])
+                self._cpu_fallback = True
+            self._detector, self._recognizer = detector, recognizer
             self._device = "cuda" if "CUDAExecutionProvider" in self._detector.get_providers() else "cpu"
             return self._detector, self._recognizer
 
@@ -169,10 +184,12 @@ class InsightOnnxProvider:
 
     def uses_gpu(self):
         """Whether a run would claim the shared GPU lease."""
+        if self._detector is not None or self._cpu_fallback:
+            return self._device == "cuda"
         try:
             import onnxruntime
             return "CUDAExecutionProvider" in onnxruntime.get_available_providers()
-        except ImportError:
+        except (ImportError, OSError, RuntimeError):
             return False
 
     def unload(self):

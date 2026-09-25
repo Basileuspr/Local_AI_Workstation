@@ -1,6 +1,7 @@
 import { useContext, useEffect, useRef, useState } from "react";
 import { NavigationOpenContext } from "./AppLayout";
 import "./MediaManager.css";
+import { useDesktopCapabilities } from "./Compatibility";
 
 export default function MediaManager({ active }) {
   const drawerOpen = useContext(NavigationOpenContext);
@@ -9,9 +10,14 @@ export default function MediaManager({ active }) {
   const [attempt, setAttempt] = useState(0);
   const [focusNotice, setFocusNotice] = useState("");
   const desktop = window.workstationDesktop;
+  const mediaCapability = useDesktopCapabilities()?.features?.media_manager;
 
   useEffect(() => {
     if (!active || !desktop?.startMediaManager) return;
+    if (mediaCapability?.available === false) {
+      setStatus({ ready: false, error: mediaCapability.detail });
+      return;
+    }
     let cancelled = false;
     setStatus({ ready: false });
     desktop.startMediaManager().then(result => { if (!cancelled) setStatus(result); })
@@ -20,7 +26,7 @@ export default function MediaManager({ active }) {
       desktop.mediaManagerStatus().then(result => { if (!cancelled && result.error) setStatus(result); }).catch(() => {});
     }, 2000);
     return () => { cancelled = true; window.clearInterval(timer); };
-  }, [active, attempt, desktop]);
+  }, [active, attempt, desktop, mediaCapability?.available, mediaCapability?.detail]);
 
   useEffect(() => {
     if (!desktop?.placeMediaManager) return;

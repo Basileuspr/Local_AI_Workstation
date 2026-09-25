@@ -597,7 +597,7 @@ def validate_project(project: dict, models: list[dict]) -> dict:
     # The old all-models-resident formula does not describe staged RAM offload.
     # Report measurements from the worker instead of inventing an offload estimate.
     estimate_gib = None
-    if not hardware.get("cuda_available"):
+    if not hardware.get("cuda_available") or hardware.get("training_ready") is False:
         errors.append(hardware.get("error") or "CUDA is required for this local SDXL trainer")
     return {
         "valid": not errors,
@@ -614,19 +614,23 @@ def validate_project(project: dict, models: list[dict]) -> dict:
 
 
 def hardware_status() -> dict:
+    from services.capabilities import TRAINING_PACKAGES, missing_packages
     try:
         import torch
-    except ImportError:
-        return {"cuda_available": False, "error": "PyTorch is not installed"}
-    if not torch.cuda.is_available():
-        return {"cuda_available": False, "error": "CUDA is unavailable"}
-    free, total = torch.cuda.mem_get_info(0)
-    return {
-        "cuda_available": True,
-        "device": torch.cuda.get_device_name(0),
-        "available_vram_gib": round(free / 1024**3, 2),
-        "total_vram_gib": round(total / 1024**3, 2),
-    }
+        if not torch.cuda.is_available():
+            return {"cuda_available": False, "error": "LoRA training requires a supported NVIDIA CUDA GPU. Dataset preparation and other workspaces remain available."}
+        free, total = torch.cuda.mem_get_info(0)
+        missing = missing_packages(TRAINING_PACKAGES)
+        return {
+            "cuda_available": True,
+            "training_ready": not missing,
+            "error": f"Training runtime packages missing: {', '.join(missing)}" if missing else None,
+            "device": torch.cuda.get_device_name(0),
+            "available_vram_gib": round(free / 1024**3, 2),
+            "total_vram_gib": round(total / 1024**3, 2),
+        }
+    except (ImportError, OSError, RuntimeError):
+        return {"cuda_available": False, "error": "LoRA training is unavailable: PyTorch or its Windows/CUDA libraries could not load. Install requirements-sdxl-cuda.txt on a compatible NVIDIA PC."}
 
 
 @_serialized

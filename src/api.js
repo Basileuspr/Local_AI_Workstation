@@ -38,7 +38,8 @@ export async function checkHealth() {
  */
 export async function loadModels() {
   try {
-    const res = await fetch(apiUrl(`/models`));
+    const res = await fetch(apiUrl(`/models`), { signal: AbortSignal.timeout(30000) });
+    if (!res.ok) throw new Error(`Model discovery failed (${res.status})`);
     const data = await res.json();
     return { models: data.models || [], error: data.error || null };
   } catch (err) {
@@ -54,7 +55,7 @@ export async function loadModels() {
  */
 export async function fetchStatus() {
   try {
-    const res = await fetch(apiUrl(`/status`));
+    const res = await fetch(apiUrl(`/status`), { signal: AbortSignal.timeout(15000) });
     if (!res.ok) throw new Error(`Status request failed (${res.status})`);
     return await res.json();
   } catch (err) {

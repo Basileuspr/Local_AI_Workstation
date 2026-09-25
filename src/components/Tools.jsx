@@ -4,9 +4,13 @@ import { useDispatch } from "../useStore";
 import { createMessageId } from "../messageIds";
 import { functionTargets, desktopActions, captureActions, loadFunctionButtons, saveFunctionButtons } from "../functionButtons";
 import "./Tools.css";
+import { useDesktopCapabilities } from "./Compatibility";
 
 export default memo(function Tools() {
   const dispatch = useDispatch();
+  const capabilities = useDesktopCapabilities();
+  const actionCapability = target => capabilities?.features?.[
+    target === "system:update-programs" ? "program_updates" : target === "system:refresh-graphics" ? "graphics_reset" : target.startsWith("capture:") ? "tab_capture" : ""];
   const [loaded] = useState(() => {
     try { return { buttons: loadFunctionButtons(), error: "" }; }
     catch { return { buttons: [], error: "Could not load saved function buttons. Reload the app to try again." }; }
@@ -37,6 +41,8 @@ export default memo(function Tools() {
   }
 
   async function open(target) {
+    const feature = actionCapability(target);
+    if (feature?.available === false) { setError(feature.detail); return; }
     if (target === "markdown") { setViewerOpen(true); return; }
     if (!target.startsWith("capture:") && !target.startsWith("system:")) { dispatch({ type: "SET_SIDEBAR_TAB", payload: target }); return; }
     if (actionLock.current) return;
@@ -84,8 +90,8 @@ export default memo(function Tools() {
           <strong>Markdown Viewer</strong><span>Paste text and view formatted Markdown.</span>
         </button>
         {buttons.map(button => <div className="function-custom" key={button.id}>
-          <button type="button" className="function-launcher" disabled={!!actionBusy} onClick={() => open(button.target)}>
-            <strong>{button.name}</strong><span>{functionTargets.find(target => target.id === button.target)?.name}</span>
+          <button type="button" className="function-launcher" disabled={!!actionBusy || actionCapability(button.target)?.available === false} onClick={() => open(button.target)}>
+            <strong>{button.name}</strong><span>{actionCapability(button.target)?.available === false ? actionCapability(button.target).detail : functionTargets.find(target => target.id === button.target)?.name}</span>
           </button>
           {managing && <div className="tools-toolbar">
             <button type="button" disabled={!!draft} aria-label={`Edit ${button.name}`} onClick={() => setDraft({ ...button })}>Edit</button>
@@ -97,10 +103,10 @@ export default memo(function Tools() {
       </div>
       <p className="tools-note">Custom buttons are saved on this device and sorted alphabetically.</p>
       <h2>System actions</h2>
-      <div className="functions-buttons">{desktopActions.map(action => <button key={action.id} type="button" className="function-launcher" disabled={!!actionBusy} onClick={() => open(action.id)}><strong>{action.name}</strong><span>{action.description}</span></button>)}</div>
+      <div className="functions-buttons">{desktopActions.map(action => <button key={action.id} type="button" className="function-launcher" disabled={!!actionBusy || actionCapability(action.id)?.available === false} onClick={() => open(action.id)}><strong>{action.name}</strong><span>{actionCapability(action.id)?.available === false ? actionCapability(action.id).detail : action.description}</span></button>)}</div>
       <h2>Capture a tab</h2>
       <p className="tools-note">Copy the tab's current content at maximized window size while staying here. Captures keep its current selections and scroll position.</p>
-      <div className="functions-buttons">{captureActions.map(action => <button key={action.id} type="button" className="function-launcher" disabled={!!actionBusy} onClick={() => open(action.id)}><strong>{action.name}</strong><span>{action.description}</span></button>)}</div>
+      <div className="functions-buttons">{captureActions.map(action => <button key={action.id} type="button" className="function-launcher" disabled={!!actionBusy || actionCapability(action.id)?.available === false} onClick={() => open(action.id)}><strong>{action.name}</strong><span>{actionCapability(action.id)?.available === false ? actionCapability(action.id).detail : action.description}</span></button>)}</div>
     </section>
     <MarkdownViewer hidden={!viewerOpen} onBack={closeViewer} />
   </>;

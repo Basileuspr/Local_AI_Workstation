@@ -95,7 +95,7 @@ export default function LoraStudio({ active = true }) {
   useEffect(() => {
     if (!active) return;
     Promise.all([refreshProjects(), refreshSupport()]).catch((error) => toast(error.message || "Could not load LoRA workspace", "error"));
-  }, [active]);
+  }, [active, state.connected]);
 
   useEffect(() => () => {
     for (const activeAnalysis of analysisControllerRef.current.values()) {
@@ -481,8 +481,8 @@ export default function LoraStudio({ active = true }) {
             {busy && training.stage !== "analysis" && <><div className="lora-progress"><span style={{ width: `${Math.max(0, Math.min(100, training.percent || 0))}%` }} /></div><div className="lora-summary">Epoch {training.epoch || 0}/{training.epochs || settings.epochs} · step {training.step || 0}/{training.total_steps || "?"} · {training.percent || 0}% {training.loss != null ? `· loss ${Number(training.loss).toFixed(4)}` : ""}</div></>}
             <QueueRequestStatus projectId={project.id} kind="training" />
             <div className="lora-training-actions">{busy ? <button className="lora-danger-button" type="button" onClick={cancel}>Cancel safely</button> : <>
-              <button className="image-generate-btn" type="button" onClick={() => train(true)} disabled={loading || workspaceBusy || !project.vision_model || !project.images?.length}>Analyze &amp; Train</button>
-              <button className="lora-secondary-button" type="button" onClick={() => train()} disabled={loading || workspaceBusy}>Start local training</button>
+              <button className="image-generate-btn" type="button" onClick={() => train(true)} disabled={loading || workspaceBusy || !project.vision_model || !project.images?.length || !hardware?.cuda_available || hardware?.training_ready === false || state.serviceStatus?.capabilities?.features?.training?.available === false}>Analyze &amp; Train</button>
+              <button className="lora-secondary-button" type="button" onClick={() => train()} disabled={loading || workspaceBusy || !hardware?.cuda_available || hardware?.training_ready === false || state.serviceStatus?.capabilities?.features?.training?.available === false}>Start local training</button>
             </>}</div>
             <p className="lora-pipeline-note">Analyze &amp; Train queues both stages as one job. It fills blank or automatically created captions, keeps edited captions, then trains locally. Cancel stops the remaining workflow. Use Analyze current dataset to review suggestions first.</p>
             {training.error && <p className="lora-error">{training.error}</p>}

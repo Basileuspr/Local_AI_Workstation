@@ -51,12 +51,26 @@ export function mergeKnownModels(models) {
   });
 }
 
-export function pickDefaultModel(models) {
+export function pickDefaultModel(models, { preferSmall = false } = {}) {
+  if (preferSmall) {
+    const sized = models.filter(model => Number.isFinite(model.size) && model.size > 0);
+    if (sized.length) return [...sized].sort((a, b) => a.size - b.size || a.name.localeCompare(b.name))[0].name;
+  }
   for (const name of PREFERRED_MODEL_ORDER) {
     const match = models.find((model) => model.name === name);
     if (match) return match.name;
   }
   return models[0]?.name || "";
+}
+
+export function reconcileChatModel(models, selected, options) {
+  return models.some(model => model.name === selected) ? selected : pickDefaultModel(models, options);
+}
+
+export function modelInventoryKey(status) {
+  if (!status?.ollama?.reachable) return "offline";
+  return JSON.stringify((status.models?.installed || []).map(model => [model.name, model.digest, model.size])
+    .sort((a, b) => String(a[0]).localeCompare(String(b[0]))));
 }
 
 export function formatModelLabel(model) {

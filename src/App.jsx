@@ -2,7 +2,7 @@ import { useEffect, useCallback, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { StoreProvider, useStore, useDispatch } from "./useStore.jsx";
 import * as api from "./api";
-import { mergeKnownModels, pickDefaultModel } from "./modelCatalog";
+import { mergeKnownModels, reconcileChatModel, modelInventoryKey } from "./modelCatalog";
 import { pickPreferences, savePreferences } from "./preferences";
 import { loadNavigation, saveNavigation } from "./navigation";
 
@@ -36,6 +36,8 @@ import { get as getWorkflow } from "./imageWorkflowApi";
 
 function AppInner() {
   const state = useStore();
+  const latestState = useRef(state);
+  latestState.current = state;
   const dispatch = useDispatch();
   const sessionNavigation = useRef(0);
   const [startupNavigation] = useState(loadNavigation);
@@ -99,45 +101,72 @@ function AppInner() {
   useEffect(() => {
     // One probe reports the backend and everything it depends on, so a
     // dependency problem can be named instead of showing "almost ready".
+    let stopped = false;
+    let refreshingStatus = false;
+    let initialized = false;
+    let catalogKey = null;
     async function refreshStatus() {
-      const status = await api.fetchStatus();
-      dispatch({ type: "SET_SERVICE_STATUS", payload: status });
-      dispatch({ type: "SET_CONNECTED", payload: Boolean(status?.backend?.ok) });
-      return status;
+      if (refreshingStatus || stopped) return;
+      refreshingStatus = true;
+      try {
+        const status = await api.fetchStatus();
+        if (stopped) return;
+        dispatch({ type: "SET_SERVICE_STATUS", payload: status });
+        dispatch({ type: "SET_CONNECTED", payload: Boolean(status?.backend?.ok) });
+        if (status?.backend?.ok) {
+          if (!initialized) {
+            await init();
+            initialized = true;
+          }
+          const nextKey = modelInventoryKey(status);
+          if (!status.ollama?.reachable) catalogKey = null;
+          else if (catalogKey !== nextKey && !latestState.current.isGenerating) {
+            if (await refreshModels(status)) catalogKey = nextKey;
+          }
+        } else catalogKey = null;
+      } catch (error) {
+        if (!stopped) dispatch({ type: "SET_MODELS_ERROR", payload: error.message || "Local services are still loading." });
+      } finally { refreshingStatus = false; }
     }
 
-    async function init() {
-      const status = await refreshStatus();
-
-      if (status?.backend?.ok) {
+    async function refreshModels(status) {
         const { models: rawModels, error } = await api.loadModels();
+        if (stopped) return;
+        if (error) {
+          dispatch({ type: "SET_MODELS_ERROR", payload: error });
+          return false;
+        }
         const models = mergeKnownModels(rawModels);
         dispatch({ type: "SET_MODELS", payload: models });
         dispatch({ type: "SET_MODELS_ERROR", payload: error });
 
-        if (models.length > 0) {
-          const savedModel = models.find((m) => m.name === state.selectedModel);
+        if (models.length > 0 && !latestState.current.isGenerating) {
           dispatch({
             type: "SET_SELECTED_MODEL",
-            payload: savedModel ? savedModel.name : pickDefaultModel(models),
+            payload: reconcileChatModel(models, latestState.current.selectedModel, {
+              preferSmall: status.capabilities?.prefer_small_chat_model === true,
+            }),
           });
         }
+        return true;
+    }
 
+    async function init() {
         // Restore the selected chat without changing the active workspace. A new session is created only when the
         // user explicitly chooses New Chat or sends/attaches content with none open.
         const sessions = await api.listSessions();
+        if (stopped) return;
         dispatch({ type: "SET_SESSIONS", payload: sessions });
         if (sessions.length > 0 && sessionNavigation.current === 0) {
           const savedSession = sessions.find(session => session.id === startupNavigation.sessionId);
           await handleLoadSession((savedSession || sessions[0]).id);
         }
-      }
     }
 
-    init();
+    void refreshStatus();
 
-    const interval = setInterval(refreshStatus, 10000);
-    return () => clearInterval(interval);
+    const interval = setInterval(refreshStatus, 5000);
+    return () => { stopped = true; clearInterval(interval); };
   }, []);
 
   // --- Sidebar refresh ---

@@ -114,6 +114,15 @@ from routes.character_parts import router as character_parts_router
 app.include_router(character_parts_router)
 
 from services.image_vault import LockedImageError
+from services.optional_dependencies import FeatureUnavailable
+
+
+@app.exception_handler(FeatureUnavailable)
+async def unavailable_feature(request, error):
+    from fastapi.responses import JSONResponse
+    return JSONResponse(status_code=503, content={"detail": str(error)})
+
+
 @app.exception_handler(LockedImageError)
 async def locked_image_error(request, error):
     from fastapi.responses import JSONResponse
@@ -300,6 +309,7 @@ async def service_status():
         },
         "models": {
             "chat_count": 0,
+            "installed": [],
             "embedding_model": settings.embedding_model,
             "embedding_ready": False,
         },
@@ -317,6 +327,10 @@ async def service_status():
             response = await client.get(f"{OLLAMA_BASE_URL}/api/tags")
             response.raise_for_status()
             names = [m.get("name", "") for m in response.json().get("models", [])]
+            status["models"]["installed"] = [
+                {"name": model.get("name", ""), "digest": model.get("digest", ""), "size": model.get("size", 0)}
+                for model in response.json().get("models", [])
+            ]
             try:
                 resident_response = await client.get(f"{OLLAMA_BASE_URL}/api/ps")
                 resident_response.raise_for_status()
@@ -371,6 +385,12 @@ async def service_status():
         status["knowledge_base"]["error"] = str(exc)
         logger.warning("Status probe could not read the knowledge base: %s", exc)
 
+    try:
+        from services.capabilities import probe_capabilities
+        status["capabilities"] = await run_in_threadpool(probe_capabilities, status, settings.num_ctx)
+    except Exception:
+        logger.warning("Capability inspection was incomplete", exc_info=True)
+        status["capabilities"] = {"features": {}, "error": "Capabilities could not be fully checked. Existing features can still be used."}
     return status
 
 

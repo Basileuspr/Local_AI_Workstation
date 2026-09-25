@@ -191,6 +191,10 @@ class Settings:
 def load_settings() -> Settings:
     """Read the environment and resolve a complete configuration."""
     warnings: list[str] = []
+    from services.capabilities import default_context_limit, host_resources
+    host = host_resources()
+    context_default = default_context_limit(host["memory_total_bytes"])
+    face_threads_default = min(6, max(1, host["logical_cpus"] - 1))
 
     data_dir = _env_path("DATA_DIR", PROJECT_ROOT / "data", warnings)
     models_dir = _env_path("MODELS_DIR", PROJECT_ROOT / "models", warnings)
@@ -224,13 +228,13 @@ def load_settings() -> Settings:
         # meter and its compaction triggers from the model's *trained* window --
         # often sixteen times larger. Sending it makes the two agree by
         # construction instead of by coincidence.
-        num_ctx=_env_int("NUM_CTX", 16384, warnings, minimum=2048),
+        num_ctx=_env_int("NUM_CTX", context_default, warnings, minimum=2048),
         durable_memory_max_chars=_env_int("DURABLE_MEMORY_MAX_CHARS", 4800, warnings, minimum=200),
         knowledge_base_max_chars=_env_int("KNOWLEDGE_BASE_MAX_CHARS", 8000, warnings, minimum=200),
         chunk_size=chunk_size,
         chunk_overlap=chunk_overlap,
         ollama_keep_alive_seconds=_env_int("OLLAMA_KEEP_ALIVE_SECONDS", 300, warnings, minimum=0),
-        face_intra_op_threads=_env_int("FACE_INTRA_OP_THREADS", 6, warnings, minimum=0),
+        face_intra_op_threads=_env_int("FACE_INTRA_OP_THREADS", face_threads_default, warnings, minimum=0),
         warnings=tuple(warnings),
     )
 

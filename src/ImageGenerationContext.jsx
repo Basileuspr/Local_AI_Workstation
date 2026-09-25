@@ -33,7 +33,9 @@ export function ImageGenerationProvider({ children, onSessionSaved }) {
       if (serial === refreshSerial.current) setCatalogError(error.message);
     }
   }, []);
-  useEffect(() => { void refreshModels(); }, [refreshModels, state.activeSidebarTab]);
+  const imageModelInventory = JSON.stringify(state.serviceStatus?.capabilities?.image_model_ids || []);
+  const imageAvailable = state.serviceStatus?.capabilities?.features?.image_generation?.available;
+  useEffect(() => { void refreshModels(); }, [refreshModels, state.activeSidebarTab, state.connected, imageModelInventory, imageAvailable]);
   useEffect(() => {
     const settings = state.imageSettings;
     if (catalogError || reconcileImageLora(settings, catalog) === settings) return;

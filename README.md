@@ -6,19 +6,36 @@ image generation, LoRA workflows, face curation and persistent scene editing.
 
 From an already configured checkout, run `npm start`.
 
-For a new checkout, install Node.js, Python and Ollama, then run these commands
-from the repository directory in PowerShell:
+For a Windows 10/11 laptop, install Node.js 22 (with npm), 64-bit Python 3.13,
+and Ollama. From the repository directory in PowerShell:
 
 ```powershell
-npm ci
-python -m venv venv
-.\venv\Scripts\python.exe -m pip install -r requirements.lock.txt
-npm run build
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup-windows.ps1
 npm start
 ```
 
-`requirements.lock.txt` pins the exact versions the tests were run against.
+The default setup installs the core app, then attempts the optional knowledge
+search packages. Failure of that optional install does not prevent the desktop
+build (dependency conflicts still stop setup). It does not install PyTorch or
+require an NVIDIA GPU. Start Ollama and install a chat model separately. For
+knowledge search, also install the configured embedding model (by default
+`ollama pull nomic-embed-text`). OCR and image understanding need a vision model.
+
+For the full recorded dependency set, use the setup command with `-Profile Full`.
+Models are never downloaded by setup. Do not copy a virtual environment from
+another PC: recreate it locally. An unusable existing environment is preserved;
+quit the app and rename it before rerunning setup.
+
+`requirements.lock.txt` pins the recorded working versions. Core and optional
+requirements use it as constraints, installing only the packages they need.
 `requirements.txt` lists the direct dependencies without pins, for upgrading.
+
+See [Windows compatibility and recovery](WINDOWS_COMPATIBILITY.md) for partial
+operation, optional installs, graphics fallback and troubleshooting.
+The app detects capabilities automatically, refreshes model availability, sizes
+default chat context to RAM, and keeps unavailable operations separate from
+usable workspaces. User-selected models and explicit runtime overrides take
+precedence over automatic defaults.
 
 Chat and embeddings require suitable models installed in Ollama. Image
 generation requires a compatible local model and PyTorch runtime; see

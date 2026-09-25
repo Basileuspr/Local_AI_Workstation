@@ -1,4 +1,5 @@
-import { createContext, useEffect, useRef, useState } from "react";
+import { Children, cloneElement, isValidElement, createContext, useEffect, useRef, useState } from "react";
+import { DesktopCapabilitiesProvider, StartupNotice, WorkspaceBoundary } from "./Compatibility";
 import "./AppLayout.css";
 
 const compactLayout = "(max-width: 900px)";
@@ -79,7 +80,7 @@ export default function AppLayout({ activeTab, sidebar, children, onRefresh, ref
     }
   }
 
-  return <div id="app" className={drawerOpen ? "navigation-open" : ""}>
+  return <DesktopCapabilitiesProvider><div id="app" className={drawerOpen ? "navigation-open" : ""}>
     <div className="sidebar-shell" ref={navigation} inert={compact && !open}
       role={compact ? "dialog" : "navigation"} aria-label="App navigation" aria-modal={drawerOpen || undefined}
       onKeyDown={handleNavigationKey}>
@@ -96,7 +97,11 @@ export default function AppLayout({ activeTab, sidebar, children, onRefresh, ref
           {refreshing ? "Refreshing…" : "↻ Refresh"}
         </button>
       </div>
-      <NavigationOpenContext.Provider value={drawerOpen}>{children}</NavigationOpenContext.Provider>
+      <StartupNotice />
+      <NavigationOpenContext.Provider value={drawerOpen}>{Children.map(children, child =>
+        isValidElement(child) && child.props["data-capture-tab"] && child.props.children
+          ? cloneElement(child, {}, <WorkspaceBoundary>{child.props.children}</WorkspaceBoundary>) : child
+      )}</NavigationOpenContext.Provider>
     </div>
-  </div>;
+  </div></DesktopCapabilitiesProvider>;
 }

@@ -31,6 +31,8 @@ const { migratePreferences } = require("./preferenceMigration");
 const { createMediaManager } = require("./mediaManager");
 const { createTabCapture } = require("./tabCapture");
 const { runDesktopAction, writeClipboardImage } = require("./desktopFunctions");
+const { backendFailure, pythonPreflight, desktopCapabilities } = require("./compatibility");
+if (process.env.LAW_DISABLE_GPU === "1" || process.argv.includes("--law-software-rendering")) app.disableHardwareAcceleration();
 if (process.env.LAW_USER_DATA_DIR) app.setPath("userData", path.resolve(process.env.LAW_USER_DATA_DIR));
 const maintenanceToken = randomUUID();
 const launchId = randomUUID();
@@ -57,6 +59,7 @@ let mainWindow = null;
 let tray = null;
 let pythonProcess = null;
 let isQuitting = false;
+let backendState = { state: "starting", detail: "Starting the local backend…" };
 
 // --- Configuration ---
 const isDev = !app.isPackaged;
@@ -80,8 +83,7 @@ const CONFIG = {
     pythonPath: process.env.LAW_PYTHON || path.join(__dirname, "..", "venv", "Scripts", "python.exe"),
     backendScript: path.join(__dirname, "..", "backend", "main.py"),
     frontendDistPath: path.join(__dirname, "..", "dist", "index.html"),
-    fallbackPath: path.join(__dirname, "..", "frontend", "index.html"),
-    backendTimeout: 30000,
+    backendTimeout: Math.min(envInt("LAW_BACKEND_TIMEOUT_MS", 90000), 300000),
     healthCheckInterval: 500,
 };
 
@@ -93,10 +95,12 @@ const driveSpace = createDriveSpace({
     }),
 });
 
+const mediaDirectory = process.env.LAW_MEDIA_MANAGER_DIR || path.join(app.getPath("desktop"), "Media Organizer");
+const mediaPython = process.env.LAW_MEDIA_MANAGER_PYTHON || CONFIG.pythonPath;
 const mediaManager = createMediaManager({
     WebContentsView, session, getWindow: () => mainWindow,
-    python: process.env.LAW_MEDIA_MANAGER_PYTHON || CONFIG.pythonPath,
-    directory: process.env.LAW_MEDIA_MANAGER_DIR || path.join(app.getPath("desktop"), "Media Organizer"),
+    python: mediaPython,
+    directory: mediaDirectory,
     reports: process.env.LAW_MEDIA_MANAGER_REPORTS,
 });
 
@@ -132,6 +136,15 @@ app.on("before-quit", () => tabCapture.dispose());
 
 ipcMain.on("app:connection", event => {
     event.returnValue = trustedDesktop(event) ? { base: `http://127.0.0.1:${CONFIG.backendPort}`, token: sessionToken } : null;
+});
+ipcMain.handle("app:startup-status", event => trustedDesktop(event) ? backendState : null);
+ipcMain.handle("app:capabilities", event => trustedDesktop(event) ? desktopCapabilities({ mediaDirectory, python: mediaPython }) : null);
+ipcMain.handle("app:open-logs", async event => {
+    if (!trustedDesktop(event)) return { error: "Desktop access required." };
+    const filename = logFilePath();
+    if (!filename) return { error: "File logging is unavailable. Start the app from PowerShell to see diagnostics." };
+    try { return { error: await shell.openPath(path.dirname(filename)) || null }; }
+    catch { return { error: "Windows could not open the log folder." }; }
 });
 
 ipcMain.handle("media-manager:start", event => trustedDesktop(event) ? mediaManager.start() : { error: "Desktop access required." });
@@ -336,14 +349,20 @@ function findAvailablePort(host, preferred, attempts = 20) {
 // --- Python Backend Management ---
 
 function startPythonBackend() {
+    pythonPreflight(CONFIG.pythonPath);
+    backendState = { state: "starting", detail: "Starting the local backend…" };
+    let stderr = "";
+    let spawnError = "";
     log.info("Starting Python backend:", CONFIG.pythonPath);
     log.info(`Backend will listen on ${CONFIG.backendHost}:${CONFIG.backendPort}`);
-    pythonProcess = spawn(CONFIG.pythonPath, [CONFIG.backendScript], {
+    const child = spawn(CONFIG.pythonPath, [CONFIG.backendScript], {
         cwd: path.join(__dirname, ".."),
         // The chosen port wins over any inherited value, so the backend and the
         // renderer cannot disagree about where the API lives.
         env: {
             ...process.env,
+            PYTHONUTF8: "1",
+            PYTHONIOENCODING: "utf-8",
             LAW_HOST: CONFIG.backendHost,
             LAW_PORT: String(CONFIG.backendPort),
             LAW_SESSION_TOKEN: sessionToken,
@@ -352,22 +371,28 @@ function startPythonBackend() {
         },
         windowsHide: true,
     });
-    pythonProcess.stdout.on("data", (data) => {
+    pythonProcess = child;
+    child.stdout.on("data", (data) => {
         backendLog.info(data.toString().trim());
     });
-    pythonProcess.stderr.on("data", (data) => {
+    child.stderr.on("data", (data) => {
+        stderr = (stderr + data.toString()).slice(-12000);
         backendLog.warn(data.toString().trim());
     });
-    pythonProcess.on("close", (code) => {
+    child.on("close", (code) => {
         log.warn(`Python backend exited with code ${code}`);
+        if (pythonProcess !== child) return;
         pythonProcess = null;
+        if (!isQuitting) backendState = { state: "failed", detail: backendFailure({ code, error: spawnError, stderr }) };
         if (!isQuitting && mainWindow) {
             mainWindow.webContents.executeJavaScript(
                 `document.getElementById("status-dot")?.classList.add("error");`
             ).catch(() => {});
         }
     });
-    pythonProcess.on("error", (err) => {
+    child.on("error", (err) => {
+        spawnError = err.message;
+        backendState = { state: "failed", detail: backendFailure({ error: err.message, stderr }) };
         log.error("Failed to start Python backend:", err);
     });
 }
@@ -376,7 +401,10 @@ function stopPythonBackend() {
     if (pythonProcess) {
         log.info("Stopping Python backend");
         if (process.platform === "win32") {
-            spawn("taskkill", ["/pid", pythonProcess.pid, "/f", "/t"], { windowsHide: true });
+            if (pythonProcess.pid) {
+                const killer = spawn("taskkill", ["/pid", String(pythonProcess.pid), "/f", "/t"], { windowsHide: true });
+                killer.on("error", err => log.warn("Could not stop backend:", err.message));
+            }
         } else {
             pythonProcess.kill("SIGTERM");
         }
@@ -390,7 +418,7 @@ function waitForBackend() {
         let settled = false;
         const check = () => {
             if (settled) return;
-            if (!pythonProcess) { settled = true; reject(new Error("The backend exited during startup. Check data/logs/backend.log; another backend may still own this data folder.")); return; }
+            if (!pythonProcess) { settled = true; reject(new Error(backendState.detail)); return; }
             let requestFinished = false;
             const retryRequest = () => {
                 if (requestFinished || settled) return;
@@ -405,6 +433,7 @@ function waitForBackend() {
                         settled = true;
                         res.resume();
                         log.info("Backend is ready");
+                        backendState = { state: "ready", detail: null };
                         resolve();
                     } else {
                         res.resume();
@@ -419,7 +448,7 @@ function waitForBackend() {
             if (settled) return;
             if (Date.now() - startTime > CONFIG.backendTimeout) {
                 settled = true;
-                reject(new Error("Backend failed to start within timeout"));
+                reject(new Error("The backend is taking longer than expected. It may still finish loading. Use Refresh after a moment, or open the logs for the cause. No second backend has been started."));
             } else {
                 setTimeout(check, CONFIG.healthCheckInterval);
             }
@@ -463,7 +492,7 @@ function resetThinkingTrace() {
     });
 }
 
-async function ensurePythonBackend() {
+async function selectBackendPort() {
     // An unrelated service (or an old launch with a different secret) must
     // never receive this launch's credentials or be mistaken for our backend.
     const chosen = await findAvailablePort(CONFIG.backendHost, CONFIG.backendPort);
@@ -472,8 +501,6 @@ async function ensurePythonBackend() {
         CONFIG.backendPort = chosen;
     }
 
-    startPythonBackend();
-    await waitForBackend();
 }
 
 // --- Window Management ---
@@ -501,7 +528,8 @@ function registerAppProtocol() {
     protocol.handle(APP_SCHEME, async (request) => {
         try {
             if (!["GET", "HEAD"].includes(request.method)) return new Response(null, { status: 405 });
-            const target = appAsset(root, request.url);
+            const target = new URL(request.url).pathname === "/recovery.html" && trustedUrl(request.url)
+                ? path.join(__dirname, "recovery.html") : appAsset(root, request.url);
             const response = await net.fetch(pathToFileURL(target).toString());
             for (const [key, value] of Object.entries(APP_HEADERS)) response.headers.set(key, value);
             return response;
@@ -551,7 +579,21 @@ async function createWindow() {
 
     guardNavigation(mainWindow.webContents);
     mainWindow.webContents.on("did-start-navigation", (_event, _url, _inPlace, isMainFrame) => { if (isMainFrame) mediaManager.hide(); });
-    mainWindow.webContents.on("render-process-gone", () => mediaManager.hide());
+    mainWindow.webContents.on("render-process-gone", async (_event, details) => {
+        mediaManager.hide();
+        if (isQuitting || details.reason === "clean-exit") return;
+        const result = await dialog.showMessageBox({ type: "error", title: "Desktop view stopped",
+            message: "The desktop renderer stopped. Saved data is still on disk; unsaved edits may be lost.",
+            detail: "Software rendering can help with incompatible Windows graphics drivers. A restart stops active backend work.",
+            buttons: ["Restart with software rendering", "Quit"], defaultId: 1, cancelId: 1 });
+        if (result.response === 0) app.relaunch({ args: [...process.argv.slice(1).filter(arg => arg !== "--law-software-rendering"), "--law-software-rendering"] });
+        app.quit();
+    });
+    mainWindow.webContents.on("did-fail-load", (_event, code, _description, url, isMainFrame) => {
+        if (isMainFrame && code !== -3 && !url.includes("/recovery.html")) {
+            void mainWindow.loadURL(`${APP_ORIGIN}/recovery.html`).catch(err => log.error("Recovery view failed:", err.message));
+        }
+    });
     mainWindow.once("ready-to-show", () => mainWindow.show());
     if (fs.existsSync(CONFIG.frontendDistPath)) {
         try { await migratePreferences({ BrowserWindow, oldPath: CONFIG.frontendDistPath, appUrl: `${APP_ORIGIN}/index.html` }); }
@@ -572,22 +614,20 @@ async function createWindow() {
         } catch {}
         if (viteReady) {
             log.info("Loading renderer from the Vite dev server");
-            mainWindow.loadURL(`${CONFIG.viteDevUrl}/?${rendererQuery()}`);
+            await mainWindow.loadURL(`${CONFIG.viteDevUrl}/?${rendererQuery()}`).catch(err => log.warn("Renderer load failed:", err.message));
         } else if (fs.existsSync(CONFIG.frontendDistPath)) {
             log.info("Vite not running; loading the built frontend over app://");
-            mainWindow.loadURL(`${APP_ORIGIN}/index.html?${rendererQuery()}`);
+            await mainWindow.loadURL(`${APP_ORIGIN}/index.html?${rendererQuery()}`).catch(err => log.warn("Renderer load failed:", err.message));
         } else {
-            log.warn("Neither Vite nor dist/ available; loading the legacy fallback");
-            mainWindow.loadFile(CONFIG.fallbackPath, { search: rendererQuery() });
+            log.warn("Neither Vite nor dist/ available; opening setup guidance");
+            await mainWindow.loadURL(`${APP_ORIGIN}/recovery.html`);
         }
     } else {
         if (fs.existsSync(CONFIG.frontendDistPath)) {
-            mainWindow.loadURL(`${APP_ORIGIN}/index.html?${rendererQuery()}`);
+            await mainWindow.loadURL(`${APP_ORIGIN}/index.html?${rendererQuery()}`).catch(err => log.warn("Renderer load failed:", err.message));
         } else {
-            // Last-resort legacy page. It still loads from file://, whose origin
-            // the backend no longer trusts, so it can reach only /health.
-            log.warn("dist/ is missing; the legacy fallback cannot reach the API");
-            mainWindow.loadFile(CONFIG.fallbackPath, { search: rendererQuery() });
+            log.warn("dist/ is missing; opening setup guidance");
+            await mainWindow.loadURL(`${APP_ORIGIN}/recovery.html`);
         }
     }
 
@@ -596,7 +636,8 @@ async function createWindow() {
     });
 
     mainWindow.on("close", (event) => {
-        if (!isQuitting) { event.preventDefault(); mainWindow.hide(); }
+        if (!isQuitting && tray) { event.preventDefault(); mainWindow.hide(); }
+        else if (!isQuitting) app.quit();
     });
     mainWindow.on("closed", () => { mainWindow = null; });
 }
@@ -616,14 +657,20 @@ function createTray() {
 // --- App Lifecycle ---
 
 app.whenReady().then(async () => {
+    if (!gotLock || isQuitting) return;
     log.info(`App starting in ${isDev ? "DEV" : "PROD"} mode`);
     log.info("Logging to", logFilePath() || "(console only)");
     registerAppProtocol();
-    try { await ensurePythonBackend(); await resetThinkingTrace(); }
-    catch (err) { log.error("Backend did not become healthy:", err.message); dialog.showErrorBox("Local backend could not start", err.message); }
+    try { await selectBackendPort(); }
+    catch (err) { backendState = { state: "failed", detail: err.message }; }
     await createWindow();
-    createTray();
-});
+    try { createTray(); }
+    catch (err) { log.warn("System tray unavailable:", err.message); tray = null; }
+    if (!isQuitting && backendState.state !== "failed") {
+        try { startPythonBackend(); await waitForBackend(); await resetThinkingTrace(); }
+        catch (err) { backendState = { state: "failed", detail: err.message }; log.error("Backend did not become healthy:", err.message); }
+    }
+}).catch(err => { dialog.showErrorBox("Local AI Workstation could not open", `${err.message}\nRun scripts/setup-windows.ps1 from a writable checkout under your user folder.`); app.quit(); });
 
 app.on("activate", () => {
     if (mainWindow === null) createWindow();

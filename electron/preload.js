@@ -2,6 +2,9 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("workstationDesktop", {
     connection: ipcRenderer.sendSync("app:connection"),
+    startupStatus: () => ipcRenderer.invoke("app:startup-status"),
+    capabilities: () => ipcRenderer.invoke("app:capabilities"),
+    openLogs: () => ipcRenderer.invoke("app:open-logs"),
     copyImage: (dataUrl) => ipcRenderer.invoke("functions:copy-image", dataUrl),
     runAction: (action) => ipcRenderer.invoke("functions:run-action", action),
     captureTab: (tab) => ipcRenderer.invoke("functions:capture-tab", tab),

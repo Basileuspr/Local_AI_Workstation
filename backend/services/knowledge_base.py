@@ -14,8 +14,7 @@ import hashlib
 import math
 import httpx
 from pathlib import Path
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-import chromadb
+from services.optional_dependencies import require
 
 from config import settings
 from services.app_logging import get_logger
@@ -36,6 +35,7 @@ EMBEDDING_BATCH_SIZE = 16
 
 def _get_collection():
     """Get or create the ChromaDB collection."""
+    chromadb = require("chromadb", "Knowledge search", "requirements-knowledge.txt")
     KB_DIR.mkdir(parents=True, exist_ok=True)
     client = chromadb.PersistentClient(path=str(KB_DIR))
     return client.get_or_create_collection(
@@ -87,7 +87,8 @@ def _chunk_text(text: str) -> list[str]:
     Split text into overlapping chunks.
     Overlap ensures that context isn't lost at chunk boundaries.
     """
-    splitter = RecursiveCharacterTextSplitter(
+    splitters = require("langchain_text_splitters", "Knowledge search", "requirements-knowledge.txt")
+    splitter = splitters.RecursiveCharacterTextSplitter(
         chunk_size=CHUNK_SIZE,
         chunk_overlap=CHUNK_OVERLAP,
         length_function=len,

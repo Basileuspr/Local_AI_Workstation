@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import DashboardReset from "./DashboardReset";
 import SoftwareSpecs from "./SoftwareSpecs";
 import DriveFolderSizes from "./DriveFolderSizes";
+import { CapabilityReadings } from "./Compatibility";
 import { apiUrl } from "../api";
 import { formatBytes, formatNumber, formatSystemSpecs } from "../systemSpecs";
 import "./Dashboard.css";
@@ -195,6 +196,7 @@ export default function Dashboard() {
     </header>
     {error && <p className="dashboard-notice" role="alert">{error}{stats ? " Showing the last successful sample; these readings are stale." : ""}</p>}
     <DashboardReset />
+    <CapabilityReadings />
     <SoftwareSpecs />
     {stats ? <DashboardReadings stats={stats} /> : <p className="dashboard-note">{error ? "Waiting for the local backend." : "Collecting CPU, GPU, memory and drive readings…"}</p>}
   </section>;

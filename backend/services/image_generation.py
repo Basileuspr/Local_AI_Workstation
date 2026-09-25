@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import gc
 import json
+import logging
 import threading
 import time
 import uuid
@@ -128,6 +129,7 @@ class ImageGenerationManager:
         self._model_id: str | None = None
         self._lora_id: str | None = None
         self._compel = None
+        self._offload_strategy = "model"
         self._lock = threading.Lock()
         self._cancel_state_lock = threading.Lock()
         self._progress: dict[str, dict] = {}
@@ -135,17 +137,27 @@ class ImageGenerationManager:
         self._active_request_id: str | None = None
 
     def runtime_status(self) -> dict:
+        from services.capabilities import IMAGE_PACKAGES, missing_packages
         try:
             import torch
-        except ImportError:
-            return {"ready": False, "cuda_available": False, "error": "PyTorch is not installed"}
-
-        cuda_available = torch.cuda.is_available()
+            cuda_available = torch.cuda.is_available()
+            device = torch.cuda.get_device_name(0) if cuda_available else None
+        except (ImportError, OSError, RuntimeError):
+            return {"ready": False, "cuda_available": False, "error":
+                    "Image generation and LoRA training are unavailable: PyTorch is missing or its Windows libraries could not load. "
+                    "Chat and other workspaces remain available. On a compatible NVIDIA PC, install requirements-sdxl-cuda.txt and restart."}
+        missing = missing_packages(IMAGE_PACKAGES)
         return {
-            "ready": cuda_available,
+            "ready": cuda_available and not missing,
             "cuda_available": cuda_available,
-            "device": torch.cuda.get_device_name(0) if cuda_available else None,
+            "device": device,
+            "missing_packages": missing,
+            "error": (f"Image runtime packages missing: {', '.join(missing)}. Install the image-generation requirements to enable this feature."
+                      if missing and cuda_available else None) if cuda_available else (
+                "Image generation and LoRA training require a supported NVIDIA GPU and CUDA-enabled PyTorch. "
+                "They are unavailable on this PC. Chat can still use Ollama's available hardware, including CPU."),
             "loaded_model": self._model_id,
+            "offload_strategy": self._offload_strategy if self._pipeline is not None else "automatic",
             "active_request_id": self.active_request_id(),
         }
 
@@ -176,7 +188,7 @@ class ImageGenerationManager:
         try:
             import torch
             from diffusers import DiffusionPipeline
-        except ImportError as exc:
+        except (ImportError, OSError, RuntimeError) as exc:
             raise RuntimeError(
                 "Image generation dependencies are missing. Install the image-generation requirements first."
             ) from exc
@@ -209,7 +221,12 @@ class ImageGenerationManager:
             vae.enable_tiling()
         elif hasattr(pipeline, "enable_vae_tiling"):
             pipeline.enable_vae_tiling()
-        pipeline.enable_model_cpu_offload()
+        from services.capabilities import image_offload_strategy
+        try:
+            self._offload_strategy = image_offload_strategy(torch.cuda.get_device_properties(0).total_memory)
+        except (AttributeError, OSError, RuntimeError):
+            self._offload_strategy = "model"
+        self._enable_offload(pipeline)
         pipeline.set_progress_bar_config(disable=True)
 
         self._pipeline = pipeline
@@ -218,6 +235,13 @@ class ImageGenerationManager:
         self._lora_id = None
         self._compel = None
 
+    def _enable_offload(self, pipeline):
+        if self._offload_strategy == "sequential" and hasattr(pipeline, "enable_sequential_cpu_offload"):
+            pipeline.enable_sequential_cpu_offload()
+        else:
+            self._offload_strategy = "model"
+            pipeline.enable_model_cpu_offload()
+
     def _activate_pipeline(self, pipeline):
         """Shared modules need one offload hook chain, owned by the caller."""
         if self._active_pipeline is pipeline:
@@ -225,7 +249,7 @@ class ImageGenerationManager:
         if self._active_pipeline is not None:
             self._active_pipeline.remove_all_hooks()
             self._active_pipeline.to("cpu")
-        pipeline.enable_model_cpu_offload()
+        self._enable_offload(pipeline)
         pipeline.set_progress_bar_config(disable=True)
         self._active_pipeline = pipeline
 
@@ -469,6 +493,21 @@ class ImageGenerationManager:
                     "long_prompt_used": bool(long_prompt and needs_long_prompt),
                     "url": f"/image-generation/outputs/{filename}",
                 }
+        except (MemoryError, RuntimeError) as exc:
+            if not isinstance(exc, MemoryError) and "out of memory" not in str(exc).lower():
+                raise
+            # Drop partially loaded pipelines before releasing the GPU lease.
+            # Never silently shrink the user's image or replay an expensive job.
+            with self._lock:
+                try:
+                    self._unload()
+                except Exception:
+                    logging.getLogger(__name__).warning("Could not fully release image runtime after memory exhaustion", exc_info=True)
+            raise RuntimeError(
+                "Image generation ran out of memory on this PC. Try a smaller image, close other GPU-heavy apps, "
+                "or use a smaller model. This request was not retried. If memory remains occupied, reset the idle "
+                "image runtime or restart the app. Saved images and other workspaces are retained."
+            ) from exc
         finally:
             with self._cancel_state_lock:
                 self._cancel_events.pop(request_id, None)

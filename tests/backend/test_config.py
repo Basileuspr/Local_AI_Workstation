@@ -17,6 +17,9 @@ from config import ENV_PREFIX, Settings, load_settings
 @pytest.fixture(autouse=True)
 def clean_env(monkeypatch):
     """Start each test from a known-empty environment."""
+    monkeypatch.setattr("services.capabilities.host_resources", lambda: {
+        "memory_total_bytes": 64 * 1024 ** 3, "logical_cpus": 12,
+    })
     for key in list(__import__("os").environ):
         if key.startswith(ENV_PREFIX):
             monkeypatch.delenv(key, raising=False)
