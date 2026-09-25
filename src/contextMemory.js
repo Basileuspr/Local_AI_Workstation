@@ -23,7 +23,7 @@ function textTokenEstimate(value) {
 
 function messageTokenEstimate(message) {
   const imageReserve = Array.isArray(message.images) ? message.images.length * 700 : 0;
-  return 6 + textTokenEstimate(message.content) + imageReserve;
+  return 6 + textTokenEstimate(message.content) + textTokenEstimate(message.document_text) + imageReserve;
 }
 
 function normalizeContextWindow(contextWindow) {
@@ -42,7 +42,7 @@ function normalizeOutputReserve(responseLength, contextWindow) {
 function stripRuntimeOnlyFields(message) {
   const clean = {
     role: message.role,
-    content: message.content,
+    content: message.document_text ? `${message.content}\n[Document content]\n${message.document_text}` : message.content,
   };
 
   if (message.images?.length) clean.images = message.images;
@@ -52,7 +52,7 @@ function stripRuntimeOnlyFields(message) {
 function stripHeavyFieldsForSummary(message) {
   return {
     role: message.role,
-    content: message.content,
+    content: message.document_text ? `${message.content}\n[Document content]\n${message.document_text}` : message.content,
     images: message.images?.length ? ["[image omitted]"] : undefined,
   };
 }

@@ -261,6 +261,8 @@ export async function parseFile(file) {
 }
 
 export async function streamChat({
+  replyMessageId,
+  documentFormat,
   model,
   messages,
   useKnowledgeBase,
@@ -286,6 +288,8 @@ export async function streamChat({
       session_id: sessionId,
       request_id: requestId,
       username,
+      reply_message_id: replyMessageId,
+      document_format: documentFormat,
     }),
     signal,
   });

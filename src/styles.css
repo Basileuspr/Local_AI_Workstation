@@ -1979,3 +1979,39 @@ html, body {
 /* A backend setup failure must remain visible outside the chat workspace. */
 .compatibility-notice { margin: 8px 16px; padding: 12px 16px; border: 1px solid #977743; border-radius: 8px; background: #241e15; color: #f1dfbe; flex-shrink: 0; max-height: 30vh; overflow: auto; }
 .compatibility-notice p { margin: 6px 0; }
+/* Word artifacts remain in their source chat and preview entirely offline. */
+.chat-document-command { display:flex; align-items:center; gap:10px; padding:5px 0; font-size:12px; color:var(--text-muted, #9ba8ba); }
+.chat-document-command button { white-space:nowrap; }
+.document-attachment { display:flex; flex-wrap:wrap; gap:12px; align-items:center; max-width:620px; padding:15px; margin:12px 0; border:1px solid #3f536f; border-radius:10px; background:#182435; }
+.document-file-icon { background:#295d9f; color:white; font-size:23px; font-weight:700; padding:10px 14px; border-radius:6px; }
+.document-file-info { flex:1; min-width:140px; overflow-wrap:anywhere; }
+.document-file-info strong, .document-file-info small { display:block; }
+.document-file-info small { margin-top:4px; color:#aebbd0; }
+.document-error { color:#ffb9b9; width:100%; }
+.document-viewer { width:min(1040px, 94vw); height:90vh; max-width:98vw; max-height:98vh; margin:auto; padding:0; border:1px solid #46576e; border-radius:12px; background:#18212e; color:#e5edf8; }
+.document-viewer button, .document-viewer select, .document-attachment button, .chat-document-command button { border:1px solid #53657e; border-radius:6px; padding:7px 12px; background:#293b53; color:#edf3ff; cursor:pointer; font:inherit; }
+.document-viewer button:hover, .document-attachment button:hover, .chat-document-command button:hover { background:#355477; }
+.document-viewer button:disabled, .document-attachment button:disabled { opacity:.55; cursor:wait; }
+.document-viewer button:focus-visible, .document-attachment button:focus-visible { outline:2px solid #94bfff; outline-offset:2px; }
+.document-viewer[open] { display:flex; flex-direction:column; }
+.document-viewer.expanded { width:98vw; height:98vh; }
+.document-viewer::backdrop { background:rgba(0,0,0,.7); }
+.document-viewer header { display:flex; align-items:center; justify-content:space-between; gap:20px; padding:16px 22px; }
+.document-viewer header h2 { margin:0; font-size:18px; overflow-wrap:anywhere; }
+.document-viewer header p { color:#aebbd0; font-size:12px; margin:5px 0 0; }
+.document-viewer-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:16px; padding:10px 22px; background:#202e40; }
+.document-viewer-toolbar select { margin-left:6px; }
+.document-viewer-body { flex:1; min-height:0; overflow:auto; padding:25px; }
+.document-zoom { width:fit-content; margin:auto; }
+.document-page { box-sizing:border-box; width:740px; min-height:950px; padding:65px 70px; background:white; color:#161616; box-shadow:0 3px 20px #0005; font:15px/1.55 Calibri, Arial, sans-serif; overflow-wrap:anywhere; }
+.document-page h1 { color:#111; font-size:30px; line-height:1.2; margin:0 0 26px; }
+.document-page h2 { color:#111; font-size:21px; line-height:1.3; margin:26px 0 12px; }
+.document-page p { white-space:pre-wrap; margin:0 0 13px; }
+.document-page ul, .document-page ol { margin:6px 0; padding-left:25px; }
+.document-page figure { margin:20px 0; }
+.document-page figure img { width:auto; max-width:100%; max-height:610px; display:block; margin:auto; }
+.document-page figcaption { font-style:italic; color:#4b5563; font-size:13px; margin:9px 0 18px; }
+.document-page table { width:100%; border-collapse:collapse; table-layout:fixed; margin:15px 0; color:#161616; }
+.document-page th, .document-page td { border:1px solid #d9d9d9; padding:8px; vertical-align:top; }
+.document-page th { background:#e8eef5; text-align:left; }
+@media (max-width:800px) { .document-viewer-body { padding:12px; } .document-page { width:650px; padding:45px; } .chat-document-command { flex-wrap:wrap; } }

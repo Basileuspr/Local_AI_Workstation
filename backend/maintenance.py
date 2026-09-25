@@ -22,6 +22,7 @@ from services.maintenance_paths import import_journal
 
 MARKER = ".reset-in-progress.json"
 CATEGORIES = {
+    "artifacts": "Chat documents",
     "sessions": "Chats", "blobs": "Image blobs", "generated_images": "Generated images",
     "image_workflows": "Image workflows", "image_library": "Image library / review",
     "locked_images": "Locked images", "lora": "LoRAs / training", "backups": "Recovery backups",

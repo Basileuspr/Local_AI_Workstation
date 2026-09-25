@@ -277,6 +277,7 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
         model: selectedModel, messages: contextMessages, useKnowledgeBase,
         systemPrompt: systemPromptValue, options: getModelOptions(), sessionId, requestId,
         signal: abortController.signal,
+        replyMessageId: assistantMsg.id,
       });
       if (currentSessionRef.current === sessionId) dispatch({ type: "PUSH_MESSAGE", payload: assistantMsg });
       const reader = res.body.getReader();
@@ -294,6 +295,12 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
           let event;
           try { event = JSON.parse(line.slice(6)); } catch { continue; }
           if (event.notice) showToast(event.notice.message, "error");
+          if (event.document_status && currentSessionRef.current === sessionId) {
+            const node = document.querySelector(`[data-message-id="${assistantMsg.id}"] .message-markdown`);
+            if (node) node.textContent = event.document_status;
+          }
+          if (event.artifacts) assistantMsg.artifacts = event.artifacts;
+          if (event.document_text) assistantMsg.document_text = event.document_text;
           if (event.cancelled) stopped = true;
           if (event.token) {
             fullResponse += event.token;
@@ -409,6 +416,7 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
       {active && editJob?.sessionId === currentSessionId && privacy.ready && <ImageEditor key={editJob.id} inlineInput={editJob} onSave={saveChatEdit} onCancel={() => setEditJob(null)} />}
       <div className="chat-edit-command"><button type="button" disabled={openingEdit} onClick={() => { textareaRef.current.value = "/Edit "; textareaRef.current.focus(); }}>/Edit</button><span>{openingEdit ? "Opening image editor…" : selectedEdit ? `Selected: ${selectedEdit.image.name}` : "Edit the latest chat image, or select Use with /Edit on an image."}</span>{selectedEdit && <button onClick={() => destinations.clearChatEdit()}>Clear selection</button>}<details><summary>Edit commands</summary><p>/Edit opens image controls here. Try /Edit reduce red hue, increase contrast, decrease exposure, or /Edit rotate right. Preview, adjust, then send the edited copy.</p></details></div>
       <ChatImageControls active={active} onGenerate={generateChatImage} />
+      <div className="chat-document-command"><button type="button" onClick={() => { textareaRef.current.value = "/docx " + (textareaRef.current.value || ""); textareaRef.current.focus(); }}>Create Word document</button><span>Describe the document here, or ask “make this a .docx”.</span></div>
       <QueueRequestStatus requestId={refs.generationRequestId} />
       {chatSubmissions.some(job => job.status === "waiting") && <div className="chat-pending-requests" aria-label="Waiting chat prompts">
         <small>Follow-ups wait for the earlier reply, then join Prompt Queue with its updated context.</small>

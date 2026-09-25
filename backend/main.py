@@ -18,6 +18,7 @@ import asyncio
 import uuid
 from datetime import datetime
 from pathlib import Path
+from typing import Literal
 
 # Import route modules
 from config import settings
@@ -104,6 +105,8 @@ app.include_router(web_router)
 app.include_router(sessions_router)
 app.include_router(files_router)
 app.include_router(export_router)
+from routes.artifacts import router as artifacts_router
+app.include_router(artifacts_router)
 app.include_router(memory_router)
 app.include_router(prompt_index_router)
 app.include_router(image_generation_router)
@@ -184,6 +187,8 @@ class ChatRequest(BaseModel):
     session_id: str | None = None
     project_name: str | None = None
     request_id: str | None = None
+    document_format: Literal["docx"] | None = None
+    reply_message_id: str | None = None
 
 
 class CompactMemoryRequest(BaseModel):
@@ -804,6 +809,9 @@ async def chat(request: ChatRequest, client_request: Request):
 
 
 async def _chat(request: ChatRequest, client_request: Request):
+    from services.chat_documents import wants_document, stream_document
+    last_prompt = next((m.content for m in reversed(request.messages) if m.role == "user"), "")
+    create_word = request.document_format == "docx" or (request.use_memory and wants_document(last_prompt))
     # Images travel as blob references so megabytes of base64 never cross the
     # wire or sit in renderer memory. Ollama needs the payload, so references
     # are expanded here, at the last possible moment.
@@ -826,7 +834,7 @@ async def _chat(request: ChatRequest, client_request: Request):
     messages_to_send = []
     for m in request.messages:
         message = {"role": m.role, "content": m.content}
-        images = await run_in_threadpool(_resolve_images, m.images)
+        images = [] if create_word else await run_in_threadpool(_resolve_images, m.images)
         if images:
             message["images"] = images
         messages_to_send.append(message)
@@ -1030,6 +1038,10 @@ async def _chat(request: ChatRequest, client_request: Request):
             async with httpx.AsyncClient(
                 timeout=httpx.Timeout(600.0, connect=10.0)
             ) as client:
+                if create_word:
+                    async for event in stream_document(client, ollama_payload, request, client_request):
+                        yield event
+                    return
                 async with client.stream(
                     "POST",
                     f"{OLLAMA_BASE_URL}/api/chat",

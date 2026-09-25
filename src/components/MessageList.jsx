@@ -10,6 +10,7 @@ import { SEVERITY, describeStatus } from "../serviceStatus";
 import * as api from "../api";
 import { isStoredReference } from "../imageRefs";
 import ImageViewer from "./ImageViewer";
+import DocumentViewer, { DocumentAttachment } from "./DocumentViewer";
 import { chatImage } from "../chatImages";
 
 function summarizeContent(message) {
@@ -41,6 +42,8 @@ export default function MessageList({ onNewChat, onSessionSaved }) {
   const fileInputRef = useRef(null);
   const [dragActive, setDragActive] = useState(false);
   const [imagePreview, setImagePreview] = useState(null);
+  const [documentPreview, setDocumentPreview] = useState(null);
+  useEffect(() => setDocumentPreview(null), [state.currentSessionId]);
   const [copiedIndex, setCopiedIndex] = useState(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState("");
   const messageNodes = useRef(new Map());
@@ -251,6 +254,7 @@ export default function MessageList({ onNewChat, onSessionSaved }) {
                     </div>
                   )}
                   <MarkdownMessage onImageClick={image => setImagePreview({ ...image, chat_session_id: currentSessionId, id: `${messageId}:inline:${image.url}` })}>{summarizeContent(message)}</MarkdownMessage>
+                  {(message.artifacts || []).filter(artifact => artifact.kind === "docx").map(artifact => <DocumentAttachment key={artifact.id} artifact={artifact} onView={setDocumentPreview} />)}
                 </div>
               </div>
               <div className="message-actions">
@@ -276,6 +280,7 @@ export default function MessageList({ onNewChat, onSessionSaved }) {
         onChange={(e) => handleFiles(e.target.files)}
       />
       <ImageViewer images={imagePreview ? [imagePreview] : []} selectedId={imagePreview?.id} onSelect={() => {}} onClose={() => setImagePreview(null)} active={["chats", "knowledge"].includes(state.activeSidebarTab)} />
+      <DocumentViewer artifact={documentPreview} onClose={() => setDocumentPreview(null)} active={["chats", "knowledge"].includes(state.activeSidebarTab)} />
     </div>
   );
 }
