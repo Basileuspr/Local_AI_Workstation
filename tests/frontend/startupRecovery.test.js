@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 
 const entry = path.resolve("electron/main.js");
 const realRequire = createRequire(entry);
-function desktop(env = {}) {
+function desktop(env = {}, httpMock = null) {
   const spawn = vi.fn(() => Object.assign(new EventEmitter(), {
     stdout: new EventEmitter(), stderr: new EventEmitter(), pid: 1234,
   }));
@@ -26,6 +26,7 @@ function desktop(env = {}) {
     require: name => {
       if (name === "electron") return electron;
       if (name === "child_process") return { spawn };
+      if (name === "http" && httpMock) return httpMock;
       if (name === "./logger") return { createLogger: () => logger, logFilePath: () => null };
       return realRequire(name);
     },
@@ -33,6 +34,10 @@ function desktop(env = {}) {
   vm.runInContext(readFileSync(entry, "utf8") + `\nmodule.exports = {
     startPythonBackend, stopPythonBackend, registerAppProtocol,
     state: () => backendState, child: () => pythonProcess,
+    config: CONFIG,
+    refreshBackendHealth,
+    resetCheck: () => { lastHealthCheck = 0; },
+    setState: value => { backendState = value; },
   };`, context);
   return { ...module.exports, spawn, app, handlers, electron };
 }
@@ -62,15 +67,49 @@ describe("desktop backend process failures", () => {
     child.emit("close", 1);
     expect(host.child()).not.toBeNull();
     expect(host.state().state).toBe("starting");
+    child.emit("error", new Error("late error from an old child"));
+    expect(host.state().state).toBe("starting");
   });
   it("sets UTF-8 for Python on differing Windows locale settings", () => {
     const host = desktop();
     host.startPythonBackend();
     expect(host.spawn.mock.calls[0][2].env).toMatchObject({ PYTHONUTF8: "1", PYTHONIOENCODING: "utf-8" });
   });
+  it.each(["70000", "9123junk", "-1", "0"])("normalizes invalid port %s and prevents public API binding", port => {
+    const host = desktop({ LAW_PORT: port, LAW_HOST: "0.0.0.0" });
+    host.startPythonBackend();
+    expect(host.config.backendPort).toBe(8000);
+    expect(host.spawn.mock.calls[0][2].env).toMatchObject({ LAW_HOST: "127.0.0.1", LAW_PORT: "8000" });
+  });
   it("enables the explicit graphics fallback before app readiness", () => {
     const host = desktop({ LAW_DISABLE_GPU: "1" });
     expect(host.app.disableHardwareAcceleration).toHaveBeenCalledOnce();
+  });
+  it("reports sustained health failure and a late recovery without spawning another backend", async () => {
+    let healthy = false, host;
+    const httpMock = { get: (_url, callback) => {
+      const request = new EventEmitter();
+      request.setTimeout = () => request;
+      queueMicrotask(() => {
+        if (healthy) callback({ statusCode: 200, headers: { "x-law-launch": host.spawn.mock.calls[0][2].env.LAW_LAUNCH_ID }, resume() {} });
+        else request.emit("error", new Error("unreachable"));
+      });
+      return request;
+    } };
+    host = desktop({}, httpMock);
+    host.startPythonBackend();
+    host.setState({ state: "ready", detail: null });
+    for (let i = 0; i < 3; i++) { host.resetCheck(); await host.refreshBackendHealth(); }
+    expect(host.state().state).toBe("unresponsive");
+    healthy = true;
+    host.resetCheck();
+    await host.refreshBackendHealth();
+    expect(host.state().state).toBe("ready");
+    host.setState({ state: "failed", detail: "startup timed out" });
+    host.resetCheck();
+    await host.refreshBackendHealth();
+    expect(host.state().state).toBe("ready");
+    expect(host.spawn).toHaveBeenCalledOnce();
   });
   it("serves recovery without a frontend build and retains navigation/security checks", async () => {
     const host = desktop();

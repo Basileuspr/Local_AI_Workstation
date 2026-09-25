@@ -14,11 +14,11 @@ const params = (query) => new URLSearchParams(query);
 describe("resolveApiBase", () => {
   it("falls back to the development default with no parameters", () => {
     expect(resolveApiBase(params(""))).toBe(DEFAULT_API_BASE);
-    expect(DEFAULT_API_BASE).toBe(`http://localhost:${DEFAULT_API_PORT}`);
+    expect(DEFAULT_API_BASE).toBe(`http://127.0.0.1:${DEFAULT_API_PORT}`);
   });
 
   it("uses the port Electron passes", () => {
-    expect(resolveApiBase(params("apiPort=9123"))).toBe("http://localhost:9123");
+    expect(resolveApiBase(params("apiPort=9123"))).toBe("http://127.0.0.1:9123");
   });
 
   it("prefers an explicit base over a port", () => {
@@ -28,11 +28,11 @@ describe("resolveApiBase", () => {
   });
 
   it("strips a trailing slash so paths do not double up", () => {
-    expect(resolveApiBase(params("apiBase=http://localhost:9000/"))).toBe("http://localhost:9000");
+    expect(resolveApiBase(params("apiBase=http://localhost:9000/"))).toBe("http://127.0.0.1:9000");
   });
 
   it("preserves other query parameters without being confused by them", () => {
-    expect(resolveApiBase(params("theme=dark&apiPort=9123&debug=1"))).toBe("http://localhost:9123");
+    expect(resolveApiBase(params("theme=dark&apiPort=9123&debug=1"))).toBe("http://127.0.0.1:9123");
   });
 
   it.each([
@@ -41,6 +41,7 @@ describe("resolveApiBase", () => {
     ["zero", "apiPort=0"],
     ["negative", "apiPort=-1"],
     ["above the valid range", "apiPort=70000"],
+    ["trailing junk", "apiPort=9123junk"],
   ])("ignores a %s port and uses the default", (_label, query) => {
     expect(resolveApiBase(params(query))).toBe(DEFAULT_API_BASE);
   });
@@ -51,5 +52,8 @@ describe("resolveApiBase", () => {
 
   it("ignores a blank explicit base rather than producing an empty origin", () => {
     expect(resolveApiBase(params("apiBase=%20%20"))).toBe(DEFAULT_API_BASE);
+  });
+  it.each(["http://192.168.1.20:8000", "https://example.com", "http://127.0.0.1:8000/private", "http://user:secret@127.0.0.1:8000"])("rejects unsafe API override %s", base => {
+    expect(resolveApiBase(params(`apiBase=${encodeURIComponent(base)}`))).toBe(DEFAULT_API_BASE);
   });
 });

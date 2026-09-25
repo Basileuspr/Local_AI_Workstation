@@ -55,7 +55,7 @@ def _env(name: str) -> str | None:
     return raw or None
 
 
-def _env_int(name: str, default: int, warnings: list[str], minimum: int = 1) -> int:
+def _env_int(name: str, default: int, warnings: list[str], minimum: int = 1, maximum: int | None = None) -> int:
     raw = _env(name)
     if raw is None:
         return default
@@ -66,6 +66,9 @@ def _env_int(name: str, default: int, warnings: list[str], minimum: int = 1) -> 
         return default
     if value < minimum:
         warnings.append(f"{ENV_PREFIX}{name}={value} is below {minimum}; using {default}")
+        return default
+    if maximum is not None and value > maximum:
+        warnings.append(f"{ENV_PREFIX}{name} exceeds {maximum}; using {default}")
         return default
     return value
 
@@ -209,9 +212,11 @@ def load_settings() -> Settings:
         )
         chunk_overlap = chunk_size // 5
 
+    if _env("HOST") not in (None, DEFAULT_HOST):
+        warnings.append("LAW_HOST ignored: the app API uses 127.0.0.1. Use PC bridge for paired network access.")
     return Settings(
-        host=_env("HOST") or DEFAULT_HOST,
-        port=_env_int("PORT", DEFAULT_PORT, warnings, minimum=1),
+        host=DEFAULT_HOST,
+        port=_env_int("PORT", DEFAULT_PORT, warnings, minimum=1, maximum=65535),
         ollama_base_url=(_env("OLLAMA_URL") or DEFAULT_OLLAMA_URL).rstrip("/"),
         embedding_model=_env("EMBEDDING_MODEL") or DEFAULT_EMBEDDING_MODEL,
         default_chat_model=_env("CHAT_MODEL") or DEFAULT_CHAT_MODEL,

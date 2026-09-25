@@ -6,7 +6,7 @@ import { bridgeJobStatus } from "../../src/bridgeApi";
 describe("PC bridge", () => {
   it("starts visibly off and explains what data delegation sends", () => {
     const html = renderToStaticMarkup(<PCBridge />);
-    expect(html).toContain("Network bridge off");
+    expect(html).toContain("Checking bridge status");
     expect(html).toContain("Start bridge");
     expect(html).toContain("Only this prompt and these settings are sent");
     expect(html).toContain("does not send chat history");

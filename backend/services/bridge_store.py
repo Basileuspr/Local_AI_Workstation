@@ -54,8 +54,11 @@ class BridgeStore:
             db.execute("INSERT OR REPLACE INTO peers VALUES (?,?)", (peer["id"], json.dumps(peer)))
 
     def jobs(self, direction=None):
+        # Polls and queue checks never deserialize stored image results or old
+        # deduplication receipts. Explicit result reads use job().
         with self.connect() as db:
-            rows = db.execute("SELECT value FROM jobs" + (" WHERE direction=?" if direction else ""), (direction,) if direction else ())
+            rows = db.execute("SELECT json_remove(value, '$.result') FROM jobs WHERE COALESCE(json_extract(value, '$.archived'), 0)=0" +
+                              (" AND direction=?" if direction else ""), (direction,) if direction else ())
             return sorted([json.loads(row[0]) for row in rows], key=lambda job: job["created"], reverse=True)
 
     def job(self, direction, job_id):

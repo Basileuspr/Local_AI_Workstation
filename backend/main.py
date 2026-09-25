@@ -21,6 +21,16 @@ from pathlib import Path
 
 # Import route modules
 from config import settings
+from services.app_logging import get_logger, log_file_path, setup_logging, redact
+setup_logging()
+logger = get_logger("backend.main")
+# Record failures during route imports and storage initialization too.
+def _log_uncaught(kind, value, traceback):
+    logger.critical("Backend startup or main-thread failure", exc_info=(kind, value, traceback))
+    # Electron classifies boot failures from stderr; retain that recovery path.
+    sys.stderr.write(redact(f"{kind.__name__}: {value}\n"))
+if __name__ == "__main__":
+    sys.excepthook = _log_uncaught
 from services.maintenance_paths import import_journal
 if import_journal(settings.data_dir).exists():
     raise RuntimeError("A backup import was interrupted. Use Recover previous data in the desktop Dashboard.")
@@ -45,7 +55,6 @@ from routes.request_queue import router as request_queue_router
 from services.request_queue import queue, QueueCancelled, prepare_runtime
 from config import settings
 from services import image_store
-from services.app_logging import get_logger, log_file_path, setup_logging
 from services.memory_store import (
     create_project_if_missing,
     create_user_if_missing,
@@ -54,10 +63,6 @@ from services.memory_store import (
     initialize_database,
     save_message,
 )
-
-# Configured before anything else so import-time failures are recorded too.
-setup_logging()
-logger = get_logger("backend.main")
 
 # config cannot log (logging is built from it), so its warnings surface here.
 for _warning in settings.warnings:
@@ -1124,7 +1129,7 @@ if __name__ == "__main__":
     logger.info("Local AI Workstation backend starting")
     for line in settings.describe():
         logger.info("Config: %s", line)
-    logger.info("Logging to %s", log_file_path())
+    logger.info("Logging to %s", setup_logging() or "console only (file unavailable)")
 
     if not _port_is_available(settings.host, settings.port):
         # Port 8000 is a common default for other tools, so this is the most
@@ -1139,4 +1144,4 @@ if __name__ == "__main__":
 
     # log_config=None keeps uvicorn from replacing our handlers, so its startup
     # and access lines land in the same file as everything else.
-    uvicorn.run(app, host=settings.host, port=settings.port, log_config=None)
+    uvicorn.run(app, host=settings.host, port=settings.port, log_config=None, proxy_headers=False)

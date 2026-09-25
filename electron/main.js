@@ -70,16 +70,27 @@ const useViteDev = isDev && process.env.LAW_VITE_DEV === "1";
 // Environment overrides use the same LAW_ prefix as the Python side, so one
 // variable configures both halves of the app.
 const envInt = (name, fallback) => {
-    const parsed = Number.parseInt(process.env[name] || "", 10);
+    const parsed = Number(process.env[name] || "");
     return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 };
+const envPort = (name, fallback) => {
+    const port = envInt(name, fallback);
+    if (port > 65535 || (process.env[name] && String(port) !== process.env[name].trim())) {
+        log.warn(`${name} is not a valid TCP port; using ${fallback}`);
+        return fallback;
+    }
+    return port;
+};
+if (process.env.LAW_HOST && process.env.LAW_HOST !== "127.0.0.1") {
+    log.warn("LAW_HOST ignored: the local API uses 127.0.0.1. Use PC bridge for network access.");
+}
 
 const CONFIG = {
     // The port the backend is *asked* to use. If it is busy we pick another and
     // update this, so it always reflects where the backend actually is.
-    backendPort: envInt("LAW_PORT", 8000),
-    backendHost: process.env.LAW_HOST || "127.0.0.1",
-    vitePort: envInt("LAW_VITE_PORT", 5173),
+    backendPort: envPort("LAW_PORT", 8000),
+    backendHost: "127.0.0.1",
+    vitePort: envPort("LAW_VITE_PORT", 5173),
     pythonPath: process.env.LAW_PYTHON || path.join(__dirname, "..", "venv", "Scripts", "python.exe"),
     backendScript: path.join(__dirname, "..", "backend", "main.py"),
     frontendDistPath: path.join(__dirname, "..", "dist", "index.html"),
@@ -137,7 +148,7 @@ app.on("before-quit", () => tabCapture.dispose());
 ipcMain.on("app:connection", event => {
     event.returnValue = trustedDesktop(event) ? { base: `http://127.0.0.1:${CONFIG.backendPort}`, token: sessionToken } : null;
 });
-ipcMain.handle("app:startup-status", event => trustedDesktop(event) ? backendState : null);
+ipcMain.handle("app:startup-status", async event => trustedDesktop(event) ? refreshBackendHealth() : null);
 ipcMain.handle("app:capabilities", event => trustedDesktop(event) ? desktopCapabilities({ mediaDirectory, python: mediaPython }) : null);
 ipcMain.handle("app:open-logs", async event => {
     if (!trustedDesktop(event)) return { error: "Desktop access required." };
@@ -350,6 +361,8 @@ function findAvailablePort(host, preferred, attempts = 20) {
 
 function startPythonBackend() {
     pythonPreflight(CONFIG.pythonPath);
+    lastHealthCheck = 0;
+    unhealthyChecks = 0;
     backendState = { state: "starting", detail: "Starting the local backend…" };
     let stderr = "";
     let spawnError = "";
@@ -392,6 +405,7 @@ function startPythonBackend() {
     });
     child.on("error", (err) => {
         spawnError = err.message;
+        if (pythonProcess !== child) return;
         backendState = { state: "failed", detail: backendFailure({ error: err.message, stderr }) };
         log.error("Failed to start Python backend:", err);
     });
@@ -501,6 +515,29 @@ async function selectBackendPort() {
         CONFIG.backendPort = chosen;
     }
 
+}
+
+let healthRefresh = null, lastHealthCheck = 0, unhealthyChecks = 0;
+async function refreshBackendHealth() {
+    if (!pythonProcess || backendState.state === "starting" || isQuitting) return backendState;
+    if (healthRefresh) return healthRefresh;
+    if (Date.now() - lastHealthCheck < 5000) return backendState;
+    const child = pythonProcess;
+    healthRefresh = (async () => {
+        const healthy = await isBackendHealthy();
+        if (pythonProcess !== child || isQuitting) return backendState;
+        unhealthyChecks = healthy ? 0 : unhealthyChecks + 1;
+        if (healthy && backendState.state !== "ready") {
+            log.info("Backend health recovered");
+            backendState = { state: "ready", detail: null };
+        } else if (!healthy && unhealthyChecks >= 3 && backendState.state === "ready") {
+            log.warn("Owned backend is not answering health checks");
+            backendState = { state: "unresponsive", detail: "The local backend is not responding. Work may still be running. Health checks will continue; open the logs for details." };
+        }
+        return backendState;
+    })();
+    try { return await healthRefresh; }
+    finally { lastHealthCheck = Date.now(); healthRefresh = null; }
 }
 
 // --- Window Management ---

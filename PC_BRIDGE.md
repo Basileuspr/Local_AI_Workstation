@@ -27,7 +27,8 @@ requirements. No extra networking service or cloud account is needed on a LAN.
 1. Connect both PCs to the same private network. On each PC, run `ipconfig` in
    PowerShell and find the active Wi-Fi/Ethernet adapter's IPv4 address.
 2. Open **Dashboard > PC bridge** on each PC. Give each a recognizable name,
-   enter its own private IPv4 address, leave port **8765**, and click **Start bridge**.
+   choose its own private IPv4 address from the detected adapter suggestions (or
+   enter it from `ipconfig`), leave port **8765**, and click **Start bridge**.
    Both PCs can use the same port because they have different addresses.
 3. If Windows Firewall asks, permit this app's Python environment on the
    private network. The app does not change firewall rules or require public
@@ -75,6 +76,18 @@ the worker may also retain generated PNGs and its normal thinking/log output.
 
 ## Failure and recovery
 
+- The panel shows the local API address, whether backend file logging is active,
+  and listener warnings. A temporarily unavailable status displays **unknown**;
+  checks continue automatically and the warning clears after recovery.
+- An occupied port, invalid local address, blocked bind, missing identity file or
+  storage failure leaves a visible explanation. Failed starts clean up their
+  listener. Missing or invalid certificates are never silently replaced: restore
+  the matching certificate/key from a private backup before using existing pairings.
+- Chat and image availability are checked independently. An unavailable image
+  runtime does not hide working chat models. Retry discovery after a slow startup.
+- File access errors do not permanently kill bridge polling. It logs the failure
+  and retries; job IDs remain unchanged. Cancel intent takes priority over delivery
+  retries, including requests made outside the Dashboard.
 - Network loss displays an unknown execution status. It does not start a
   replacement job. Reconnect/start the bridge to retrieve the original job.
 - **Retry delivery with same ID** safely resends an uncertain submission; the
@@ -101,6 +114,9 @@ the worker may also retain generated PNGs and its normal thinking/log output.
 ## Security and verification
 
 The normal desktop API remains loopback-only with its per-launch session token.
+`LAW_HOST` overrides are ignored with a startup warning. Desktop IPC, local
+worker execution and browser development all use `127.0.0.1`; invalid ports fall
+back with a warning. Forwarded proxy headers are not trusted by either listener.
 A separate HTTPS listener accepts only pairing, capability discovery, bounded
 job submission/status and cancellation. It has no file-browser, arbitrary
 command, generic API proxy, reset or update interface. Certificate trust is
@@ -108,9 +124,34 @@ pinned through the invitation, and each peer has its own revocable credentials.
 Browser origins, URL credentials and public/DNS endpoints are rejected. Image
 results are checked as bounded PNGs; locked-image access remains enforced.
 
+Bridge lifecycle, pairing/revocation, job transitions and connection failures or
+recovery are recorded in `backend.log`. Bridge events contain IDs and bounded
+diagnostics, not invitation codes, prompts or returned content. Session query
+credentials and authorization headers are redacted, including exception text.
+Backend and desktop logs follow `LAW_LOG_DIR`, or the `logs` folder under
+`LAW_DATA_DIR`. Rotation bounds log size. Startup failures also remain on stderr
+so Electron can show its recovery guidance. Delayed startup and sustained loss
+of backend health are checked again without spawning duplicate backends.
+
+The listener inventory reports when the Ollama port is bound beyond loopback,
+or when OS permissions prevent checking it. This does not test firewall reachability.
+The bridge does not need Ollama to accept connections from other PCs. For an
+Ollama instance you start from PowerShell, finish its work and quit it first, then:
+
+```powershell
+$env:OLLAMA_HOST = '127.0.0.1:11434'
+ollama serve
+```
+
+If another launcher or service starts Ollama, configure that launcher's environment
+instead. The app reports the existing listener; it does not silently restart
+Ollama or change firewall rules.
+
 Automated coverage includes two real HTTPS listeners, bidirectional pairing and
 jobs, wrong-certificate rejection, lost acknowledgments, deduplication, restart
 records, cancellation, peer ownership, request limits and saving results once.
+Fault coverage also exercises port conflicts and retry, certificate loss, partial
+capabilities, storage failure/recovery, credential redaction and health recovery.
 Chat/image adapters are exercised through the real local routes and shared
 queue with inference mocked. Headless UI QA exercises the Dashboard controls
 with mocked network responses. This does not establish actual two-PC firewall,

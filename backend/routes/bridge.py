@@ -2,10 +2,14 @@
 import asyncio
 from contextlib import suppress, asynccontextmanager
 import threading
+import logging
+import json
+import sqlite3
 import uuid
 
 import httpx
 from fastapi import APIRouter, HTTPException
+from fastapi.routing import APIRoute
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
 
@@ -13,6 +17,19 @@ from config import settings
 from services.bridge import Bridge, TaskSpec
 from services.bridge_store import TERMINAL
 from services.session_guard import expected_token
+logger = logging.getLogger(__name__)
+
+
+class BridgeRoute(APIRoute):
+    def get_route_handler(self):
+        handler = super().get_route_handler()
+        async def guarded(request):
+            try:
+                return await handler(request)
+            except (OSError, sqlite3.Error, json.JSONDecodeError) as exc:
+                logger.error("Bridge storage operation failed (%s)", type(exc).__name__)
+                raise HTTPException(503, "Bridge storage unavailable. Check free disk space and data-folder permissions, then retry. Other workspaces remain available.") from exc
+        return guarded
 
 @asynccontextmanager
 async def lifespan(app):
@@ -23,7 +40,7 @@ async def lifespan(app):
         await shutdown()
 
 
-router = APIRouter(prefix="/bridge", tags=["bridge"], lifespan=lifespan)
+router = APIRouter(prefix="/bridge", tags=["bridge"], lifespan=lifespan, route_class=BridgeRoute)
 _instance = None
 _lock = threading.RLock()
 _poll_task = None
@@ -64,7 +81,7 @@ class SubmitRequest(TaskSpec):
 
 @router.get("")
 async def status():
-    return get_bridge().status()
+    return await run_in_threadpool(lambda: get_bridge().status())
 
 
 @router.post("/start")
@@ -103,6 +120,7 @@ async def revoke(peer_id: uuid.UUID):
         peer.update(enabled=False, inbound="", token="")
         bridge.store.save_peer(peer)
         bridge.invites.clear()
+        logger.info("Bridge peer %s revoked", peer_id)
     return {"revoked": True}
 
 
@@ -214,12 +232,24 @@ async def startup():
 
     async def poll():
         from services.maintenance_gate import gate
+        failed = False
         while True:
-            if _instance and _instance.running and not gate.blocked():
-                pending = [job for job in _instance.store.jobs("outgoing") if job["status"] not in TERMINAL]
-                # Bound simultaneous transfers; each request has its own timeout.
-                for offset in range(0, len(pending), 2):
-                    await asyncio.gather(*(_instance.sync(job["id"]) for job in pending[offset:offset + 2]), return_exceptions=True)
+            try:
+                if _instance and _instance.running and not gate.blocked():
+                    pending = [job for job in _instance.store.jobs("outgoing") if job["status"] not in TERMINAL]
+                    # Bound simultaneous transfers; each request has its own timeout.
+                    for offset in range(0, len(pending), 2):
+                        results = await asyncio.gather(*(_instance.sync(job["id"]) for job in pending[offset:offset + 2]), return_exceptions=True)
+                        for result in results:
+                            if isinstance(result, Exception):
+                                raise result
+                if failed:
+                    logger.info("Bridge status polling recovered")
+                failed = False
+            except Exception as exc:
+                if not failed:
+                    logger.error("Bridge status polling unavailable (%s); will retry", type(exc).__name__)
+                failed = True
             await asyncio.sleep(3)
     _poll_task = asyncio.create_task(poll())
 
@@ -230,4 +260,7 @@ async def shutdown():
         with suppress(asyncio.CancelledError):
             await _poll_task
     if _instance:
-        await run_in_threadpool(_instance.stop, True)
+        try:
+            await run_in_threadpool(_instance.stop, True)
+        except (OSError, ValueError, sqlite3.Error):
+            logger.error("Bridge shutdown did not finish cleanly; unfinished jobs will be marked interrupted on restart")

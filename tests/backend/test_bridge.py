@@ -291,3 +291,144 @@ def test_local_routes_require_session_and_save_result_once(tmp_path, monkeypatch
         assert result.json()["session_id"] == session_id
         assert session_store.get_session(session_id)["messages"][0]["content"] == "Later user edit"
         assert len(list(sessions_dir.glob("*.json"))) == 1
+
+
+def test_bind_conflict_cleans_up_and_can_retry(tmp_path):
+    bridge = Bridge(tmp_path, "http://127.0.0.1:1", "secret")
+    with socket.socket() as blocker:
+        if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            blocker.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        blocker.bind(("127.0.0.1", 0))
+        blocker.listen()
+        with pytest.raises(ValueError, match="unused port"):
+            bridge.start("127.0.0.1", blocker.getsockname()[1], "PC")
+        assert not bridge.running and bridge.listener_error
+    try:
+        bridge.start("127.0.0.1", free_port(), "PC")
+        assert bridge.running and bridge.listener_error is None
+        assert bridge.server.config.proxy_headers is False
+    finally:
+        bridge.stop(True)
+    assert not bridge.running and bridge.url is None
+
+
+def test_missing_certificate_never_silently_rotates_peer_identity(tmp_path):
+    bridge = Bridge(tmp_path, "http://127.0.0.1:1", "secret")
+    cert, key = bridge.certificate()
+    original = key.read_bytes()
+    cert.unlink()
+    with pytest.raises(ValueError, match="Restore"):
+        bridge.start("127.0.0.1", free_port(), "PC")
+    assert key.read_bytes() == original
+    assert not bridge.running
+
+
+def test_thread_start_failure_releases_bound_socket(tmp_path, monkeypatch):
+    import threading
+    bridge = Bridge(tmp_path, "http://127.0.0.1:1", "secret")
+    port = free_port()
+    def fail(*args):
+        raise RuntimeError("cannot start new thread")
+    monkeypatch.setattr(threading.Thread, "start", fail)
+    with pytest.raises(ValueError, match="Bridge could not open"):
+        bridge.start("127.0.0.1", port, "PC")
+    assert not bridge.running and bridge.listener_error
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", port))
+
+
+def test_partial_capabilities_keep_chat_when_image_service_fails(tmp_path, monkeypatch):
+    bridge = Bridge(tmp_path, "http://127.0.0.1:1", "secret")
+    async def get(path):
+        if path == "/models":
+            return {"models": [{"name": "chat-model"}]}
+        raise httpx.ReadTimeout("loading")
+    monkeypatch.setattr(bridge, "local_get", get)
+    monkeypatch.setattr("services.system_stats.read_gpus", lambda: ([], None))
+    result = asyncio.run(bridge.capabilities())
+    assert result["chat_models"] == [{"id": "chat-model", "size": None}]
+    assert result["image_models"] == [] and result["image_error"]
+    assert result["chat_error"] is None
+
+
+def test_retry_delivery_preserves_cancellation_intent(tmp_path):
+    calls = []
+    async def transport(peer, method, path, body=None):
+        calls.append((method, path))
+        return {"id": job_id, "status": "cancelled"}
+    bridge = Bridge(tmp_path, "http://127.0.0.1:1", "secret", transport=transport)
+    peer = seed_peer(bridge)
+    job_id = str(uuid.uuid4())
+    bridge.store.insert("outgoing", job_id, peer["id"], spec())
+    bridge.store.update("outgoing", job_id, cancel_requested=True)
+    assert asyncio.run(bridge.sync(job_id, submit=True))["status"] == "cancelled"
+    assert calls == [("POST", f"/jobs/{job_id}/cancel")]
+
+
+def test_gateway_checks_bearer_host_and_softens_storage_failure(tmp_path, monkeypatch):
+    import sqlite3
+    bridge = Bridge(tmp_path, "http://127.0.0.1:1", "secret")
+    peer = seed_peer(bridge)
+    bridge.url = "https://127.0.0.1:8765"
+    headers = {"Authorization": "Bearer " + peer["inbound"]}
+    with TestClient(bridge.gateway, base_url=bridge.url) as client:
+        assert client.get("/capabilities", headers={"Authorization": peer["inbound"]}).status_code == 401
+        assert client.get("/capabilities", headers={**headers, "Host": "unrelated.local"}).status_code == 421
+        def fail():
+            raise sqlite3.OperationalError("database locked")
+        monkeypatch.setattr(bridge.store, "peers", fail)
+        response = client.get("/capabilities", headers=headers)
+        assert response.status_code == 503
+        assert "storage unavailable" in response.text
+
+
+def test_job_list_omits_large_results_and_receipts_preserve_deduplication(tmp_path):
+    store = BridgeStore(tmp_path)
+    job_id, peer_id = str(uuid.uuid4()), str(uuid.uuid4())
+    store.insert("incoming", job_id, peer_id, spec())
+    store.update("incoming", job_id, status="completed", result={"text": "large result"})
+    assert "result" not in store.jobs()[0]
+    assert store.job("incoming", job_id)["result"]["text"] == "large result"
+    store.delete("incoming", job_id)
+    assert store.jobs() == []
+    assert store.insert("incoming", job_id, peer_id, spec())[1] is False
+
+
+def test_local_storage_failure_returns_actionable_503(tmp_path, monkeypatch):
+    import sqlite3
+    from fastapi import FastAPI
+    from routes import bridge as controls
+    bridge = Bridge(tmp_path, "http://127.0.0.1:1", "secret")
+    monkeypatch.setattr(controls, "_instance", bridge)
+    def fail(*args):
+        raise sqlite3.OperationalError("disk full")
+    monkeypatch.setattr(bridge.store, "jobs", fail)
+    app = FastAPI()
+    app.include_router(controls.router)
+    with TestClient(app) as client:
+        response = client.get("/bridge/jobs")
+        assert response.status_code == 503
+        assert "free disk space" in response.text
+
+
+def test_polling_survives_storage_failure_and_recovers(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from routes import bridge as controls
+    calls = []
+    recovered = asyncio.Event()
+    def jobs(*args):
+        calls.append(True)
+        if len(calls) == 1:
+            raise OSError("temporarily unavailable")
+        recovered.set()
+        return []
+    fake = SimpleNamespace(running=True, store=SimpleNamespace(jobs=jobs), stop=lambda *args: None)
+    monkeypatch.setattr(controls, "_instance", fake)
+    async def scenario():
+        await controls.startup()
+        try:
+            await asyncio.wait_for(recovered.wait(), 5)
+            assert not controls._poll_task.done()
+        finally:
+            await controls.shutdown()
+    asyncio.run(scenario())

@@ -27,7 +27,7 @@ for (const stream of [process.stdout, process.stderr]) stream?.on("error", () =>
 
 function resolveLogDir() {
   // Mirrors LAW_LOG_DIR on the Python side so both halves stay together.
-  return process.env.LAW_LOG_DIR || path.join(__dirname, "..", "data", "logs");
+  return process.env.LAW_LOG_DIR || path.join(process.env.LAW_DATA_DIR || path.join(__dirname, "..", "data"), "logs");
 }
 
 function ensureLogFile() {
@@ -80,7 +80,7 @@ function emit(level, line) {
     else console.log(line);
   } catch { /* File logging below remains available without a console. */ }
 
-  if (!ensureLogFile()) return;
+  if (!ensureLogFile() || fileLoggingBroken) return;
   rotateIfNeeded();
   try {
     fs.appendFileSync(logFile, `${line}\n`, "utf8");
@@ -91,7 +91,9 @@ function emit(level, line) {
 
 function write(level, scope, message) {
   // Split so a multi-line chunk does not leave continuation lines unlabelled.
-  const lines = String(message).replace(/((?:law_token|apiToken)=)[^&\s"']+/g, "$1REDACTED").split(/\r?\n/).map((l) => l.trimEnd()).filter(Boolean);
+  const lines = String(message).replace(/((?:law_token|apiToken)=)[^&\s"']+/gi, "$1REDACTED")
+    .replace(/(Bearer\s+|X-LAW-Session["']?\s*[:=]\s*["']?)[^\s"',;}]+/gi, "$1REDACTED")
+    .split(/\r?\n/).map((l) => l.trimEnd()).filter(Boolean);
   if (lines.length === 0) return;
 
   for (const line of lines) {
@@ -122,7 +124,8 @@ function createLogger(scope) {
 }
 
 function logFilePath() {
-  return ensureLogFile();
+  const target = ensureLogFile();
+  return fileLoggingBroken ? null : target;
 }
 
 module.exports = { createLogger, logFilePath };

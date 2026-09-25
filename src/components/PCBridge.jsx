@@ -25,6 +25,7 @@ export default function PCBridge() {
   const dispatch = useDispatch();
   const [status, setStatus] = useState(null), [jobs, setJobs] = useState([]);
   const [error, setError] = useState(""), [notice, setNotice] = useState(""), [busy, setBusy] = useState(false);
+  const [pollError, setPollError] = useState("");
   const [address, setAddress] = useState(""), [port, setPort] = useState(8765), [name, setName] = useState("My PC");
   const [invitation, setInvitation] = useState(""), [code, setCode] = useState("");
   const [peerId, setPeerId] = useState(""), [capabilities, setCapabilities] = useState(null);
@@ -36,7 +37,7 @@ export default function PCBridge() {
 
   async function refresh() {
     const [next, history] = await Promise.all([bridgeRequest(), bridgeRequest("/jobs")]);
-    setStatus(next); setJobs(history.jobs || []);
+    setStatus(next); setJobs(history.jobs || []); setPollError("");
     if (!initialized.current) {
       initialized.current = true;
       setAddress(next.listen.address); setPort(next.listen.port); setName(next.name);
@@ -48,12 +49,12 @@ export default function PCBridge() {
       try {
         const [next, history] = await Promise.all([bridgeRequest(), bridgeRequest("/jobs")]);
         if (!stopped) {
-          setStatus(next); setJobs(history.jobs || []);
+          setStatus(next); setJobs(history.jobs || []); setPollError("");
           if (!initialized.current) {
             initialized.current = true; setAddress(next.listen.address); setPort(next.listen.port); setName(next.name);
           }
         }
-      } catch { if (!stopped) setError("Bridge controls unavailable. Restart the app after installing the bridge update."); }
+      } catch (failure) { if (!stopped) setPollError(`Bridge status unavailable. ${failure.message} Checks will continue automatically.`); }
       if (!stopped) timer = setTimeout(poll, 5000);
     }
     void poll();
@@ -107,16 +108,21 @@ export default function PCBridge() {
   return <section className="dashboard-card pc-bridge" aria-label="PC bridge">
     <h2>PC bridge</h2>
     <p>Pair two PCs to delegate chat and image generation. Each PC keeps its own queue and models. Start the bridge explicitly on both PCs each time you open the app.</p>
-    {error && <p role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}
-    <p><strong>{status?.running ? `Listening at ${status.url}` : "Network bridge off"}</strong></p>
+    {error && <p role="alert">{error}</p>}{pollError && <p role="alert">{pollError}</p>}{notice && <p role="status">{notice}</p>}
+    <p><strong>{pollError ? "Bridge status unknown" : !status ? "Checking bridge status…" : status.running ? `Listening at ${status.url}` : "Network bridge off"}</strong></p>
+    {status?.listener_error && <p role="alert">{status.listener_error}</p>}
+    {status?.logging?.detail && <p role="alert">{status.logging.detail}</p>}
+    {status?.network?.warnings?.map(warning => <p role="alert" key={warning}>{warning}</p>)}
+    {status?.network?.local_api && <p className="dashboard-note">Local app API: {status.network.local_api} · {status.logging?.file_available ? "Backend file logging active" : "Backend file logging unavailable"}</p>}
     <div className="bridge-fields">
       <label>PC name<input maxLength={60} value={name} disabled={status?.running || busy} onChange={event => setName(event.target.value)} /></label>
-      <label>This PC’s private IPv4 address<input placeholder="192.168.1.20" value={address} disabled={status?.running || busy} onChange={event => setAddress(event.target.value)} /></label>
+      <label>This PC’s private IPv4 address<input list="bridge-local-addresses" placeholder="192.168.1.20" value={address} disabled={status?.running || busy} onChange={event => setAddress(event.target.value)} /></label>
+      <datalist id="bridge-local-addresses">{status?.network?.addresses?.map(item => <option key={`${item.name}-${item.address}`} value={item.address}>{item.name}</option>)}</datalist>
       <label>Port<input type="number" min={1024} max={65535} value={port} disabled={status?.running || busy} onChange={event => setPort(Number(event.target.value))} /></label>
     </div>
     <p className="dashboard-note">Find the Wi-Fi or Ethernet IPv4 address with ipconfig. Use a private LAN or VPN address. If Windows asks, allow this Python environment on private networks. Changing the address requires pairing again.</p>
     <div className="bridge-actions">
-      {!status?.running ? <button disabled={busy || !address || !name} onClick={() => action("/start", "POST", { address, port, name })}>Start bridge</button> :
+      {!status?.running ? <button disabled={busy || !!pollError || !status || !address || !name} onClick={() => action("/start", "POST", { address, port, name })}>Start bridge</button> :
         <button disabled={busy} onClick={() => perform(async () => { await bridgeRequest("/stop", "POST"); setInvitation(""); })}>Stop bridge</button>}
       <button disabled={busy || !status?.running} onClick={() => perform(async () => { setInvitation((await bridgeRequest("/invitation", "POST")).code); })}>Create pairing invitation</button>
     </div>
@@ -135,6 +141,7 @@ export default function PCBridge() {
       <label>Exact model<select value={model} onChange={event => setModel(event.target.value)}><option value="">Choose worker model</option>{models.map(item => <option key={item.id} value={item.id}>{item.name || item.id}</option>)}</select></label>
     </div>
     {capabilities && <p>{capabilities.pending} bridge jobs outstanding · {typeof capabilities.host?.memory_available_bytes === "number" ? `${(capabilities.host.memory_available_bytes / 1024 ** 3).toFixed(1)} GiB RAM available at check time` : "RAM reading unavailable"}. {models.length ? "Model detected; workload fit still depends on available memory." : "No compatible models detected for this task."}</p>}
+    {capabilities?.[`${kind}_error`] && <p role="status">{capabilities[`${kind}_error`]}</p>}
     {capabilities?.gpus?.map((gpu, index) => <p key={index}>{gpu.name} · {typeof gpu.vram_total_bytes === "number" && typeof gpu.vram_used_bytes === "number" ? `${(Math.max(0, gpu.vram_total_bytes - gpu.vram_used_bytes) / 1024 ** 3).toFixed(1)} GiB VRAM free at check time` : "VRAM availability unknown"}</p>)}
     <label>Prompt<textarea rows={4} maxLength={12000} value={prompt} onChange={event => setPrompt(event.target.value)} /></label>
     {kind === "image" && <div className="bridge-fields">
@@ -143,7 +150,7 @@ export default function PCBridge() {
       <label>Steps<input type="number" min={1} max={50} value={steps} onChange={event => setSteps(Number(event.target.value))} /></label>
     </div>}
     <p className="dashboard-note">Only this prompt and these settings are sent. This first version does not send chat history, attachments, memories, knowledge collections, LoRAs or training datasets. Results stay in Bridge until you save them to Chats.</p>
-    <button disabled={busy || !status?.running || !peerId || !model || !prompt.trim() || !peers.some(peer => peer.id === peerId && peer.enabled)} onClick={submit}>Send task to selected PC</button>
+    <button disabled={busy || !!pollError || !status?.running || !peerId || !model || !prompt.trim() || !peers.some(peer => peer.id === peerId && peer.enabled)} onClick={submit}>Send task to selected PC</button>
     <h3>Bridge jobs</h3>
     <BridgeJobs jobs={jobs} peers={peers} busy={busy} action={action} showResult={showResult} saveResult={saveResult} />
     {result && <section className="bridge-result" aria-label="Bridge result"><button onClick={() => setResult(null)}>Close result</button><h3>{result.label}</h3>

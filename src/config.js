@@ -8,13 +8,13 @@
  * separately started backend.
  *
  * Resolution order:
- *   1. ?apiBase=http://host:port   explicit override, mostly for debugging
+ *   1. ?apiBase=http://127.0.0.1:port   loopback override for debugging
  *   2. ?apiPort=NNNN               what Electron passes
- *   3. http://localhost:8000       the development default
+ *   3. http://127.0.0.1:8000       the development default
  */
 
 export const DEFAULT_API_PORT = 8000;
-export const DEFAULT_API_BASE = `http://localhost:${DEFAULT_API_PORT}`;
+export const DEFAULT_API_BASE = `http://127.0.0.1:${DEFAULT_API_PORT}`;
 
 function readSearchParams() {
   if (typeof window === "undefined" || !window.location) return null;
@@ -30,11 +30,19 @@ export function resolveApiBase(params = readSearchParams()) {
   if (!params) return DEFAULT_API_BASE;
 
   const explicit = (params.get("apiBase") || "").trim();
-  if (explicit) return explicit.replace(/\/+$/, "");
+  if (explicit) {
+    try {
+      const url = new URL(explicit);
+      if (url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(url.hostname) &&
+          !url.username && !url.password && !url.search && !url.hash && url.pathname === "/") {
+        return `http://127.0.0.1:${url.port || 80}`;
+      }
+    } catch { /* Fall back to the local API without sending credentials elsewhere. */ }
+  }
 
-  const port = Number.parseInt(params.get("apiPort") || "", 10);
+  const port = Number(params.get("apiPort") || "");
   if (Number.isInteger(port) && port > 0 && port < 65536) {
-    return `http://localhost:${port}`;
+    return `http://127.0.0.1:${port}`;
   }
 
   return DEFAULT_API_BASE;

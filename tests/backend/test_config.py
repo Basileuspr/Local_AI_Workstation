@@ -80,14 +80,23 @@ def test_performance_defaults_support_opt_out_and_reject_negative_values(monkeyp
 
 # --- overrides -------------------------------------------------------------
 
-def test_host_and_port_are_overridable(monkeypatch):
+def test_api_stays_loopback_when_network_host_is_requested(monkeypatch):
     env(monkeypatch, "HOST", "0.0.0.0")
     env(monkeypatch, "PORT", "9123")
 
     settings = load_settings()
 
-    assert settings.host == "0.0.0.0"
+    assert settings.host == "127.0.0.1"
+    assert any("LAW_HOST ignored" in warning for warning in settings.warnings)
     assert settings.port == 9123
+
+
+@pytest.mark.parametrize("port", ["65536", "999999", "123junk", "-1", "0"])
+def test_invalid_tcp_port_falls_back_with_warning(monkeypatch, port):
+    env(monkeypatch, "PORT", port)
+    settings = load_settings()
+    assert settings.port == 8000
+    assert settings.warnings
 
 
 def test_ollama_url_is_overridable_and_normalised(monkeypatch):

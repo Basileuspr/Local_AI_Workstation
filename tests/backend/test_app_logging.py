@@ -186,3 +186,25 @@ def test_log_file_path_reports_where_records_are_written(monkeypatch, tmp_path):
     monkeypatch.setenv(app_logging.LOG_DIR_ENV, str(tmp_path / "logs"))
 
     assert app_logging.log_file_path() == tmp_path / "logs" / app_logging.LOG_FILENAME
+
+
+def test_credentials_are_redacted_in_headers_and_tracebacks(log_dir):
+    path = app_logging.setup_logging(force=True)
+    try:
+        raise ValueError("Bearer PRIVATE_BEARER X-LAW-Session: PRIVATE_SESSION /?law_token=PRIVATE_QUERY")
+    except ValueError:
+        app_logging.get_logger("test").exception("Cannot connect")
+    contents = path.read_text(encoding="utf-8")
+    assert "PRIVATE_" not in contents
+    assert "REDACTED" in contents and "ValueError" in contents
+
+
+def test_file_write_failure_is_visible_and_repeated_setup_does_not_claim_success(log_dir, monkeypatch):
+    app_logging.setup_logging(force=True)
+    handler = app_logging._file_handler
+    def fail(*args):
+        raise OSError("disk full")
+    monkeypatch.setattr(handler, "shouldRollover", fail)
+    app_logging.get_logger("test").warning("Console survives")
+    assert not app_logging.logging_status()["file_available"]
+    assert app_logging.setup_logging() is None
