@@ -1,9 +1,8 @@
 /**
  * Shared implementation behind every "put a file into this chat" entry point.
  *
- * The app deliberately offers two upload surfaces — the attachment menu beside
- * the message box, and the "Add file to this chat" button plus drag-and-drop
- * over the transcript. They look and behave differently on purpose. Only the
+ * Entry points include clipboard paste and the attachment menu beside the
+ * message box, plus "Add file to this chat" and transcript drag-and-drop. Only the
  * work underneath is shared: validation, reading, message construction,
  * persistence, and error handling.
  *
@@ -112,14 +111,14 @@ export function useChatUploads({ onNewChat, onSessionSaved } = {}) {
   // Guards against a second upload starting while one is mid-flight, which
   // would otherwise race on the same conversation history.
   const busyRef = useRef(false);
+  const currentSessionRef = useRef(state.currentSessionId);
+  currentSessionRef.current = state.currentSessionId;
 
   const {
     currentSessionId,
     conversationHistory,
     selectedModel,
     sessionTitle,
-    memorySummary,
-    summarizedMessageCount,
   } = state;
 
   /**
@@ -139,33 +138,42 @@ export function useChatUploads({ onNewChat, onSessionSaved } = {}) {
   }, [currentSessionId, conversationHistory, sessionTitle, onNewChat]);
 
   const commit = useCallback(
-    async (sessionId, history, title) => {
-      dispatch({
-        type: "SET_SESSION",
-        payload: {
-          id: sessionId,
-          messages: history,
-          title,
-          memorySummary,
-          summarizedMessageCount,
-        },
-      });
-      await api.saveSession(sessionId, history, selectedModel, {
-        memorySummary,
-        summarizedMessageCount,
-      });
-      await onSessionSaved?.();
+    async (sessionId, message) => {
+      // Append on the server so another upload/reply cannot be overwritten by
+      // the history captured before a slow clipboard image finished reading.
+      const saved = await api.appendSessionMessages(sessionId, [message], selectedModel);
+      if (currentSessionRef.current === sessionId) {
+        dispatch({
+          type: "SET_SESSION",
+          payload: {
+            id: sessionId,
+            messages: saved.messages,
+            title: saved.title,
+            memorySummary: saved.memory_summary || "",
+            summarizedMessageCount: saved.summarized_message_count || 0,
+          },
+        });
+        dispatch({ type: "SET_SCROLL_TARGET", payload: message.id });
+      }
+      // A sidebar refresh failure must not imply the saved attachment was lost.
+      try { await onSessionSaved?.(); }
+      catch (error) { console.warn("Could not refresh chats after attaching a file", error); }
+      return saved;
     },
-    [dispatch, memorySummary, summarizedMessageCount, selectedModel, onSessionSaved]
+    [dispatch, selectedModel, onSessionSaved]
   );
 
   /**
-   * Append one file to `target`, returning the new history so a batch can
-   * chain uploads without every iteration rebuilding from a stale base.
+   * Append one file to `target`, keeping every file in a batch in that chat.
    */
   const appendFile = useCallback(
     async (file, target, { onStart, onSuccess, onError } = {}) => {
       const image = isImageFile(file);
+
+      if (file?.type?.startsWith("image/") && !image) {
+        onError?.(userFacingError("Unsupported image format. Paste a PNG, JPEG, or WebP image."), file);
+        return null;
+      }
 
       if (image) {
         const problem = validateImageFile(file);
@@ -184,10 +192,9 @@ export function useChatUploads({ onNewChat, onSessionSaved } = {}) {
             })()
           : buildDocumentMessage(await api.parseFile(file));
 
-        const history = [...target.messages, message];
-        await commit(target.id, history, target.title);
+        const saved = await commit(target.id, message);
         onSuccess?.(file);
-        return { ...target, messages: history };
+        return { ...target, messages: saved.messages, title: saved.title };
       } catch (error) {
         onError?.(error, file);
         return null;
@@ -196,12 +203,18 @@ export function useChatUploads({ onNewChat, onSessionSaved } = {}) {
     [commit]
   );
 
-  const runExclusive = useCallback(async (work) => {
-    if (busyRef.current) return false;
+  const runExclusive = useCallback(async (work, callbacks, file) => {
+    if (busyRef.current) {
+      callbacks?.onError?.(userFacingError("An attachment is already being saved. Wait for it to finish, then try again."), file);
+      return false;
+    }
     busyRef.current = true;
     setIsUploading(true);
     try {
       return await work();
+    } catch (error) {
+      callbacks?.onError?.(error, file);
+      return false;
     } finally {
       busyRef.current = false;
       setIsUploading(false);
@@ -218,7 +231,7 @@ export function useChatUploads({ onNewChat, onSessionSaved } = {}) {
           return false;
         }
         return Boolean(await appendFile(file, target, callbacks));
-      }),
+      }, callbacks, file),
     [runExclusive, resolveTarget, appendFile]
   );
 
@@ -232,15 +245,14 @@ export function useChatUploads({ onNewChat, onSessionSaved } = {}) {
           return false;
         }
         return Boolean(await appendFile(file, target, callbacks));
-      }),
+      }, callbacks, file),
     [runExclusive, resolveTarget, appendFile]
   );
 
   /**
    * Upload several files, routing each by type.
    *
-   * History is threaded from one file to the next so a multi-file drop keeps
-   * every file rather than only the last.
+   * Server-side append keeps every file without replacing concurrent replies.
    */
   const uploadFiles = useCallback(
     (files, callbacks = {}) =>
@@ -263,7 +275,7 @@ export function useChatUploads({ onNewChat, onSessionSaved } = {}) {
           }
         }
         return uploaded > 0;
-      }),
+      }, callbacks, files?.[0]),
     [runExclusive, resolveTarget, appendFile]
   );
 

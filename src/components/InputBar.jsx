@@ -8,6 +8,7 @@ import { buildRoleplaySystemPrompt } from "../roleplayPrompt";
 import { mergeSystemPrompt } from "../responseStyle";
 import { createMessageId } from "../messageIds";
 import { useChatUploads } from "../useChatUploads";
+import { pasteChatFiles } from "../chatClipboard";
 import { QueueRequestStatus } from "./PromptQueue";
 import ChatImageControls from "./ChatImageControls";
 import { useImageGeneration } from "../ImageGenerationContext";
@@ -35,7 +36,7 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
   const imageInputRef = useRef(null);
   const documentInputRef = useRef(null);
   const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
-  const { uploadImage, uploadDocument } = useChatUploads({ onNewChat, onSessionSaved });
+  const { uploadImage, uploadDocument, uploadFiles, isUploading } = useChatUploads({ onNewChat, onSessionSaved });
   const selectedEdit = destinations?.chatEdit?.sessionId === state.currentSessionId ? destinations.chatEdit : null;
   useEffect(() => {
     const focus = () => { if (active) { textareaRef.current.value = "/Edit "; textareaRef.current.focus(); } };
@@ -188,7 +189,22 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
     });
   }
 
+  function handlePaste(event) {
+    void pasteChatFiles(event, {
+      busy: isUploading || isGenerating,
+      onError: message => showToast(message, "error"),
+      upload: files => {
+        setAttachmentMenuOpen(false);
+        return uploadFiles(files, {
+          onSuccess: () => showToast("Clipboard attachment saved to chat", "success"),
+          onError: error => showToast(error.userFacing ? error.message : "Clipboard attachment failed: " + error.message, "error"),
+        });
+      },
+    });
+  }
+
   function sendMessage() {
+    if (isUploading) { showToast("Wait for the attachment to finish saving before sending.", "error"); return; }
     const text = textareaRef.current?.value.trim();
     if (!text) return;
     if (isEditCommand(text)) { void startChatEdit(text); return; }
@@ -418,6 +434,7 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
       <ChatImageControls active={active} onGenerate={generateChatImage} />
       <div className="chat-document-command"><button type="button" onClick={() => { textareaRef.current.value = "/docx " + (textareaRef.current.value || ""); textareaRef.current.focus(); }}>Create Word document</button><span>Describe the document here, or ask “make this a .docx”.</span></div>
       <QueueRequestStatus requestId={refs.generationRequestId} />
+      <small id="chat-clipboard-hint" role="status">{isUploading ? "Saving attachment to chat…" : "Paste screenshots or files here with Ctrl+V. Text pastes normally."}</small>
       {chatSubmissions.some(job => job.status === "waiting") && <div className="chat-pending-requests" aria-label="Waiting chat prompts">
         <small>Follow-ups wait for the earlier reply, then join Prompt Queue with its updated context.</small>
         {chatSubmissions.filter(job => job.status === "waiting").map(job => <div key={job.id}><span>{job.label}</span><button type="button" onClick={() => chatSubmissionQueue.cancel(job.id)}>Cancel waiting prompt</button></div>)}
@@ -431,7 +448,7 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
             aria-label="Add content"
             aria-expanded={attachmentMenuOpen}
             aria-controls="attachment-menu"
-            disabled={isGenerating}
+            disabled={isGenerating || isUploading}
             onClick={() => setAttachmentMenuOpen((open) => !open)}
           >
             +
@@ -469,12 +486,15 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
           rows={1}
           onKeyDown={handleKeyDown}
           onInput={handleInput}
+          onPaste={handlePaste}
+          aria-describedby="chat-clipboard-hint"
         />
         <button
           id="send-btn"
           title={chatSubmissions.length ? "Queue message" : "Send"}
           aria-label={chatSubmissions.length ? "Queue message" : "Send"}
           onClick={sendMessage}
+          disabled={isUploading}
         >
           &#x2191;
         </button>
