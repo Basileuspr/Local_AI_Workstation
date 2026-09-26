@@ -89,6 +89,47 @@ def generation_options(request_id="image-request-1"):
     }
 
 
+@pytest.mark.parametrize("session_id", [None, "fixture-chat"])
+def test_generate_route_keeps_session_on_queue_not_pipeline(monkeypatch, tmp_path, session_id):
+    import asyncio
+    import base64
+    from PIL import Image
+    from routes import image_generation as routes
+    from services.request_queue import RequestQueue
+
+    class Pipeline:
+        def __call__(self, **kwargs):
+            assert "session_id" not in kwargs
+            return SimpleNamespace(images=[Image.new("RGB", (8, 8))])
+
+    class Client:
+        async def is_disconnected(self):
+            return False
+
+    async def prepare(_kind):
+        pass
+
+    manager, coordinator = configure_manager(monkeypatch, tmp_path, Pipeline())
+    queue = RequestQueue()
+    monkeypatch.setattr(routes, "manager", manager)
+    monkeypatch.setattr(routes, "queue", queue)
+    monkeypatch.setattr(routes, "prepare_runtime", prepare)
+    monkeypatch.setattr(routes, "OUTPUT_DIR", tmp_path)
+    monkeypatch.setattr(routes.image_store, "BLOBS_DIR", tmp_path / "blobs")
+    request = routes.ImageGenerationRequest(**generation_options(), session_id=session_id)
+
+    result = asyncio.run(routes.generate_image(request, Client()))
+
+    output = (tmp_path / result["filename"]).read_bytes()
+    assert output.startswith(b"\x89PNG")
+    assert base64.b64decode(result["data_url"].split(",", 1)[1]) == output
+    assert routes.image_store.is_reference(result["image_ref"])
+    job = queue.jobs[-1]
+    assert job.session_id == session_id
+    assert job.status == "completed"
+    assert coordinator.current_owner() is None
+
+
 @pytest.mark.parametrize("previous_lora", [None, "previous-adapter"])
 def test_base_model_generation_never_requires_lora_discovery(monkeypatch, tmp_path, previous_lora):
     from PIL import Image

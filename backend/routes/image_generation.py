@@ -123,7 +123,8 @@ async def generate_image(request: ImageGenerationRequest, client_request: Reques
 
 def _generate_image(request: ImageGenerationRequest, cancellation_event=None):
     try:
-        result = manager.generate(**request.model_dump(), cancellation_event=cancellation_event)
+        # The session identifies the queue's chat destination, not a pipeline option.
+        result = manager.generate(**request.model_dump(exclude={"session_id"}), cancellation_event=cancellation_event)
         output_path = OUTPUT_DIR / result["filename"]
         data = output_path.read_bytes()
 
