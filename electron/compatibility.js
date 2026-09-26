@@ -1,5 +1,6 @@
 const fs = require("node:fs");
 const path = require("node:path");
+const { entryExists, findWindowsProgram } = require("./windowsPrograms");
 
 function backendFailure({ code, error = "", stderr = "" } = {}) {
     const evidence = `${error}\n${stderr}`;
@@ -26,7 +27,7 @@ function pythonPreflight(python, exists = fs.existsSync) {
         throw new Error(backendFailure({ error: "ENOENT" }));
 }
 
-function desktopCapabilities({ mediaDirectory, python, platform = process.platform, environment = process.env, exists = fs.existsSync }) {
+function desktopCapabilities({ mediaDirectory, python, platform = process.platform, environment = process.env, exists = entryExists }) {
     const found = target => { try { return exists(target); } catch { return false; } };
     const onPath = name => (environment.Path || environment.PATH || "").split(path.delimiter)
         .filter(Boolean).some(folder => found(path.join(folder.replace(/^"|"$/g, ""), name)));
@@ -34,7 +35,7 @@ function desktopCapabilities({ mediaDirectory, python, platform = process.platfo
     const powershell = windows && found(path.win32.join(environment.SystemRoot || "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe"));
     const pythonAvailable = /[\\/]/.test(python) ? found(python) : onPath(python);
     const mediaAvailable = pythonAvailable && found(path.join(mediaDirectory, "media_organizer", "ui_server.py"));
-    const winget = windows && onPath("winget.exe");
+    const winget = windows && findWindowsProgram("winget.exe", environment, exists);
     const state = (available, detail) => ({ available, detail });
     return { features: {
         media_manager: state(mediaAvailable, mediaAvailable ? "Media Manager and its Python runtime are available." : "Media Manager or its Python runtime is missing. Restore the bundled media-manager folder and run the workstation setup script."),

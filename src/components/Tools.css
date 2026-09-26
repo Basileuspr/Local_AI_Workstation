@@ -29,4 +29,31 @@
 .function-launcher:hover { border-color: var(--accent); background: var(--accent-dim); }
 .function-launcher:disabled { opacity: .5; cursor: wait; }
 .function-launcher span { color: var(--text-dim); font-size: 13px; line-height: 1.5; }
+.code-preview { padding: 0; background: white; min-height: 400px; }
+.model-order-control { position: relative; }
+.model-order-control button { padding: 5px 9px; border: 1px solid var(--border); border-radius: 5px; background: var(--bg-input); color: var(--text); font: 11px var(--font-mono); cursor: pointer; }
+.model-order-control button:disabled { opacity: .4; cursor: default; }
+.model-order-control button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.model-order-panel { position: absolute; right: 0; top: 36px; z-index: 100; width: min(420px, 85vw); max-height: 65vh; overflow: auto; padding: 16px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 30px #0008; }
+.model-order-panel > div { display: flex; gap: 6px; align-items: center; margin: 8px 0; }
+.model-order-panel > div > span { flex: 1; overflow-wrap: anywhere; }
+.model-choice-row { padding: 8px; border: 1px solid var(--border); border-radius: 6px; }
+.model-choice-row.selected { border-color: var(--accent); background: var(--accent-dim); }
+.model-choice { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; cursor: pointer; }
+.model-choice > input { flex: 0 0 auto; accent-color: var(--accent); }
+.model-choice > span { min-width: 0; overflow-wrap: anywhere; }
+.model-choice strong, .model-choice small { display: block; }
+.model-choice small { margin-top: 4px; color: var(--text-dim); }
+.model-choice .model-choice-active { color: var(--accent); }
+.model-choice-row > button { flex: 0 0 auto; min-width: 30px; min-height: 30px; }
+.model-order-panel > .knowledge-context-files { display: flex; flex-direction: column; align-items: stretch; }
+.knowledge-context-files label { display: flex; align-items: center; gap: 8px; overflow-wrap: anywhere; }
+.csv-table { overflow: auto; flex: 1; min-height: 240px; border: 1px solid var(--border); }
+.csv-table table { border-collapse: collapse; width: 100%; }
+.csv-table th, .csv-table td { padding: 8px 12px; border: 1px solid var(--border); text-align: left; max-width: 400px; overflow-wrap: anywhere; white-space: pre-wrap; }
+.csv-table th { position: sticky; top: 0; background: var(--bg-card); }
+.csv-columns { display: flex; flex-wrap: wrap; gap: 16px; padding: 12px; }
+.canvas-scroll { overflow: auto; flex: 1; min-height: 300px; }
+.canvas-scroll canvas { display: block; width: 100%; min-width: 600px; height: auto; touch-action: none; border: 1px solid var(--border); background: white; }
+.tools-workspace select, .tools-workspace input:not([type="checkbox"]):not([type="file"]) { padding: 8px; background: var(--bg-input); border: 1px solid var(--border); border-radius: 5px; color: var(--text); }
 @media (max-width: 600px) { .tools-workspace { padding: 16px; } .tools-editor, .tools-preview { padding: 14px; } }

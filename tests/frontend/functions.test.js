@@ -28,10 +28,20 @@ describe("Functions actions", () => {
     await expect(runDesktopAction("update-programs", { execute, platform: "linux" })).rejects.toThrow("Windows");
     expect(execute).not.toHaveBeenCalled();
   });
+  it("opens PowerShell by its known absolute path even without PATH", async () => {
+    const execute = vi.fn((_file, _args, _options, done) => done(null));
+    await runDesktopAction("open-powershell", { execute, platform: "win32", environment: {} });
+    const [executable, args] = execute.mock.calls[0];
+    expect(args.at(-1)).toContain(`Start-Process -FilePath '${executable}'`);
+    expect(args.at(-1)).toContain("-NoProfile -NoExit");
+  });
   it("launches only fixed commands, hiding the helper process", async () => {
     const execute = vi.fn((_file, _args, _options, done) => done(null));
     await runDesktopAction("update-programs", { execute, platform: "win32" });
-    expect(execute.mock.calls[0][1].at(-1)).toContain("winget upgrade --all");
+    const launch = execute.mock.calls[0][1].at(-1);
+    const encoded = launch.match(/-EncodedCommand ([A-Za-z0-9+/=]+)/)[1];
+    expect(Buffer.from(encoded, "base64").toString("utf16le")).toContain("upgrade --all");
+    expect(launch).toContain("-NoExit");
     expect(execute.mock.calls[0][2].windowsHide).toBe(true);
     await runDesktopAction("refresh-graphics", { execute, platform: "win32" });
     expect(execute.mock.calls[1][1].at(-1)).toMatch(/refreshGraphics.ps1$/);

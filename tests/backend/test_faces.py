@@ -383,13 +383,13 @@ def test_export_contains_crops_and_traceable_metadata(face_root, fake_provider):
     assert count == 1
     with zipfile.ZipFile(io.BytesIO(payload)) as archive:
         names = archive.namelist()
-        metadata = json.loads(archive.read("metadata.json"))
+        assert "metadata.json" not in names
+        metadata = store.get_dataset(dataset["id"])
         rows = archive.read("faces.csv").decode().splitlines()
     assert any(name.startswith("faces/") for name in names)
     record = metadata["faces"][0]
     assert record["source_name"] == "portrait.png" and record["source_sha256"]
     assert record["box"] and record["crop_rect"] and record["landmarks"]
-    assert "not a confirmed identity" in metadata["note"]
     assert len(rows) == 2
 
 

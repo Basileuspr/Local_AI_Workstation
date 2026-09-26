@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import * as api from "../api";
 import { useStore, useDispatch } from "../useStore";
 import KnowledgeGraph from "./KnowledgeGraph";
+import KnowledgeContext from "./KnowledgeContext";
 import BulkActions, { SelectionCheckbox } from "./BulkActions";
 import { useSelection, useBatchAction } from "../useSelection";
 import "./KnowledgeVault.css";
@@ -65,7 +66,7 @@ export default function KnowledgeVault({ active }) {
   }
   return <section className="knowledge-vault" aria-label="Knowledge vault">
     <header className="vault-header"><div><h1>Knowledge vault</h1><p>{graph.nodes.length} documents · {graph.edges.length} connections · Available to RAG</p></div>
-      <label className="vault-rag"><input type="checkbox" checked={state.useKnowledgeBase} onChange={event => dispatch({ type: "SET_PARAM", key: "useKnowledgeBase", value: event.target.checked })} />Use Knowledge in chats</label>
+      <KnowledgeContext />
       <button disabled={busy} onClick={() => upload.current?.click()}>{busy ? "Working…" : "+ Add document"}</button>
       <input ref={upload} type="file" accept=".txt,.md,.pdf,.docx" hidden onChange={addFile} />
     </header>

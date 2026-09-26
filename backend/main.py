@@ -7,7 +7,8 @@ This is the PYTHON side of the wall. It handles all AI logic.
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from services.chat_canvas import CanvasContext
 from starlette.concurrency import run_in_threadpool
 import httpx
 import json
@@ -107,6 +108,8 @@ app.include_router(files_router)
 app.include_router(export_router)
 from routes.artifacts import router as artifacts_router
 app.include_router(artifacts_router)
+from routes.workspaces import router as workspaces_router
+app.include_router(workspaces_router)
 app.include_router(memory_router)
 app.include_router(prompt_index_router)
 app.include_router(image_generation_router)
@@ -179,6 +182,8 @@ class ChatRequest(BaseModel):
     messages: list[ChatMessage]
     stream: bool = True
     use_knowledge_base: bool = False
+    knowledge_doc_ids: list[str] | None = Field(default=None, max_length=500)
+    canvas_context: CanvasContext | None = None
     # Auxiliary prompt reviews must neither consume nor create chat memories.
     use_memory: bool = True
     system_prompt: str | None = None
@@ -811,7 +816,20 @@ async def chat(request: ChatRequest, client_request: Request):
 async def _chat(request: ChatRequest, client_request: Request):
     from services.chat_documents import wants_document, stream_document
     last_prompt = next((m.content for m in reversed(request.messages) if m.role == "user"), "")
+    from services.image_conversion import conversion_target, convert_chat
+    image_target = conversion_target(last_prompt) if request.use_memory else None
+    if image_target:
+        async def conversion_stream():
+            try:
+                result = await run_in_threadpool(convert_chat, request.session_id, last_prompt, image_target)
+                text = f"Converted to **{result['name']}**. Download the file below. The original is unchanged."
+                yield f"data: {json.dumps({'token': text, 'artifacts': [result], 'done': True})}\n\n"
+            except (ValueError, OSError) as exc:
+                yield f"data: {json.dumps({'token': str(exc), 'error': str(exc), 'done': True})}\n\n"
+        return StreamingResponse(conversion_stream(), media_type="text/event-stream")
     create_word = request.document_format == "docx" or (request.use_memory and wants_document(last_prompt))
+    from services.chat_canvas import wants_canvas_edit, instruction as canvas_instruction, stream_canvas
+    edit_canvas = bool(request.canvas_context and wants_canvas_edit(last_prompt))
     # Images travel as blob references so megabytes of base64 never cross the
     # wire or sit in renderer memory. Ollama needs the payload, so references
     # are expanded here, at the last possible moment.
@@ -874,6 +892,7 @@ async def _chat(request: ChatRequest, client_request: Request):
     # Anything that failed but did not stop the answer. The user is told, so a
     # quietly weaker reply is never mistaken for a normal one.
     degradations: list[dict] = []
+    knowledge_sources: list[dict] = []
 
     memory_session_id = None
     try:
@@ -932,7 +951,10 @@ async def _chat(request: ChatRequest, client_request: Request):
             if last_user_msg:
                 # Embeds the query with a synchronous Ollama call, then runs a
                 # synchronous Chroma search. Both block, so both go to a thread.
-                results = await run_in_threadpool(query_knowledge_base, last_user_msg, 5)
+                if request.knowledge_doc_ids is None:
+                    results = await run_in_threadpool(query_knowledge_base, last_user_msg, 5)
+                else:
+                    results = await run_in_threadpool(query_knowledge_base, last_user_msg, 5, doc_ids=request.knowledge_doc_ids)
 
                 if results:
                     context_parts = []
@@ -946,6 +968,7 @@ async def _chat(request: ChatRequest, client_request: Request):
                             f"[From: {r['filename']}]\n{excerpt}"
                         )
                         used_context_chars += len(excerpt)
+                        knowledge_sources.append({"filename": r["filename"], "chunk_index": r["chunk_index"], "characters": len(excerpt)})
                     context_text = "\n\n---\n\n".join(context_parts)
 
                     insert_index = 1 if request.system_prompt else 0
@@ -985,6 +1008,8 @@ async def _chat(request: ChatRequest, client_request: Request):
         })
 
     # --- Build Ollama options from parameters ---
+    if request.canvas_context and not edit_canvas:
+        messages_to_send.insert(0, {"role": "system", "content": canvas_instruction(request.canvas_context)})
     # num_ctx is always sent. Leaving it out let Ollama pick its own window
     # while the interface budgeted against the model's trained size, so
     # compaction could not fire until long after the real window had overflowed.
@@ -1025,6 +1050,8 @@ async def _chat(request: ChatRequest, client_request: Request):
             cancelled_generation_ids.discard(request_id)
             return
         active_generation_tasks[request_id] = asyncio.current_task()
+        if request.use_knowledge_base:
+            yield f"data: {json.dumps({'knowledge_sources': knowledge_sources})}\n\n"
         for degradation in degradations:
             yield f"data: {json.dumps({'notice': degradation})}\n\n"
         _append_thinking(
@@ -1038,6 +1065,10 @@ async def _chat(request: ChatRequest, client_request: Request):
             async with httpx.AsyncClient(
                 timeout=httpx.Timeout(600.0, connect=10.0)
             ) as client:
+                if edit_canvas:
+                    async for event in stream_canvas(client, ollama_payload, request, client_request):
+                        yield event
+                    return
                 if create_word:
                     async for event in stream_document(client, ollama_payload, request, client_request):
                         yield event

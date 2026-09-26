@@ -2,6 +2,7 @@ import { createContext, useContext, useReducer, useRef, useCallback } from "reac
 import { defaultRoleplayConfig, mergeRoleplayConfig } from "./roleplayPrompt";
 import { defaultImageSettings, loadPreferences } from "./preferences";
 import { loadNavigation } from "./navigation";
+import { orderModels } from "./modelOrder";
 
 const StoreContext = createContext(null);
 const DispatchContext = createContext(null);
@@ -38,6 +39,8 @@ const initialState = {
 
   // Knowledge Base
   useKnowledgeBase: false,
+  knowledgeDocIds: null,
+  knowledgeMode: "off",
 
   // Settings
   settingsOpen: false,
@@ -65,10 +68,15 @@ const initialState = {
 
 function createInitialState() {
   const preferences = loadPreferences();
+  const navigation = loadNavigation();
+  const scope = preferences.knowledgeScopes?.[navigation.sessionId] || preferences.knowledgeScopes?.draft || { mode: "off", ids: [] };
   return {
     ...initialState,
     ...preferences,
-    activeSidebarTab: loadNavigation().tab,
+    activeSidebarTab: navigation.tab,
+    useKnowledgeBase: scope.mode !== "off",
+    knowledgeMode: scope.mode,
+    knowledgeDocIds: scope.mode === "selected" ? scope.ids : null,
     roleplay: mergeRoleplayConfig(preferences.roleplay),
   };
 }
@@ -166,7 +174,9 @@ export function reducer(state, action) {
       return { ...state, connected: action.payload };
 
     case "SET_MODELS":
-      return { ...state, models: action.payload };
+      return { ...state, models: orderModels(action.payload, state.modelOrder) };
+    case "SET_MODEL_ORDER":
+      return { ...state, modelOrder: action.payload, models: orderModels(state.models, action.payload) };
 
     case "SET_SERVICE_STATUS":
       return { ...state, serviceStatus: action.payload };
@@ -185,6 +195,8 @@ export function reducer(state, action) {
         memorySummary = "",
         summarizedMessageCount = 0,
       } = action.payload;
+      const scopes = state.knowledgeScopes || {};
+      const scope = scopes[id] || (!state.currentSessionId ? scopes.draft : null) || { mode: "off", ids: [] };
       return {
         ...state,
         currentSessionId: id,
@@ -193,7 +205,17 @@ export function reducer(state, action) {
         memorySummary,
         summarizedMessageCount,
         scrollTargetMessageId: "",
+        knowledgeScopes: id && !scopes[id] ? { ...scopes, [id]: scope, draft: undefined } : scopes,
+        knowledgeMode: scope.mode,
+        knowledgeDocIds: scope.mode === "selected" ? scope.ids : null,
+        useKnowledgeBase: scope.mode !== "off",
       };
+    }
+    case "SET_KNOWLEDGE_SCOPE": {
+      const scope = action.payload;
+      return { ...state, knowledgeMode: scope.mode, useKnowledgeBase: scope.mode !== "off",
+        knowledgeDocIds: scope.mode === "selected" ? scope.ids : null,
+        knowledgeScopes: { ...state.knowledgeScopes, [state.currentSessionId || "draft"]: scope } };
     }
 
     case "SET_MEMORY":

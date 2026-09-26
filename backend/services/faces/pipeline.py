@@ -250,7 +250,7 @@ def recrop(dataset_id, face_ids=None):
 
 
 def export_archive(dataset_id, states=("accepted",), include_rejected=False):
-    """A ZIP of the chosen crops plus the metadata that makes them traceable."""
+    """A ZIP of chosen crops and a CSV summary; JSON stays in the dataset store."""
     dataset = store.get_dataset(dataset_id)
     wanted = set(states) | ({"rejected"} if include_rejected else set())
     chosen = [face for face in dataset["faces"] if face["state"] in wanted]
@@ -270,14 +270,6 @@ def export_archive(dataset_id, states=("accepted",), include_rejected=False):
                 name, json.dumps(face["source_name"]), face["source_sha256"], face["face_index"],
                 face["state"], metrics["confidence"], metrics["face_width"], metrics["face_height"],
                 metrics["sharpness"], face.get("cluster"), face.get("duplicate_of") or "")))
-        archive.writestr("metadata.json", json.dumps({
-            "dataset": dataset["name"], "exported_at": store.now(),
-            "settings": dataset["settings"],
-            "note": "Similarity groups faces that look alike; it is not a confirmed identity.",
-            "faces": [{key: face[key] for key in (
-                "id", "source_name", "source_sha256", "face_index", "box", "landmarks",
-                "crop_rect", "crop_mode", "padding", "size", "metrics", "flags", "state",
-                "cluster", "outlier", "duplicate_of", "created_at")} for face in chosen],
-        }, indent=2, ensure_ascii=False))
+        # Detailed provenance remains in the internal dataset store.
         archive.writestr("faces.csv", "\n".join(rows))
     return buffer.getvalue(), len(chosen)

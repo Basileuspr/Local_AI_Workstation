@@ -4,7 +4,7 @@ import "./AppLayout.css";
 
 const compactLayout = "(max-width: 900px)";
 export const NavigationOpenContext = createContext(false);
-const titles = { "image-editor": "Image Editor", "media-manager": "Media Manager", dashboard: "Dashboard", queue: "Prompt Queue", review: "Image Review", workflows: "Image Workflows", lora: "LoRA", faces: "Faces", "character-parts": "Character Parts", chats: "Chats", images: "Image Gallery", generate: "Generate Images", library: "Prompt Index", knowledge: "Knowledge", tools: "Functions" };
+const titles = { spreadsheets: "Spreadsheets", canvas: "Canvas", converter: "File Converter", markdown: "Markdown Viewer", "html-viewer": "HTML Viewer", "css-viewer": "CSS / Styling", "image-editor": "Image Editor", "media-manager": "Media Manager", dashboard: "Dashboard", queue: "Prompt Queue", review: "Image Review", workflows: "Image Workflows", lora: "LoRA", faces: "Faces", "character-parts": "Character Parts", chats: "Chats", images: "Image Gallery", generate: "Generate Images", library: "Prompt Index", knowledge: "Knowledge", tools: "Functions" };
 
 export default function AppLayout({ activeTab, sidebar, children, onRefresh, refreshing = false }) {
   const [compact, setCompact] = useState(() => window.matchMedia(compactLayout).matches);

@@ -161,7 +161,7 @@ def add_document(text: str, filename: str, *, cancel_event=None) -> dict:
     }
 
 
-def query_knowledge_base(query: str, n_results: int = 5, *, cancel_event=None) -> list[dict]:
+def query_knowledge_base(query: str, n_results: int = 5, *, cancel_event=None, doc_ids: list[str] | None = None) -> list[dict]:
     """
     Search the knowledge base for chunks relevant to the query.
     
@@ -172,6 +172,8 @@ def query_knowledge_base(query: str, n_results: int = 5, *, cancel_event=None) -
     This is what gets called before sending a message to the LLM —
     relevant chunks are injected into the conversation context.
     """
+    if doc_ids == []:
+        return []  # Empty selection must never fall back to the whole library.
     collection = _get_collection()
 
     # Check if collection has any documents
@@ -184,7 +186,8 @@ def query_knowledge_base(query: str, n_results: int = 5, *, cancel_event=None) -
     # Search for similar chunks
     results = collection.query(
         query_embeddings=[query_embedding],
-        n_results=min(n_results, collection.count()),
+        n_results=min(max(1, n_results), 20, collection.count()),
+        **({"where": {"doc_id": {"$in": list(dict.fromkeys(doc_ids))}}} if doc_ids is not None else {}),
     )
 
     # Format results
@@ -193,6 +196,7 @@ def query_knowledge_base(query: str, n_results: int = 5, *, cancel_event=None) -
         chunks.append({
             "text": results["documents"][0][i],
             "filename": results["metadatas"][0][i]["filename"],
+            "doc_id": results["metadatas"][0][i]["doc_id"],
             "chunk_index": results["metadatas"][0][i]["chunk_index"],
             "distance": results["distances"][0][i] if results["distances"] else None,
         })

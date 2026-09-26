@@ -1,4 +1,4 @@
-import { memo, useCallback, useRef, useState } from "react";
+import { memo, useRef, useState } from "react";
 import MarkdownMessage from "./MarkdownMessage";
 import { useDispatch } from "../useStore";
 import { createMessageId } from "../messageIds";
@@ -19,11 +19,9 @@ export default memo(function Tools() {
   const [error, setError] = useState(loaded.error);
   const [draft, setDraft] = useState(null);
   const [managing, setManaging] = useState(false);
-  const [viewerOpen, setViewerOpen] = useState(false);
   const [actionBusy, setActionBusy] = useState("");
   const [notice, setNotice] = useState("");
   const actionLock = useRef(false);
-  const closeViewer = useCallback(() => setViewerOpen(false), []);
 
   function persist(next) {
     try { setButtons(saveFunctionButtons(next)); setError(""); return true; }
@@ -43,7 +41,15 @@ export default memo(function Tools() {
   async function open(target) {
     const feature = actionCapability(target);
     if (feature?.available === false) { setError(feature.detail); return; }
-    if (target === "markdown") { setViewerOpen(true); return; }
+    if (target.startsWith("program:")) {
+      try {
+        if (!window.workstationDesktop?.openProgram) throw new Error("Restart the desktop app to launch programs.");
+        const result = await window.workstationDesktop.openProgram(target.slice(8));
+        if (result?.error) throw new Error(result.error);
+        setNotice("Program opened."); setError("");
+      } catch (failure) { setError(failure.message); }
+      return;
+    }
     if (!target.startsWith("capture:") && !target.startsWith("system:")) { dispatch({ type: "SET_SIDEBAR_TAB", payload: target }); return; }
     if (actionLock.current) return;
     actionLock.current = true; setActionBusy(target); setNotice(""); setError("");
@@ -54,19 +60,19 @@ export default memo(function Tools() {
       const result = await (capture ? desktop.captureTab(target.slice(8)) : desktop.runAction(target.slice(7)));
       if (result?.error) throw new Error(result.error);
       setNotice(capture ? `Screenshot copied to clipboard (${result.width} × ${result.height}).${result.warnings?.length ? ` ${result.warnings.join(" ")}` : ""}`
-        : target === "system:update-programs" ? "WinGet terminal opened. Follow update progress there." : "Graphics reset shortcut sent.");
+        : target === "system:update-programs" ? "WinGet terminal opened. Follow update progress there." : target === "system:open-powershell" ? "PowerShell opened." : target === "system:snipping-tool" ? "Snipping Tool opened." : "Graphics reset shortcut sent.");
     } catch (failure) { setError(failure.message); }
     finally { actionLock.current = false; setActionBusy(""); }
   }
 
   return <>
-    <section className="tools-workspace functions-workspace" hidden={viewerOpen} aria-labelledby="functions-heading">
+    <section className="tools-workspace functions-workspace" aria-labelledby="functions-heading">
       <header className="tools-heading">
         <h1 id="functions-heading">Functions</h1>
         <p>Open a tool, or add your own shortcut button.</p>
       </header>
       <div className="tools-toolbar">
-        <button type="button" disabled={!!loaded.error || !!draft} onClick={() => setDraft({ id: createMessageId(), name: "", target: "markdown" })}>+ Add Button</button>
+        <button type="button" disabled={!!loaded.error || !!draft} onClick={() => setDraft({ id: createMessageId(), name: "", target: "system:snipping-tool" })}>+ Add Button</button>
         {buttons.length > 0 && <button type="button" disabled={!!draft} aria-pressed={managing} onClick={() => setManaging(!managing)}>{managing ? "Done editing" : "Edit buttons"}</button>}
       </div>
       {draft && <form className="functions-editor" onSubmit={save}>
@@ -75,23 +81,30 @@ export default memo(function Tools() {
         </label>
         <label>Tool or action
           <select value={draft.target} onChange={event => setDraft({ ...draft, target: event.target.value })}>
+            <option value="program:choose">Program or shortcut…</option>
+            {draft.target.startsWith("program:") && draft.target !== "program:choose" && <option value={draft.target}>{draft.programName || "Selected program"}</option>}
             {functionTargets.map(target => <option key={target.id} value={target.id}>{target.name}</option>)}
           </select>
         </label>
+        {draft.target.startsWith("program:") && <button type="button" onClick={async () => {
+          try {
+            if (!window.workstationDesktop?.chooseProgram) throw new Error("Restart the desktop app to browse for programs.");
+            const result = await window.workstationDesktop.chooseProgram();
+            if (result?.error) throw new Error(result.error);
+            if (result) setDraft({ ...draft, target: `program:${result.id}`, programName: result.name, name: draft.name || result.name.replace(/\.(exe|lnk)$/i, "") });
+          } catch (failure) { setError(failure.message); }
+        }}>Browse for program</button>}
         <div className="tools-toolbar">
-          <button type="submit" disabled={!draft.name.trim()}>Save button</button>
+          <button type="submit" disabled={!draft.name.trim() || draft.target === "program:choose"}>Save button</button>
           <button type="button" onClick={() => setDraft(null)}>Cancel</button>
         </div>
       </form>}
       {error && <p className="functions-error" role="alert">{error}</p>}
       <p role="status" className="tools-note">{actionBusy ? "Preparing action…" : notice}</p>
       <div className="functions-buttons">
-        <button type="button" className="function-launcher" onClick={() => open("markdown")}>
-          <strong>Markdown Viewer</strong><span>Paste text and view formatted Markdown.</span>
-        </button>
         {buttons.map(button => <div className="function-custom" key={button.id}>
           <button type="button" className="function-launcher" disabled={!!actionBusy || actionCapability(button.target)?.available === false} onClick={() => open(button.target)}>
-            <strong>{button.name}</strong><span>{actionCapability(button.target)?.available === false ? actionCapability(button.target).detail : functionTargets.find(target => target.id === button.target)?.name}</span>
+            <strong>{button.name}</strong><span>{actionCapability(button.target)?.available === false ? actionCapability(button.target).detail : button.programName || functionTargets.find(target => target.id === button.target)?.name}</span>
           </button>
           {managing && <div className="tools-toolbar">
             <button type="button" disabled={!!draft} aria-label={`Edit ${button.name}`} onClick={() => setDraft({ ...button })}>Edit</button>
@@ -108,11 +121,10 @@ export default memo(function Tools() {
       <p className="tools-note">Copy the tab's current content at maximized window size while staying here. Captures keep its current selections and scroll position.</p>
       <div className="functions-buttons">{captureActions.map(action => <button key={action.id} type="button" className="function-launcher" disabled={!!actionBusy || actionCapability(action.id)?.available === false} onClick={() => open(action.id)}><strong>{action.name}</strong><span>{actionCapability(action.id)?.available === false ? actionCapability(action.id).detail : action.description}</span></button>)}</div>
     </section>
-    <MarkdownViewer hidden={!viewerOpen} onBack={closeViewer} />
   </>;
 });
 
-const MarkdownViewer = memo(function MarkdownViewer({ hidden, onBack }) {
+export const MarkdownViewer = memo(function MarkdownViewer() {
   const editor = useRef(null);
   const [preview, setPreview] = useState(false);
   const [markdown, setMarkdown] = useState("");
@@ -123,10 +135,8 @@ const MarkdownViewer = memo(function MarkdownViewer({ hidden, onBack }) {
     setPreview(true);
   }
 
-  return <section className="tools-workspace" hidden={hidden} aria-labelledby="tools-heading">
-    <div className="tools-toolbar"><button type="button" onClick={onBack}>← Functions</button></div>
+  return <section className="tools-workspace" aria-labelledby="tools-heading">
     <header className="tools-heading">
-      <p className="tools-eyebrow">Functions</p>
       <h1 id="tools-heading">Markdown Viewer</h1>
       <p id="markdown-help">Paste Markdown text below, then select Show Markdown to read the formatted version.</p>
     </header>

@@ -1,7 +1,7 @@
 const { randomUUID } = require("node:crypto");
 const { snapshotDocument } = require("./captureSnapshot");
 const { copyNativeImage } = require("./desktopFunctions");
-const TAB_LABELS = { chats: "Chat", images: "Image Gallery", generate: "Generate", library: "Prompt Index", knowledge: "Knowledge", tools: "Functions", dashboard: "Dashboard", queue: "Prompt Queue", review: "Image Review", "image-editor": "Image Editor", "media-manager": "Media Manager", workflows: "Image Workflows", lora: "LoRA", faces: "Faces", "character-parts": "Character Parts" };
+const TAB_LABELS = { spreadsheets: "Spreadsheets", canvas: "Canvas", converter: "File Converter", markdown: "Markdown Viewer", "html-viewer": "HTML Viewer", "css-viewer": "CSS / Styling", chats: "Chat", images: "Image Gallery", generate: "Generate", library: "Prompt Index", knowledge: "Knowledge", tools: "Functions", dashboard: "Dashboard", queue: "Prompt Queue", review: "Image Review", "image-editor": "Image Editor", "media-manager": "Media Manager", workflows: "Image Workflows", lora: "LoRA", faces: "Faces", "character-parts": "Character Parts" };
 
 function hasVisibleContent(image) {
   if (image.isEmpty()) return false;

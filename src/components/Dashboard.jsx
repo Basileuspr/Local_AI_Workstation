@@ -184,6 +184,14 @@ export default function Dashboard() {
       <div className="dashboard-header-actions">
         <div className="dashboard-status" role="status">{error ? "Readings interrupted" : stats ? "Live · refresh about every 5 seconds" : "Reading hardware…"}{stats && <span>Last reading: {new Date(stats.sampled_at).toLocaleTimeString()}</span>}</div>
         <div className="dashboard-header-buttons">
+          <button type="button" className="dashboard-header-button" onClick={async () => {
+            try {
+              if (!window.workstationDesktop?.runAction) throw new Error("Open or restart the desktop app to launch PowerShell.");
+              const result = await window.workstationDesktop.runAction("open-powershell");
+              if (result?.error) throw new Error(result.error);
+              setAppFolderError("");
+            } catch (failure) { setAppFolderError(failure.message); }
+          }}>Open PowerShell</button>
           <button type="button" className="dashboard-header-button" onClick={openAppFolder} disabled={openingAppFolder} title="Open the app's source folder in File Explorer">
             {openingAppFolder ? "Opening…" : "Open app folder"}
           </button>

@@ -256,8 +256,6 @@ def export_images(ids):
             if any(item_id not in items for item_id in ids): raise ValueError("A selected image is no longer available. Refresh the review list.")
             if sum(items[item_id]["size"] for item_id in ids) > 512 * 1024 * 1024:
                 raise ValueError("Export up to 512 MiB at a time. Select fewer images.")
-            tags = {tag["id"]: tag["name"] for tag in index["tags"]}
-            manifest = []
             for number, item_id in enumerate(ids, 1):
                 data, item = image_bytes(item_id)  # Enforces vault privacy and verifies SHA-256.
                 stem = re.sub(r"[^A-Za-z0-9._-]", "_", Path(item["name"]).stem).strip(".")[:100] or "image"
@@ -266,10 +264,6 @@ def export_images(ids):
                 output.writestr(name, data)
                 caption = item.get("annotations", {}).get("caption", "")
                 output.writestr(str(Path(name).with_suffix(".txt")).replace("\\", "/"), caption.encode("utf-8"))
-                manifest.append(dict(id=item_id, name=item["name"], file=name, sha256=item["sha256"],
-                    width=item["width"], height=item["height"], rating=item.get("rating"), caption=caption,
-                    tags=[tags[tag] for tag in item.get("tag_ids", []) if tag in tags]))
-            output.writestr("manifest.json", json.dumps({"images":manifest}, ensure_ascii=False, indent=2).encode("utf-8"))
         archive.seek(0)
         return archive
     except Exception:

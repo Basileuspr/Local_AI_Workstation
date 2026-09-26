@@ -6,6 +6,8 @@ const groups = [
     { id: "chats", label: "Chats" },
     { id: "library", label: "Prompt Index" },
     { id: "knowledge", label: "Knowledge" },
+    { id: "canvas", label: "Canvas" },
+    { id: "converter", label: "File Converter" },
   ] },
   { id: "images", label: "Images", icon: "image", items: [
     { id: "images", label: "Gallery", title: "Image Gallery" },
@@ -19,6 +21,12 @@ const groups = [
     { id: "faces", label: "Faces" },
     { id: "character-parts", label: "Character Parts" },
     { id: "lora", label: "LoRA" },
+  ] },
+  { id: "viewers", label: "Viewers", icon: "chat", items: [
+    { id: "markdown", label: "Markdown Viewer" },
+    { id: "html-viewer", label: "HTML Viewer" },
+    { id: "css-viewer", label: "CSS / Styling" },
+    { id: "spreadsheets", label: "Spreadsheets" },
   ] },
 ];
 

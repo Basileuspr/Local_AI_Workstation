@@ -32,6 +32,7 @@ const { createMediaManager } = require("./mediaManager");
 const { mediaManagerPaths } = require("./mediaManagerPaths");
 const { createTabCapture } = require("./tabCapture");
 const { runDesktopAction, writeClipboardImage } = require("./desktopFunctions");
+const { createProgramLaunchers } = require("./programLaunchers");
 const { backendFailure, pythonPreflight, desktopCapabilities } = require("./compatibility");
 if (process.env.LAW_DISABLE_GPU === "1" || process.argv.includes("--law-software-rendering")) app.disableHardwareAcceleration();
 if (process.env.LAW_USER_DATA_DIR) app.setPath("userData", path.resolve(process.env.LAW_USER_DATA_DIR));
@@ -145,6 +146,15 @@ ipcMain.handle("functions:run-action", async (event, action) => {
     try { return await runDesktopAction(action); }
     catch (error) { return { error: error.message }; }
     finally { desktopActionBusy = false; }
+});
+const programLaunchers = createProgramLaunchers({ file: path.join(app.getPath("userData"), "program-launchers.json"), dialog, shell, getWindow: () => mainWindow });
+ipcMain.handle("functions:choose-program", async event => {
+    if (!trustedDesktop(event)) return { error: "Desktop access required." };
+    try { return await programLaunchers.choose(); } catch (error) { return { error: error.message }; }
+});
+ipcMain.handle("functions:open-program", async (event, id) => {
+    if (!trustedDesktop(event)) return { error: "Desktop access required." };
+    try { return await programLaunchers.open(id); } catch (error) { return { error: error.message }; }
 });
 app.on("before-quit", () => tabCapture.dispose());
 

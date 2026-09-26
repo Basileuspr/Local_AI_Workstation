@@ -1,18 +1,26 @@
 const path = require("node:path");
 const { execFile } = require("node:child_process");
+const { findWindowsProgram } = require("./windowsPrograms");
 
 // Fixed actions only: renderer button labels and custom targets never become commands.
-const UPDATE_SCRIPT = "if (-not (Get-Command winget.exe -ErrorAction SilentlyContinue)) { throw 'WinGet is not installed. Install App Installer from Microsoft Store.' }; Start-Process -FilePath \"$env:SystemRoot\\System32\\cmd.exe\" -ArgumentList '/d /k winget upgrade --all' -WindowStyle Normal";
-function runDesktopAction(action, { execute = execFile, platform = process.platform, systemRoot = process.env.SystemRoot || "C:\\Windows" } = {}) {
+function runDesktopAction(action, { execute = execFile, platform = process.platform, systemRoot = process.env.SystemRoot || "C:\\Windows", environment = process.env } = {}) {
   if (platform !== "win32") return Promise.reject(new Error("This action requires Windows."));
   const executable = path.win32.join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
   let args;
-  if (action === "update-programs") args = ["-NoProfile", "-NonInteractive", "-Command", UPDATE_SCRIPT];
+  if (action === "update-programs") {
+    const winget = findWindowsProgram("winget.exe", environment);
+    // Literal argument in an encoded child command supports spaces and apostrophes.
+    const command = winget ? `& '${winget.replace(/'/g, "''")}' upgrade --all; Write-Host 'WinGet exit code:' $LASTEXITCODE` : "winget upgrade --all; Write-Host 'WinGet exit code:' $LASTEXITCODE";
+    const encoded = Buffer.from(command, "utf16le").toString("base64");
+    args = ["-NoProfile", "-NonInteractive", "-Command", `$ErrorActionPreference = 'Stop'; Start-Process -FilePath '${executable.replace(/'/g, "''")}' -ArgumentList '-NoProfile -NoExit -EncodedCommand ${encoded}' -WindowStyle Normal`];
+  }
+  else if (action === "open-powershell") args = ["-NoProfile", "-NonInteractive", "-Command", `$ErrorActionPreference = 'Stop'; Start-Process -FilePath '${executable.replace(/'/g, "''")}' -ArgumentList '-NoProfile -NoExit' -WindowStyle Normal`];
+  else if (action === "snipping-tool") args = ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; Start-Process 'ms-screenclip:'"];
   else if (action === "refresh-graphics") args = ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", path.join(__dirname, "refreshGraphics.ps1")];
   else return Promise.reject(new Error("Unknown desktop action."));
   return new Promise((resolve, reject) => {
     execute(executable, args, { windowsHide: true, timeout: 20000, maxBuffer: 64 * 1024 }, error => {
-      if (error) reject(new Error(action === "update-programs" ? "Could not open WinGet. Check that App Installer is installed." : "Windows could not send the graphics reset shortcut."));
+      if (error) reject(new Error(action === "update-programs" ? "Could not open WinGet. Check that App Installer is installed." : "Windows could not start the requested desktop action."));
       else resolve({ ok: true });
     });
   });

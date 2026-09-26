@@ -31,7 +31,11 @@ import WebAccess from "./components/WebAccess";
 import Dashboard from "./components/Dashboard";
 import PromptQueue, { PromptQueueProvider } from "./components/PromptQueue";
 import KnowledgeVault from "./components/KnowledgeVault";
-import Tools from "./components/Tools";
+import Tools, { MarkdownViewer } from "./components/Tools";
+import CodeViewer from "./components/CodeViewer";
+import SpreadsheetViewer from "./components/SpreadsheetViewer";
+import CanvasWorkspace from "./components/CanvasWorkspace";
+import FileConverter from "./components/FileConverter";
 import { get as getWorkflow } from "./imageWorkflowApi";
 
 function AppInner() {
@@ -88,6 +92,8 @@ function AppInner() {
     state.systemPrompt,
     state.responseStyle,
     state.selectedModel,
+    state.modelOrder,
+    state.knowledgeScopes,
     state.summaryModel,
     state.useKnowledgeBase,
     state.roleplay,
@@ -315,6 +321,7 @@ function AppInner() {
 
   // Keep chat mounted while dedicated workspaces occupy the main pane.
   const activeTab =
+    ["markdown", "html-viewer", "css-viewer", "spreadsheets", "canvas", "converter"].includes(state.activeSidebarTab) ||
     state.activeSidebarTab === "tools" ||
     state.activeSidebarTab === "knowledge" || state.activeSidebarTab === "image-editor" || state.activeSidebarTab === "media-manager" || state.activeSidebarTab === "images" || state.activeSidebarTab === "review" || state.activeSidebarTab === "library" || state.activeSidebarTab === "generate" || state.activeSidebarTab === "lora" || state.activeSidebarTab === "workflows" || state.activeSidebarTab === "dashboard" || state.activeSidebarTab === "queue" || state.activeSidebarTab === "faces" || state.activeSidebarTab === "character-parts"
       ? state.activeSidebarTab
@@ -340,6 +347,12 @@ function AppInner() {
           <div className="pane" data-capture-tab="media-manager" hidden={activeTab !== "media-manager"}><MediaManager active={activeTab === "media-manager"} /></div>
           <div className="pane" data-capture-tab="knowledge" hidden={activeTab !== "knowledge"}><KnowledgeVault active={activeTab === "knowledge"} /></div>
           <div className="pane" data-capture-tab="tools" hidden={activeTab !== "tools"}><Tools /></div>
+          <div className="pane" data-capture-tab="markdown" hidden={activeTab !== "markdown"}><MarkdownViewer /></div>
+          <div className="pane" data-capture-tab="html-viewer" hidden={activeTab !== "html-viewer"}><CodeViewer kind="html" /></div>
+          <div className="pane" data-capture-tab="css-viewer" hidden={activeTab !== "css-viewer"}><CodeViewer kind="css" /></div>
+          <div className="pane" data-capture-tab="spreadsheets" hidden={activeTab !== "spreadsheets"}><SpreadsheetViewer /></div>
+          <div className="pane" data-capture-tab="canvas" hidden={activeTab !== "canvas"}><CanvasWorkspace /></div>
+          <div className="pane" data-capture-tab="converter" hidden={activeTab !== "converter"}><FileConverter /></div>
           <div className="pane" data-capture-tab="image-editor" hidden={activeTab !== "image-editor"}><ImageEditor /></div>
           <div className="pane image-library-pane" data-capture-tab="images" hidden={activeTab !== "images"} ref={setImageLibraryTarget} />
           <div className="pane" data-capture-tab="review" hidden={activeTab !== "review"}><ImageReview active={activeTab === "review"} onOpenSource={handleLoadSession} /></div>

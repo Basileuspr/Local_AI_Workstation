@@ -45,9 +45,6 @@ def archive(workflow_id, job_id):
             for output in outputs:
                 path, _ = runner.output_path(workflow_id, job_id, output["id"])
                 bundle.write(path, f"stage-{output['stage_number']:02d}-{output['id'][:8]}.png")
-            bundle.writestr("workflow-manifest.json", json.dumps({
-                "snapshot": snapshot, "run": record, "ordered_outputs": outputs,
-            }, ensure_ascii=False, indent=2))
         stream.seek(0)
         return stream, filename(snapshot, "images.zip")
     except BaseException:

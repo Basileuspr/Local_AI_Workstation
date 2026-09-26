@@ -2,6 +2,8 @@ import { sortNamedItems } from "./alphabetical";
 import { appTabs, appTabLabels } from "./navigation";
 
 export const desktopActions = [
+  { id: "system:snipping-tool", name: "Windows Snipping Tool", description: "Choose an area of the screen to capture." },
+  { id: "system:open-powershell", name: "Open PowerShell", description: "Open an interactive PowerShell window." },
   { id: "system:update-programs", name: "Update Installed Programs", description: "Open a terminal and install available WinGet updates." },
   { id: "system:refresh-graphics", name: "Refresh GPU Driver", description: "Reset Windows graphics. The screen may briefly flicker or beep." },
 ];
@@ -10,6 +12,11 @@ export const captureActions = appTabs.map(tab => ({ id: `capture:${tab}`, name: 
 export const FUNCTION_BUTTONS_STORAGE_KEY = "local-ai-workstation-function-buttons-v1";
 export const functionTargets = [
   { id: "markdown", name: "Markdown Viewer" },
+  { id: "html-viewer", name: "HTML Viewer" },
+  { id: "css-viewer", name: "CSS / Styling" },
+  { id: "spreadsheets", name: "Spreadsheets" },
+  { id: "canvas", name: "Canvas" },
+  { id: "converter", name: "File Converter" },
   { id: "chats", name: "Chats" },
   { id: "library", name: "Prompt Index" },
   { id: "knowledge", name: "Knowledge" },
@@ -34,7 +41,7 @@ function validateButtons(buttons) {
   for (const button of buttons) {
     if (!button || typeof button.id !== "string" || !button.id || ids.has(button.id)
       || typeof button.name !== "string" || !button.name.trim()
-      || !functionTargets.some(target => target.id === button.target)) {
+      || !(functionTargets.some(target => target.id === button.target) || /^program:[a-f0-9-]{36}$/.test(button.target))) {
       throw new Error("Invalid function button");
     }
     ids.add(button.id);

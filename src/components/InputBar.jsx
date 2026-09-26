@@ -19,6 +19,7 @@ import { localImageUrl, chatImage } from "../chatImages";
 import { readImageFile } from "../useChatUploads";
 import ImageEditor from "./ImageEditor";
 import { isStoredReference } from "../imageRefs";
+import { canvasContext, applyCanvasEdit } from "../canvasStore";
 
 export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
   const state = useStore();
@@ -97,6 +98,7 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
     models,
     summaryModel,
     useKnowledgeBase,
+    knowledgeDocIds,
     systemPrompt,
     temperature,
     topP,
@@ -207,6 +209,9 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
     if (isUploading) { showToast("Wait for the attachment to finish saving before sending.", "error"); return; }
     const text = textareaRef.current?.value.trim();
     if (!text) return;
+    let submittedCanvas;
+    try { submittedCanvas = /\b(canvas|whiteboard)\b/i.test(text) ? canvasContext() : undefined; }
+    catch (failure) { showToast(failure.message, "error"); return; }
     if (isEditCommand(text)) { void startChatEdit(text); return; }
     const sourceId = currentSessionRef.current;
     // Creating a blank chat is shared by rapid submissions. Navigating away
@@ -230,12 +235,12 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
       const { session, error } = await prepared;
       if (signal.aborted) return;
       if (error) { showToast(error.message, "error"); return; }
-      await runMessage(text, session.id, signal);
+      await runMessage(text, session.id, signal, submittedCanvas);
     } });
     void prepared.then(({ session }) => { if (session) chatSubmissionQueue.setSession(followUpId, session.id); });
   }
 
-  async function runMessage(text, sessionId, signal) {
+  async function runMessage(text, sessionId, signal, submittedCanvas) {
     const requestId = createMessageId();
     const abortController = new AbortController();
     const abort = () => abortController.abort();
@@ -272,13 +277,15 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
       const updatedHistory = saved.messages;
       const contextWindow = getSelectedContextWindow();
       const systemPromptValue = getSystemPromptValue();
+      const canvasData = submittedCanvas;
+      const budgetPrompt = canvasData ? systemPromptValue + "\n" + JSON.stringify(canvasData) + " ".repeat(3500) : systemPromptValue;
       const effectiveSummaryModel = summaryModel || selectedModel;
       let contextMessages = buildContextMessages(updatedHistory, nextMemorySummary, nextSummarizedMessageCount);
       try {
         const rotatedMemory = await rotateContextMemory({
           api, sessionId, model: effectiveSummaryModel, messages: updatedHistory,
           memorySummary: nextMemorySummary, summarizedMessageCount: nextSummarizedMessageCount,
-          contextWindow, responseLength, systemPrompt: systemPromptValue, useKnowledgeBase,
+          contextWindow, responseLength: canvasData ? Math.max(4096, responseLength) : responseLength, systemPrompt: budgetPrompt, useKnowledgeBase,
           triggerRatio: contextDefaults.hardTriggerRatio, requestId, signal: abortController.signal,
         });
         nextMemorySummary = rotatedMemory.memorySummary;
@@ -291,6 +298,8 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
       if (wasStopped()) return;
       const res = await api.streamChat({
         model: selectedModel, messages: contextMessages, useKnowledgeBase,
+        knowledgeDocIds,
+        canvasContext: canvasData,
         systemPrompt: systemPromptValue, options: getModelOptions(), sessionId, requestId,
         signal: abortController.signal,
         replyMessageId: assistantMsg.id,
@@ -316,6 +325,11 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
             if (node) node.textContent = event.document_status;
           }
           if (event.artifacts) assistantMsg.artifacts = event.artifacts;
+          if (event.knowledge_sources) assistantMsg.knowledge_sources = event.knowledge_sources;
+          if (event.canvas_edit) {
+            try { applyCanvasEdit(event.canvas_edit); assistantMsg.canvas_applied = true; }
+            catch (failure) { fullResponse += `\nCanvas was not changed: ${failure.message}\n`; showToast(failure.message, "error"); }
+          }
           if (event.document_text) assistantMsg.document_text = event.document_text;
           if (event.cancelled) stopped = true;
           if (event.token) {

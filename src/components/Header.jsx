@@ -6,6 +6,8 @@ import { formatTokenEstimate, getContextStatus, getContextUsage } from "../conte
 import { buildRoleplaySystemPrompt } from "../roleplayPrompt";
 import { mergeSystemPrompt } from "../responseStyle";
 import { describeStatus, statusIndicator } from "../serviceStatus";
+import ModelOrder from "./ModelOrder";
+import KnowledgeContext from "./KnowledgeContext";
 
 export default function Header({ onSessionRenamed, onCompactMemory }) {
   const state = useStore();
@@ -106,14 +108,6 @@ export default function Header({ onSessionRenamed, onCompactMemory }) {
     showToast("Thinking trace exported and cleared", "success");
   }
 
-  function handleKBToggle() {
-    dispatch({ type: "TOGGLE_KNOWLEDGE_BASE" });
-    showToast(
-      useKnowledgeBase ? "Knowledge base context OFF" : "Knowledge base context ON",
-      useKnowledgeBase ? "" : "success"
-    );
-  }
-
   async function handleOpenThinkingTerminal() {
     try {
       const result = await api.openThinkingTerminal();
@@ -206,15 +200,7 @@ export default function Header({ onSessionRenamed, onCompactMemory }) {
         </div>
 
         {/* KB Toggle */}
-        <div
-          className={`kb-toggle ${useKnowledgeBase ? "active" : ""}`}
-          id="kb-toggle"
-          title="Toggle knowledge base context"
-          onClick={handleKBToggle}
-        >
-          <div className="kb-toggle-dot"></div>
-          <span className="kb-toggle-label">KB</span>
-        </div>
+        <KnowledgeContext />
 
         {/* Export */}
         <div className="export-wrapper" ref={exportRef}>
@@ -284,8 +270,10 @@ export default function Header({ onSessionRenamed, onCompactMemory }) {
         </button>
 
         {/* Model Select */}
+        <ModelOrder />
         <select
           id="model-select"
+          aria-label="Chat model"
           value={selectedModel}
           onChange={(e) =>
             dispatch({ type: "SET_SELECTED_MODEL", payload: e.target.value })

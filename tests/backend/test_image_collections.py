@@ -333,10 +333,11 @@ def test_review_zip_exports_exact_selection_and_metadata_without_modifying_copie
     response = isolated.post("/image-library/export", json={"ids":[b["id"],a["id"],a["id"]]})
     assert response.status_code == 200 and response.headers["cache-control"] == "no-store"
     with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
-        items = json.loads(archive.read("manifest.json"))["images"]
-        assert len(items) == 2 and items[1]["tags"] == ["Skin tone"] and items[1]["rating"] == "liked"
-        assert archive.read(items[1]["file"]) == picture()
-        assert archive.read(items[1]["file"].replace(".png",".txt")) == b"Warm portrait"
+        assert "manifest.json" not in archive.namelist()
+        images = [name for name in archive.namelist() if name.endswith('.png')]
+        assert len(images) == 2
+        assert archive.read(images[1]) == picture()
+        assert archive.read(images[1].replace(".png", ".txt")) == b"Warm portrait"
         assert all(not name.startswith("/") and ".." not in name for name in archive.namelist())
     assert library.read_index() == before
     assert isolated.post("/image-library/export", json={"ids":["../invalid"]}).status_code == 422

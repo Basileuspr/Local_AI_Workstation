@@ -49,12 +49,12 @@ def test_zip_retains_original_bytes_and_snapshot_order(saved_run):
     assert "attachment" in response.headers["content-disposition"]
     assert response.headers["access-control-expose-headers"] == "Content-Disposition"
     with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
-        assert archive.namelist() == [f"stage-{i:02d}-{output['id'][:8]}.png" for i, output in enumerate(outputs, 1)] + ["workflow-manifest.json"]
+        assert archive.namelist() == [f"stage-{i:02d}-{output['id'][:8]}.png" for i, output in enumerate(outputs, 1)]
         for name, output in zip(archive.namelist(), outputs):
             assert hashlib.sha256(archive.read(name)).hexdigest() == output["sha256"]
-        manifest = json.loads(archive.read("workflow-manifest.json"))
-        assert manifest["run"]["seed"] == 42
-        assert manifest["snapshot"] == store.get_job(workflow.id, job)
+        assert "workflow-manifest.json" not in archive.namelist()
+        assert runner.read_run(workflow.id, job)["seed"] == 42
+        assert store.get_job(workflow.id, job)
     assert store.get(workflow.id).revision == workflow.revision
     assert runner.read_run(workflow.id, job)["accepted_output_ids"] == []
 

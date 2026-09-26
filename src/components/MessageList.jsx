@@ -12,6 +12,7 @@ import { isStoredReference } from "../imageRefs";
 import ImageViewer from "./ImageViewer";
 import DocumentViewer, { DocumentAttachment } from "./DocumentViewer";
 import { chatImage } from "../chatImages";
+import { ConvertedAttachment } from "./FileConverter";
 
 function summarizeContent(message) {
   const content = String(message.content || "");
@@ -254,7 +255,12 @@ export default function MessageList({ onNewChat, onSessionSaved }) {
                     </div>
                   )}
                   <MarkdownMessage onImageClick={image => setImagePreview({ ...image, chat_session_id: currentSessionId, id: `${messageId}:inline:${image.url}` })}>{summarizeContent(message)}</MarkdownMessage>
+                  {message.knowledge_sources && <details className="knowledge-sources"><summary>Knowledge supplied: {message.knowledge_sources.length} excerpts</summary>
+                    {message.knowledge_sources.length ? <ul>{message.knowledge_sources.map((source, i) => <li key={i}>{source.filename} — excerpt {source.chunk_index + 1}, {source.characters} characters</li>)}</ul> : <p>No Knowledge excerpts were supplied for this reply.</p>}
+                  </details>}
                   {(message.artifacts || []).filter(artifact => artifact.kind === "docx").map(artifact => <DocumentAttachment key={artifact.id} artifact={artifact} onView={setDocumentPreview} />)}
+                  {(message.artifacts || []).filter(artifact => artifact.kind === "converted-image").map(artifact => <ConvertedAttachment key={artifact.id} artifact={artifact} />)}
+                  {message.canvas_applied && <button type="button" onClick={() => dispatch({ type: "SET_SIDEBAR_TAB", payload: "canvas" })}>Open Canvas</button>}
                 </div>
               </div>
               <div className="message-actions">

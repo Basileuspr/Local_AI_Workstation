@@ -7,6 +7,8 @@ contextBridge.exposeInMainWorld("workstationDesktop", {
     openLogs: () => ipcRenderer.invoke("app:open-logs"),
     copyImage: (dataUrl) => ipcRenderer.invoke("functions:copy-image", dataUrl),
     runAction: (action) => ipcRenderer.invoke("functions:run-action", action),
+    chooseProgram: () => ipcRenderer.invoke("functions:choose-program"),
+    openProgram: (id) => ipcRenderer.invoke("functions:open-program", id),
     captureTab: (tab) => ipcRenderer.invoke("functions:capture-tab", tab),
     softwareRuntime: () => ipcRenderer.invoke("dashboard:software-runtime"),
     startMediaManager: () => ipcRenderer.invoke("media-manager:start"),

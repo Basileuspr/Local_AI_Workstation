@@ -1,14 +1,19 @@
 # Functions and navigation controls
 
-Functions opens from the standalone sidebar button below Characters & Training.
+Functions opens from its standalone sidebar button.
 
 ## Functions
 
-- **Markdown Viewer** accepts large pasted Markdown and switches between Plain
-  Text and a rendered preview. The draft survives navigation but not app reload.
-- **Add Button** creates a named shortcut to an app workspace, Markdown Viewer,
-  system action, or tab capture. Custom buttons persist locally and are
+- **Markdown Viewer** has its own tab in Viewers. It accepts large pasted
+  Markdown and switches between Plain Text and a rendered preview. The draft
+  survives navigation but not app reload.
+- **Add Button** creates a named shortcut to an app workspace, a chosen Windows
+  program or shortcut, a system action, or a tab capture. Use Program or shortcut
+  and Browse for program to select an `.exe` or `.lnk` in the native file picker.
+  Registered program paths stay in the desktop process. Custom buttons persist locally and are
   alphabetized; Edit buttons provides rename, retarget, and remove controls.
+- **Windows Snipping Tool** opens the Windows snipping overlay. **Open PowerShell**
+  opens an interactive terminal and is also available on Dashboard.
 - **Update Installed Programs** opens a terminal running `winget upgrade --all`.
   The terminal owns installer prompts and progress. Merely opening Functions
   does not start updates.
@@ -16,7 +21,7 @@ Functions opens from the standalone sidebar button below Characters & Training.
   `Win+Ctrl+Shift+B`. It may briefly flicker or beep. It does not install drivers
   or unload Ollama models. Its PowerShell execution policy override applies
   only to the fixed helper process; it does not change system policy.
-- **Capture [name] Tab** exists for all 15 registered workspaces. It copies an
+- **Capture [name] Tab** exists for all registered workspaces. It copies an
   image to the OS clipboard at maximized dimensions on the app's display.
   It leaves the user's visible window, active tab, input focus, and work intact.
 
