@@ -1,0 +1,71 @@
+// Full selection -> review -> custom-folder move workflow, using generated temporary clips.
+import { createRequire } from 'node:module';
+import { spawn } from 'node:child_process';
+import { createInterface } from 'node:readline';
+import { access, mkdir } from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const require = createRequire(import.meta.url);
+const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const server = spawn('python', ['-m', 'tests.ui_fixture_server', '--duplicates'], { stdio: ['pipe', 'pipe', 'inherit'], windowsHide: true });
+let browser;
+try {
+  const fixture = await new Promise((resolve, reject) => {
+    createInterface({ input: server.stdout }).once('line', line => resolve(JSON.parse(line)));
+    server.once('exit', code => reject(new Error(`Fixture exited: ${code}`)));
+  });
+  browser = await chromium.launch({ headless: true, ...(process.env.CHROMIUM_EXECUTABLE ? { executablePath: process.env.CHROMIUM_EXECUTABLE } : {}) });
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1050 } });
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.goto(fixture.url);
+
+  await page.getByLabel('Source folder', { exact: true }).fill(fixture.source);
+  await page.getByLabel('Destination folder', { exact: true }).fill(fixture.destination);
+  await page.getByRole('button', { name: 'Scan & preview' }).click();
+  await page.waitForFunction(() => document.querySelectorAll('.mo-media-card').length === 5);
+  const first = await page.locator('[data-rotate-right]').first().getAttribute('data-rotate-right');
+  await page.locator(`[data-rotate-right="${first}"]`).first().click();
+  await page.waitForFunction(id => document.querySelector(`[data-rotation-record="${id}"]`).dataset.rotation === '90',first);
+  await page.locator(`[data-detail="${first}"]`).click();
+  assert.equal(await page.locator('#mo-detail video').getAttribute('data-rotation'),'90');
+  await page.locator('#mo-detail [data-rotate-left]').click();
+  await page.waitForFunction(() => document.querySelector('#mo-detail video').dataset.rotation === '0');
+  await page.locator('#mo-detail [data-close]').click();
+  await page.locator('#mo-select-matching').click();
+  await page.locator(`[data-new-item="${first}"]`).first().click();
+  await page.getByLabel('Folder name').fill('One selected item');
+  await page.getByRole('button', { name: 'Create folder', exact: true }).click();
+  await page.getByRole('button', { name: 'Preview selected move', exact: true }).click();
+  await page.getByRole('heading',{name:'Review 1 selected moves'}).waitFor();
+  assert.equal(await page.locator('.mo-custom-preview-item').count(),1);
+  await page.getByLabel('Type MOVE to confirm', { exact: true }).fill('MOVE');
+  await page.getByRole('button', { name: 'Move selected clips', exact: true }).click();
+  await page.waitForFunction(() => document.querySelector('#mo-library-title').textContent.startsWith('One selected item'));
+  const records = await page.evaluate(() => document.querySelector('media-organizer').data.records);
+  assert.equal(records.filter(r=>r.CustomFolderId).length,1);
+  await page.locator('[data-custom-filter=""]').click();
+  await page.locator('[data-tab="duplicates"]').click();
+  await page.locator('[data-enlarge]').first().click();
+  await page.locator('#mo-duplicate-viewer [data-rotate-right]').click();
+  await page.waitForFunction(() => document.querySelector('#mo-duplicate-viewer img').dataset.rotation === '90');
+  const copies = await page.evaluate(()=>{const p=document.querySelector('media-organizer'),id=document.querySelector('#mo-duplicate-viewer img').dataset.rotationRecord,row=p.data.records.find(r=>r.RecordId===id);return p.data.records.filter(r=>r.SHA256===row.SHA256).map(r=>({id:r.RecordId,angle:r.ViewRotation}));});
+  assert.equal(copies.filter(r=>r.angle===90).length,1);
+  assert.ok(copies.some(r=>r.angle===0));
+  await page.locator('[data-viewer-play]').click();
+  assert.equal(await page.locator('#mo-duplicate-viewer video').getAttribute('data-rotation'),'90');
+  await page.locator('#mo-duplicate-viewer [data-place-item]').click();
+  await page.getByRole('button',{name:'Preview selected move',exact:true}).click();
+  await page.locator('[data-custom-close]').click();
+  const rotatedId = await page.evaluate(()=>document.querySelector('media-organizer').data.records.find(r=>r.ViewRotation===90).RecordId);
+  await page.reload();
+  await page.waitForFunction(()=>!!document.querySelector('media-organizer').data);
+  assert.equal(await page.evaluate(id=>document.querySelector('media-organizer').data.records.find(r=>r.RecordId===id).ViewRotation,rotatedId),90);
+  await mkdir('test-work/ui-qa',{recursive:true});
+  await page.screenshot({path:'test-work/ui-qa/media-actions.png',fullPage:true});
+  assert.deepEqual(errors,[]);
+  console.log('Media actions passed: normal/detail/duplicate/playback rotations; saved orientation; per-item new folder moves exactly one despite bulk selection; enlarged existing-folder shortcut.');
+} finally {
+  await browser?.close();
+  const closed = new Promise(resolve => server.once('exit', resolve));
+  server.stdin.end('stop\n'); await closed;
+}

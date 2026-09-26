@@ -44,7 +44,7 @@ export default function MediaManager({ active }) {
 
   return <section className="media-manager-shell" aria-label="Media Manager">
     <header className="media-manager-access">
-      <span>Media Manager · Separate workspace</span>
+      <span>Media Manager · Local workspace</span>
       {status.ready && <button type="button" onClick={async () => {
         try { const result = await desktop.focusMediaManager(); setFocusNotice(result?.focused ? "Media Manager focused" : result?.error || "Could not focus Media Manager."); }
         catch { setFocusNotice("Could not enter Media Manager. Reopen its tab."); }

@@ -37,7 +37,7 @@ function desktopCapabilities({ mediaDirectory, python, platform = process.platfo
     const winget = windows && onPath("winget.exe");
     const state = (available, detail) => ({ available, detail });
     return { features: {
-        media_manager: state(mediaAvailable, mediaAvailable ? "Separate Media Organizer application detected." : "Install Media Organizer and its Python runtime, or set LAW_MEDIA_MANAGER_DIR to the existing application folder."),
+        media_manager: state(mediaAvailable, mediaAvailable ? "Media Manager and its Python runtime are available." : "Media Manager or its Python runtime is missing. Restore the bundled media-manager folder and run the workstation setup script."),
         program_updates: state(Boolean(powershell && winget), !powershell ? "Windows PowerShell is unavailable." : winget ? "WinGet detected." : "WinGet was not found. Install App Installer to enable program updates."),
         graphics_reset: state(Boolean(powershell), powershell ? "Windows graphics reset is available." : "This action requires Windows PowerShell."),
         tab_capture: state(true, "Desktop tab capture is available."),

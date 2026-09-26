@@ -23,6 +23,11 @@ build/
 .DS_Store
 Thumbs.db
 
+# Private Media Manager runtime state and generated test output
+/media-manager/runs/
+/media-manager/test-work/
+/media-manager/tools/
+
 # Local credentials and private exports
 .env.*
 !.env.example

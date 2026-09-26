@@ -1,4 +1,4 @@
-// Hidden, isolated integration check: real built React UI + real Media Manager,
+// Isolated integration check: real built React UI + real Media Manager,
 // disposable reports and synthetic MP4 only; no Workstation backend is started.
 const { app, BrowserWindow, WebContentsView, session, ipcMain, protocol, net } = require("electron");
 const fs = require("node:fs");
@@ -15,6 +15,7 @@ const work = fs.mkdtempSync(path.join(os.tmpdir(), "law-media-manager-qa-"));
 app.setPath("userData", path.join(work, "profile"));
 protocol.registerSchemesAsPrivileged([{ scheme: "app", privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }]);
 let manager, win, backend;
+let diagnostics = async () => ({});
 let sessionRestoreFixture = false;
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function until(predicate, label, timeout = 15000) {
@@ -47,18 +48,24 @@ app.whenReady().then(async () => {
     ipcMain.on("app:connection", event => { event.returnValue = trusted(event) ? { base: `http://127.0.0.1:${backend.address().port}`, token: "fixture-host-secret" } : null; });
     manager = createMediaManager({ WebContentsView, session, getWindow: () => win,
         python: process.env.LAW_MEDIA_MANAGER_PYTHON || path.join(root, "venv", "Scripts", "python.exe"),
-        directory: process.env.LAW_MEDIA_MANAGER_DIR || path.join(app.getPath("desktop"), "Media Organizer"), reports: path.join(work, "runs") });
+        directory: path.join(root, "media-manager"), reports: path.join(work, "runs") });
     for (const [name, action] of Object.entries({ start: () => manager.start(), status: () => manager.status(), place: value => manager.place(value), focus: () => manager.focus(), refresh: () => manager.refresh() })) {
         ipcMain.handle(`media-manager:${name}`, (event, value) => trusted(event) ? action(value) : { error: "Denied" });
     }
     ipcMain.handle("maintenance:import-status", () => ({ pending: false }));
+    ipcMain.handle("app:startup-status", () => ({ phase: "ready" }));
+    ipcMain.handle("app:capabilities", () => ({ features: { media_manager: { available: true } } }));
     await win.loadURL("app://local/index.html");
+    // Chromium does not load lazy images in hidden native views, even after
+    // scrolling. Show the disposable window without taking keyboard focus.
+    win.showInactive();
     const host = source => win.webContents.executeJavaScript(source);
     await until(() => host("!!document.querySelector('[data-media-manager-tab]')"), "React tab");
     assert.equal(win.contentView.children.length, 0, "Lazy launch");
     await host("localStorage.setItem('host-only-sentinel','private'); document.querySelector('[data-media-manager-tab]').click()");
     await until(() => manager.status().ready, "Media Manager ready");
     const view = win.contentView.children[0], media = source => view.webContents.executeJavaScript(`{ ${source} }`).catch(error => { throw new Error(`Media QA failed: ${source}: ${error.message}`); });
+    diagnostics = async () => ({ visible: view.getVisible(), bounds: view.getBounds(), page: await media("({visibility:document.visibilityState,scrollY:window.scrollY,viewport:[innerWidth,innerHeight],thumbnails:[...document.querySelectorAll('#mo-results img')].map(img=>({complete:img.complete,width:img.naturalWidth,loading:img.loading,top:img.getBoundingClientRect().top,srcSet:!!img.src})),failed:document.querySelectorAll('.mo-thumb-failed').length})") });
     await until(() => view.getVisible(), "visible embedded panel");
     assert.notEqual(view.webContents.session, win.webContents.session);
     const preferences = view.webContents.getLastWebPreferences();
@@ -80,6 +87,8 @@ app.whenReady().then(async () => {
     assert.equal(generated.status, 0, generated.stderr?.toString());
     await media(`document.querySelector('#mo-source').value=${JSON.stringify(source)}; document.querySelector('#mo-destination').value=${JSON.stringify(path.join(work, "archive"))}; document.querySelector('#mo-scan').click()`);
     await until(() => media("document.querySelectorAll('.mo-media-grid .mo-media-card').length === 1"), "scanned media", 25000);
+    // Thumbnails are lazy: exercise the same viewport entry as a person scrolling.
+    await media("document.querySelector('#mo-results img').scrollIntoView({block:'center'})");
     await until(() => media("[...document.querySelectorAll('#mo-results img')].some(img=>img.naturalWidth > 0)"), "thumbnail");
     checked.push("real synthetic MP4 scan and thumbnail through unchanged module UI");
     await media("document.querySelector('#mo-add-custom-folder').click();document.querySelector('#mo-custom-name').value='Desktop QA folder';document.querySelector('#mo-custom-save').click()");
@@ -182,6 +191,6 @@ app.whenReady().then(async () => {
     await until(async () => { try { await fetch(url); return false; } catch { return true; } }, "child server exits after parent pipe closes");
     assert.ok(fs.existsSync(video), "Scan preserves source");
     fs.writeFileSync(resultFile, JSON.stringify({ ok: true, checked, reports: "temporary only" }, null, 2));
-}).catch(error => { fs.writeFileSync(resultFile, JSON.stringify({ error: error.stack, checked }, null, 2)); console.error(error.stack); process.exitCode = 1; }).finally(() => {
+}).catch(async error => { fs.writeFileSync(resultFile, JSON.stringify({ error: error.stack, checked, diagnostics: await diagnostics().catch(() => ({})) }, null, 2)); console.error(error.stack); process.exitCode = 1; }).finally(() => {
     manager?.dispose(); backend?.close(); win?.destroy(); app.quit();
 });

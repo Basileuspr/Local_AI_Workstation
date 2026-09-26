@@ -29,6 +29,7 @@ const { clearDesktopStorage } = require("./maintenanceStorage");
 const { trustedUrl, externalUrl, appAsset, APP_HEADERS } = require("./security");
 const { migratePreferences } = require("./preferenceMigration");
 const { createMediaManager } = require("./mediaManager");
+const { mediaManagerPaths } = require("./mediaManagerPaths");
 const { createTabCapture } = require("./tabCapture");
 const { runDesktopAction, writeClipboardImage } = require("./desktopFunctions");
 const { backendFailure, pythonPreflight, desktopCapabilities } = require("./compatibility");
@@ -106,13 +107,15 @@ const driveSpace = createDriveSpace({
     }),
 });
 
-const mediaDirectory = process.env.LAW_MEDIA_MANAGER_DIR || path.join(app.getPath("desktop"), "Media Organizer");
+const { directory: mediaDirectory, reports: mediaReports } = mediaManagerPaths({
+    root: path.join(__dirname, ".."), desktop: app.getPath("desktop"), userData: app.getPath("userData"),
+});
 const mediaPython = process.env.LAW_MEDIA_MANAGER_PYTHON || CONFIG.pythonPath;
 const mediaManager = createMediaManager({
     WebContentsView, session, getWindow: () => mainWindow,
     python: mediaPython,
     directory: mediaDirectory,
-    reports: process.env.LAW_MEDIA_MANAGER_REPORTS,
+    reports: mediaReports,
 });
 
 function trustedDesktop(event) {

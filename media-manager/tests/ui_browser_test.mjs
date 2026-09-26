@@ -1,0 +1,148 @@
+// Optional isolated browser verification. Uses an installed Playwright package.
+// Set PLAYWRIGHT_MODULE and CHROMIUM_EXECUTABLE when they are not on normal paths.
+import { createRequire } from 'node:module';
+import { spawn } from 'node:child_process';
+import { createInterface } from 'node:readline';
+import { mkdir } from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const require = createRequire(import.meta.url);
+const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const server = spawn('python', ['-m', 'tests.ui_fixture_server'], { stdio: ['pipe', 'pipe', 'inherit'], windowsHide: true });
+let browser;
+try {
+  const fixture = await new Promise((resolve, reject) => {
+    const lines = createInterface({ input: server.stdout });
+    lines.once('line', line => resolve(JSON.parse(line)));
+    server.once('exit', code => reject(new Error(`Fixture server exited: ${code}`)));
+  });
+  browser = await chromium.launch({ headless: true, ...(process.env.CHROMIUM_EXECUTABLE ? { executablePath: process.env.CHROMIUM_EXECUTABLE } : {}) });
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1050 } });
+  const errors = [];
+  async function checkThumbnails() {
+    for (const img of await page.locator('.mo-thumbnail img').all()) {
+      await img.scrollIntoViewIfNeeded();
+      await img.evaluate(image => image.decode());
+      assert.ok(await img.evaluate(image => image.naturalWidth > 0 && image.naturalWidth <= 320));
+    }
+    assert.equal(await page.locator('.mo-thumb-ready').count(), 3);
+  }
+  page.on('pageerror', error => errors.push(error.message));
+  await page.goto(fixture.url);
+  await page.getByText('Your timeline starts here').waitFor();
+  await mkdir('test-work/ui-qa', { recursive: true });
+  await page.screenshot({ path: 'test-work/ui-qa/desktop-empty.png', fullPage: true });
+  await page.getByRole('button', { name: 'Scan & preview' }).click();
+  assert.match(await page.locator('#mo-status').innerText(), /both a source and a destination/);
+  await page.getByLabel('Source folder', { exact: true }).fill(fixture.source);
+  await page.getByLabel('Destination folder', { exact: true }).fill(fixture.destination);
+  await page.getByRole('button', { name: 'Scan & preview' }).click();
+  await page.getByText(/About .* left in this step/).waitFor();
+  const liveValue = await page.locator('#mo-progress-bar').getAttribute('value');
+  assert.ok(Number(liveValue) > 0 && Number(liveValue) < 100);
+  assert.match(await page.locator('#mo-progress-count').innerText(), /files processed/);
+  await page.screenshot({ path: 'test-work/ui-qa/desktop-progress.png', fullPage: true });
+  await page.waitForFunction(() => document.querySelectorAll('.mo-media-card').length === 3, { timeout: 30000 });
+  assert.equal(await page.locator('#mo-progress-bar').getAttribute('value'), '100');
+  assert.equal(await page.locator('#mo-remaining').innerText(), 'Finished');
+  assert.equal(await page.locator('.mo-date-group').count(), 2);
+  assert.equal(await page.locator('#mo-count').innerText(), '3');
+  await checkThumbnails();
+  await page.screenshot({ path: 'test-work/ui-qa/desktop-library.png', fullPage: true });
+  await page.locator('[data-year="2020"]').click();
+  assert.equal(await page.locator('.mo-media-card').count(), 1);
+  await page.locator('[data-year=""]').click();
+  await page.getByRole('searchbox').fill('20240820');
+  assert.equal(await page.locator('.mo-media-card').count(), 2);
+  await page.getByRole('searchbox').fill('does-not-exist');
+  await page.getByText('No matching videos').waitFor();
+  await page.getByRole('button', { name: 'Clear filters' }).click();
+  await page.getByRole('button', { name: 'List view', exact: true }).click();
+  assert.equal(await page.locator('.mo-media-list').count(), 2);
+  await checkThumbnails();
+  await page.locator('[data-detail]').first().click();
+  await page.locator('video').evaluate(video => new Promise((resolve, reject) => {
+    if (video.readyState >= 1) return resolve();
+    video.addEventListener('loadedmetadata', resolve, { once: true });
+    video.addEventListener('error', () => reject(new Error('Generated MP4 failed to load')), { once: true });
+  }));
+  assert.equal(await page.locator('video').evaluate(video => video.videoWidth), 320);
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Review move' }).click();
+  assert.equal(await page.locator('#mo-execute').isEnabled(), false);
+  await page.getByRole('button', { name: 'Go back' }).click();
+  await page.getByLabel('Destination folder', { exact: true }).fill(fixture.destination + '-changed');
+  assert.equal(await page.getByRole('button', { name: 'Review move' }).isEnabled(), false);
+  const savedRun = await page.locator('#mo-history option').evaluateAll(options => options.find(option => option.value && option.value !== 'all-scans').value);
+  await page.locator('#mo-history').selectOption(savedRun);
+  await page.waitForFunction(() => document.querySelector('#mo-move').disabled === false);
+  await page.getByRole('button', { name: 'Review move' }).click();
+  await page.getByLabel('Type MOVE to confirm').fill('MOVE');
+  await page.locator('#mo-execute').click();
+  await page.waitForFunction(() => document.querySelectorAll('.mo-success').length === 3, { timeout: 30000 });
+  await page.locator('[data-detail]').first().click();
+  assert.match(await page.locator('.mo-location code').first().innerText(), /archive/);
+  await page.keyboard.press('Escape');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole('button', { name: 'Grid view', exact: true }).click();
+  await checkThumbnails();
+  await page.screenshot({ path: 'test-work/ui-qa/mobile-library.png', fullPage: true });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'Mobile horizontal overflow');
+  await page.reload();
+  await page.waitForFunction(() => document.querySelectorAll('.mo-media-card').length === 3);
+  assert.equal(await page.locator('.mo-success').count(), 3);
+  await page.route('**/api/thumbnail?*', route => route.abort());
+  await page.getByRole('button', { name: 'List view', exact: true }).click();
+  await page.locator('.mo-thumbnail').first().scrollIntoViewIfNeeded();
+  await page.locator('.mo-thumb-failed').first().waitFor();
+  assert.equal(await page.locator('[data-detail]').first().isEnabled(), true);
+  await page.unroute('**/api/thumbnail?*');
+  // Controlled classification labels isolate tag behavior from heuristic classification.
+  await page.route('**/api/library?*', async route => {
+    const response = await route.fetch();
+    const data = await response.json();
+    data.records[0].Classification = 'TikTok / Social Media';
+    data.records[1].Classification = 'Camera Recording';
+    data.records[2].Classification = '';
+    data.records[2].OriginalFilename = 'TikTok in filename only.mp4';
+    await route.fulfill({ response, json: data });
+  });
+  await page.reload();
+  const tags = page.getByRole('group', { name: 'Category filter tags' });
+  await tags.getByRole('button', { name: 'TikTok', exact: true }).click();
+  assert.equal(await page.locator('.mo-media-card').count(), 1, 'Tags must match classification, not a filename containing TikTok');
+  assert.equal(await page.locator('#mo-category').inputValue(), 'TikTok / Social Media');
+  await page.locator('[data-year="2024"]').click();
+  await page.getByText('No matching videos').waitFor();
+  await tags.getByRole('button', { name: 'All clips', exact: true }).click();
+  assert.equal(await page.locator('.mo-media-card').count(), 2, 'All clips preserves the year filter');
+  await page.locator('[data-year=""]').click();
+  await page.getByLabel('Filter by category').selectOption('Camera Recording');
+  assert.equal(await tags.getByRole('button', { name: 'Camera', exact: true }).getAttribute('aria-pressed'), 'true');
+  assert.equal(await page.locator('.mo-media-card').count(), 1);
+  await tags.getByRole('button', { name: 'Camera', exact: true }).click();
+  assert.equal(await page.locator('.mo-media-card').count(), 3, 'Clicking the active tag clears only category');
+  await tags.getByRole('button', { name: 'Unknown', exact: true }).click();
+  assert.equal(await page.locator('.mo-media-card').count(), 1, 'Unlabeled files remain reachable');
+  await tags.getByRole('button', { name: 'All clips', exact: true }).click();
+  await tags.getByRole('button', { name: 'TikTok', exact: true }).focus();
+  await page.keyboard.press('Space');
+  assert.equal(await tags.getByRole('button', { name: 'TikTok', exact: true }).getAttribute('aria-pressed'), 'true');
+  await page.getByRole('searchbox', { name: 'Search media', exact: true }).fill('no-match');
+  await page.getByText('No matching videos').waitFor();
+  await page.getByRole('button', { name: 'Clear filters' }).click();
+  assert.equal(await tags.getByRole('button', { name: 'All clips', exact: true }).getAttribute('aria-pressed'), 'true');
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.setViewportSize({ width: 1440, height: 1050 });
+  await tags.getByRole('button', { name: 'TikTok', exact: true }).click();
+  await page.getByRole('tab', { name: /Duplicates/ }).click();
+  await page.getByRole('tab', { name: 'Media library', exact: true }).click();
+  assert.equal(await tags.getByRole('button', { name: 'TikTok', exact: true }).getAttribute('aria-pressed'), 'true');
+  await page.screenshot({ path: 'test-work/ui-qa/category-tags.png', fullPage: true });
+  assert.deepEqual(errors, []);
+  console.log('Browser checks passed: scan progress/ETA, date/search/category tags, exact label filtering, dropdown sync, keyboard toggles, unknown labels, thumbnail playback/moves/fallback, actual paths, refresh, mobile layout.');
+} finally {
+  await browser?.close();
+  const closed = new Promise(resolve => server.once('exit', resolve));
+  server.stdin.end('stop\n');
+  await closed;
+}

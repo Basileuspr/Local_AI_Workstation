@@ -6,6 +6,11 @@ image generation, LoRA workflows, face curation and persistent scene editing.
 
 From an already configured checkout, run `npm start`.
 
+The [Media Manager](MEDIA_MANAGER.md) is bundled in this repository, including
+its scanner, library, duplicate tools, verified moves, captures, frame extraction,
+and image tools. FFmpeg/FFprobe are required for its video and image operations.
+Existing media and saved scans remain private local data and are not published.
+
 To connect two PCs and delegate chat or image tasks, see the
 [PC bridge setup and first test](PC_BRIDGE.md). Bridge controls are in Dashboard.
 

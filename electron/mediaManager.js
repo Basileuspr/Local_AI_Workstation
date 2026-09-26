@@ -53,7 +53,7 @@ function createMediaManager({ WebContentsView, session, getWindow, python, direc
         pending = (async () => {
             failure = null;
             if (!fs.existsSync(path.join(directory, "media_organizer", "ui_server.py"))) {
-                throw new Error(`Media Manager was not found at ${directory}. Restore that folder or set LAW_MEDIA_MANAGER_DIR and restart the app.`);
+                throw new Error("Media Manager is missing. Restore the bundled media-manager folder, or check LAW_MEDIA_MANAGER_DIR, then restart the app.");
             }
             origin = await new Promise((resolve, reject) => {
                 const args = ["-m", "media_organizer.ui_server", "--desktop-bridge"];
