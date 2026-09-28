@@ -6,6 +6,11 @@ image generation, LoRA workflows, face curation and persistent scene editing.
 
 From an already configured checkout, run `npm start`.
 
+The [Audio workspace](AUDIO.md) provides microphone recording, local transcription
+with speaker separation, system read-aloud, and local voice cloning with
+OmniVoice, Chatterbox Turbo, and Qwen3-TTS. See its setup guide for optional
+runtimes and model downloads; recordings and model weights stay on your PC.
+
 The [Media Manager](MEDIA_MANAGER.md) is bundled in this repository, including
 its scanner, library, duplicate tools, verified moves, captures, frame extraction,
 and image tools. FFmpeg/FFprobe are required for its video and image operations.

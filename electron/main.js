@@ -29,6 +29,7 @@ const { clearDesktopStorage } = require("./maintenanceStorage");
 const { trustedUrl, externalUrl, appAsset, APP_HEADERS } = require("./security");
 const { migratePreferences } = require("./preferenceMigration");
 const { createMediaManager } = require("./mediaManager");
+const { installAudioPermissions } = require("./audioPermissions");
 const { mediaManagerPaths } = require("./mediaManagerPaths");
 const { createTabCapture } = require("./tabCapture");
 const { runDesktopAction, writeClipboardImage } = require("./desktopFunctions");
@@ -628,6 +629,7 @@ async function createWindow() {
     });
 
     guardNavigation(mainWindow.webContents);
+    installAudioPermissions(mainWindow.webContents, useViteDev ? CONFIG.viteDevUrl : null);
     mainWindow.webContents.on("did-start-navigation", (_event, _url, _inPlace, isMainFrame) => { if (isMainFrame) mediaManager.hide(); });
     mainWindow.webContents.on("render-process-gone", async (_event, details) => {
         mediaManager.hide();

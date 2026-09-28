@@ -36,6 +36,7 @@ import CodeViewer from "./components/CodeViewer";
 import SpreadsheetViewer from "./components/SpreadsheetViewer";
 import CanvasWorkspace from "./components/CanvasWorkspace";
 import FileConverter from "./components/FileConverter";
+import AudioWorkspace from "./components/AudioWorkspace";
 import { get as getWorkflow } from "./imageWorkflowApi";
 
 function AppInner() {
@@ -321,7 +322,7 @@ function AppInner() {
 
   // Keep chat mounted while dedicated workspaces occupy the main pane.
   const activeTab =
-    ["markdown", "html-viewer", "css-viewer", "spreadsheets", "canvas", "converter"].includes(state.activeSidebarTab) ||
+    ["audio", "markdown", "html-viewer", "css-viewer", "spreadsheets", "canvas", "converter"].includes(state.activeSidebarTab) ||
     state.activeSidebarTab === "tools" ||
     state.activeSidebarTab === "knowledge" || state.activeSidebarTab === "image-editor" || state.activeSidebarTab === "media-manager" || state.activeSidebarTab === "images" || state.activeSidebarTab === "review" || state.activeSidebarTab === "library" || state.activeSidebarTab === "generate" || state.activeSidebarTab === "lora" || state.activeSidebarTab === "workflows" || state.activeSidebarTab === "dashboard" || state.activeSidebarTab === "queue" || state.activeSidebarTab === "faces" || state.activeSidebarTab === "character-parts"
       ? state.activeSidebarTab
@@ -353,6 +354,7 @@ function AppInner() {
           <div className="pane" data-capture-tab="spreadsheets" hidden={activeTab !== "spreadsheets"}><SpreadsheetViewer /></div>
           <div className="pane" data-capture-tab="canvas" hidden={activeTab !== "canvas"}><CanvasWorkspace /></div>
           <div className="pane" data-capture-tab="converter" hidden={activeTab !== "converter"}><FileConverter /></div>
+          <div className="pane" data-capture-tab="audio" hidden={activeTab !== "audio"}><AudioWorkspace active={activeTab === "audio"}/></div>
           <div className="pane" data-capture-tab="image-editor" hidden={activeTab !== "image-editor"}><ImageEditor /></div>
           <div className="pane image-library-pane" data-capture-tab="images" hidden={activeTab !== "images"} ref={setImageLibraryTarget} />
           <div className="pane" data-capture-tab="review" hidden={activeTab !== "review"}><ImageReview active={activeTab === "review"} onOpenSource={handleLoadSession} /></div>

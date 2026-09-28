@@ -44,6 +44,7 @@ if __name__ == "__main__":
 if (settings.data_dir / ".reset-in-progress.json").exists():
     raise RuntimeError("An app reset was interrupted. Complete Reset in the desktop Dashboard before opening app data.")
 
+from routes.audio import router as audio_router
 from routes.sessions import router as sessions_router
 from routes.files import router as files_router
 from routes.export import router as export_router
@@ -104,6 +105,7 @@ from routes.web import router as web_router
 
 app.include_router(web_router)
 app.include_router(sessions_router)
+app.include_router(audio_router)
 app.include_router(files_router)
 app.include_router(export_router)
 from routes.artifacts import router as artifacts_router

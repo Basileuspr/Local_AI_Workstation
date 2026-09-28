@@ -1,0 +1,77 @@
+// Isolated desktop fixture: fake microphone, synthetic API response, private
+// temporary profile. Never reads the user's microphone or running app session.
+const {app,BrowserWindow,protocol,net}=require('electron');
+const {pathToFileURL}=require('node:url');
+const fs=require('node:fs'), path=require('node:path'), os=require('node:os'), assert=require('node:assert/strict');
+const {installAudioPermissions}=require('../electron/audioPermissions');
+const work=fs.mkdtempSync(path.join(os.tmpdir(),'law-audio-qa-'));
+app.setPath('userData',path.join(work,'profile'));
+app.commandLine.appendSwitch('use-fake-device-for-media-stream');
+protocol.registerSchemesAsPrivileged([{scheme:'app',privileges:{standard:true,secure:true,supportFetchAPI:true,stream:true}}]);
+const timeout=setTimeout(()=>{console.error('Audio desktop QA timed out');app.exit(1);},60000);
+let win;
+const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+app.whenReady().then(async()=>{
+  const root=path.resolve(__dirname,'../tmp/audio-qa');
+  protocol.handle('app',request=>net.fetch(pathToFileURL(path.join(root,new URL(request.url).pathname)).toString()));
+  win=new BrowserWindow({show:false,width:1300,height:1000,webPreferences:{sandbox:true,contextIsolation:true,nodeIntegration:false,backgroundThrottling:false}});
+  installAudioPermissions(win.webContents);
+  const js=code=>win.webContents.executeJavaScript(code,true);
+  const until=async(fn,label)=>{for(let i=0;i<100;i++){if(await fn())return;await sleep(100);}throw Error('Timed out: '+label);};
+  const click=label=>js(`(()=>{const b=[...document.querySelectorAll('button')].find(e=>(e.textContent===${JSON.stringify(label)} || e.getAttribute('aria-label')===${JSON.stringify(label)}) && e.getClientRects().length);if(!b||b.disabled)throw Error('Missing enabled button');b.click();})()`);
+  await win.loadURL('app://local/tests/fixtures/audio.html');
+  await js(`window.qaFetch=window.fetch;window.fetch=async(url,options)=>{if(String(url).endsWith('/transcribe'))window.qaModel=options.body.get('model_size');return {ok:true,json:async()=>String(url).endsWith('/transcribe')?(options?.body?.get('diarize')==='true'?{text:'Hello. Hi.',language:'en',duration:2,diarized:true,speakers:['Speaker 1','Speaker 2'],segments:[{start:0,end:1,speaker:'Speaker 1',text:'Hello.'},{start:1,end:2,speaker:'Speaker 2',text:'Hi.'}]}:{text:'A clear local transcript.',language:'en',duration:2,segments:[]}):{installed:true,ready:true,model_ready:true,model:'Whisper base',models:{turbo:{model:'Whisper large-v3 Turbo',ready:true,model_ready:true},base:{model:'Whisper base',ready:true,model_ready:true},small:{model:'Whisper small',ready:true,model_ready:true}},speakers:{installed:true,ready:true,model_ready:true,model:'TitaNet Large'}}};};undefined`);
+  // Re-enter the pane after installing the fixture response.
+  await click('Switch workspace'); await sleep(50); await click('Switch workspace');
+  await until(()=>js("document.body.textContent.includes('Ready for local transcription')"),'ready status');
+  await click('Record microphone');
+  await until(()=>js("document.body.textContent.includes('Stop recording')"),'microphone permission and recording');
+  await sleep(1100); await click('Stop recording');
+  await until(()=>js("!!document.querySelector('audio')"),'recording preview');
+  const recorded=await js("qaFetch(document.querySelector('audio').src).then(r=>r.arrayBuffer()).then(b=>Array.from(new Uint8Array(b)))");
+  fs.writeFileSync(path.join(work,'captured.webm'),Buffer.from(recorded));
+  const savedRecording=new Promise((resolve,reject)=>win.webContents.session.once('will-download',(_event,item)=>{item.setSavePath(path.join(work,'saved-recording.webm'));item.once('done',(_e,state)=>state==='completed'?resolve():reject(Error(state)));}));
+  await click('Save audio recording');await savedRecording;
+  assert.deepEqual(fs.readFileSync(path.join(work,'saved-recording.webm')),Buffer.from(recorded));
+  await click('Transcribe audio');
+  await until(()=>js("document.querySelector('[aria-label=\"Audio transcript\"]').value==='A clear local transcript.'"),'editable transcript');
+  assert.equal(await js('window.qaModel'),'turbo','Recommended model reaches API');
+  assert.equal(await js("document.querySelector('[aria-label=\"Audio processing\"]').value"),'auto');
+  assert.equal(await js("document.querySelector('[aria-label=\"Audio CPU assistance\"]').value"),'auto');
+  await js(`(()=>{const e=document.querySelector('[aria-label="Transcription model"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(e,'base');e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  await until(()=>js("document.querySelector('.audio-model-status').textContent.includes('Whisper base')"),'faster model selection');
+  await click('Transcribe audio');
+  await until(()=>js("window.qaModel==='base' && !document.querySelector('.audio-primary').disabled"),'faster model reaches API');
+  const voices=await js("speechSynthesis.getVoices().map(v=>({name:v.name,local:v.localService}))");
+  console.log('Local voices:',JSON.stringify(voices));
+  const voiceResult=await js(`new Promise(resolve=>{const utterance=new SpeechSynthesisUtterance('Local speech playback test.');utterance.voice=speechSynthesis.getVoices().find(v=>v.localService);utterance.volume=0;utterance.onend=()=>resolve('completed');utterance.onerror=e=>resolve(e.error);speechSynthesis.speak(utterance);setTimeout(()=>resolve('timed out'),10000);})`);
+  assert.equal(voiceResult,'completed');
+  await js('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
+  fs.writeFileSync(path.join(work,'audio-workspace.png'),(await win.webContents.capturePage(undefined,{stayHidden:true,stayAwake:true})).toPNG());
+  await js("document.querySelector('.audio-speaker-settings input[type=checkbox]').click()");
+  await sleep(50);await click('Transcribe audio');
+  await until(()=>js("document.querySelector('[aria-label=\"Audio transcript\"]').value.includes('Speaker 2')"),'speaker transcript');
+  await js(`(()=>{document.querySelector('.audio-speaker-names').open=true;const input=document.querySelector('[aria-label="Name for Speaker 1"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'Alex');input.dispatchEvent(new Event('input',{bubbles:true}));const text=document.querySelector('[aria-label="Audio transcript"]');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(text,text.value.replace('Hello.','Hello, corrected.'));text.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+  await sleep(50);await click('Apply speaker names');
+  const labeled=await js("document.querySelector('[aria-label=\"Audio transcript\"]').value");
+  assert(labeled.includes('] Alex\nHello, corrected.'));assert(labeled.includes('Speaker 2'));
+  await js("Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>{window.qaCopied=text;}}});undefined");
+  await click('Copy transcript');assert.equal(await js('window.qaCopied'),labeled);
+  const exported=new Promise((resolve,reject)=>win.webContents.session.once('will-download',(_event,item)=>{item.setSavePath(path.join(work,'speaker-transcript.txt'));item.once('done',(_e,state)=>state==='completed'?resolve():reject(Error(state)));}));
+  await click('Save transcript');await exported;assert.equal(fs.readFileSync(path.join(work,'speaker-transcript.txt'),'utf8'),labeled);
+  await click('Record microphone');
+  await until(()=>js("document.body.textContent.includes('Stop recording')"),'second recording');
+  await click('Switch workspace');
+  await until(()=>js("![...document.querySelectorAll('button')].some(e=>e.textContent==='Stop recording')"),'navigation stops recording');
+  await click('Microphone / audio');
+  await until(()=>js("document.querySelectorAll('[aria-label=\"Audio transcript\"]').length===2"),'chat audio panel');
+  await js(`(()=>{const e=[...document.querySelectorAll('[aria-label="Audio transcript"]')].at(-1);Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(e,'Dictated message');e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+  await sleep(50); await click('Insert into message');
+  assert.equal(await js("document.querySelector('[aria-label=\"Chat draft\"]').value"),'Existing draft\nDictated message');
+  // No audible playback: inspect the real OS voice inventory, then replace
+  // just the fixture speech engine to validate playback/pause/stop UI.
+  await js(`Object.defineProperty(window,'speechSynthesis',{configurable:true,value:{getVoices:()=>[{name:'Fixture local voice',voiceURI:'fixture',lang:'en-US',localService:true}],cancel(){},speak(){},pause(){},resume(){},addEventListener(){},removeEventListener(){}}});Object.defineProperty(window,'SpeechSynthesisUtterance',{configurable:true,value:class{constructor(text){this.text=text;}}});undefined`);
+  await click('Read aloud'); await sleep(50); await click('Pause voice'); await sleep(50); await click('Resume voice'); await sleep(50); await click('Stop voice');
+  console.log(JSON.stringify({passed:['real Electron fake-microphone capture and preview','transcription result review','real local voice synthesis (muted)','speaker label renaming preserves transcript corrections','copy and save preserve speaker labels and timestamps','recording stops on navigation','chat insertion preserves draft','voice playback controls'],screenshot:path.join(work,'audio-workspace.png'),recording:path.join(work,'captured.webm')}));
+  clearTimeout(timeout);win.destroy();app.exit(0);
+}).catch(error=>{console.error(error);clearTimeout(timeout);win?.destroy();app.exit(1);});

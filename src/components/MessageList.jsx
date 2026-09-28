@@ -1,4 +1,5 @@
 import FreshFileInput from "./FreshFileInput";
+import {ReadAloud} from "./AudioWorkspace";
 import ProtectedImage from "../ImagePrivacy";
 import ImageItemActions from "./ImageItemActions";
 import { useEffect, useRef, useState } from "react";
@@ -264,6 +265,7 @@ export default function MessageList({ onNewChat, onSessionSaved }) {
                 </div>
               </div>
               <div className="message-actions">
+                {message.role === 'assistant' && message.content && <ReadAloud text={message.content} owner={`chat:${currentSessionId}:${messageId}`} active={state.activeSidebarTab === 'chats' && !(state.isGenerating && index === conversationHistory.length - 1)}/>}
                 <button
                   className={`copy-btn ${copiedIndex === index ? "copied" : ""}`}
                   type="button"

@@ -1,4 +1,5 @@
 import FreshFileInput from "./FreshFileInput";
+import {ChatAudio} from "./AudioWorkspace";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { chatSubmissionQueue } from "../chatSubmissionQueue";
 import { useStore, useDispatch, useRefs } from "../useStore.jsx";
@@ -446,6 +447,11 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
       {active && editJob?.sessionId === currentSessionId && privacy.ready && <ImageEditor key={editJob.id} inlineInput={editJob} onSave={saveChatEdit} onCancel={() => setEditJob(null)} />}
       <div className="chat-edit-command"><button type="button" disabled={openingEdit} onClick={() => { textareaRef.current.value = "/Edit "; textareaRef.current.focus(); }}>/Edit</button><span>{openingEdit ? "Opening image editor…" : selectedEdit ? `Selected: ${selectedEdit.image.name}` : "Edit the latest chat image, or select Use with /Edit on an image."}</span>{selectedEdit && <button onClick={() => destinations.clearChatEdit()}>Clear selection</button>}<details><summary>Edit commands</summary><p>/Edit opens image controls here. Try /Edit reduce red hue, increase contrast, decrease exposure, or /Edit rotate right. Preview, adjust, then send the edited copy.</p></details></div>
       <ChatImageControls active={active} onGenerate={generateChatImage} />
+      <ChatAudio active={active} sessionId={currentSessionId} onInsert={text => {
+        const input = textareaRef.current;
+        input.value = [input.value.trimEnd(), text].filter(Boolean).join('\n');
+        handleInput(); input.focus();
+      }}/>
       <div className="chat-document-command"><button type="button" onClick={() => { textareaRef.current.value = "/docx " + (textareaRef.current.value || ""); textareaRef.current.focus(); }}>Create Word document</button><span>Describe the document here, or ask “make this a .docx”.</span></div>
       <QueueRequestStatus requestId={refs.generationRequestId} />
       <small id="chat-clipboard-hint" role="status">{isUploading ? "Saving attachment to chat…" : "Paste screenshots or files here with Ctrl+V. Text pastes normally."}</small>

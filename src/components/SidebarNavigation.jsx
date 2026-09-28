@@ -8,6 +8,7 @@ const groups = [
     { id: "knowledge", label: "Knowledge" },
     { id: "canvas", label: "Canvas" },
     { id: "converter", label: "File Converter" },
+    { id: "audio", label: "Audio" },
   ] },
   { id: "images", label: "Images", icon: "image", items: [
     { id: "images", label: "Gallery", title: "Image Gallery" },
