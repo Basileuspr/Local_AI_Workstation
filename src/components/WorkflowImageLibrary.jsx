@@ -9,6 +9,7 @@ import ImageItemActions from "./ImageItemActions";
 import { useAnalyzeIterate } from "../AnalyzeIterateContext";
 import BulkActions from "./BulkActions";
 import { useSelection } from "../useSelection";
+import { useImageDestinations } from "../ImageDestinations";
 
 export function workflowViewerImages(runs) {
   return runs.flatMap(run => [...run.outputs.map(output => ({ ...output, name: `Stage ${output.stage_number}` })),
@@ -17,7 +18,7 @@ export function workflowViewerImages(runs) {
       caption: `${run.workflow_name} · Run ${run.id.slice(0, 8)}`, run })));
 }
 
-export function WorkflowImageCards({ runs, onOpen, selection }) {
+export function WorkflowImageCards({ runs, onOpen, selection, onRemove }) {
   return runs.map(run => <section className="workflow-library-run" key={`${run.workflow_id}:${run.id}`}>
     <h3>{run.workflow_name}</h3>
     <small>Run {run.id.slice(0, 8)} · {new Date(run.created_at).toLocaleString()}</small>
@@ -29,7 +30,7 @@ export function WorkflowImageCards({ runs, onOpen, selection }) {
           onClick={() => onOpen({ run, image })}>
           <span className="gallery-thumbnail"><ProtectedImage loading="lazy" src={apiUrl(image.url)} alt={`${run.workflow_name} · ${image.name}`} /></span>
           <span className="gallery-details"><span className="gallery-name">{image.name}</span></span>
-        </button>{selection?.ids.has(`${run.workflow_id}:${run.id}:${image.id}`) && <ImageItemActions image={{ ...image, run, id: `${run.workflow_id}:${run.id}:${image.id}`, url: apiUrl(image.url) }} />}</div>)}
+        </button>{onRemove && <button type="button" onClick={()=>onRemove([{id:`${run.workflow_id}:${run.id}:${image.id}`}])} aria-label={`Remove ${image.name} from view`}>Remove</button>}{selection?.ids.has(`${run.workflow_id}:${run.id}:${image.id}`) && <ImageItemActions image={{ ...image, run, id: `${run.workflow_id}:${run.id}:${image.id}`, url: apiUrl(image.url) }} />}</div>)}
     </div>
     <button type="button" onClick={() => onOpen({ run, image: null })}>Save / stitch this run ({run.outputs.length})</button>
   </section>);
@@ -37,6 +38,7 @@ export function WorkflowImageCards({ runs, onOpen, selection }) {
 
 export default function WorkflowImageLibrary({ active, onFile, onLock, searchQuery, workspace = false }) {
   const iterate = useAnalyzeIterate();
+  const destinations = useImageDestinations();
   const [runs, setRuns] = useState([]);
   const [warnings, setWarnings] = useState([]);
   const [localQuery, setQuery] = useState("");
@@ -48,7 +50,12 @@ export default function WorkflowImageLibrary({ active, onFile, onLock, searchQue
   const [selectedImageId, setSelectedImageId] = useState(null);
   const [refresh, setRefresh] = useState(0);
   const dialog = useRef(null);
-  const allImages = workflowViewerImages(runs);
+  const [removedIds,setRemovedIds]=useState([]);
+  const visibleRuns=runs.map(run=>({...run,
+    outputs:run.outputs.filter(image=>!removedIds.includes(`${run.workflow_id}:${run.id}:${image.id}`)),
+    composites:run.composites.filter(image=>!removedIds.includes(`${run.workflow_id}:${run.id}:${image.layout}`))}));
+  const allImages = workflowViewerImages(visibleRuns);
+  function removeImages(images){setRemovedIds(current=>[...current,...images.map(image=>image.id)]);setSelectedImageId(null);selection.forget(images);}
   const selection = useSelection(allImages);
   useEffect(() => { setPage(0); }, [query]);
 
@@ -79,7 +86,7 @@ export default function WorkflowImageLibrary({ active, onFile, onLock, searchQue
     else dialog.current?.close();
   }, [selected, active]);
 
-  const filtered = runs.filter(run => `${run.workflow_name} ${run.id}`.toLowerCase().includes(query.trim().toLowerCase()));
+  const filtered = visibleRuns.filter(run => `${run.workflow_name} ${run.id}`.toLowerCase().includes(query.trim().toLowerCase()));
   const pages = Math.max(1, Math.ceil(filtered.length / 4));
   const currentPage = Math.min(page, pages - 1);
   return <section className="workflow-image-library" aria-label="Workflow Images folder">
@@ -91,15 +98,18 @@ export default function WorkflowImageLibrary({ active, onFile, onLock, searchQue
       <CollectionPager label="workflow runs" page={currentPage} pages={pages} onChange={setPage} />
     </div>
     <p className="workflow-muted">Completed workflow images and stitched references, separate from Generate and chat images.</p>
-    {(onFile || onLock) && <BulkActions selection={selection} items={workflowViewerImages(filtered)} label="workflow images" actions={[
+    {<BulkActions selection={selection} items={workflowViewerImages(filtered)} label="workflow images" actions={[
+      {label:"Remove selected from view",onClick:removeImages},
+      ...(destinations ? [{ label: "Make GIF from selected", onClick: images => destinations.openGifMaker({ images }) }] : []),
       ...(onFile ? [{label:"Add selected to folder", onClick:onFile}] : []),
       ...(onLock ? [{label:"Lock selected images", onClick:onLock}] : []),
     ]} />}
+    {!!removedIds.length && <button type="button" onClick={()=>setRemovedIds([])}>Restore removed images</button>}
     {error && <p className="workflow-error" role="alert">{error}</p>}
     {warnings.map(warning => <p className="workflow-error" key={warning}>{warning}</p>)}
     {!loaded && !error && <p role="status">Loading workflow images…</p>}
     {loaded && !filtered.length && <p className="gallery-empty">{query ? "No matching workflows." : "Completed workflow images will appear here automatically."}</p>}
-    <WorkflowImageCards runs={filtered.slice(currentPage * 4, currentPage * 4 + 4)} selection={selection} onOpen={picked => {
+    <WorkflowImageCards runs={filtered.slice(currentPage * 4, currentPage * 4 + 4)} selection={selection} onRemove={removeImages} onOpen={picked => {
       if (picked.image) {
         const id = `${picked.run.workflow_id}:${picked.run.id}:${picked.image.id}`;
         if (selection.enabled) selection.toggle(allImages.find(image => image.id === id));
@@ -109,9 +119,9 @@ export default function WorkflowImageLibrary({ active, onFile, onLock, searchQue
     <ImageViewer images={workflowViewerImages(filtered)} selectedId={selectedImageId} active={active && !selection.enabled}
       onAnalyze={iterate?.image}
       onSelect={setSelectedImageId} onClose={() => setSelectedImageId(null)}
-      actions={image => <><button type="button" onClick={() => { setSelectedImageId(null); setSelected({run:image.run, image:null}); }}>Save / stitch this run</button>
+      actions={image => <><button type="button" onClick={()=>removeImages([image])}>Remove from view</button><button type="button" onClick={() => { setSelectedImageId(null); setSelected({run:image.run, image:null}); }}>Save / stitch this run</button>
         {onFile && <button type="button" onClick={() => { setSelectedImageId(null); onFile([image]); }}>Add to folder</button>}
-        {onLock && <button type="button" onClick={() => { setSelectedImageId(null); onLock([image]); }}>Lock image</button>}</>} />
+        {onLock && <button type="button" onClick={() => { setSelectedImageId(null); onLock([image], () => setSelectedImageId(image.id)); }}>Lock image</button>}</>} />
     <dialog ref={dialog} className="workflow-image-dialog" aria-label="Workflow image preview" onClose={() => setSelected(null)}>
       {selected && <>
         <header><h2>{selected.run.workflow_name} · Run {selected.run.id.slice(0, 8)}</h2><button type="button" autoFocus onClick={() => setSelected(null)}>Close preview</button></header>

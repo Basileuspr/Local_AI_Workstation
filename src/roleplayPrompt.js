@@ -13,6 +13,10 @@ export const defaultRoleplayConfig = {
   characterNote: "",
   includeNames: true,
   banEmojis: false,
+  includeGeneralPrompt: true,
+  includeResponseStyle: true,
+  useDurableMemory: true,
+  source: null,
 };
 
 function section(title, value) {
@@ -22,6 +26,13 @@ function section(title, value) {
 
 export function mergeRoleplayConfig(config) {
   return { ...defaultRoleplayConfig, ...(config || {}) };
+}
+
+export function roleplayFromCharacter(character, current={}) {
+  return {...defaultRoleplayConfig,enabled:true,characterName:character.name,description:character.bio || '',
+    characterNote:character.notes || '',userName:current.userName || '',includeNames:current.includeNames !== false,
+    includeGeneralPrompt:false,includeResponseStyle:false,useDurableMemory:false,
+    source:{id:character.id,name:character.name,updatedAt:character.updated_at,loadedAt:new Date().toISOString(),edited:false}};
 }
 
 export function buildRoleplaySystemPrompt(basePrompt, config) {

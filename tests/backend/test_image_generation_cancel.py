@@ -89,8 +89,30 @@ def generation_options(request_id="image-request-1"):
     }
 
 
+@pytest.mark.parametrize("requested_seed", [None, 0, 2147483647])
+def test_actual_seed_drives_pipeline_and_survives_png(monkeypatch, tmp_path, requested_seed):
+    from PIL import Image
+    used = []
+
+    def pipeline(**kwargs):
+        used.append(kwargs["generator"].seed)
+        return SimpleNamespace(images=[Image.new("RGB", (8, 8))])
+
+    random_values = iter([184726, 4928])
+    monkeypatch.setattr(image_generation.secrets, "randbelow", lambda maximum: next(random_values))
+    manager, _ = configure_manager(monkeypatch, tmp_path, pipeline)
+    for index in range(2):
+        result = manager.generate(**{**generation_options(f"seed-{index}"), "seed": requested_seed})
+        expected = [184726, 4928][index] if requested_seed is None else requested_seed
+        assert result["seed"] == used[-1] == expected
+        with Image.open(tmp_path / result["filename"]) as image:
+            assert image.info["local_ai_seed"] == str(expected)
+
+
+
 @pytest.mark.parametrize("session_id", [None, "fixture-chat"])
-def test_generate_route_keeps_session_on_queue_not_pipeline(monkeypatch, tmp_path, session_id):
+@pytest.mark.parametrize("request_label", [None, "Image 3 of 4"])
+def test_generate_route_keeps_session_on_queue_not_pipeline(monkeypatch, tmp_path, session_id, request_label):
     import asyncio
     import base64
     from PIL import Image
@@ -116,7 +138,7 @@ def test_generate_route_keeps_session_on_queue_not_pipeline(monkeypatch, tmp_pat
     monkeypatch.setattr(routes, "prepare_runtime", prepare)
     monkeypatch.setattr(routes, "OUTPUT_DIR", tmp_path)
     monkeypatch.setattr(routes.image_store, "BLOBS_DIR", tmp_path / "blobs")
-    request = routes.ImageGenerationRequest(**generation_options(), session_id=session_id)
+    request = routes.ImageGenerationRequest(**generation_options(), session_id=session_id, request_label=request_label)
 
     result = asyncio.run(routes.generate_image(request, Client()))
 
@@ -126,6 +148,7 @@ def test_generate_route_keeps_session_on_queue_not_pipeline(monkeypatch, tmp_pat
     assert routes.image_store.is_reference(result["image_ref"])
     job = queue.jobs[-1]
     assert job.session_id == session_id
+    assert job.label == (f"{request_label} · {request.prompt}" if request_label else request.prompt)[:160]
     assert job.status == "completed"
     assert coordinator.current_owner() is None
 
@@ -246,6 +269,39 @@ def test_progress_http_remains_available_during_generation(monkeypatch, tmp_path
             resume.set()
         work.result(timeout=5)
         assert client.get("/image-generation/progress/image-request-1").json() == {"progress": None}
+
+
+def test_remaining_time_excludes_loading_and_private_clock_values(monkeypatch):
+    manager = image_generation.ImageGenerationManager()
+    monkeypatch.setattr(image_generation.time, "monotonic", lambda: 120)
+    manager._progress["timing"] = {"started": 10, "denoising_started": 100, "step_elapsed": 16,
+                                    "step": 8, "total_steps": 24, "phase": "Generating image"}
+    progress = manager.generation_progress("timing")
+    assert progress["elapsed_seconds"] == 110
+    assert progress["estimated_remaining_seconds"] == 28
+    assert not {"started", "denoising_started", "step_elapsed"}.intersection(progress)
+    manager._progress["timing"]["step"] = 24
+    assert "estimated_remaining_seconds" not in manager.generation_progress("timing")
+
+
+def test_queue_and_runtime_preparation_report_elapsed_time(monkeypatch):
+    import asyncio
+    from datetime import datetime, timedelta, timezone
+    from routes import image_generation as routes
+    from services.request_queue import RequestQueue
+    queue = RequestQueue()
+    job = queue.enqueue("image", "Fixture", "waiting")
+    job.created_at = (datetime.now(timezone.utc) - timedelta(seconds=30)).isoformat()
+    monkeypatch.setattr(routes, "queue", queue)
+    monkeypatch.setattr(routes, "manager", SimpleNamespace(generation_progress=lambda _: None))
+    progress = asyncio.run(routes.image_generation_progress("waiting"))["progress"]
+    assert progress["phase"] == "Waiting in Prompt Queue"
+    assert 29 <= progress["elapsed_seconds"] < 32
+    job.status = "running"
+    job.started_at = (datetime.now(timezone.utc) - timedelta(seconds=5)).isoformat()
+    progress = asyncio.run(routes.image_generation_progress("waiting"))["progress"]
+    assert progress["phase"] == "Preparing runtime"
+    assert 4 <= progress["elapsed_seconds"] < 7
 
 
 def test_reset_cancels_active_request_then_unloads_pipeline(monkeypatch):

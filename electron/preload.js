@@ -13,6 +13,17 @@ contextBridge.exposeInMainWorld("workstationDesktop", {
     softwareRuntime: () => ipcRenderer.invoke("dashboard:software-runtime"),
     startMediaManager: () => ipcRenderer.invoke("media-manager:start"),
     mediaManagerStatus: () => ipcRenderer.invoke("media-manager:status"),
+    startViewerBrowser: () => ipcRenderer.invoke('viewer-browser:start'),
+    viewerBrowserState: () => ipcRenderer.invoke('viewer-browser:state'),
+    placeViewerBrowser: value => ipcRenderer.invoke('viewer-browser:place',value),
+    navigateViewerBrowser: url => ipcRenderer.invoke('viewer-browser:navigate',url),
+    inspectViewerBrowser: () => ipcRenderer.invoke('viewer-browser:inspect'),
+    viewerBrowserSource: id => ipcRenderer.invoke('viewer-browser:source',id),
+    viewerBrowserCommand: action => ipcRenderer.invoke('viewer-browser:command',action),
+    onViewerBrowserAddress: callback => {
+        const listener=()=>callback();ipcRenderer.on('viewer-browser:address',listener);
+        return ()=>ipcRenderer.removeListener('viewer-browser:address',listener);
+    },
     placeMediaManager: (placement) => ipcRenderer.invoke("media-manager:place", placement),
     focusMediaManager: () => ipcRenderer.invoke("media-manager:focus"),
     refreshMediaManager: () => ipcRenderer.invoke("media-manager:refresh"),
@@ -27,6 +38,10 @@ contextBridge.exposeInMainWorld("workstationDesktop", {
     cancelDriveFolderScan: (id) => ipcRenderer.invoke("dashboard:cancel-drive-scan", id),
     openAppFolder: () => ipcRenderer.invoke("dashboard:open-app-folder"),
     pickUploadFiles: (options) => ipcRenderer.invoke("uploads:choose", options),
+    chooseImageOutputFolder: () => ipcRenderer.invoke("image-generation:choose-output"),
+    saveGif: (value) => ipcRenderer.invoke('gif:save', value),
+    chooseGifOutputFolder: () => ipcRenderer.invoke('gif:choose-output'),
+    revealGif: (id) => ipcRenderer.invoke('gif:reveal', id),
     chooseFaceInputs: (options) => ipcRenderer.invoke("faces:choose-inputs", options),
     readFaceInputs: (ticket) => ipcRenderer.invoke("faces:read-inputs", ticket),
     releaseFaceInputs: (ticket) => ipcRenderer.invoke("faces:release-inputs", ticket),

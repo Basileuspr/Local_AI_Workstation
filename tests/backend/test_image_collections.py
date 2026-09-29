@@ -19,6 +19,35 @@ def picture(color="red"):
     stream = io.BytesIO(); Image.new("RGB", (24, 16), color).save(stream, "PNG"); return stream.getvalue()
 
 
+@pytest.mark.parametrize("seed", [0, 184726, 2147483647])
+def test_seed_survives_session_gallery_and_saved_png_import(isolated, seed):
+    from PIL.PngImagePlugin import PngInfo
+    metadata = PngInfo()
+    metadata.add_text("local_ai_seed", str(seed))
+    stream = io.BytesIO()
+    Image.new("RGB", (24, 16)).save(stream, "PNG", pnginfo=metadata)
+    data = stream.getvalue()
+    session = session_store.create_session("Seed fixture")
+    session_store.append_messages(session["id"], [{"id": "seed-message", "role": "assistant", "content": "Generated", "generatedImages": [
+        {"id": "seed-image", "name": "seed.png", "src": image_store.put_bytes(data), "seed": seed}
+    ]}])
+    assert session_store.get_session(session["id"])["messages"][0]["generatedImages"][0]["seed"] == seed
+    assert isolated.get("/sessions/images").json()["images"][0]["seed"] == seed
+    saved = library.import_image(data, "seed.png")
+    assert saved["seed"] == seed
+    assert library.public_index()["images"][0]["seed"] == seed
+
+
+@pytest.mark.parametrize("seed_text", ["", "not a seed", "-1", "2147483648", "0.5"])
+def test_invalid_png_seed_metadata_is_ignored(seed_text):
+    from PIL.PngImagePlugin import PngInfo
+    metadata = PngInfo()
+    metadata.add_text("local_ai_seed", seed_text)
+    stream = io.BytesIO()
+    Image.new("RGB", (8, 8)).save(stream, "PNG", pnginfo=metadata)
+    assert "seed" not in library.inspect(stream.getvalue(), "seed.png")
+
+
 @pytest.fixture
 def isolated(tmp_path, monkeypatch, sessions_dir, lora_paths):
     monkeypatch.setattr(library, "ROOT", tmp_path / "library")

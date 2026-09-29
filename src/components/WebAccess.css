@@ -11,3 +11,5 @@
 .web-source-preview { border-top: 1px solid var(--border, #333); padding-top: 10px; }
 .web-source-preview pre { white-space: pre-wrap; font: inherit; opacity: .85; line-height: 1.5; max-height: 100px; overflow: auto; }
 .web-access a { color: var(--accent, #9db6fc); }
+.web-access .web-images-option { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.web-access .web-images-option input { flex: none; min-width: 0; }

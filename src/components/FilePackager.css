@@ -1,0 +1,28 @@
+.file-packager > * { flex-shrink: 0; }
+.packager-dropzone { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; min-height: 180px; padding: 24px; border: 2px dashed var(--border-active); border-radius: 12px; background: var(--bg-card); text-align: center; }
+.packager-dropzone strong { font-size: 20px; }
+.packager-dropzone p, .packager-list-heading > span, .packager-ready p { color: var(--text-dim); font-size: 13px; }
+.packager-dropzone.dragging { border-color: var(--accent); background: var(--accent-dim); }
+.packager-settings { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; max-width: 800px; }
+.packager-settings label { display: flex; flex-direction: column; gap: 8px; color: var(--text-dim); font-size: 13px; }
+.packager-list-heading { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.packager-list-heading h2 { font-size: 16px; }
+.packager-list-heading > button { margin-left: auto; }
+.file-packager button, .packager-ready a { padding: 8px 12px; border: 1px solid var(--border-active); border-radius: 6px; color: var(--text); background: var(--bg-input); cursor: pointer; }
+.file-packager button:disabled { opacity: .45; cursor: default; }
+.file-packager :is(button, input, select, a):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.packager-files { list-style: none; border: 1px solid var(--border); border-radius: 8px; max-height: 340px; overflow: auto; }
+.packager-files li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 12px; padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 13px; }
+.packager-files li:last-child { border-bottom: 0; }
+.packager-path { overflow-wrap: anywhere; font-family: var(--font-mono); }
+.packager-files li > span:nth-child(2) { color: var(--text-dim); }
+.tools-toolbar .packager-create, .packager-ready a { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+.packager-ready { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; padding: 20px; border: 1px solid var(--green); background: var(--bg-card); border-radius: 8px; }
+.packager-ready strong { overflow-wrap: anywhere; }
+.packager-ready p { margin-top: 6px; }
+@container workspace (max-width: 550px) {
+  .packager-settings { grid-template-columns: minmax(0, 1fr); }
+  .packager-files li { grid-template-columns: minmax(0, 1fr) auto; }
+  .packager-files li > span:nth-child(2) { grid-row: 2; }
+  .packager-files li > button { grid-column: 2; grid-row: 1 / 3; }
+}

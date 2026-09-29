@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { useRefs } from "../useStore";
 import { useImageDestinations } from "../ImageDestinations";
 import ImageItemActions from "./ImageItemActions";
+import ImageSeedControls from "./ImageSeedControls";
+import {useImageRemoval} from "./ImageRemovalControls";
 
 export function adjacentImageId(images, selectedId, direction) {
   const index = images.findIndex(image => image.id === selectedId);
@@ -10,7 +12,7 @@ export function adjacentImageId(images, selectedId, direction) {
   return images[(index + direction + images.length) % images.length].id;
 }
 
-export default function ImageViewer({ images, selectedId, onSelect, onClose, onOpenSource, onAnalyze, active = true, actions, renderImage }) {
+export default function ImageViewer({ images, selectedId, onSelect, onClose, onOpenSource, onAnalyze, active = true, actions, renderImage, onRemove }) {
   const dialog = useRef(null);
   const refs = useRefs();
   const destinations = useImageDestinations();
@@ -19,6 +21,14 @@ export default function ImageViewer({ images, selectedId, onSelect, onClose, onO
   const index = images.findIndex(image => image.id === selectedId);
   const image = images[index];
   const open = active && !!image;
+  const removal = useImageRemoval(onRemove ? images : [], chosen => {
+    onRemove(chosen);
+    if (chosen.some(item => item.id === selectedId)) {
+      const ids = new Set(chosen.map(item => item.id));
+      const next = images.find(item => !ids.has(item.id));
+      if (next) onSelect(next.id); else onClose();
+    }
+  }, {label:'viewer images', disabled:sending});
   useEffect(() => setActionError(""), [selectedId]);
 
   useEffect(() => {
@@ -59,10 +69,12 @@ export default function ImageViewer({ images, selectedId, onSelect, onClose, onO
           : <ProtectedImage key={image.id} src={image.url} alt={image.name} onError={() => setFailedId(image.id)} />}
         <button type="button" className="image-viewer-arrow next" aria-label="Next image" disabled={images.length < 2} onClick={() => step(1)}>›</button>
       </div>
-      {destinations && <div className="image-destination-bar" aria-label="Use this image"><button disabled={sending} onClick={() => take("workflow")}>Start Workflow</button><button disabled={sending} onClick={() => take("editor")}>Edit Image</button>{sending && <span role="status">Opening image…</span>}</div>}
+      {destinations && <div className="image-destination-bar" aria-label="Use this image"><button disabled={sending} onClick={() => take("workflow")}>Start Workflow</button><button disabled={sending} onClick={() => take("editor")}>Edit Image</button><button disabled={sending} onClick={() => take("gif")}>GIF Maker</button>{sending && <span role="status">Opening image…</span>}</div>}
       <ImageItemActions image={image} chat={!!image.chat_session_id} onChatEdit={onClose} />
+      <ImageSeedControls key={image.id} seed={image.seed} onReuse={onClose} />
       {actionError && <p className="image-destination-error" role="alert">{actionError}</p>}
       <footer className="image-viewer-footer">
+        {onRemove && <div>{removal.toolbar}{removal.controls(image, image.name)}</div>}
         <span>← → Browse images · Esc to close</span>
         {onAnalyze && <button type="button" className="analyze-iterate-button" onClick={() => { onClose(); onAnalyze(image); }}>Analyze &amp; Iterate</button>}
         {onOpenSource && image.session_id && <button type="button" onClick={() => { onClose(); onOpenSource(image.session_id, image.message_id); }}>Go to source chat</button>}

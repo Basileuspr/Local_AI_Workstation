@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as faces from "../faceApi";
 import { list as listLibrary, imageUrl } from "../imageLibraryApi";
 import FreshFileInput from "./FreshFileInput";
-import FaceBank from "./FaceBank";
+import {useCharacterWorkspace} from '../CharacterWorkspace';
 import ProtectedImage from "../ImagePrivacy";
 import MediaCardActions from "./MediaCardActions";
 import CharacterNameDialog from "./CharacterNameDialog";
@@ -31,6 +31,7 @@ const FILTERS = [
 const TERMINAL = new Set(["complete", "error", "cancelled"]);
 
 export default function FaceStudio({ active }) {
+  const characters = useCharacterWorkspace();
   const [providers, setProviders] = useState([]);
   const [datasets, setDatasets] = useState([]);
   const [datasetId, setDatasetId] = useState("");
@@ -50,12 +51,12 @@ export default function FaceStudio({ active }) {
   const [revision, setRevision] = useState(0);
   const [library, setLibrary] = useState(null);
   const [dragging, setDragging] = useState(false);
-  const [mode, setMode] = useState("extractor");
   const [characterDraft, setCharacterDraft] = useState(null);
   const [importProgress, setImportProgress] = useState(null);
   const [importing, setImporting] = useState(false);
   const importRef = useRef(null);
   const fileRef = useRef(null);
+  const removalLock = useRef(false);
 
   useEffect(() => () => { importRef.current?.abort(); }, []);
 
@@ -225,12 +226,24 @@ export default function FaceStudio({ active }) {
     setSelected(new Set());
   });
 
-  const removeSelected = () => guard("state", async () => {
-    if (!window.confirm(`Remove ${selected.size} face crop(s) from this dataset? Source images are not touched.`)) return;
-    await faces.removeFaces(datasetId, [...selected]);
-    await loadDataset(datasetId);
-    setSelected(new Set());
-  });
+  async function removeCrops(faceIds) {
+    if (!faceIds.length || busy || running || removalLock.current) return;
+    if (!window.confirm(`Remove ${faceIds.length} face crop(s) from this dataset? Source images are not touched.`)) return;
+    removalLock.current = true;
+    try {
+      await guard("state", async () => {
+        await faces.removeFaces(datasetId, faceIds);
+        setSelected(current => new Set([...current].filter(id => !faceIds.includes(id))));
+        if (faceIds.includes(reference)) {
+          setReference(""); setScores(null);
+          setView(current => ({...current, filter:current.filter === "similar" ? "all" : current.filter}));
+        }
+        await loadDataset(datasetId);
+        await refreshDatasets();
+        setNotice(`Removed ${faceIds.length} face crop(s) from the dataset. Source images are unchanged.`);
+      });
+    } finally { removalLock.current = false; }
+  }
 
   const findSimilar = (faceId) => guard("similar", async () => {
     const result = await faces.findSimilar(datasetId, faceId, threshold);
@@ -255,9 +268,10 @@ export default function FaceStudio({ active }) {
   }
 
   async function saveAsCharacter(name) {
-    await faces.createCharacter({ name, dataset_id: characterDraft.datasetId, face_ids: characterDraft.faceIds });
-    setNotice(`Character "${name}" saved with ${characterDraft.faceIds.length} reference face(s). Open the Character Bank to curate it.`);
+    const created = await faces.createCharacter({ name, dataset_id: characterDraft.datasetId, face_ids: characterDraft.faceIds });
+    setNotice(`Character "${name}" saved with ${characterDraft.faceIds.length} reference face(s). Open Character Creator to curate it.`);
     setSelected(new Set());
+    characters?.select(created);characters?.openCreator(created.id);
   }
 
   const saveToFolder = () => guard("export", async () => {
@@ -299,19 +313,10 @@ export default function FaceStudio({ active }) {
         <h1>Face Extractor</h1>
         <p className="face-note">Import images, detect every face, crop and compare them, then export a dataset. Source images are never modified.</p>
       </div>
-      <div className="face-modes" role="tablist">
-        {/* Clear this view's messages on the way out; a notice about a dataset
-            is confusing once the character bank is on screen. */}
-        <button type="button" role="tab" aria-selected={mode === "extractor"}
-                className={mode === "extractor" ? "active" : ""}
-                onClick={() => { setMode("extractor"); setNotice(""); setError(""); }}>Extractor</button>
-        <button type="button" role="tab" aria-selected={mode === "bank"}
-                className={mode === "bank" ? "active" : ""}
-                onClick={() => { setMode("bank"); setNotice(""); setError(""); }}>Character Bank</button>
-      </div>
-      <div className="face-dataset-picker" hidden={mode !== "extractor"}>
+      {characters && <button type="button" onClick={() => characters.openCreator()}>Open Character Creator</button>}
+      <div className="face-dataset-picker">
         <label htmlFor="face-dataset">Dataset</label>
-        <select id="face-dataset" value={datasetId} disabled={running} onChange={(event) => { setDatasetId(event.target.value); setSelected(new Set()); setScores(null); setReference(""); setImportProgress(null); }}>
+        <select id="face-dataset" value={datasetId} disabled={running || Boolean(busy)} onChange={(event) => { setDatasetId(event.target.value); setSelected(new Set()); setScores(null); setReference(""); setImportProgress(null); }}>
           {!datasets.length && <option value="">No datasets yet</option>}
           {datasets.map((item) => <option key={item.id} value={item.id}>{item.name} — {item.face_count} faces</option>)}
         </select>
@@ -332,11 +337,9 @@ export default function FaceStudio({ active }) {
     {error && <p className="face-alert" role="alert">{error}</p>}
     {notice && <p className="face-notice" role="status">{notice}</p>}
 
-    {mode === "bank" && <FaceBank onOpenExtractor={() => setMode("extractor")} />}
+    {!dataset && ready && <p className="face-note">Create a dataset to begin.</p>}
 
-    {mode === "extractor" && !dataset && ready && <p className="face-note">Create a dataset to begin.</p>}
-
-    {mode === "extractor" && dataset && <>
+    {dataset && <>
       <div className={`face-import ${dragging ? "dragging" : ""}`}
            onDragOver={(event) => { event.preventDefault(); setDragging(true); }}
            onDragLeave={() => setDragging(false)}
@@ -451,10 +454,14 @@ export default function FaceStudio({ active }) {
           <button type="button" onClick={() => decide("accepted")} disabled={!selected.size}>Accept</button>
           <button type="button" onClick={() => decide("rejected")} disabled={!selected.size}>Reject</button>
           <button type="button" onClick={() => decide("pending")} disabled={!selected.size}>Undecide</button>
-          <button type="button" onClick={removeSelected} disabled={!selected.size}>Remove crops</button>
+          <button type="button" onClick={() => removeCrops([...selected])} disabled={!selected.size || Boolean(busy) || running}>Remove crops</button>
           <button type="button" onClick={nameCharacter} disabled={!selected.size || Boolean(busy)}>
             Save {selected.size || ""} as character
           </button>
+          {characters?.selected && <button type="button" disabled={!selected.size || Boolean(busy)} title={`Add selected faces to ${characters.selected.name}`} onClick={() => guard('character',async () => {
+            const updated = await faces.addMembers(characters.selected.id,datasetId,[...selected]);
+            setSelected(new Set());characters.select(updated);characters.openCreator(updated.id,{refresh:true});
+          })}>Add to {characters.selected.name}</button>}
           {desktop?.saveFaceFolder && <button type="button" onClick={saveToFolder} disabled={!allFaces.length || Boolean(busy) || running}>
             {busy === "export" ? "Saving face crops…" : `Save ${selected.size ? `${selected.size} selected` : `all ${allFaces.length}`} faces to folder…`}
           </button>}
@@ -479,6 +486,8 @@ export default function FaceStudio({ active }) {
                 {face.duplicate_of && <span className="face-flag">duplicate</span>}
                 {face.flags.map((flag) => <span key={flag} className="face-flag">{flag}</span>)}
                 <button type="button" className="face-link" onClick={() => findSimilar(face.id)}>Find similar to this</button>
+                <button type="button" onClick={() => removeCrops([face.id])} disabled={Boolean(busy) || running}
+                  aria-label={`Remove face ${face.face_index + 1} from ${face.source_name} from dataset`}>Remove from dataset</button>
                 {selected.has(face.id) && <MediaCardActions image={{ id: face.id, name: `Face ${face.face_index + 1} from ${face.source_name}`, url: faces.cropUrl(dataset.id, face.id, revision) }} />}
               </figcaption>
             </figure>;

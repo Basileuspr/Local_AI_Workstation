@@ -124,6 +124,7 @@ export default function SettingsPanel() {
 
           {roleplayOpen && (
             <div id="character-fields" className="roleplay-grid">
+              <p className="roleplay-wide">These are chat roleplay fields. Saving this preset does not update Character Creator. All fields, including those named post-history, are currently assembled into one system prompt before chat history. Response influences shows the included text.</p>
               <label>
                 <span>Character</span>
                 <input
@@ -260,7 +261,7 @@ export default function SettingsPanel() {
                   Reset
                 </button>
                 <button type="button" onClick={saveRoleplayPreset}>
-                  Save Character
+                  Save roleplay preset
                 </button>
               </div>
             </div>

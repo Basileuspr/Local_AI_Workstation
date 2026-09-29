@@ -1,5 +1,27 @@
 # Project status
 
+## Feature release review — 2026-09-28
+
+- Character Creator now links biographies, notes, images, videos, audio, faces,
+  parts, LoRAs, and Knowledge nodes. Loading a profile into roleplay is explicit.
+  Chat previews the active inputs and stores the final request context per reply.
+- Added video-to-audio extraction, saved voice phrases, GIF creation under Images,
+  ZIP packaging, and isolated browser source inspection in the code viewers.
+- Image generation keeps backend-owned tasks, completed batch previews, and
+  progress through renderer refreshes, with bounded CPU output overlap.
+- Validation: 645 frontend tests, 1,043 backend tests, and 117 Media Manager
+  tests passed. The production build and Python dependency consistency check
+  passed. The npm audit reports zero known vulnerabilities after updating the
+  transitive Undici dependency.
+- Desktop checks covered character media playback and Knowledge links, roleplay
+  loading/queued settings/reload records, browser isolation/source inspection,
+  and real MP4 audio extraction/playback/download in WAV, M4A, FLAC, and MP3.
+  Fixtures used disposable data and synthetic media/model responses.
+- This review did not rerun GPU inference, voice model quality evaluation, or
+  LoRA training. Existing FastAPI lifecycle deprecation and Vite bundle-size
+  warnings remain. Publication excludes private data, model weights, generated
+  outputs, and the development checkout's older private history.
+
 ## PC bridge manual delegation — 2026-09-25
 
 - Dashboard can explicitly start an HTTPS peer listener, pair two PCs in both

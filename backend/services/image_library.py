@@ -75,6 +75,9 @@ def inspect(data, name):
         formats = {"PNG": "image/png", "JPEG": "image/jpeg", "WEBP": "image/webp", "GIF": "image/gif"}
         if image.format not in formats: raise ValueError("Use PNG, JPEG, WebP, or single-frame GIF")
         result = {"width": image.width, "height": image.height, "type": formats[image.format]}
+        seed_text = image.info.get("local_ai_seed", "")
+        if isinstance(seed_text, str) and re.fullmatch(r"[0-9]{1,10}", seed_text) and int(seed_text) <= 2_147_483_647:
+            result["seed"] = int(seed_text)
         try:
             image.verify()
         except (OSError, SyntaxError) as error:

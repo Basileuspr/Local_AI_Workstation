@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
-import { imageSourceOptions, newStage, parseSource, promptSettingsOnly, workflowUpdate } from "../../src/imageWorkflow";
+import { availableWorkflowAssets, removeWorkflowAssets, imageSourceOptions, newStage, parseSource, promptSettingsOnly, workflowUpdate } from "../../src/imageWorkflow";
 import * as api from "../../src/imageWorkflowApi";
 
 const workflow = {
@@ -17,7 +17,7 @@ describe("image workflow contracts", () => {
     expect(Object.keys(promptSettingsOnly())).toHaveLength(5);
   });
   it("does not send server-owned assets, identity or lineage in draft saves", () => {
-    expect(Object.keys(workflowUpdate(workflow))).toEqual(["revision", "name", "scene_notes", "prompt_settings", "stages"]);
+    expect(Object.keys(workflowUpdate(workflow))).toEqual(["revision", "name", "scene_notes", "prompt_settings", "stages", "removed_asset_ids"]);
   });
   it("offers owned assets and only earlier image outputs", () => {
     expect(imageSourceOptions(workflow, 2).map(option => option.value)).toEqual(["asset:asset", "stage:image"]);
@@ -33,6 +33,19 @@ describe("image workflow contracts", () => {
   it("falls back to an uploaded source, or explicitly no source", () => {
     expect(newStage({ ...workflow, stages: [] }, "img2img").source).toEqual({ kind: "asset", id: "asset" });
     expect(newStage({ ...workflow, stages: [], assets: [] }, "img2img").source).toBeNull();
+  });
+  it("removes multiple references from selection while preserving assets and aligned roles", () => {
+    const original = {...workflow, assets:[{id:'a'},{id:'b'},{id:'c'}], stages:[{
+      id:'stage', operation:'img2img', source:{kind:'asset',id:'a'}, mask_asset_id:'b', control_asset_id:'c',
+      reference_asset_ids:['a','b','c'], reference_roles:['identity','pose','style'],
+    }]};
+    const removed = removeWorkflowAssets(original,[{id:'a'},{id:'b'}]);
+    expect(removed.assets).toBe(original.assets);
+    expect(availableWorkflowAssets(removed)).toEqual([{id:'c'}]);
+    expect(removed.stages[0]).toMatchObject({source:null,mask_asset_id:null,control_asset_id:'c',reference_asset_ids:['c'],reference_roles:['style']});
+    expect(original.stages[0].source.id).toBe('a');
+    expect(newStage({...removed,stages:[]},'img2img').source.id).toBe('c');
+    expect(newStage({...removed,stages:[],removed_asset_ids:['a','b','c']},'img2img').source).toBeNull();
   });
   it("prepares a revision-bound snapshot without calling generation", async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ status: "blocked" }) });

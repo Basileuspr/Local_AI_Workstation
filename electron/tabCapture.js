@@ -1,7 +1,7 @@
 const { randomUUID } = require("node:crypto");
 const { snapshotDocument } = require("./captureSnapshot");
 const { copyNativeImage } = require("./desktopFunctions");
-const TAB_LABELS = { audio: "Audio", spreadsheets: "Spreadsheets", canvas: "Canvas", converter: "File Converter", markdown: "Markdown Viewer", "html-viewer": "HTML Viewer", "css-viewer": "CSS / Styling", chats: "Chat", images: "Image Gallery", generate: "Generate", library: "Prompt Index", knowledge: "Knowledge", tools: "Functions", dashboard: "Dashboard", queue: "Prompt Queue", review: "Image Review", "image-editor": "Image Editor", "media-manager": "Media Manager", workflows: "Image Workflows", lora: "LoRA", faces: "Faces", "character-parts": "Character Parts" };
+const TAB_LABELS = { audio: "Audio", spreadsheets: "Spreadsheets", canvas: "Canvas", converter: "File Converter", packager: "Packager", "gif-maker": "GIF Maker", browser: "Browser", "js-viewer": "JavaScript Viewer", markdown: "Markdown Viewer", "html-viewer": "HTML Viewer", "css-viewer": "CSS / Styling", chats: "Chat", images: "Image Gallery", generate: "Generate", library: "Prompt Index", knowledge: "Knowledge", tools: "Functions", dashboard: "Dashboard", queue: "Prompt Queue", review: "Image Review", "image-editor": "Image Editor", "media-manager": "Media Manager", workflows: "Image Workflows", lora: "LoRA", faces: "Faces", characters: "Character Creator", "character-parts": "Character Parts" };
 
 function hasVisibleContent(image) {
   if (image.isEmpty()) return false;
@@ -24,7 +24,7 @@ async function renderSnapshot(snapshot, media) {
     }
   }
   if (media) {
-    const surface = document.querySelector(".media-manager-surface");
+    const surface = document.querySelector(media.kind === 'browser' ? '.browser-surface:not([hidden])' : ".media-manager-surface");
     if (surface) {
       surface.replaceChildren(); const container = document.createElement("div");
       container.style.cssText = "width:100%;height:100%;min-height:0;overflow:hidden"; surface.append(container);
@@ -46,7 +46,7 @@ async function renderSnapshot(snapshot, media) {
   await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 }
 
-function createTabCapture({ BrowserWindow, screen, clipboard, ClipboardItem, getWindow, mediaManager }) {
+function createTabCapture({ BrowserWindow, screen, clipboard, ClipboardItem, getWindow, mediaManager, viewerBrowser }) {
   let busy = false, captureWindow = null;
   return {
     dispose() { captureWindow?.destroy(); captureWindow = null; },
@@ -64,6 +64,7 @@ function createTabCapture({ BrowserWindow, screen, clipboard, ClipboardItem, get
           check();
           let media = null;
           if (tab === "media-manager") media = await mediaManager.snapshot();
+          if (tab === 'browser') media = await viewerBrowser?.snapshot();
           check();
           if (snapshot.html.length + snapshot.css.length + (media?.html.length || 0) > 80 * 1024 * 1024) throw new Error("This tab is too large to capture.");
           const area = screen.getDisplayMatching(source.getBounds()).workAreaSize;

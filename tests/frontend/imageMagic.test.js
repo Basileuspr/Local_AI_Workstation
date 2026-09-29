@@ -2,6 +2,13 @@ import { describe, it, expect } from 'vitest';
 import { magicLayout, magicSize } from '../../src/imageMagic';
 
 describe('Magic Edit working dimensions', () => {
+  it.each([[2048, 1152], [256, 256], [768, 1024]])('fits content inside a selected %s × %s canvas without stretching', (width, height) => {
+    const layout = magicLayout(400, 200, {width, height});
+    expect(layout).toMatchObject({width,height});
+    expect(layout.content.width / layout.content.height).toBeCloseTo(2, 1);
+    expect(layout.content.x * 2 + layout.content.width).toBeCloseTo(width, 0);
+    expect(layout.content.y * 2 + layout.content.height).toBeCloseTo(height, 0);
+  });
   it('raises the reproduced thumbnail failure to SDXL working resolution', () => {
     expect(magicSize(355, 374)).toEqual({ width: 976, height: 1024 });
     expect(magicLayout(355, 374).content).toEqual({ x: 2, y: 0, width: 972, height: 1024 });

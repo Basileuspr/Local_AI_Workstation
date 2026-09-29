@@ -1,0 +1,14 @@
+.chat-influences {flex:none; margin:0 16px 8px; padding:9px 12px; border:1px solid var(--border); border-radius:8px; color:var(--text); background:var(--bg-card); font-size:12px; max-height:42vh; overflow:auto;}
+.chat-influences summary,.reply-influences summary {cursor:pointer; overflow-wrap:anywhere;}
+.chat-influences p,.reply-influences p {line-height:1.5; margin:10px 0;}
+.chat-influences dl {display:grid; grid-template-columns:minmax(100px,150px) minmax(0,1fr); gap:7px 12px;}
+.chat-influences dd {margin:0; overflow-wrap:anywhere;}
+.chat-influences dt {font-weight:600;}
+.chat-influences pre,.reply-influences pre {white-space:pre-wrap; overflow-wrap:anywhere; padding:10px; background:var(--bg-input); border-radius:5px; font-size:12px; max-height:280px; overflow:auto;}
+.chat-influences button {font:inherit; color:var(--text); background:var(--bg-input); border:1px solid var(--border); border-radius:5px; padding:5px 8px; cursor:pointer;}
+.influence-controls {display:flex; flex-wrap:wrap; gap:9px 16px; align-items:center;}
+.influence-controls label {display:flex; gap:6px; align-items:center;}
+.influence-warnings {border-left:3px solid #d9a557; padding-left:22px; line-height:1.5;}
+.reply-influences {margin-top:12px; padding:9px; border:1px solid var(--border); border-radius:7px; font-size:12px;}
+.reply-influences section,.chat-influences section {margin:10px 0;}
+.reply-influences small {display:block; overflow-wrap:anywhere; color:var(--text-dim);}

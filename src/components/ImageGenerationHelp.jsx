@@ -38,11 +38,11 @@ const scales = [
   },
   {
     title: "Width & height · canvas size",
-    description: "Each dimension ranges from 512 to 1536 pixels in increments of 8. Size changes framing and memory use, not potency.",
+    description: "Choose an aspect ratio and resolution, or enter dimensions in multiples of 8. Hardware determines the upper limit. Allow longer waits unlocks larger sizes with slower memory-saving offload; it cannot guarantee that every request fits.",
     rows: [
-      ["512 × 512 · Small", "A smaller square canvas; a model trained for larger images may struggle here."],
+      ["256–512 · Draft", "Small canvases are faster but may lose detail or composition quality."],
       ["1024 × 1024 · Default", "A square canvas at the app's default size."],
-      ["1536 × 1536 · Largest", "More pixels and memory demand; more pixels alone do not guarantee better detail."],
+      ["Larger images", "On an 8 GB GPU, normal selections reach 1536 pixels per side and longer-wait mode reaches 2048. More pixels require more memory and time, and do not guarantee better detail."],
     ],
   },
 ];

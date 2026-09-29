@@ -49,6 +49,11 @@
 .image-library-workspace .workflow-library-run .image-gallery { margin: 14px 0; }
 .image-library-workspace .locked-images > form { max-width: 420px; padding: 20px; border: 1px solid var(--border); border-radius: 10px; }
 .image-library-workspace .locked-images > h3 { display: none; }
+.image-lock-dialog > header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
+.image-lock-dialog > header h2 { font-size: 20px; }
+.image-lock-dialog .image-lock-hint { margin-bottom: 16px; }
+.image-lock-dialog button:disabled { opacity: .45; cursor: default; }
+.image-lock-dialog :is(button, input):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 @media (max-width: 900px) {
   .image-library-mobile-collection { display: flex; flex: 1 1 100%; align-items: center; gap: 10px; color: var(--text-dim); font-size: 12px; }
   .image-library-mobile-collection select { flex: 1; width: 0; min-width: 0; padding: 9px; background: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border); border-radius: 7px; font: inherit; }

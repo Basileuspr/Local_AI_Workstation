@@ -1952,10 +1952,13 @@ html, body {
 /* Shared generation and workflow sizing, batch planning, and visible destinations. */
 .image-resolution-controls {display:grid;gap:10px;min-width:0;margin:12px 0;}
 .image-dimension-fields {display:grid;grid-template-columns:1fr 1fr;gap:12px;}
-.image-resolution-controls .image-ratio-lock,.image-batch .image-ratio-lock {display:flex;flex-direction:row;align-items:center;gap:8px;}
-.image-resolution-controls .image-ratio-lock input,.image-batch .image-ratio-lock input {width:16px;min-height:16px;margin:0;accent-color:var(--accent);}
+.image-generation-sizing .image-ratio-lock,.image-resolution-controls .image-ratio-lock,.image-batch .image-ratio-lock {display:flex;flex-direction:row;align-items:center;gap:8px;}
+.image-generation-sizing .image-ratio-lock input,.image-resolution-controls .image-ratio-lock input,.image-batch .image-ratio-lock input {width:16px;min-height:16px;margin:0;accent-color:var(--accent);flex-shrink:0;}
 .image-resolution-controls input[type=range] {padding:0;accent-color:var(--accent);}
-.image-resolution-controls small,.image-batch p,.review-destinations small,.lora-form-grid small {font-size:11px;line-height:1.6;color:var(--text-dim);}
+.image-generation-sizing small,.image-resolution-controls small,.image-batch p,.review-destinations small,.lora-form-grid small {font-size:11px;line-height:1.6;color:var(--text-dim);}
+.image-generation-sizing {min-width:0;}
+.image-resolution-controls label {display:flex;flex-direction:column;gap:5px;min-width:0;}
+.image-resolution-controls select {min-width:0;max-width:100%;padding:7px;border:1px solid var(--border);border-radius:5px;background:var(--bg-input);color:var(--text-primary);}
 .image-batch {border:1px solid var(--border);padding:14px;border-radius:8px;margin:14px 0;}
 .image-batch summary {cursor:pointer;color:var(--accent);font-size:13px;}
 .image-batch-fields>div {display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:8px;margin:12px 0;align-items:end;}
@@ -2015,3 +2018,5 @@ html, body {
 .document-page th, .document-page td { border:1px solid #d9d9d9; padding:8px; vertical-align:top; }
 .document-page th { background:#e8eef5; text-align:left; }
 @media (max-width:800px) { .document-viewer-body { padding:12px; } .document-page { width:650px; padding:45px; } .chat-document-command { flex-wrap:wrap; } }
+:root .character-shortcut {display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin:12px 0 18px;}
+:root .character-shortcut span {font-size:12px; color:var(--text-dim, #aab9ce); overflow-wrap:anywhere;}

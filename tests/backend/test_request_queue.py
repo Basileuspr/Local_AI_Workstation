@@ -8,6 +8,50 @@ from services.gpu_coordination import GpuCoordinator
 from services.request_queue import QueueCancelled, RequestQueue
 
 
+def test_snapshot_exposes_timing_profile_and_server_clock():
+    queue = RequestQueue(GpuCoordinator())
+    queue.enqueue("image", "example", timing_profile="opaque-settings-key")
+    snapshot = queue.snapshot()
+    assert snapshot["reported_at"].endswith("+00:00")
+    assert snapshot["jobs"][0]["timing_profile"] == "opaque-settings-key"
+
+
+def test_image_route_groups_matching_settings_without_logging_prompts(monkeypatch):
+    from routes import image_generation as images
+    queue = RequestQueue(GpuCoordinator())
+    monkeypatch.setattr(images, "queue", queue)
+    monkeypatch.setattr(images, "_generate_image", lambda *_: {"ok": True})
+    async def prepare(_kind):
+        pass
+    monkeypatch.setattr(images, "prepare_runtime", prepare)
+    class Client:
+        async def is_disconnected(self):
+            return False
+    async def scenario():
+        for index, steps in enumerate([24, 24, 40]):
+            await images.generate_image(images.ImageGenerationRequest(
+                model_id="local-model", prompt=f"private prompt {index}", steps=steps,
+                seed=index, request_id=str(index)), Client())
+    asyncio.run(scenario())
+    profiles = [job.timing_profile for job in queue.jobs]
+    assert profiles[0] == profiles[1] and profiles[1] != profiles[2]
+    assert len(profiles[0]) == 64 and "private" not in profiles[0]
+
+
+def test_queue_api_includes_live_image_steps_only_for_running_images(monkeypatch):
+    from routes import request_queue as routes
+    from services.image_generation import manager
+    queue = RequestQueue(GpuCoordinator())
+    running = queue.enqueue("image", "running", "one")
+    queue.try_start(running)
+    queue.enqueue("image", "waiting", "two")
+    monkeypatch.setattr(routes, "queue", queue)
+    monkeypatch.setattr(manager, "generation_progress", lambda request_id: {"estimated_remaining_seconds": 12} if request_id == "one" else None)
+    result = asyncio.run(routes.list_queue())
+    assert result["jobs"][0]["progress"]["estimated_remaining_seconds"] == 12
+    assert "progress" not in result["jobs"][1]
+
+
 def test_fifo_reserves_gpu_and_hands_it_to_matching_service_once():
     gpu = GpuCoordinator()
     queue = RequestQueue(gpu)
@@ -82,6 +126,25 @@ def test_cpu_jobs_do_not_reserve_gpu_or_block_gpu_fifo():
     assert not queue.try_start(cpu)  # Completed CPU work cannot restart.
 
 
+def test_gif_cpu_lane_is_fifo_and_retained_until_cancelled_worker_exits():
+    async def scenario():
+        queue = RequestQueue(GpuCoordinator())
+        first = queue.enqueue('gif', 'one', requires_gpu=False, cpu_lane='gif')
+        second = queue.enqueue('gif', 'two', requires_gpu=False, cpu_lane='gif')
+        image = queue.enqueue('image', 'gpu')
+        assert not queue.try_start(second)
+        assert queue.try_start(first) and queue.try_start(image)
+        assert queue.coordinator.current_owner() == image.owner
+        assert [entry['position'] for entry in queue.snapshot()['jobs']] == [None, 1, None]
+        await queue.cancel(first)
+        assert not queue.try_start(second)
+        queue.finish(first)
+        assert queue.try_start(second)
+        queue.finish(second)
+        queue.finish(image)
+    asyncio.run(scenario())
+
+
 def test_cpu_cancel_calls_provider_and_pause_holds_new_cpu_work():
     async def scenario():
         gpu = GpuCoordinator()
@@ -154,7 +217,7 @@ def test_ollama_handoff_releases_sdxl_off_the_event_loop(monkeypatch, kind):
     from services.image_generation import manager
     caller = threading.get_ident()
     threads = []
-    monkeypatch.setattr(manager, "unload_for_training", lambda: threads.append(threading.get_ident()))
+    monkeypatch.setattr(manager, "park_for_chat", lambda: threads.append(threading.get_ident()))
     asyncio.run(prepare_runtime(kind))
     assert threads and threads[0] != caller
 

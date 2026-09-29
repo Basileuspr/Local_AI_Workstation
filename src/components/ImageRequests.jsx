@@ -9,7 +9,7 @@ export default function ImageRequests({ active = true }) {
     {requests.map(request => <article key={request.id}>
       <div><span title={request.prompt}>{request.label&&<strong>{request.label}<br/></strong>}{request.prompt}</span><button type="button" onClick={() => stop(request.id)}>Stop image request</button></div>
       <QueueRequestStatus requestId={request.id} kind="image" />
-      <ImageGenerationProgress requestId={request.id} />
+      <ImageGenerationProgress requestId={request.id} reportedProgress={request.progress} status={request.status} />
     </article>)}
   </div>;
 }

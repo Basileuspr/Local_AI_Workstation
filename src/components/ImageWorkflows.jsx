@@ -1,4 +1,6 @@
-import ImageResolutionControls from './ImageResolutionControls';
+import ImageGenerationSizing from './ImageGenerationSizing';
+import {useImageRemoval} from './ImageRemovalControls';
+import {availableWorkflowAssets, removeWorkflowAssets} from '../imageWorkflow';
 import FreshFileInput from "./FreshFileInput";
 import ProtectedImage from "../ImagePrivacy";
 import { useEffect, useRef, useState } from "react";
@@ -53,6 +55,9 @@ function StageWorkflows({ active }) {
   const [operation, setOperation] = useState("img2img");
   const [execution, setExecution] = useState(null);
   const actionLock = useRef(false);
+  const availableAssets = availableWorkflowAssets(draft);
+  const assetRemoval = useImageRemoval(availableAssets, removed => change(removeWorkflowAssets(draft, removed)),
+    {label:'workflow reference images', scope:draft?.id, disabled:busy || runIsActive(execution)});
 
   async function refreshLibrary() {
     const listed = await api.list();
@@ -252,7 +257,7 @@ function StageWorkflows({ active }) {
   function assetSelect(value, onChange, label) {
     return <select aria-label={label} value={value || ""} onChange={event => onChange(event.target.value || null)}>
       <option value="">Choose uploaded image</option>
-      {draft.assets.map(asset => <option key={asset.id} value={asset.id}>{asset.name} ({asset.width} × {asset.height})</option>)}
+      {availableAssets.map(asset => <option key={asset.id} value={asset.id}>{asset.name} ({asset.width} × {asset.height})</option>)}
     </select>;
   }
 
@@ -294,9 +299,11 @@ function StageWorkflows({ active }) {
           <section className="workflow-card">
             <h2>1 · Reference assets</h2><p>Upload source images, masks, and control maps here; assign their roles in each stage. Originals are copied, not moved.</p>
             <Field label="Attach images" help="Select several PNG, JPEG, or WebP files together. Each: single frame, up to 20 MiB / 24 megapixels. Saves pending draft changes first."><FreshFileInput type="file" multiple accept="image/png,image/jpeg,image/webp" onChange={event => { const files = Array.from(event.target.files || []); event.target.value = ""; run(() => upload(files)); }} /></Field>
-            <div className="workflow-assets">{draft.assets.map(asset => <a key={asset.id} href={api.assetUrl(draft.id, asset.id)} target="_blank" rel="noreferrer" title={`Open ${asset.name}`}>
+            {assetRemoval.toolbar}
+            {!!draft.removed_asset_ids?.length && <button type="button" onClick={() => change({removed_asset_ids:[]})}>Restore removed references</button>}
+            <div className="workflow-assets">{availableAssets.map(asset => <div key={asset.id} className="removable-image"><a href={api.assetUrl(draft.id, asset.id)} target="_blank" rel="noreferrer" title={`Open ${asset.name}`}>
               <ProtectedImage src={api.assetUrl(draft.id, asset.id)} alt={asset.name} loading="lazy" /><span>{asset.name}</span><small>{asset.width} × {asset.height}</small>
-            </a>)}</div>
+            </a>{assetRemoval.controls(asset, asset.name)}</div>)}</div>
           </section>
           <section className="workflow-card">
             <h2>2 · Prompt settings</h2><p>SDXL stages use these settings. Describe / OCR reports image content separately; Lanczos changes size without using a prompt.</p>
@@ -343,7 +350,7 @@ function StageWorkflows({ active }) {
                 </>}
                 {["img2img", "inpaint", "multi_reference"].includes(stage.operation) && <Field label="Change strength" help="0 stays closest to the source; 1 allows the largest change. Exact behavior is adapter-dependent."><input type="number" min={0} max={1} step={0.05} value={stage.strength} onChange={event => changeStage(stage.id, { strength: Number(event.target.value) })} /></Field>}
                 {stage.operation === "upscale" && <Field label="Size multiplier" help="Lanczos resampling on CPU, not AI detail reconstruction. Output is limited to 24 megapixels."><select value={stage.upscale_factor} onChange={event => changeStage(stage.id, { upscale_factor: Number(event.target.value) })}><option value={2}>2×</option><option value={3}>3×</option><option value={4}>4×</option></select></Field>}
-                {stage.operation === "multi_reference" && <div className="workflow-references"><p>Reference images (up to eight)</p>{draft.assets.map(asset => <label key={asset.id}><input type="checkbox" checked={stage.reference_asset_ids.includes(asset.id)} disabled={!stage.reference_asset_ids.includes(asset.id) && stage.reference_asset_ids.length >= 8} onChange={event => changeStage(stage.id, { reference_asset_ids: event.target.checked ? [...stage.reference_asset_ids, asset.id] : stage.reference_asset_ids.filter(id => id !== asset.id) })} />{asset.name}</label>)}</div>}
+                {stage.operation === "multi_reference" && <div className="workflow-references"><p>Reference images (up to eight)</p>{availableAssets.map(asset => <label key={asset.id}><input type="checkbox" checked={stage.reference_asset_ids.includes(asset.id)} disabled={!stage.reference_asset_ids.includes(asset.id) && stage.reference_asset_ids.length >= 8} onChange={event => changeStage(stage.id, { reference_asset_ids: event.target.checked ? [...stage.reference_asset_ids, asset.id] : stage.reference_asset_ids.filter(id => id !== asset.id) })} />{asset.name}</label>)}</div>}
                 <Field label={`Stage ${index + 1} provider`}><select value={stage.provider_slot} onChange={event => { const provider = catalog.providers.find(item => item.id === event.target.value); changeStage(stage.id, { provider_slot: event.target.value, model_id: provider?.models[0]?.id || "" }); }}>
                   <option value="">Choose a provider</option>
                   {stage.provider_slot && !catalog.providers.some(p => p.id === stage.provider_slot && p.operations.includes(stage.operation)) && <option value={stage.provider_slot}>Unavailable provider: {stage.provider_slot}</option>}
@@ -354,7 +361,7 @@ function StageWorkflows({ active }) {
                   {(catalog.providers.find(p => p.id === stage.provider_slot)?.models || []).map(model => <option key={model.id} value={model.id}>{model.name}</option>)}
                 </select></Field>}
                 {stage.operation!=="txt2img"&&<p className="workflow-source-summary">{stage.source?.kind==='stage'?`Input: Stage ${draft.stages.findIndex(item=>item.id===stage.source.id)+1} image output → Stage ${index+1}`:stage.source?'Input: uploaded image':'Choose a source image.'}</p>}
-                {["txt2img", "img2img", "inpaint"].includes(stage.operation) && <ImageResolutionControls width={stage.width} height={stage.height} min={256} max={1024} prefix={`Stage ${index+1} `} locked={stage.lock_aspect_ratio!==false} onLock={locked=>changeStage(stage.id,{lock_aspect_ratio:locked})} sourceSize={sourceDimensions(draft,stage.source)} onChange={size=>changeStage(stage.id,size)}/>}
+                {["txt2img", "img2img", "inpaint"].includes(stage.operation) && <ImageGenerationSizing width={stage.width} height={stage.height} allowLongWait={stage.allow_long_wait} waitKey="allow_long_wait" limits={catalog?.providers?.find(provider=>provider.id==='local-sdxl')?.resolution_limits} prefix={`Stage ${index+1} `} locked={stage.lock_aspect_ratio!==false} onLock={locked=>changeStage(stage.id,{lock_aspect_ratio:locked})} sourceSize={sourceDimensions(draft,stage.source)} onChange={size=>changeStage(stage.id,size)}/>}
 
                 {!metadata.supported && <p className="workflow-error">No installed adapter supports this stage. Remove it or choose a supported operation before running.</p>}
               </article>;

@@ -3,15 +3,18 @@ import * as workflows from './imageWorkflowApi';
 export const REFERENCE_ROLES = ['Background detail and art style', 'Character skin tone', 'Color palette', 'Lighting', 'Character appearance'];
 // SDXL must not denoise a small source at thumbnail resolution. Work near its
 // native size, padding narrow images instead of stretching their proportions.
-export function magicLayout(width, height) {
+export function magicLayout(width, height, target = null) {
   if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
     throw new Error('The image dimensions are invalid. Reopen the source image.');
   }
-  const scale = 1024 / Math.max(width, height);
+  if (target && [target.width, target.height].some(value => !Number.isInteger(value) || value < 256 || value > 2048 || value % 8)) {
+    throw new Error('Choose working dimensions from 256 to 2048 in multiples of 8.');
+  }
+  const scale = target ? Math.min(target.width / width, target.height / height) : 1024 / Math.max(width, height);
   const contentWidth = Math.max(1, Math.round(width * scale));
   const contentHeight = Math.max(1, Math.round(height * scale));
-  const workingWidth = Math.max(768, Math.ceil(contentWidth / 8) * 8);
-  const workingHeight = Math.max(768, Math.ceil(contentHeight / 8) * 8);
+  const workingWidth = target?.width ?? Math.max(768, Math.ceil(contentWidth / 8) * 8);
+  const workingHeight = target?.height ?? Math.max(768, Math.ceil(contentHeight / 8) * 8);
   return {
     width: workingWidth, height: workingHeight,
     content: { x: Math.floor((workingWidth - contentWidth) / 2), y: Math.floor((workingHeight - contentHeight) / 2), width: contentWidth, height: contentHeight },
@@ -21,10 +24,10 @@ export function magicSize(width,height) {
   const size = magicLayout(width, height);
   return { width: size.width, height: size.height };
 }
-export async function prepareMagicInput(blob) {
+export async function prepareMagicInput(blob, target = null) {
   const image = await createImageBitmap(blob);
   try {
-    const layout = magicLayout(image.width, image.height), { content } = layout;
+    const layout = magicLayout(image.width, image.height, target), { content } = layout;
     const canvas = new OffscreenCanvas(layout.width, layout.height), context = canvas.getContext('2d');
     context.imageSmoothingEnabled = true; context.imageSmoothingQuality = 'high';
     context.fillStyle = 'white'; context.fillRect(0, 0, canvas.width, canvas.height);

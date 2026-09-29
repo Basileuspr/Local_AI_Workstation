@@ -38,6 +38,7 @@ def fake_sdxl(tmp_path, monkeypatch):
     monkeypatch.setattr(image_generation, "prompt_token_status", lambda *args: {
         "prompt": {"chunks_required": 1}, "negative_prompt": {"chunks_required": 1}})
     monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+    monkeypatch.setattr(torch.cuda, "get_device_properties", lambda _: SimpleNamespace(total_memory=8 * 1024 ** 3))
     monkeypatch.setattr(torch.cuda, "empty_cache", lambda: calls.append("empty_cache"))
     monkeypatch.setattr(torch.cuda, "synchronize", lambda: None)
     monkeypatch.setattr(torch, "Generator", lambda *args: SimpleNamespace(manual_seed=lambda seed: seed))
@@ -60,6 +61,7 @@ def fake_sdxl(tmp_path, monkeypatch):
         def to(self, device): assert device == "cpu"
         def enable_attention_slicing(self, *args): calls.append("attention_slicing")
         def enable_model_cpu_offload(self): calls.append("install_offload")
+        def enable_sequential_cpu_offload(self): calls.append("install_sequential")
         def set_progress_bar_config(self, **kwargs): pass
         def maybe_free_model_hooks(self): calls.append("offload")
         def __call__(self, **kwargs):
@@ -149,6 +151,38 @@ def test_repeated_workflow_frames_keep_the_same_offload_hooks(request_context, f
     provider.generate(request, context)
     assert fake_sdxl.count("load") == 1
     assert fake_sdxl.count("install_offload") == installations
+
+
+def test_long_wait_switches_hooks_and_returns_to_normal_mode(request_context, fake_sdxl):
+    request, context = request_context
+    provider = adapters.SDXLProvider()
+    request.stage.allow_long_wait = True
+    request.stage.width = 2048
+    result = provider.generate(request, context)
+    with Image.open(result.image_paths[0]) as image:
+        assert image.size == (2048, 256)
+    assert fake_sdxl.count('install_sequential') == 1
+    provider.generate(request, context)
+    assert fake_sdxl.count('install_sequential') == 1
+    request.stage.allow_long_wait = False
+    request.stage.width = 256
+    installations = fake_sdxl.count('install_offload')
+    provider.generate(request, context)
+    assert fake_sdxl.count('install_offload') == installations + 1
+    assert fake_sdxl.count('remove_hooks') >= 2
+
+
+def test_cancel_with_long_wait_releases_workflow(request_context, fake_sdxl):
+    request, context = request_context
+    request.stage.allow_long_wait = True
+    def cancel_on_step(**values):
+        if values.get('step'):
+            context.cancel_event.set()
+    context = ExecutionContext('job', context.output_dir, context.cancel_event, cancel_on_step)
+    with pytest.raises(WorkflowCancelled):
+        adapters.SDXLProvider().generate(request, context)
+    assert not list(context.output_dir.iterdir())
+    assert fake_sdxl[-1] == 'offload'
 
 
 def test_successful_workflow_description_retains_model(request_context, monkeypatch):

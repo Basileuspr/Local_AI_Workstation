@@ -8,6 +8,8 @@ import MarkdownMessage from "../../src/components/MarkdownMessage";
 describe("inline chat images and destinations", () => {
   it("accepts local image references and blocks external and executable URLs", () => {
     expect(localImageUrl("/image-generation/outputs/test.png")).toContain("/image-generation/outputs/test.png");
+    expect(localImageUrl('/faces/character-resources/files/'+'a'.repeat(64))).toContain('/faces/character-resources/files/');
+    for(const path of ['/faces/character-resources/catalog/file','/faces/character-resources/files/not-an-id','/faces/character-resources/files/'+'a'.repeat(64)+'/extra'])expect(localImageUrl(path)).toBeNull();
     expect(localImageUrl("data:image/png;base64,YQ==")).toBe("data:image/png;base64,YQ==");
     for (const url of ["https://remote.example/image.png", "file:///secret.png", "javascript:alert(1)", "/system/logs/export", "data:text/html;base64,YQ=="]) expect(localImageUrl(url)).toBeNull();
   });

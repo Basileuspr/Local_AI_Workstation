@@ -33,10 +33,16 @@ import PromptQueue, { PromptQueueProvider } from "./components/PromptQueue";
 import KnowledgeVault from "./components/KnowledgeVault";
 import Tools, { MarkdownViewer } from "./components/Tools";
 import CodeViewer from "./components/CodeViewer";
+import ViewerBrowser from './components/ViewerBrowser';
 import SpreadsheetViewer from "./components/SpreadsheetViewer";
 import CanvasWorkspace from "./components/CanvasWorkspace";
 import FileConverter from "./components/FileConverter";
+import FilePackager from "./components/FilePackager";
+import { GifMakerWorkspace } from "./components/GifMaker";
 import AudioWorkspace from "./components/AudioWorkspace";
+import CharacterCreator from './components/CharacterCreator';
+import {CharacterWorkspaceProvider} from './CharacterWorkspace';
+import ChatInfluences from './components/ChatInfluences';
 import { get as getWorkflow } from "./imageWorkflowApi";
 
 function AppInner() {
@@ -49,6 +55,12 @@ function AppInner() {
   const [refreshing, setRefreshing] = useState(false);
   const [imageLibraryTarget, setImageLibraryTarget] = useState(null);
   const [queueDataset, setQueueDataset] = useState(null);
+  const [viewerInputs,setViewerInputs] = useState({});
+  function openBrowserSource(source) {
+    if(!['html','css','js'].includes(source.kind))return;
+    setViewerInputs(current=>({...current,[source.kind]:source}));
+    dispatch({type:'SET_SIDEBAR_TAB',payload:`${source.kind}-viewer`});
+  }
   useEffect(() => {
     saveNavigation(state.activeSidebarTab, state.currentSessionId || startupNavigation.sessionId);
   }, [state.activeSidebarTab, state.currentSessionId, startupNavigation]);
@@ -322,7 +334,7 @@ function AppInner() {
 
   // Keep chat mounted while dedicated workspaces occupy the main pane.
   const activeTab =
-    ["audio", "markdown", "html-viewer", "css-viewer", "spreadsheets", "canvas", "converter"].includes(state.activeSidebarTab) ||
+    ["characters", "audio", "browser", "js-viewer", "markdown", "html-viewer", "css-viewer", "spreadsheets", "canvas", "converter", "packager", "gif-maker"].includes(state.activeSidebarTab) ||
     state.activeSidebarTab === "tools" ||
     state.activeSidebarTab === "knowledge" || state.activeSidebarTab === "image-editor" || state.activeSidebarTab === "media-manager" || state.activeSidebarTab === "images" || state.activeSidebarTab === "review" || state.activeSidebarTab === "library" || state.activeSidebarTab === "generate" || state.activeSidebarTab === "lora" || state.activeSidebarTab === "workflows" || state.activeSidebarTab === "dashboard" || state.activeSidebarTab === "queue" || state.activeSidebarTab === "faces" || state.activeSidebarTab === "character-parts"
       ? state.activeSidebarTab
@@ -332,6 +344,7 @@ function AppInner() {
     <ImageGenerationProvider onSessionSaved={handleSessionSaved}>
     <AnalyzeIterateProvider>
     <ImageDestinationsProvider>
+    <CharacterWorkspaceProvider onNavigate={tab => dispatch({type:'SET_SIDEBAR_TAB',payload:tab})} onOpenDestination={openQueueDestination}>
       <AppLayout activeTab={state.activeSidebarTab} onRefresh={refreshCurrentView} refreshing={refreshing} sidebar={closeNavigation => <Sidebar
         imageLibraryTarget={imageLibraryTarget}
         onNavigate={closeNavigation}
@@ -349,11 +362,15 @@ function AppInner() {
           <div className="pane" data-capture-tab="knowledge" hidden={activeTab !== "knowledge"}><KnowledgeVault active={activeTab === "knowledge"} /></div>
           <div className="pane" data-capture-tab="tools" hidden={activeTab !== "tools"}><Tools /></div>
           <div className="pane" data-capture-tab="markdown" hidden={activeTab !== "markdown"}><MarkdownViewer /></div>
-          <div className="pane" data-capture-tab="html-viewer" hidden={activeTab !== "html-viewer"}><CodeViewer kind="html" /></div>
-          <div className="pane" data-capture-tab="css-viewer" hidden={activeTab !== "css-viewer"}><CodeViewer kind="css" /></div>
+          <div className="pane" data-capture-tab="browser" hidden={activeTab !== "browser"}><ViewerBrowser active={activeTab==='browser'} onOpenSource={openBrowserSource}/></div>
+          <div className="pane" data-capture-tab="html-viewer" hidden={activeTab !== "html-viewer"}><CodeViewer kind="html" incoming={viewerInputs.html}/></div>
+          <div className="pane" data-capture-tab="css-viewer" hidden={activeTab !== "css-viewer"}><CodeViewer kind="css" incoming={viewerInputs.css}/></div>
+          <div className="pane" data-capture-tab="js-viewer" hidden={activeTab !== "js-viewer"}><CodeViewer kind="js" incoming={viewerInputs.js}/></div>
           <div className="pane" data-capture-tab="spreadsheets" hidden={activeTab !== "spreadsheets"}><SpreadsheetViewer /></div>
           <div className="pane" data-capture-tab="canvas" hidden={activeTab !== "canvas"}><CanvasWorkspace /></div>
           <div className="pane" data-capture-tab="converter" hidden={activeTab !== "converter"}><FileConverter /></div>
+          <div className="pane" data-capture-tab="packager" hidden={activeTab !== "packager"}><FilePackager /></div>
+          <div className="pane" data-capture-tab="gif-maker" hidden={activeTab !== "gif-maker"}><GifMakerWorkspace active={activeTab === "gif-maker"}/></div>
           <div className="pane" data-capture-tab="audio" hidden={activeTab !== "audio"}><AudioWorkspace active={activeTab === "audio"}/></div>
           <div className="pane" data-capture-tab="image-editor" hidden={activeTab !== "image-editor"}><ImageEditor /></div>
           <div className="pane image-library-pane" data-capture-tab="images" hidden={activeTab !== "images"} ref={setImageLibraryTarget} />
@@ -370,6 +387,7 @@ function AppInner() {
               onCompactMemory={handleCompactMemory}
             />
             <SettingsPanel />
+            <ChatInfluences />
             <MessageList
               onNewChat={handleNewChat}
               onSessionSaved={handleSessionSaved}
@@ -405,12 +423,14 @@ function AppInner() {
           <div className="pane" data-capture-tab="faces" hidden={activeTab !== "faces"}>
             <FaceStudio active={activeTab === "faces"} />
           </div>
+          <div className="pane" data-capture-tab="characters" hidden={activeTab !== "characters"}><CharacterCreator active={activeTab === "characters"}/></div>
           <div className="pane" data-capture-tab="character-parts" hidden={activeTab !== "character-parts"}>
             <CharacterStudio active={activeTab === "character-parts"} openDataset={queueDataset} />
           </div>
       </AppLayout>
         <Toast />
         <EmojiPicker />
+    </CharacterWorkspaceProvider>
     </ImageDestinationsProvider>
     </AnalyzeIterateProvider>
     </ImageGenerationProvider>

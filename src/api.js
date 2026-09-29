@@ -269,6 +269,7 @@ export async function streamChat({
   knowledgeDocIds,
   canvasContext,
   useMemory = true,
+  useDurableMemory = true,
   systemPrompt,
   options,
   sessionId,
@@ -287,6 +288,7 @@ export async function streamChat({
       knowledge_doc_ids: knowledgeDocIds,
       canvas_context: canvasContext,
       use_memory: useMemory,
+      use_durable_memory:useDurableMemory,
       system_prompt: systemPrompt,
       options,
       session_id: sessionId,
@@ -457,6 +459,18 @@ export async function stopImageGeneration(requestId) {
   });
   if (!res.ok) throw new Error("Could not stop image generation");
   return await res.json();
+}
+
+export async function imageGenerationTasks(clientId, submission) {
+  const res = await fetch(apiUrl(`/image-generation/tasks${submission ? '' : `?client_id=${encodeURIComponent(clientId)}`}`), submission ? {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({...submission, client_id:clientId}),
+  } : {cache:'no-store'});
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({}));
+    throw new Error(typeof error.detail === 'string' ? error.detail : 'Could not reconnect to image generation');
+  }
+  return res.json();
 }
 
 export async function getImagePromptTokens({ modelId, prompt, negativePrompt }) {

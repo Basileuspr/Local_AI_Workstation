@@ -1,0 +1,6 @@
+.web-image-reader { margin: 12px 0; border: 1px solid var(--border, #444); border-radius: 8px; padding: 10px; }
+.web-image-reader summary { cursor: pointer; font-weight: 600; }
+.web-image-pages { max-width: 850px; margin: 12px auto 0; }
+.web-image-pages figure { margin: 0 0 12px; }
+.web-image-pages figcaption { font-size: 12px; opacity: .75; margin: 6px 0; overflow-wrap: anywhere; }
+.web-image-pages img { display: block; width: 100%; height: auto; object-fit: contain; }

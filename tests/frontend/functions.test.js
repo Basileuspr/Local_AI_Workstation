@@ -79,5 +79,6 @@ describe("queue destinations", () => {
     expect(queueDestination({ kind: "training", project_id: "lora" })).toEqual({ tab: "lora", projectId: "lora" });
     expect(queueDestination({ kind: "character-parts", project_id: "parts" })).toEqual({ tab: "character-parts", datasetId: "parts" });
     expect(queueDestination({ kind: "unknown" })).toBeNull();
+    expect(queueDestination({kind:'gif',request_id:'animation'})).toEqual({tab:'gif-maker',requestId:'animation'});
   });
 });

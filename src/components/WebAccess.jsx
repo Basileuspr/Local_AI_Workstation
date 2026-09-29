@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../useStore.jsx";
-import { createWebChat, getActiveWebImport, getWebImport, startWebImport, stopWebImport } from "../webAccess";
+import { createWebChat, getActiveWebImport, getWebImport, startWebImport, stopWebImport, webImageUrl } from "../webAccess";
+import WebImageReader from "./WebImageReader";
 import "./WebAccess.css";
 
 const terminal = new Set(["complete", "cancelled", "error"]);
@@ -8,6 +9,7 @@ const terminal = new Set(["complete", "cancelled", "error"]);
 export default function WebAccess({ onOpenSession }) {
   const { isGenerating, selectedModel } = useStore();
   const [url, setUrl] = useState("");
+  const [includeImages, setIncludeImages] = useState(true);
   const [job, setJob] = useState(null);
   const [error, setError] = useState("");
   const [starting, setStarting] = useState(false);
@@ -54,7 +56,7 @@ export default function WebAccess({ onOpenSession }) {
     setStarting(true);
     setError("");
     setJob(null);
-    try { setJob(await startWebImport(url)); }
+    try { setJob(await startWebImport(url, includeImages)); }
     catch (err) { setError(err.message); }
     finally { busy.current = false; setStarting(false); }
   }
@@ -88,8 +90,11 @@ export default function WebAccess({ onOpenSession }) {
         <button type="submit" disabled={Boolean(active) || starting}>{starting ? "Starting…" : "Import page"}</button>
         {active && <button type="button" onClick={stop} disabled={stopping}>{stopping ? "Stopping…" : "Stop import"}</button>}
       </div>
+      <label className="web-images-option"><input type="checkbox" checked={includeImages}
+        onChange={event => setIncludeImages(event.target.checked)} disabled={Boolean(active) || starting} />
+        Save page images locally (up to 24 images, 10 MB each, 50 MB total)</label>
     </form>
-    <p className="web-access-note">One request at a time · 10+ seconds apart · 30 requests/hour · 24-hour cache. Site limits may require longer pauses.</p>
+    <p className="web-access-note">One request at a time · 10+ seconds apart · 30 requests/hour · 24-hour cache. Images count toward these limits; a chapter can take several minutes. Site limits may require longer pauses.</p>
     {job && <p role="status">{job.message}{job.source?.cached ? " · Loaded from local cache" : ""}</p>}
     {error && <p role="alert">{error}</p>}
     {job?.status === "complete" && <div className="web-source-preview">
@@ -99,6 +104,11 @@ export default function WebAccess({ onOpenSession }) {
         <p className="web-access-note">Redirected from {job.source.requested_url} — the page above is what was actually imported.</p>}
       <p>{job.source.char_count.toLocaleString()} extracted characters. A new chat receives up to 6,000 characters with attribution.</p>
       <pre>{job.source.text.slice(0, 600)}</pre>
+      {job.source.include_images && <p>{job.source.images?.length || 0} of {job.source.images_found || 0} discovered images saved locally.
+        Images remain available in the saved chat. Text inside images is not automatically read by the chat model.</p>}
+      {!!job.source.image_warnings?.length && <details><summary>Image import notes ({job.source.image_warnings.length})</summary>
+        <ul>{job.source.image_warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul></details>}
+      <WebImageReader images={job.source.images} sourceFor={image => webImageUrl(image.src)} />
       <button type="button" onClick={openChat} disabled={opening || isGenerating}>{opening ? "Opening…" : "Open new chat with source"}</button>
       {isGenerating && <p>Finish or stop the current reply before opening a new chat.</p>}
     </div>}

@@ -42,7 +42,7 @@ app.whenReady().then(async()=>{
   await js(`window.qaUploads=0;const originalFetch=window.fetch;window.fetch=async(...args)=>{const response=await originalFetch(...args);if(new URL(args[0]).pathname==='/audio/transcribe'){window.qaUploads++;window.qaResult=await response.clone().json();window.qaStatus=response.status;}return response;};undefined`);
   win.webContents.debugger.attach('1.3');
   const {root:document}=await win.webContents.debugger.sendCommand('DOM.getDocument');
-  const {nodeId}=await win.webContents.debugger.sendCommand('DOM.querySelector',{nodeId:document.nodeId,selector:'input[type=file]'});
+  const {nodeId}=await win.webContents.debugger.sendCommand('DOM.querySelector',{nodeId:document.nodeId,selector:'.audio-transcription input[type=file]'});
   await win.webContents.debugger.sendCommand('DOM.setFileInputFiles',{nodeId,files:[source]});
   await until(()=>js(`document.body.textContent.includes(${JSON.stringify(path.basename(source))})`),'selected original file');
   const started=performance.now();

@@ -14,6 +14,32 @@ function setup() {
 }
 
 describe("images submitted from chat or Generate", () => {
+  it('previews the persisted Gallery source even when the original output URL differs or is absent', async () => {
+    const {api,args} = setup();
+    api.generateImage.mockResolvedValue({filename:'forest.png', image_ref:'blob:forest', url:'/image-generation/outputs/forest.png'});
+    const generated = await generateImageForSession(args);
+    const message = api.appendSessionMessages.mock.calls[1][1][0];
+    expect(generated.url).toBe(`/sessions/source-chat/images/by-id/${message.id}/${message.generatedImages[0].id}`);
+    expect(generated.image_ref).toBe('blob:forest');
+  });
+  it('sends the batch item counter to the queue without modifying the generation prompt',async()=>{
+    const {api,args}=setup();
+    await generateImageForSession({...args,requestLabel:'Image 3 of 4 · Variation'});
+    expect(api.generateImage.mock.calls[0][0]).toMatchObject({request_label:'Image 3 of 4 · Variation',prompt:'A forest'});
+    expect(api.appendSessionMessages.mock.calls[0][1][0].content).toContain('Image 3 of 4');
+  });
+  it.each([0, 184726, 2147483647])("records the actual random seed %i without changing the random draft", async seed => {
+    const { api, args } = setup();
+    const random = { ...settings, seed: "" };
+    api.generateImage.mockResolvedValue({ filename: "random.png", image_ref: "blob:random", seed });
+    const generated = await generateImageForSession({ ...args, settings: random });
+    expect(api.generateImage.mock.calls[0][0].seed).toBeNull();
+    const message = api.appendSessionMessages.mock.calls[1][1][0];
+    expect(message.content).toContain(`Seed: ${seed}`);
+    expect(message.generatedImages[0].seed).toBe(seed);
+    expect(generated).toMatchObject({ session_id: "source-chat", message_id: message.id, image_id: message.generatedImages[0].id });
+    expect(random.seed).toBe("");
+  });
   it.each([[61, 20.1], [200, 30]])("submits %i steps and %f guidance without clamping", async (steps, guidanceScale) => {
     const draft = { ...settings, steps: String(steps), guidanceScale: String(guidanceScale) };
     const catalog = { models: [{ id: "image-model" }], loras: [{ id: "image-lora", base_model_id: "image-model" }], runtime: { ready: true } };

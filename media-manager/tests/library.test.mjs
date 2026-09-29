@@ -1,6 +1,43 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { timelineGroups, dateKey, duplicateGroups, durationLabel, filterRecords, yearKey, needsReview } from '../frontend/library.js';
+import { availableRecords, timelineGroups, dateKey, duplicateGroups, durationLabel, filterRecords, yearKey, needsReview } from '../frontend/library.js';
+
+test('missing files are excluded before duplicate grouping, filters and library counts', () => {
+  const missing = { RecordId:'missing', Available:false, SHA256:'a'.repeat(64), DuplicatePrimary:'yes', OriginalFilename:'gone.mp4' };
+  const present = { ...missing, RecordId:'present', Available:true, DuplicatePrimary:'no', OriginalFilename:'here.mp4' };
+  const records = [missing,present];
+  assert.deepEqual(availableRecords(records),[present]);
+  for (const showDuplicates of [false,true]) assert.deepEqual(filterRecords(records,{showDuplicates}),[present]);
+  assert.deepEqual(duplicateGroups(records),[]);
+  assert.deepEqual(filterRecords(records,{query:'gone.mp4'}),[]);
+  assert.deepEqual(filterRecords([{...missing,Trashed:true}],{status:'trash'}),[]);
+  missing.Available = true;
+  assert.equal(filterRecords(records,{showDuplicates:true}).length,2);
+  assert.equal(duplicateGroups(records).length,1);
+});
+
+test('normal library hides extra verified copies while retaining primary, unique and unhashed files', () => {
+  const primary = { RecordId:'primary', OriginalFilename:'original.mp4', CurrentPath:'Z:/original.mp4', SHA256:'a'.repeat(64), DuplicatePrimary:'yes' };
+  const extra = { ...primary, RecordId:'extra', OriginalFilename:'copy.mp4', CurrentPath:'A:/copy.mp4', DuplicatePrimary:'no', SHA256:'A'.repeat(64) };
+  const unique = { RecordId:'unique', OriginalFilename:'other.mp4', SHA256:'b'.repeat(64) };
+  const unknown = { RecordId:'unknown', OriginalFilename:'unhashed.mp4', SHA256:'' };
+  const records = [extra,primary,unique,unknown];
+  const hidden = filterRecords(records,{showDuplicates:false});
+  assert.equal(hidden.length,3);
+  assert.ok(hidden.includes(primary));
+  assert.ok(!hidden.includes(extra));
+  assert.equal(filterRecords(records,{showDuplicates:true}).length,4);
+  assert.equal(records.length,4);
+  assert.equal(duplicateGroups(records)[0].copies.length,2);
+  assert.deepEqual(filterRecords(records,{showDuplicates:false,query:'copy.mp4'}),[extra]);
+});
+
+test('hidden duplicate view keeps a surviving copy and never conceals recoverable Trash', () => {
+  const primary = { OriginalFilename:'first.mp4', CurrentPath:'a', SHA256:'a'.repeat(64), DuplicatePrimary:'yes', Trashed:true };
+  const extra = { ...primary, OriginalFilename:'second.mp4', CurrentPath:'b', DuplicatePrimary:'no', Trashed:false };
+  assert.deepEqual(filterRecords([primary,extra],{showDuplicates:false}),[extra]);
+  assert.equal(filterRecords([primary,{...extra,Trashed:true}],{showDuplicates:false,status:'trash'}).length,2);
+});
 
 const rows = [
   { OriginalFilename: 'camera.mp4', ResolvedDate: '2024-01-01T23:30:00-07:00', Classification: 'Camera Recording', Approved: 'yes', DateConfidence: 'High', ClassificationConfidence: 'High' },

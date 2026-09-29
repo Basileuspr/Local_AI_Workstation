@@ -33,7 +33,7 @@ export default function ImageRequestEditor({ settings, models, loras, runtime, l
       <label>Prompt<textarea autoFocus required rows={5} value={draft.prompt} onChange={event => change({ prompt: event.target.value })} /></label>
       <label>Negative prompt<textarea rows={3} value={draft.negativePrompt} onChange={event => change({ negativePrompt: event.target.value })} /></label>
       <label className="request-long-prompt"><input type="checkbox" checked={draft.longPrompt !== false} onChange={event => change({ longPrompt: event.target.checked })} />Use long-prompt encoding</label>
-      <ImageSettingsControls settings={draft} onChange={change} />
+      <ImageSettingsControls settings={draft} onChange={change} resolutionLimits={runtime?.resolution_limits} />
       {error && <p role="alert">{error}</p>}
       <div className="request-editor-actions"><button type="submit" disabled={!draft.modelId || !draft.prompt.trim()}>Send Request</button><button type="button" onClick={onClose}>Cancel</button></div>
     </form>

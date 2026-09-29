@@ -5,18 +5,22 @@ from __future__ import annotations
 import base64
 import asyncio
 import logging
+import hashlib
+import json
 import uuid
 from contextlib import suppress
 from pathlib import Path
+from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Query
 from starlette.concurrency import run_in_threadpool
 from services.request_queue import queue, QueueCancelled, prepare_runtime
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, model_validator
 
 from services import image_store
-from services.image_generation_limits import MAX_IMAGE_STEPS, MAX_IMAGE_GUIDANCE
+from services.image_tasks import image_tasks
+from services.image_generation_limits import MAX_IMAGE_STEPS, MAX_IMAGE_GUIDANCE, validate_dimensions
 from services.image_generation import (
     OUTPUT_DIR,
     ImageGenerationCancelled,
@@ -33,6 +37,7 @@ logger = logging.getLogger(__name__)
 class ImageGenerationRequest(BaseModel):
     session_id: str | None = Field(default=None, max_length=100)
     request_id: str | None = Field(default=None, max_length=100)
+    request_label: str | None = Field(default=None, max_length=160)
     model_id: str
     prompt: str = Field(min_length=1, max_length=12000)
     negative_prompt: str | None = Field(default=None, max_length=12000)
@@ -44,13 +49,13 @@ class ImageGenerationRequest(BaseModel):
     lora_id: str | None = None
     lora_scale: float = Field(default=1.0, ge=0, le=2)
     long_prompt: bool = True
+    output_dir: str | None = Field(default=None, max_length=32767)
+    allow_long_wait: bool = False
 
-    @field_validator("width", "height")
-    @classmethod
-    def supported_dimensions(cls, value: int) -> int:
-        if value < 512 or value > 1536 or value % 8:
-            raise ValueError("Image dimensions must be multiples of 8 from 512 through 1536.")
-        return value
+    @model_validator(mode="after")
+    def supported_dimensions(self):
+        validate_dimensions(self.width, self.height, self.allow_long_wait)
+        return self
 
 
 @router.get("/models")
@@ -67,10 +72,62 @@ def list_image_models():
     return {"models": discover_models(), "loras": loras, "lora_error": lora_error, "runtime": manager.runtime_status()}
 
 
+class SavedImageRequest(ImageGenerationRequest):
+    session_id: str = Field(min_length=1, max_length=100, pattern=r"^[A-Za-z0-9_-]+$")
+    request_id: str = Field(min_length=1, max_length=100, pattern=r"^[A-Za-z0-9_-]+$")
+
+
+class ImageTaskSubmission(BaseModel):
+    client_id: str = Field(min_length=1, max_length=100)
+    batch_id: str | None = Field(default=None, max_length=100)
+    chat_model: str | None = Field(default=None, max_length=200)
+    requests: list[SavedImageRequest] = Field(min_length=1, max_length=32)
+
+
+class BackendImageClient:
+    async def is_disconnected(self):
+        # The backend owns this task; a refreshed page is only a new observer.
+        return False
+
+
+async def execute_saved_image(values):
+    return await generate_image(ImageGenerationRequest(**values), BackendImageClient())
+
+
+@router.post("/tasks")
+async def submit_image_tasks(submission: ImageTaskSubmission):
+    if len(submission.requests) > 1 and not submission.batch_id:
+        raise HTTPException(400, "Batch requests require a batch ID")
+    try:
+        await image_tasks.submit(submission.client_id, [request.model_dump() for request in submission.requests],
+                                 submission.batch_id, submission.chat_model, execute_saved_image)
+    except ValueError as error:
+        raise HTTPException(400, str(error)) from error
+    return await image_task_snapshot(submission.client_id)
+
+
+@router.get("/tasks")
+async def image_task_snapshot(client_id: str = Query(min_length=1, max_length=100)):
+    tasks = image_tasks.snapshot(client_id)
+    for task in tasks:
+        job = queue.find(kind="image", request_id=task["request_id"], include_finished=True)
+        if job and task["status"] == "running":
+            # Queue completion precedes persistence to the source chat. Only
+            # ImageTasks may report a completed task with its saved result.
+            task["status"] = ("saving" if job.stage == "saving" or job.status == "completed"
+                              else job.status if job.status in {"queued", "running", "cancelling"} else "running")
+        task["progress"] = image_progress_snapshot(task["request_id"])
+    return {"tasks": tasks}
+
+
 @router.post("/generate")
 async def generate_image(request: ImageGenerationRequest, client_request: Request):
     request.request_id = request.request_id or uuid.uuid4().hex
-    job = queue.enqueue("image", request.prompt, request.request_id,
+    job = queue.enqueue("image", f"{request.request_label} · {request.prompt}" if request.request_label else request.prompt, request.request_id,
+                        timing_profile=hashlib.sha256(json.dumps([
+                            request.model_id, request.width, request.height, request.steps,
+                            request.lora_id, request.long_prompt, request.allow_long_wait,
+                        ]).encode()).hexdigest(),
                         session_id=request.session_id,
                         owner=f"image-generation:{request.request_id}",
                         cancel=lambda: manager.cancel(request.request_id))
@@ -123,8 +180,17 @@ async def generate_image(request: ImageGenerationRequest, client_request: Reques
 
 def _generate_image(request: ImageGenerationRequest, cancellation_event=None):
     try:
+        destination = None
+        if request.output_dir:
+            destination = Path(request.output_dir)
+            if not destination.is_absolute() or not destination.is_dir():
+                raise HTTPException(400, "Output folder is unavailable. Choose another folder or clear Point output.")
+            destination = destination.resolve()
         # The session identifies the queue's chat destination, not a pipeline option.
-        result = manager.generate(**request.model_dump(exclude={"session_id"}), cancellation_event=cancellation_event)
+        job = queue.find(kind="image", request_id=request.request_id) if request.request_id else None
+        result = manager.generate(**request.model_dump(exclude={"session_id", "output_dir", "request_label"}),
+                                  cancellation_event=cancellation_event,
+                                  on_gpu_complete=(lambda: queue.release_gpu_for_output(job)) if job else None)
         output_path = OUTPUT_DIR / result["filename"]
         data = output_path.read_bytes()
 
@@ -132,6 +198,24 @@ def _generate_image(request: ImageGenerationRequest, cancellation_event=None):
         # carrying a base64 copy inside the session JSON. The PNG under
         # data/generated_images stays as the browsable output.
         reference = image_store.put_bytes(data)
+
+        # Keep the managed original for chat/gallery and export an unchanged PNG.
+        # Never overwrite an existing file in the user-selected folder.
+        if destination:
+            target = destination / result["filename"]
+            try:
+                if target.resolve() != output_path.resolve():
+                    with target.open("xb") as stream:
+                        try:
+                            stream.write(data)
+                            stream.flush()
+                        except OSError:
+                            stream.close()
+                            target.unlink(missing_ok=True)
+                            raise
+                result["output_path"] = str(target)
+            except OSError as exc:
+                result["output_warning"] = f"Image saved in the app, but could not save to the selected output folder: {exc}"
 
         encoded = base64.b64encode(data).decode("ascii")
         return {
@@ -141,11 +225,14 @@ def _generate_image(request: ImageGenerationRequest, cancellation_event=None):
             # second request; it is not what gets persisted.
             "data_url": f"data:image/png;base64,{encoded}",
         }
+    except HTTPException:
+        raise
     except ImageGenerationCancelled as exc:
         raise HTTPException(status_code=499, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except RuntimeError as exc:
+        logger.exception("Image generation failed (request %s)", request.request_id)
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Image generation failed: {exc}") from exc
@@ -155,16 +242,28 @@ def _generate_image(request: ImageGenerationRequest, cancellation_event=None):
 async def stop_image_generation(request_id: str):
     """Interrupt the matching Diffusers pipeline at its next denoising step."""
     job = queue.find(kind="image", request_id=request_id)
-    return {"stopped": await queue.cancel(job) if job else manager.cancel(request_id)}
+    retained = image_tasks.cancel(request_id)
+    stopped = await queue.cancel(job) if job else manager.cancel(request_id)
+    return {"stopped": retained or stopped}
 
 
 @router.get("/progress/{request_id}")
-def image_generation_progress(request_id: str):
-    job = queue.find(kind="image", request_id=request_id)
+async def image_generation_progress(request_id: str):
+    return {"progress": image_progress_snapshot(request_id)}
+
+
+def image_progress_snapshot(request_id: str):
+    job = queue.find(kind="image", request_id=request_id, include_finished=True)
     progress = manager.generation_progress(request_id)
     if progress is None and job:
-        progress = {"phase": "Waiting in Prompt Queue" if job.status == "queued" else "Stopping" if job.status == "cancelling" else "Preparing runtime", "step": 0, "total_steps": 0}
-    return {"progress": progress}
+        started = datetime.fromisoformat(job.started_at or job.created_at)
+        phase = ("Waiting in Prompt Queue" if job.status == "queued" else "Stopping" if job.status == "cancelling"
+                 else "Saving image" if job.stage == "saving" else "Image complete" if job.status == "completed"
+                 else "Stopped" if job.status == "cancelled" else "Failed" if job.status == "failed" else "Preparing runtime")
+        end = datetime.fromisoformat(job.finished_at) if job.finished_at else datetime.now(timezone.utc)
+        progress = {"phase": phase, "step": 0, "total_steps": 0,
+                    "elapsed_seconds": round(max(0, (end - started).total_seconds()), 1)}
+    return progress
 
 
 class PromptTokenRequest(BaseModel):

@@ -24,6 +24,9 @@ try {
   await page.getByLabel('Source folder', { exact: true }).fill(fixture.source);
   await page.getByLabel('Destination folder', { exact: true }).fill(fixture.destination);
   await page.getByRole('button', { name: 'Scan & preview' }).click();
+  await page.waitForFunction(() => document.querySelectorAll('.mo-media-card').length === 3);
+  assert.equal(await page.getByRole('button', { name: 'Show duplicates', exact: true }).getAttribute('aria-pressed'), 'false');
+  await page.getByRole('button', { name: 'Show duplicates', exact: true }).click();
   await page.waitForFunction(() => document.querySelectorAll('.mo-media-card').length === 5);
   await page.getByRole('searchbox', { name: 'Search media', exact: true }).fill('20240820_160000');
   assert.equal(await page.locator('.mo-media-card').count(), 1);

@@ -7,7 +7,8 @@ export function localImageUrl(value) {
   try {
     const url = new URL(value, API_BASE);
     if (url.origin !== new URL(API_BASE).origin || url.username || url.password) return null;
-    if (!/^\/(sessions\/|image-library\/|image-generation\/outputs\/|image-workflows\/|faces\/datasets\/|character-parts\/datasets\/)/.test(url.pathname)) return null;
+    const characterAsset = /^\/faces\/character-resources\/files\/[a-f0-9]{64}$/.test(url.pathname);
+    if (!characterAsset && !/^\/(sessions\/|image-library\/|image-generation\/outputs\/|image-workflows\/|faces\/datasets\/|character-parts\/datasets\/)/.test(url.pathname)) return null;
     url.searchParams.delete("law_token");
     return apiUrl(url.pathname + url.search);
   } catch { return null; }

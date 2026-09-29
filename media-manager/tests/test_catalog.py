@@ -83,3 +83,18 @@ class CatalogTests(unittest.TestCase):
         result=self.state.library(catalog.ALL_SCANS)
         self.assertEqual(len(result['records']),25);self.assertEqual(result['readErrors'][0]['scan'],'broken')
         self.assertTrue(any(r['ResolvedYear']=='Unknown' for r in result['records']))
+
+    def test_external_move_and_return_rechecks_availability_without_changing_saved_scans(self):
+        path = self.sources[0] / 'VID_20160615_120000.mp4'
+        outside = self.root / 'temporarily-moved.mp4'
+        before = {file:file.read_bytes() for file in self.state.reports.glob('*/manifest.json')}
+        def available(scope):
+            return next(row['Available'] for row in self.state.library(scope)['records'] if row['OriginalPath'] == str(path))
+        path.rename(outside)
+        for scope in (self.runs[0], catalog.ALL_SCANS):
+            self.assertFalse(available(scope))
+        outside.rename(path)
+        for scope in (self.runs[0], catalog.ALL_SCANS):
+            self.assertTrue(available(scope))
+        for file, content in before.items():
+            self.assertEqual(file.read_bytes(),content)

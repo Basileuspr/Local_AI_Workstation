@@ -1,4 +1,4 @@
-"""Character profiles built on top of face datasets.
+"""Character profiles with optional face curation and linked identity resources.
 
 A profile is a curated *reference* to faces that already live in a dataset:
 it stores ids, never a second copy of a crop. Deleting a character therefore
@@ -40,6 +40,8 @@ def _read(character_id):
     data = json.loads(path.read_text(encoding="utf-8"))
     if data.get("version") != 1:
         raise ValueError("Character profile is unreadable. Its file was preserved.")
+    data.setdefault("bio", "")
+    data.setdefault("resources", [])
     return data
 
 
@@ -177,6 +179,7 @@ def list_characters():
                 "notes": data["notes"], "created_at": data["created_at"],
                 "updated_at": data["updated_at"],
                 "reference_count": len(accepted),
+                "resource_count": len(data["resources"]),
                 "rejected_count": len(data["members"]) - len(accepted),
                 "datasets": sorted({m["dataset_id"] for m in data["members"]}),
                 "representative_face_id": data.get("representative_face_id"),
@@ -187,7 +190,7 @@ def list_characters():
         return sorted(found, key=lambda item: item["updated_at"], reverse=True)
 
 
-def create_character(name, dataset_id=None, face_ids=(), notes="", tags=()):
+def create_character(name, dataset_id=None, face_ids=(), notes="", tags=(), bio=""):
     name = (name or "").strip()
     if not name or len(name) > 120:
         raise ValueError("Character names need 1-120 characters")
@@ -197,6 +200,7 @@ def create_character(name, dataset_id=None, face_ids=(), notes="", tags=()):
         data = {
             "version": 1, "id": uuid.uuid4().hex, "name": name,
             "notes": str(notes or "")[:10000], "tags": _clean_tags(tags),
+            "bio": str(bio or "")[:20000], "resources": [],
             "members": [], "primary_reference": None, "additional_references": [],
             "centroid": None, "representative_face_id": None, "representative_dataset_id": None,
             "created_at": store.now(),
@@ -223,7 +227,7 @@ def get_character(character_id):
         return _refresh(_read(character_id))
 
 
-def update_character(character_id, *, name=None, notes=None, tags=None):
+def update_character(character_id, *, name=None, notes=None, tags=None, bio=None):
     with LOCK:
         data = _read(character_id)
         if name is not None:
@@ -236,6 +240,8 @@ def update_character(character_id, *, name=None, notes=None, tags=None):
             data["name"] = cleaned
         if notes is not None:
             data["notes"] = str(notes)[:10000]
+        if bio is not None:
+            data["bio"] = str(bio)[:20000]
         if tags is not None:
             data["tags"] = _clean_tags(tags)
         return _write(_refresh(data))

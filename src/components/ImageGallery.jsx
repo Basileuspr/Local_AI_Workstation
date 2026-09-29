@@ -17,9 +17,11 @@ import LockedImages from "./LockedImages";
 import { orderImageDeletions } from "../bulkActions";
 import { isReviewUpload } from "../imageReview";
 import "./ImageLibrary.css";
+import { useImageDestinations } from "../ImageDestinations";
 
 export default function ImageGallery({ images, onOpen, onRemove, onDelete, onImagesRemoved, active = true, workspaceTarget, onNavigate }) {
   const iterate = useAnalyzeIterate();
+  const destinations = useImageDestinations();
   const [folder, setFolder] = useState("general");
   const [selectedImageId, setSelectedImageId] = useState(null);
   const [query, setQuery] = useState("");
@@ -29,7 +31,7 @@ export default function ImageGallery({ images, onOpen, onRemove, onDelete, onIma
   const [hiddenImages, setHiddenImages] = useState([]);
   const [folderEditor, setFolderEditor] = useState(null);
   const [filing, setFiling] = useState(null);
-  const [locking, setLocking] = useState([]);
+  const [locking, setLocking] = useState(null);
   const [error, setError] = useState("");
   const hidden = folder === "hidden";
   const originalIds = new Set(images.map(image => image.id));
@@ -37,7 +39,9 @@ export default function ImageGallery({ images, onOpen, onRemove, onDelete, onIma
   const shown = [...(hidden ? hiddenImages : images), ...owned];
   const selection = useSelection(shown, item => item.id, folder);
   const selectedFolder = library.folders.find(item => `folder:${item.id}` === folder);
-  function lockImages(items) { setLocking(items); setSelectedImageId(null); setFolder("locked"); }
+  function lockImages(items, onCancel = null) { setLocking({ items, onCancel }); setSelectedImageId(null); }
+  function cancelLocking() { setLocking(null); locking?.onCancel?.(); }
+  useEffect(() => { if (!active) setLocking(null); }, [active]);
   useEffect(() => {
     if (!active || !hidden) return;
     let ignore = false;
@@ -83,6 +87,7 @@ export default function ImageGallery({ images, onOpen, onRemove, onDelete, onIma
     <header className="image-library-header"><div><p className="image-library-eyebrow">Image library</p><h1>{title}</h1></div>
       <span className="image-library-description">Browse, organize, and open your images.</span></header>
     <div className="image-library-toolbar">
+      <button type="button" disabled={!destinations} onClick={() => destinations.openGifMaker()}>GIF Maker</button>
       <label className="image-library-mobile-collection">Collection<select aria-label="Image collection" value={folder} onChange={event => chooseFolder(event.target.value)}>
         {collections.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
         {library.folders.map(item => <option key={item.id} value={`folder:${item.id}`}>{item.name}</option>)}
@@ -102,7 +107,12 @@ export default function ImageGallery({ images, onOpen, onRemove, onDelete, onIma
     </div>
     {(error || library.error) && <p role="alert">{error || library.error}</p>}
     {folder === "workflows" && <WorkflowImageLibrary active={active} onFile={setFiling} onLock={lockImages} searchQuery={query} workspace />}
-    {folder === "locked" && <LockedImages active={active} pending={locking} searchQuery={query} onImported={result => setLocking(current => current.filter(image => !result.succeeded.some(done => done.id === image.id)))} />}
+    {folder === "locked" && <LockedImages active={active} searchQuery={query} />}
+    {active && locking && <LockedImages active pendingOnly pending={locking.items} onCancel={cancelLocking} onImported={result => setLocking(current => {
+      if (!current) return null;
+      const items = current.items.filter(image => !result.succeeded.some(done => done.id === image.id));
+      return items.length ? { ...current, items } : null;
+    })} />}
     {(selectedFolder || ["saved", "liked", "disliked"].includes(folder)) && <CollectionImages key={folder} active={active} title={title} searchQuery={query} compactView={compact} workspace
       images={library.images.filter(image => !image.hidden && (selectedFolder ? image.folder_ids.includes(selectedFolder.id) : folder === "saved" ? !isReviewUpload(image) : image.rating === folder))}
       folderId={selectedFolder?.id} folders={library.folders} tags={library.tags} onLock={lockImages} onOpenSource={onOpen} />}
@@ -113,6 +123,7 @@ export default function ImageGallery({ images, onOpen, onRemove, onDelete, onIma
       <span className="image-library-result-count">{filtered.length} {query ? "matching " : ""}image{filtered.length === 1 ? "" : "s"}</span>
       <CollectionPager label="images" page={currentPage} pages={pages} onChange={setPage} />
       <BulkActions selection={selection} items={filtered} label="images" batch={batch} actions={[
+        ...(destinations ? [{ label: "Make GIF from selected", onClick: images => destinations.openGifMaker({ images }) }] : []),
         {label:hidden ? "Restore selected images" : "Hide selected images", onClick:items => hidden ? restoreSelected(items) : removeSelected(items, false)},
         {label:"Add selected to folder", onClick:setFiling},
         {label:"Lock selected images", onClick:lockImages},
@@ -142,7 +153,7 @@ export default function ImageGallery({ images, onOpen, onRemove, onDelete, onIma
     <ImageViewer images={filtered.map(image => ({...image, caption: image.session_title}))} selectedId={selectedImageId}
       onAnalyze={iterate?.image}
       active={active && ["general", "hidden"].includes(folder) && !selection.enabled} onSelect={setSelectedImageId} onClose={() => setSelectedImageId(null)} onOpenSource={onOpen} actions={image => <>
-        <button type="button" onClick={() => { setSelectedImageId(null); setFiling([image]); }}>Add to folder</button><button type="button" onClick={() => lockImages([image])}>Lock image</button>
+        <button type="button" onClick={() => { setSelectedImageId(null); setFiling([image]); }}>Add to folder</button><button type="button" onClick={() => lockImages([image], () => setSelectedImageId(image.id))}>Lock image</button>
         <button type="button" disabled={batch.busy} onClick={event => hidden ? restoreSelected([image]) : image.library ? removeSelected([image], false) : onRemove(image, event)}>{hidden ? "Restore to gallery" : "Hide from gallery"}</button>
         <button type="button" className="danger" disabled={batch.busy} onClick={event => image.library ? removeSelected([image], true) : onDelete(image, event)}>Delete image permanently</button>
       </>} />

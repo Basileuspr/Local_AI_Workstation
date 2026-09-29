@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import {useImageRemoval} from './ImageRemovalControls';
 import { apiUrl } from "../api";
 import "./Tools.css";
 
@@ -9,6 +10,9 @@ export function ConvertedAttachment({ artifact }) {
 export default function FileConverter() {
   const input = useRef(null), [files, setFiles] = useState([]), [target, setTarget] = useState("png");
   const [results, setResults] = useState([]), [busy, setBusy] = useState(false), [progress, setProgress] = useState(""), [errors, setErrors] = useState([]);
+  const removal=useImageRemoval(files, removed=>setFiles(current=>current.filter(file=>!removed.includes(file))),
+    {label:'conversion inputs',disabled:busy,key:file=>`${file.name}:${file.size}:${file.lastModified}`});
+  const outputRemoval=useImageRemoval(results, removed=>setResults(current=>current.filter(item=>!removed.includes(item))),{label:'converted images',disabled:busy});
   async function convert() {
     setBusy(true); setResults([]); setErrors([]);
     try {
@@ -31,8 +35,8 @@ export default function FileConverter() {
       <button disabled={busy||!files.length} onClick={convert}>Convert {files.length || ""} file{files.length===1?"":"s"}</button>
     </div>
     <p className="tools-note">Still images up to 20 MB and 24 megapixels. JPG and BMP use a white background for transparency. Chat can also convert an attached image: “Convert this to PNG.”</p>
-    <ul>{files.map((file,i)=><li key={i}>{file.name}</li>)}</ul><p role="status">{progress}</p>
+    {removal.toolbar}<ul>{files.map((file,i)=><li key={i}>{file.name}{removal.controls(file, `conversion input ${file.name}`)}</li>)}</ul><p role="status">{progress}</p>
     {errors.map((error,i)=><p role="alert" key={i}>{error}</p>)}
-    {results.map(artifact=><ConvertedAttachment key={artifact.id} artifact={artifact} />)}
+    {outputRemoval.toolbar}{results.map(artifact=><div key={artifact.id}><ConvertedAttachment artifact={artifact} />{outputRemoval.controls(artifact, `converted image ${artifact.name}`)}</div>)}
   </section>;
 }

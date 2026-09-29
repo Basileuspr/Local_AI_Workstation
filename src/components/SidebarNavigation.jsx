@@ -8,6 +8,7 @@ const groups = [
     { id: "knowledge", label: "Knowledge" },
     { id: "canvas", label: "Canvas" },
     { id: "converter", label: "File Converter" },
+    { id: "packager", label: "Packager" },
     { id: "audio", label: "Audio" },
   ] },
   { id: "images", label: "Images", icon: "image", items: [
@@ -15,18 +16,22 @@ const groups = [
     { id: "generate", label: "Generate", title: "Generate Images" },
     { id: "review", label: "Review", title: "Image Review" },
     { id: "image-editor", label: "Editor", title: "Image Editor" },
+    { id: "gif-maker", label: "GIF Maker", title: "GIF Maker workspace" },
     { id: "workflows", label: "Workflows", title: "Image Workflows" },
     { id: "media-manager", label: "Media Manager" },
   ] },
   { id: "characters", label: "Characters & Training", icon: "person", items: [
+    { id: "characters", label: "Character Creator" },
     { id: "faces", label: "Faces" },
     { id: "character-parts", label: "Character Parts" },
     { id: "lora", label: "LoRA" },
   ] },
   { id: "viewers", label: "Viewers", icon: "chat", items: [
+    { id: "browser", label: "Browser" },
     { id: "markdown", label: "Markdown Viewer" },
     { id: "html-viewer", label: "HTML Viewer" },
     { id: "css-viewer", label: "CSS / Styling" },
+    { id: "js-viewer", label: "JavaScript Viewer" },
     { id: "spreadsheets", label: "Spreadsheets" },
   ] },
 ];

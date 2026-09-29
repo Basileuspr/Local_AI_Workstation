@@ -1,12 +1,13 @@
 """Face dataset API. Detection runs in the background through the shared queue."""
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
-from fastapi.responses import Response
+from fastapi.responses import Response, FileResponse
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
 from services.faces import bank, pipeline, store
 from services.faces.providers import catalog, get_provider
 from services.image_library import MAX_BYTES
+from services import character_resources
 
 router = APIRouter(prefix="/faces", tags=["faces"])
 MAX_UPLOAD_FILES = 100
@@ -202,12 +203,14 @@ class CharacterRequest(BaseModel):
     dataset_id: str | None = None
     face_ids: list[str] = Field(default_factory=list, max_length=5000)
     notes: str = Field(default="", max_length=10000)
+    bio: str = Field(default="", max_length=20000)
     tags: list[str] = Field(default_factory=list, max_length=40)
 
 
 class CharacterEditRequest(BaseModel):
     name: str | None = Field(default=None, max_length=120)
     notes: str | None = Field(default=None, max_length=10000)
+    bio: str | None = Field(default=None, max_length=20000)
     tags: list[str] | None = Field(default=None, max_length=40)
 
 
@@ -231,18 +234,70 @@ async def list_characters():
 @router.post("/characters", status_code=201)
 async def create_character(request: CharacterRequest):
     return await run_in_threadpool(call, bank.create_character, request.name, request.dataset_id,
-                                   request.face_ids, request.notes, request.tags)
+                                   request.face_ids, request.notes, request.tags, request.bio)
 
 
 @router.get("/characters/{character_id}")
 async def get_character(character_id: str):
-    return await run_in_threadpool(call, bank.get_character, character_id)
+    profile = await run_in_threadpool(call, bank.get_character, character_id)
+    profile["resources"] = await run_in_threadpool(call, character_resources.list_resources, character_id)
+    return profile
 
 
 @router.put("/characters/{character_id}")
 async def update_character(character_id: str, request: CharacterEditRequest):
     return await run_in_threadpool(call, bank.update_character, character_id,
-                                   name=request.name, notes=request.notes, tags=request.tags)
+                                   name=request.name, notes=request.notes, tags=request.tags, bio=request.bio)
+
+
+class CharacterResourceRequest(BaseModel):
+    kind: str = Field(max_length=30)
+    target_id: str = Field(max_length=128)
+    note: str = Field(default="", max_length=4000)
+
+
+class CharacterResourceNote(BaseModel):
+    note: str = Field(default="", max_length=4000)
+
+
+@router.get("/character-resources/catalog/{kind}")
+async def resource_catalog(kind: str):
+    return {"items": await run_in_threadpool(call, character_resources.catalog, kind)}
+
+
+@router.post("/characters/{character_id}/resources", status_code=201)
+async def add_resource(character_id: str, request: CharacterResourceRequest):
+    return await run_in_threadpool(call, character_resources.add, character_id,
+                                   request.kind, request.target_id, request.note)
+
+
+@router.put("/characters/{character_id}/resources/{link_id}")
+async def edit_resource(character_id: str, link_id: str, request: CharacterResourceNote):
+    return await run_in_threadpool(call, character_resources.edit, character_id, link_id, request.note)
+
+
+@router.delete("/characters/{character_id}/resources/{link_id}")
+async def unlink_resource(character_id: str, link_id: str):
+    await run_in_threadpool(call, character_resources.unlink, character_id, link_id)
+    return {"unlinked": True}
+
+
+@router.post("/characters/{character_id}/files", status_code=201)
+async def upload_character_file(character_id: str, file: UploadFile = File(...), note: str = Form(default="", max_length=4000)):
+    try:
+        payload = await file.read(character_resources.MAX_FILE_BYTES + 1)
+        return await run_in_threadpool(call, character_resources.upload, character_id, file.filename, payload, note)
+    finally:
+        await file.close()
+
+
+@router.get("/character-resources/files/{asset_id}")
+async def character_file(asset_id: str, download: bool = False):
+    item = await run_in_threadpool(call, character_resources.asset, asset_id)
+    inline = not download and item["category"] in {"image", "audio", "video"}
+    return FileResponse(character_resources.asset_path(asset_id, "blob"), media_type=item["media_type"],
+                        filename=item["name"], content_disposition_type="inline" if inline else "attachment",
+                        headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "no-store"})
 
 
 @router.delete("/characters/{character_id}")

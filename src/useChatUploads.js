@@ -266,6 +266,7 @@ export function useChatUploads({ onNewChat, onSessionSaved } = {}) {
           return false;
         }
 
+        callbacks.onTarget?.(target.id);
         let uploaded = 0;
         for (const file of list) {
           const next = await appendFile(file, target, callbacks);

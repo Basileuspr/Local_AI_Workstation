@@ -2,6 +2,7 @@ import { updateColorSample, removeColorSample } from '../imageEditorColors';
 import ImageMagic from './ImageMagic';
 import { useEffect, useRef, useState } from "react";
 import FreshFileInput from "./FreshFileInput";
+import {useImageRemoval} from './ImageRemovalControls';
 import { ADJUSTMENT_CONTROLS, editedFilename } from "../imageEditor";
 import { currentPass, editRecipe, hasCurrentPass, lockEditStage, newEditState, repeatEditStage, unlockEditStage } from "../imageEditorStages";
 import { openEditorImage } from "../imageEditorSession";
@@ -126,12 +127,35 @@ export default function ImageEditor({ inlineInput, onSave, onCancel }) {
     finally { lock.current = false; setExporting(false); }
   }
 
+  async function makeGif() {
+    if (!destinations || lock.current) return;
+    if (!session) { destinations.openGifMaker(); return; }
+    lock.current = true; setExporting(true); setError("");
+    try {
+      const { blob } = await session.request("export", editRecipe(edit));
+      destinations.openGifMaker({ files: [new File([blob], editedFilename(session.name), { type: "image/png" })] });
+    } catch (failure) { setError(failure.message); }
+    finally { lock.current = false; setExporting(false); }
+  }
+
   const busy = loading || exporting || referenceBusy || magicBusy;
+  const removal = useImageRemoval([...(session ? [{id:'source'}] : []), ...(reference ? [{id:'reference'}] : [])], removed => {
+    if (removed.some(item => item.id === 'source')) {
+      sessionRef.current?.close(); sessionRef.current=null; setSession(null);
+      setOriginal(''); setPreview(''); setNativeOriginal(''); setPreviewSize(null);
+      setHistory([]); setFuture([]); setMagicRequest(null); setCompare(false);
+    }
+    if (removed.some(item => item.id === 'reference')) {setReference(null); setColorArmed(false);}
+    setNotice('Removed from the editor. Original files are unchanged.');
+  }, {label:'editor images', disabled:busy});
   return <section ref={editorRoot} className={`image-editor ${inlineInput ? "chat-inline-editor" : ""}`} aria-label={inlineInput ? "Edit image in chat" : "Image Editor"} onKeyDown={event=>{if(busy||event.target.closest('input,textarea,select,[contenteditable=true]')||!(event.ctrlKey||event.metaKey))return;const key=event.key.toLowerCase();if(key==='z'||key==='y'){event.preventDefault();if(key==='y'||event.shiftKey)redo();else undo();}}}>
     <header className="ie-header"><div><span className="ie-eyebrow">Color &amp; tone</span><h1>Image Editor</h1><p>One image in focus. Adjust its colors while preserving its composition and detail.</p></div>
+      <button type="button" disabled={busy || !destinations} onClick={makeGif}>GIF Maker</button>
       {inlineInput ? <button disabled={busy} onClick={onCancel}>Cancel edit</button> : <label className="ie-import">{loading ? "Opening…" : session ? "Open another image" : "Open image"}<FreshFileInput aria-label="Open image for editing" accept="image/png,image/jpeg,image/webp" disabled={busy} onChange={event => { const file = event.target.files?.[0]; event.target.value = ""; open(file); }} /></label>}
     </header>
     {error && <p className="ie-error" role="alert">{error}</p>}{notice && <p className="ie-notice" role="status">{notice}</p>}
+    {removal.toolbar}
+    {session && removal.controls({id:'source'}, 'editor source image')}
     <div className="ie-history ie-main-history" role="toolbar" aria-label="Image editing tools"><button disabled={!history.length || busy} onClick={undo}>Undo</button><button disabled={!future.length || busy} onClick={redo}>Redo</button><button disabled={!session || busy || !hasCurrentPass(edit)} onClick={() => change({ ...edit, settings: { ...edit.anchor }, colorEdits: [] })}>Reset</button>
       <div className="ie-rotation-controls" role="group" aria-label="Image rotation">
         <button disabled={!session || busy} title="Rotate 90° counterclockwise" onClick={() => adjust({ ...settings, rotation: ((settings.rotation || 0) + 270) % 360 })}>Rotate left</button>
@@ -159,7 +183,7 @@ export default function ImageEditor({ inlineInput, onSave, onCancel }) {
         {edit.stages.length>0 && <details className="ie-locked-stages"><summary>{edit.stages.length} locked change(s)</summary><ol>{edit.stages.map((stage,index)=><li key={index}><strong>Stage {index+1}{stage.repeated ? " · repeated" : ""}</strong><span>{ADJUSTMENT_CONTROLS.filter(c=>stage.pass[c.key]).map(c=>`${c.label}: ${stage.pass[c.key]>0?"+":""}${stage.pass[c.key]}${c.unit}`).join(" · ")}{stage.pass.rotation ? ` · Rotation ${stage.pass.rotation}°` : ""}{stage.pass.colorEdits?.length ? ` · ${stage.pass.colorEdits.length} color areas` : ""}</span></li>)}</ol><p>Unlock to revise a previous pass. Reset clears only the current pass. Up to 16 locked stages.</p></details>}
         <details className="ie-reference"><summary>Reference source image{reference ? " · loaded" : ""}</summary><p>Sample a reference color and apply it to an enclosed area or brush spot. This uses local color editing, not automatic character recognition.</p>
           <label className="ie-import">{referenceBusy ? "Opening reference…" : "Open reference image"}<FreshFileInput aria-label="Open reference source image" accept="image/png,image/jpeg,image/webp" disabled={busy} onChange={event=>{const file=event.target.files?.[0];event.target.value="";openReference(file);}} /></label>
-          {reference && <><img src={reference.url} alt={`Reference source: ${reference.name}. Click to sample a color.`} onClick={sampleReference}/><span className="ie-file">{reference.name}</span><button disabled={busy} onClick={()=>{setReference(null);setColorArmed(false);}}>Remove reference</button></>}
+          {reference && <><img src={reference.url} alt={`Reference source: ${reference.name}. Click to sample a color.`} onClick={sampleReference}/><span className="ie-file">{reference.name}</span>{removal.controls({id:'reference'}, 'editor reference image')}</>}
           <div className="ie-color-samples" role="group" aria-label="Saved color samples">{edit.colorSamples.map(sample=><button key={sample.id} disabled={busy} aria-pressed={activeSample?.id===sample.id} onClick={()=>setActiveColorId(sample.id)}><i style={{background:sample.color}} aria-hidden="true"/>{sample.name}<small>{edit.colorEdits.filter(area=>area.sampleId===sample.id).length} {edit.colorEdits.filter(area=>area.sampleId===sample.id).length===1?'area':'areas'}</small></button>)}</div>
           <button disabled={busy||edit.colorSamples.length>=16} onClick={addColorSample}>Add color sample</button>
           {activeSample&&<><label>Sample name<input aria-label="Color sample name" maxLength="60" value={activeSample.name} disabled={busy} onChange={e=>change(updateColorSample(edit,activeSample.id,{name:e.target.value}))}/></label>

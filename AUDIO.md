@@ -1,7 +1,7 @@
 # Audio
 
-Open **Workspace → Audio** for microphone recording, audio-file transcription,
-and local text-to-speech. Chat has a **Microphone / audio** panel above its
+Open **Workspace → Audio** for video-to-audio extraction, microphone recording,
+audio-file transcription, and local text-to-speech. Chat has a **Microphone / audio** panel above its
 message input and **Read aloud** controls on assistant messages.
 
 Record → Stop recording → Transcribe audio → review/edit the transcript.
@@ -22,6 +22,37 @@ These labels distinguish voices; they do not establish people's identities.
 Short replies, similar voices, noise, and simultaneous speech may need manual
 correction. Words without matching voice evidence are marked **Unknown speaker**;
 ambiguous concurrent voices are marked **Unclear / overlapping**.
+
+## Extract audio from a video
+
+In **Audio → Extract audio from video**, choose or drop a video, select **MP3**,
+**WAV**, **M4A**, or **FLAC**, then click **Extract audio**. Preview the result,
+use **Save extracted audio** to keep it, or **Use for transcription** to load it
+into Speech to text. Loading it does not start transcription; choose settings
+and click **Transcribe audio**. Existing transcripts are cleared when another
+file is loaded, so save any edits first.
+
+Common inputs include MP4/M4V, MOV, MKV, WebM, AVI, WMV, FLV, MPEG/TS, 3GP,
+VOB, OGV, and MXF. Audio-only inputs such as WAV, MP3, M4A/AAC, Ogg/Opus,
+FLAC, WMA, AIFF, AC3, AMR, and CAF can also be converted. Codec support depends
+on the installed PyAV runtime. Files without audio, corrupt media, and invalid
+track numbers produce an error. **Audio track** starts at 1 and selects one
+track, useful for alternate languages or commentary; tracks are not mixed.
+
+Inputs are limited to **2 GB / 2 hours**, and outputs to **250 MB**. MP3 or M4A
+is best for keeping long recordings within the output limit. WAV uses 16-bit
+PCM; FLAC compresses that PCM without further loss. Mono/stereo and common
+sample rates are retained up to 48 kHz; surround audio is mixed to stereo.
+The selected track is decoded and converted to the chosen format.
+
+Extraction uses the existing optional audio runtime, with bounded CPU threads
+and no model download, GPU, or remote service. It skips video decoding and never
+changes the source file. Source metadata, video, subtitles, and cover art are
+omitted. One extraction runs at a time, with progress and **Cancel extraction**;
+an operation is limited to 15 minutes. Temporary inputs and output are removed
+after the response, cancellation, or a handled failure, including a disconnected
+download. Leaving Audio pauses playback while extraction continues. Closing or
+refreshing cancels unfinished work and clears unsaved results.
 
 ## Setup
 
@@ -133,6 +164,19 @@ Recording a replacement keeps the previous reference until the new one is ready;
 **Discard recording** or leaving Audio cancels capture, including a pending
 microphone permission request.
 
+The recorder includes a local **phrase generator** with English reading prompts:
+Cozy chaos, Space nonsense, Tiny adventures, Detective drama, or Surprise me.
+**New phrase** shuffles 256 combinations without immediately repeating a phrase.
+Read naturally; the prompt stays fixed while recording. It needs no model or
+network connection. After recording, **Phrase shown during this recording**
+keeps the exact prompt you saw even if you shuffle again. Choose **Use recorded
+phrase as transcript** only if you read it word for word; otherwise transcribe
+the recording as usual. Uploading another reference clears that association.
+Use **Save phrase (.txt)** to keep the current reading prompt, or **Save recorded
+phrase (.txt)** to keep the prompt tied to a recording. **Save reference text
+(.txt)** exports the reviewed reference transcript. These save controls remain
+available during recording and generation.
+
 Click **Demo this voice** to generate and automatically play a short sample in
 the selected language. Enter your own text to demo that instead. OmniVoice and
 Qwen automatically transcribe the reference if its transcript is blank; you can
@@ -143,7 +187,11 @@ playback and stops the transcription-to-generation chain before its next job.
 If automatic playback is blocked, the finished audio still has a Play control.
 
 For up to 1,500 characters of new text, **Generate cloned voice** creates speech
-for manual playback. Both modes offer **Save generated WAV**. A whole meeting with multiple speakers is not a
+for manual playback. **Save text (.txt)** exports those words before, during, or
+after generation; when the field is blank, it saves the displayed demo text.
+Both modes offer **Save generated WAV** and **Save generated text (.txt)**.
+The latter always uses the exact text attached to that result, even if you edit
+the draft afterward. Text files use UTF-8 and preserve line breaks. A whole meeting with multiple speakers is not a
 suitable voice reference. Use your own voice or one you have permission to use.
 Chatterbox's built-in PerTh watermark is preserved.
 
@@ -184,9 +232,11 @@ updating app code; model-only installations can be refreshed by reopening Audio.
 
 ```powershell
 npm run test -- tests/frontend/audio.test.js
+npm run test -- tests/frontend/audioExtraction.test.js
 .\venv\Scripts\python.exe -m pytest tests/backend/test_audio.py -q
 .\venv\Scripts\python.exe -m pytest tests/backend/test_speaker_diarization.py -q
 .\venv\Scripts\python.exe -m pytest tests/backend/test_audio_acceleration.py -q
+.\venv\Scripts\python.exe -m pytest tests/backend/test_audio_extraction.py -q
 npx vite build --config tests/fixtures/audio.config.mjs
 .\node_modules\.bin\electron.cmd scripts\qa-audio.cjs
 ```
@@ -198,6 +248,21 @@ voice synthesis at zero volume, and playback controls. It never captures the
 user's microphone or modifies the running app. Inference should also be tested
 with a known speech WAV using the real local model. Passing interface tests
 or producing the requested number of labels does not establish speaker accuracy.
+
+For real extraction checks, build the same fixture and use a short synthetic
+video (the second argument is its audio-track number):
+
+```powershell
+.\node_modules\.bin\electron.cmd scripts\qa-audio-extraction.cjs "C:\path\synthetic-video.mp4" 1
+# Optional: also transcribe the extracted speech with the installed model.
+.\node_modules\.bin\electron.cmd scripts\qa-audio-extraction.cjs "C:\path\synthetic-video.mp4" 1 --transcribe
+```
+
+This tests all four output formats through the actual authenticated API, muted
+desktop playback, saved-file hashes, navigation, responsive layout, and loading
+Speech to text. Only its cancellation UI check uses a delayed fixture response;
+backend tests cover real encoding cancellation and disconnect cleanup. Results
+and screenshots are saved under ignored `artifacts/audio-extraction-smoke`.
 
 For the recording-to-cloned-demo flow, use an existing synthetic speech WAV
 (the fixture never opens the physical microphone):

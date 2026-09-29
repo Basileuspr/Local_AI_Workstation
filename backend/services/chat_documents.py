@@ -249,7 +249,7 @@ def create_document(spec: DocumentSpec, session_id: str, inventory: dict, cancel
             shutil.rmtree(temporary)
 
 
-async def stream_document(client, payload, request, client_request):
+async def stream_document(client, payload, request, client_request, influence_context=None):
     """Use the existing chat queue/cancellation task; publish only complete files."""
     cancel = threading.Event()
     worker = None
@@ -261,6 +261,9 @@ async def stream_document(client, payload, request, client_request):
                    "messages": [{"role": "system", "content": context_notes + "\n\n" + document_instruction(inventory)},
                                 *[{"role": m["role"], "content": m["content"]} for m in payload["messages"] if m["role"] != "system"]],
                    "options": {**payload.get("options", {}), "temperature": 0, "num_predict": 4096}}
+        from services.chat_influences import receipt
+        influence_receipt = receipt(payload, mode="document", context=influence_context)
+        yield event(influence_receipt=influence_receipt)
         yield event(document_status="Drafting your Word document…")
         content, completed = "", False
         async with client.stream("POST", f"{settings.ollama_base_url}/api/chat", json=payload) as response:
@@ -292,7 +295,8 @@ async def stream_document(client, payload, request, client_request):
             elif isinstance(block, TableBlock): context_parts.extend(" | ".join(row) for row in [block.headers, *block.rows])
             else: context_parts.append(block.caption)
         message = {"id": request.reply_message_id or uuid.uuid4().hex, "role": "assistant", "content": summary,
-                   "artifacts": [artifact], "document_text": "\n".join(context_parts)}
+                   "artifacts": [artifact], "document_text": "\n".join(context_parts),
+                   "influence_receipt": influence_receipt}
         saved = await run_in_threadpool(session_store.append_messages, request.session_id, [message], model=request.model)
         if saved is None: raise ValueError("The source chat was deleted before the document could be attached.")
         yield event(token=summary, artifacts=[artifact], document_text=message["document_text"], done=True)

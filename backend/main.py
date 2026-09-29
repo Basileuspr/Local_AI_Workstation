@@ -44,8 +44,8 @@ if __name__ == "__main__":
 if (settings.data_dir / ".reset-in-progress.json").exists():
     raise RuntimeError("An app reset was interrupted. Complete Reset in the desktop Dashboard before opening app data.")
 
-from routes.audio import router as audio_router
 from routes.sessions import router as sessions_router
+from routes.audio import router as audio_router
 from routes.files import router as files_router
 from routes.export import router as export_router
 from routes.memory import router as memory_router
@@ -188,6 +188,7 @@ class ChatRequest(BaseModel):
     canvas_context: CanvasContext | None = None
     # Auxiliary prompt reviews must neither consume nor create chat memories.
     use_memory: bool = True
+    use_durable_memory: bool = True
     system_prompt: str | None = None
     options: ModelOptions | None = None
     username: str = "local-user"
@@ -816,12 +817,14 @@ async def chat(request: ChatRequest, client_request: Request):
 
 
 async def _chat(request: ChatRequest, client_request: Request):
+    from services import chat_influences
     from services.chat_documents import wants_document, stream_document
     last_prompt = next((m.content for m in reversed(request.messages) if m.role == "user"), "")
     from services.image_conversion import conversion_target, convert_chat
     image_target = conversion_target(last_prompt) if request.use_memory else None
     if image_target:
         async def conversion_stream():
+            yield chat_influences.event({}, mode="image_conversion")
             try:
                 result = await run_in_threadpool(convert_chat, request.session_id, last_prompt, image_target)
                 text = f"Converted to **{result['name']}**. Download the file below. The original is unchanged."
@@ -897,8 +900,9 @@ async def _chat(request: ChatRequest, client_request: Request):
     knowledge_sources: list[dict] = []
 
     memory_session_id = None
+    memory_included = False
     try:
-        memory_session_id, relevant_memories = await run_in_threadpool(_load_durable_memory) if request.use_memory else (None, [])
+        memory_session_id, relevant_memories = await run_in_threadpool(_load_durable_memory) if request.use_memory and request.use_durable_memory else (None, [])
 
         if relevant_memories:
             memory_lines = []
@@ -924,6 +928,7 @@ async def _chat(request: ChatRequest, client_request: Request):
                     f"{memory_context}"
                 ),
             })
+            memory_included = True
     except Exception:
         # A memory write should not prevent the local assistant from responding.
         logger.exception("Durable memory unavailable for this turn; continuing without it")
@@ -1041,6 +1046,18 @@ async def _chat(request: ChatRequest, client_request: Request):
     if ollama_options:
         ollama_payload["options"] = ollama_options
 
+    influence_context = {
+        "durable_memory": {"enabled": request.use_memory and request.use_durable_memory,
+                           "status": "failed" if any(item["kind"] == "durable_memory" for item in degradations)
+                           else "included" if memory_included
+                           else "none" if request.use_memory and request.use_durable_memory else "off"},
+        "knowledge": {"mode": "off" if not request.use_knowledge_base else "all" if request.knowledge_doc_ids is None else "selected",
+                      "doc_ids": request.knowledge_doc_ids, "sources": knowledge_sources,
+                      "status": "failed" if any(item["kind"] == "knowledge_base" for item in degradations)
+                      else "included" if knowledge_sources else "none" if request.use_knowledge_base else "off"},
+        "notices": degradations,
+    }
+
     # --- Stream the response ---
 
     request_id = request.request_id or uuid.uuid4().hex
@@ -1068,13 +1085,14 @@ async def _chat(request: ChatRequest, client_request: Request):
                 timeout=httpx.Timeout(600.0, connect=10.0)
             ) as client:
                 if edit_canvas:
-                    async for event in stream_canvas(client, ollama_payload, request, client_request):
+                    async for event in stream_canvas(client, ollama_payload, request, client_request, influence_context=influence_context):
                         yield event
                     return
                 if create_word:
-                    async for event in stream_document(client, ollama_payload, request, client_request):
+                    async for event in stream_document(client, ollama_payload, request, client_request, influence_context=influence_context):
                         yield event
                     return
+                yield chat_influences.event(ollama_payload, context=influence_context)
                 async with client.stream(
                     "POST",
                     f"{OLLAMA_BASE_URL}/api/chat",

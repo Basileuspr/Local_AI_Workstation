@@ -2,8 +2,14 @@ import ProtectedImage from "../ImagePrivacy";
 import * as api from "../imageWorkflowApi";
 import { runIsActive } from "../imageWorkflow";
 import WorkflowExportControls from "./WorkflowExportControls";
+import {useState} from 'react';
+import {useImageRemoval} from './ImageRemovalControls';
 
 export default function WorkflowRunPanel({ record, busy, onStop, onKeep, onUseText, onKeepStitched }) {
+  const [removed,setRemoved] = useState([]);
+  const outputKey = image => `${record?.id}:${image.id}`;
+  const outputs = (record?.outputs || []).filter(image => !removed.includes(outputKey(image)));
+  const removal = useImageRemoval(outputs, chosen => setRemoved(ids => [...ids,...chosen.map(outputKey)]), {label:'workflow results',scope:record?.id,disabled:busy,key:outputKey});
   if (!record) return null;
   const active = runIsActive(record);
   return <section className="workflow-card workflow-run" aria-label="Workflow execution">
@@ -16,9 +22,12 @@ export default function WorkflowRunPanel({ record, busy, onStop, onKeep, onUseTe
     {!active && (record.outputs.length > 0 || record.stage_results.length > 0) && <>
       <WorkflowExportControls key={`${record.workflow_id}:${record.id}`} record={record} busy={busy} onKeepStitched={onKeepStitched} />
       <p>Review these results. Keep an image as a reference before using it in a later scene.</p>
-      {record.outputs.map(output => <figure key={output.id}>
+      {removal.toolbar}
+      {outputs.length < record.outputs.length && <button onClick={() => setRemoved([])}>Restore removed results</button>}
+      {outputs.map(output => <figure key={output.id}>
         <a href={api.outputUrl(record.workflow_id, record.id, output.id)} target="_blank" rel="noreferrer"><ProtectedImage alt={`Workflow result, ${output.width} by ${output.height}`} src={api.outputUrl(record.workflow_id, record.id, output.id)} /></a>
         <figcaption>{output.width} × {output.height}</figcaption>
+        {removal.controls(output, `workflow result ${output.id}`)}
         <button type="button" disabled={busy || record.accepted_output_ids.includes(output.id)} onClick={() => onKeep(output)}>{record.accepted_output_ids.includes(output.id) ? "Kept as reference" : "Keep as reference"}</button>
       </figure>)}
       {record.stage_results.filter(result => result.text).map(result => <div key={result.stage_id}>

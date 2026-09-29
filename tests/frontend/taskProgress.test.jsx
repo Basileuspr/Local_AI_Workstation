@@ -83,6 +83,27 @@ describe("task progress across tabs", () => {
 });
 
 describe("progress display", () => {
+  it('shows batch task measurements immediately without waiting for a separate progress poll', () => {
+    const html=renderToStaticMarkup(<ImageGenerationProgress requestId="snapshot" status="running" reportedProgress={{phase:'Generating image',step:1,total_steps:4,elapsed_seconds:20,estimated_remaining_seconds:30}}/>);
+    expect(html).toContain('Estimated 30s remaining');
+    expect(html).toContain('20.0s elapsed');
+    expect(html).not.toContain('Waiting for task timing');
+    expect(html).not.toContain('Estimating after');
+    const saving=renderToStaticMarkup(<ImageGenerationProgress requestId="saving" status="saving" reportedProgress={{phase:'Saving image',elapsed_seconds:50}}/>);
+    expect(saving).toContain('Finishing image output');
+    expect(saving).not.toContain('Estimating after');
+  });
+  it("shows remaining time beside the bar and distinguishes queue waiting time", () => {
+    vi.spyOn(performance, "now").mockReturnValue(1000);
+    taskProgressCache.record("image:eta", { phase: "Generating image", step: 12, total_steps: 24, elapsed_seconds: 90, estimated_remaining_seconds: 45 }, taskProgressCache.beginPoll());
+    const html = renderToStaticMarkup(<ImageGenerationProgress requestId="eta" />);
+    expect(html).toContain("Estimated 45s remaining");
+    expect(html).toContain('max="24" value="12"');
+    taskProgressCache.record("image:waiting", { phase: "Waiting in Prompt Queue", step: 0, total_steps: 0, elapsed_seconds: 10 }, taskProgressCache.beginPoll());
+    const waiting = renderToStaticMarkup(<ImageGenerationProgress requestId="waiting" />);
+    expect(waiting).toContain("10.0s waiting");
+    expect(waiting).toContain("Live step estimate starts when this image runs");
+  });
   it("restores the image phase, step bar and elapsed clock immediately on remount", () => {
     const now = vi.spyOn(performance, "now").mockReturnValue(1000);
     taskProgressCache.record("image:remount", { phase: "Generating image", step: 19, total_steps: 24, elapsed_seconds: 38 }, taskProgressCache.beginPoll());

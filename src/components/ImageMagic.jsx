@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import FreshFileInput from './FreshFileInput';
+import {useImageRemoval} from './ImageRemovalControls';
+import ImageGenerationSizing from './ImageGenerationSizing';
 import * as api from '../imageWorkflowApi';
 import { openEditorImage } from '../imageEditorSession';
 import { combineMagicResult, magicSize, magicStage, maskBlob, paintMask, prepareMagicInput, REFERENCE_ROLES, uploadMagicAsset } from '../imageMagic';
@@ -10,6 +12,13 @@ export default function ImageMagic({session,preview,getSource,onAccept,onBusy,re
   const [refs,setRefs]=useState([]),[scope,setScope]=useState('all'),[strokes,setStrokes]=useState([]),[radius,setRadius]=useState(5);
   const [busy,setBusy]=useState(false),[status,setStatus]=useState(''),[error,setError]=useState(''),[candidate,setCandidate]=useState(null);
   const [compare,setCompare]=useState(false),[progress,setProgress]=useState(null);
+  const removal=useImageRemoval(refs, removed=>{
+    const ids=new Set(removed.map(item=>item.id));
+    removed.forEach(item=>URL.revokeObjectURL(item.url));
+    setRefs(items=>items.filter(item=>!ids.has(item.id)));
+  },{label:'Magic Edit references',disabled:busy||disabled});
+  const [workingSize,setWorkingSize]=useState({width:1024,height:1024,allow_long_wait:false});
+  useEffect(()=>{if(session)setWorkingSize({...magicSize(session.width,session.height),allow_long_wait:false});},[session]);
   const canvas=useRef(),drawing=useRef(false),strokeRef=useRef([]),job=useRef(),cancelled=useRef(false),mounted=useRef(true),busyRef=useRef(false),refsRef=useRef([]);
   useEffect(()=>{refsRef.current=refs;},[refs]);
   useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;cancelled.current=true;if(job.current)api.stop(...job.current).catch(()=>{});refsRef.current.forEach(r=>URL.revokeObjectURL(r.url));};},[]);
@@ -59,7 +68,7 @@ export default function ImageMagic({session,preview,getSource,onAccept,onBusy,re
       if(!prompt.trim())throw new Error('Describe the image and the change you want.');
       if(kind==='edit' && scope==='paint' && !strokes.length)throw new Error('Paint the area to edit, or select Whole image.');
       const source=await getSource();ensureActive();setStatus('Preparing a copy of the current edited image…');
-      const working = kind === 'edit' ? await prepareMagicInput(source.blob) : null;
+      const working = kind === 'edit' ? await prepareMagicInput(source.blob,workingSize) : null;
       ensureActive();
       let workflow=await api.create();ensureActive();
       const uploaded=await uploadMagicAsset(workflow,new File([working?.blob || source.blob],working?'editor-working-copy.png':'editor-source.png',{type:'image/png'}));workflow=uploaded.workflow;
@@ -71,7 +80,7 @@ export default function ImageMagic({session,preview,getSource,onAccept,onBusy,re
       }else{
         let mask=null;
         if(scope==='paint'){const blob=await maskBlob(source.width,source.height,strokes,working.layout);ensureActive();const added=await uploadMagicAsset(workflow,new File([blob],'edit-mask.png',{type:'image/png'}));workflow=added.workflow;mask=added.id;}
-        workflow={...workflow,name:'Image Editor · Magic Edit',prompt_settings:{...workflow.prompt_settings,prompt:[prompt,guidance].filter(Boolean).join('\n'),steps:30,guidance:6},stages:[{...magicStage(sourceId,model,magicSize(source.width,source.height),mask),strength}]};
+        workflow={...workflow,name:'Image Editor · Magic Edit',prompt_settings:{...workflow.prompt_settings,prompt:[prompt,guidance].filter(Boolean).join('\n'),steps:30,guidance:6},stages:[{...magicStage(sourceId,model,workingSize,mask),strength}]};
       }
       ensureActive();workflow=await api.save(workflow);const run=await waitRun(workflow);ensureActive();
       if(kind==='guidance'){
@@ -104,13 +113,16 @@ export default function ImageMagic({session,preview,getSource,onAccept,onBusy,re
       <details><summary>Reference roles · {refs.length} images</summary><p>References are read by the selected vision model into editable text guidance. Generation uses that text and the current image; it does not directly condition on reference pixels.</p>
         <label className="ie-import">Add reference image<FreshFileInput aria-label="Add Magic Edit reference" accept="image/png,image/jpeg,image/webp" disabled={busy||disabled||refs.length>=4} onChange={e=>{const f=e.target.files?.[0];e.target.value='';addReference(f);}}/></label>
         {reference?.file&&<button disabled={refs.length>=4} onClick={()=>addReference(reference.file)}>Add current reference source</button>}
-        {refs.map(ref=><div key={ref.id} className="ie-magic-reference"><img src={ref.url} alt={ref.file.name}/><label>Use this reference for<select value={ref.role} onChange={e=>setRefs(items=>items.map(r=>r.id===ref.id?{...r,role:e.target.value}:r))}>{REFERENCE_ROLES.map(role=><option key={role}>{role}</option>)}</select></label><button onClick={()=>{URL.revokeObjectURL(ref.url);setRefs(items=>items.filter(r=>r.id!==ref.id));}}>Remove reference</button></div>)}
+        {removal.toolbar}
+        {refs.map(ref=><div key={ref.id} className="ie-magic-reference"><img src={ref.url} alt={ref.file.name}/><label>Use this reference for<select value={ref.role} onChange={e=>setRefs(items=>items.map(r=>r.id===ref.id?{...r,role:e.target.value}:r))}>{REFERENCE_ROLES.map(role=><option key={role}>{role}</option>)}</select></label>{removal.controls(ref, `reference ${ref.file.name}`)}</div>)}
         <label>Vision model<select aria-label="Reference vision model" value={vision} onChange={e=>setVision(e.target.value)}><option value="">Choose installed model</option>{visionProvider?.models.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select></label>
         <button disabled={!vision||!refs.length||!prompt.trim()} onClick={()=>run('guidance')}>Read references into guidance</button>{!vision&&<p>An installed vision model is required to read references. You can also write the guidance yourself below.</p>}
       </details>
       <label>Reference guidance to apply<textarea aria-label="Reference guidance to apply" rows="4" maxLength="5000" value={guidance} onChange={e=>setGuidance(e.target.value)} placeholder="Review reference observations here, or describe the background style and skin tone yourself."/></label>
       <label>Image model<select aria-label="Magic Edit image model" value={model} onChange={e=>setModel(e.target.value)}><option value="">Choose installed model</option>{imageProvider?.models.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select></label>
       <label>Change strength: {Math.round(strength*100)}%<input aria-label="Magic Edit strength" type="range" min=".05" max=".8" step=".05" value={strength} onChange={e=>setStrength(Number(e.target.value))}/></label>
+      <p>AI working canvas</p>
+      <ImageGenerationSizing width={workingSize.width} height={workingSize.height} allowLongWait={workingSize.allow_long_wait} waitKey="allow_long_wait" limits={imageProvider?.resolution_limits} prefix="Magic Edit " sourceSize={session} onChange={patch=>setWorkingSize(size=>({...size,...patch}))}/>
       <p>Lower strength stays closer to the image. AI may change or invent details. Small images use a larger working copy for stable editing. Proportions are preserved, and the accepted image keeps its original dimensions.</p>
       <button disabled={!model||!imageProvider?.available||!prompt.trim()} onClick={()=>run('edit')}>Generate edited candidate</button>
       {catalog&&(!imageProvider?.available||!model)&&<p>Magic Edit needs an installed compatible SDXL model and a working CUDA runtime. No models or dependencies are downloaded here.</p>}

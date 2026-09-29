@@ -1,5 +1,5 @@
 import FreshFileInput from "./FreshFileInput";
-import {ReadAloud} from "./AudioWorkspace";
+import {ReadAloud} from './AudioWorkspace';
 import ProtectedImage from "../ImagePrivacy";
 import ImageItemActions from "./ImageItemActions";
 import { useEffect, useRef, useState } from "react";
@@ -14,6 +14,8 @@ import ImageViewer from "./ImageViewer";
 import DocumentViewer, { DocumentAttachment } from "./DocumentViewer";
 import { chatImage } from "../chatImages";
 import { ConvertedAttachment } from "./FileConverter";
+import WebImageReader from "./WebImageReader";
+import {ReplyInfluences} from './ChatInfluences';
 
 function summarizeContent(message) {
   const content = String(message.content || "");
@@ -112,6 +114,13 @@ export default function MessageList({ onNewChat, onSessionSaved }) {
   // rather than as a toast, since the user's attention is on the message list.
   async function handleFiles(files) {
     setDragActive(false);
+    const images = Array.from(files).filter(file => file.type.startsWith('image/'));
+    if (images.length) {
+      const staged = new CustomEvent('stage-chat-images', {detail:images,cancelable:true});
+      window.dispatchEvent(staged);
+      if (staged.defaultPrevented) files = Array.from(files).filter(file => !images.includes(file));
+    }
+    if (!files.length) return;
 
     await uploadFiles(files, {
       onStart: (file) => {
@@ -240,6 +249,8 @@ export default function MessageList({ onNewChat, onSessionSaved }) {
               <div className={`message ${message.role}`}>
                 <div className="avatar">{avatarFor(message.role)}</div>
                 <div className="content">
+                  {message.webSource && <WebImageReader images={message.imagePreviews}
+                    sourceFor={image => imageSourceFor(image, messageId)} />}
                   {(message.imagePreviews?.length > 0 || message.generatedImages?.length > 0) && (
                     <div className="image-preview-grid">
                       {[...(message.imagePreviews || []), ...(message.generatedImages || [])].map((image, imageIndex) => (
@@ -256,6 +267,7 @@ export default function MessageList({ onNewChat, onSessionSaved }) {
                     </div>
                   )}
                   <MarkdownMessage onImageClick={image => setImagePreview({ ...image, chat_session_id: currentSessionId, id: `${messageId}:inline:${image.url}` })}>{summarizeContent(message)}</MarkdownMessage>
+                  {message.role==='assistant'&&message.content&&<ReplyInfluences message={message}/>}
                   {message.knowledge_sources && <details className="knowledge-sources"><summary>Knowledge supplied: {message.knowledge_sources.length} excerpts</summary>
                     {message.knowledge_sources.length ? <ul>{message.knowledge_sources.map((source, i) => <li key={i}>{source.filename} — excerpt {source.chunk_index + 1}, {source.characters} characters</li>)}</ul> : <p>No Knowledge excerpts were supplied for this reply.</p>}
                   </details>}

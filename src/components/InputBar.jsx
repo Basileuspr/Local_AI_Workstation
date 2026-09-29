@@ -1,12 +1,13 @@
 import FreshFileInput from "./FreshFileInput";
-import {ChatAudio} from "./AudioWorkspace";
+import {ChatAudio} from './AudioWorkspace';
+import {useImageRemoval} from "./ImageRemovalControls";
+import {validateImageFile} from "../useChatUploads";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { chatSubmissionQueue } from "../chatSubmissionQueue";
 import { useStore, useDispatch, useRefs } from "../useStore.jsx";
 import * as api from "../api";
 import { contextDefaults, rotateContextMemory, buildContextMessages } from "../contextMemory";
-import { buildRoleplaySystemPrompt } from "../roleplayPrompt";
-import { mergeSystemPrompt } from "../responseStyle";
+import {chatInfluences} from '../chatInfluences';
 import { createMessageId } from "../messageIds";
 import { useChatUploads } from "../useChatUploads";
 import { pasteChatFiles } from "../chatClipboard";
@@ -21,6 +22,7 @@ import { readImageFile } from "../useChatUploads";
 import ImageEditor from "./ImageEditor";
 import { isStoredReference } from "../imageRefs";
 import { canvasContext, applyCanvasEdit } from "../canvasStore";
+import "./ChatComposer.css";
 
 export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
   const state = useStore();
@@ -38,7 +40,48 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
   const imageInputRef = useRef(null);
   const documentInputRef = useRef(null);
   const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
-  const { uploadImage, uploadDocument, uploadFiles, isUploading } = useChatUploads({ onNewChat, onSessionSaved });
+  const [openTool, setOpenTool] = useState(null);
+  const toolBarRef = useRef(null);
+  const toggleTool = tool => {
+    if (openTool === tool) toolBarRef.current?.querySelector('[aria-expanded="true"]')?.focus();
+    setOpenTool(current => current === tool ? null : tool);
+  };
+  useEffect(() => { if (!active) setOpenTool(null); }, [active]);
+  const { uploadDocument, uploadFiles, isUploading } = useChatUploads({ onNewChat, onSessionSaved });
+  const [pendingImages,setPendingImages]=useState([]);
+  const pendingImagesRef=useRef([]), attaching=useRef(false);
+  useEffect(()=>()=>pendingImagesRef.current.forEach(item=>{if(item.url)URL.revokeObjectURL(item.url);}),[]);
+  function removePendingImages(items) {
+    const ids=new Set(items.map(item=>item.id));
+    items.forEach(item=>{if(item.url)URL.revokeObjectURL(item.url);});
+    pendingImagesRef.current=pendingImagesRef.current.filter(item=>!ids.has(item.id));
+    setPendingImages(pendingImagesRef.current);
+  }
+  const pendingRemoval=useImageRemoval(pendingImages,removePendingImages,{label:'pending attachments',disabled:isUploading});
+  function stageAttachments(files) {
+    if(attaching.current || isUploading)return;
+    const added=[];
+    for(const file of files){
+      const image=file.type.startsWith('image/');
+      const problem=image?validateImageFile(file):null;
+      if(problem){showToast(`${file.name}: ${problem}`,'error');continue;}
+      added.push({id:createMessageId(),file,url:image?URL.createObjectURL(file):null});
+    }
+    pendingImagesRef.current=[...pendingImagesRef.current,...added];
+    setPendingImages(pendingImagesRef.current);
+    setAttachmentMenuOpen(false);
+  }
+  useEffect(() => {
+    const stage = event => {
+      if (!active) return;
+      event.preventDefault();
+      if (attaching.current || isUploading) { showToast('Wait for the attachment save to finish, then add these images again.', 'error'); return; }
+      stageAttachments(event.detail);
+    };
+    window.addEventListener('stage-chat-images', stage);
+    return () => window.removeEventListener('stage-chat-images', stage);
+  }, [active, isUploading]);
+
   const selectedEdit = destinations?.chatEdit?.sessionId === state.currentSessionId ? destinations.chatEdit : null;
   useEffect(() => {
     const focus = () => { if (active) { textareaRef.current.value = "/Edit "; textareaRef.current.focus(); } };
@@ -139,13 +182,7 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
   }
 
   function getSystemPromptValue() {
-    const roleplayPrompt = buildRoleplaySystemPrompt("", roleplay);
-    const prompt = mergeSystemPrompt({
-      basePrompt: systemPrompt,
-      roleplayPrompt,
-      responseStyle,
-    });
-    return prompt || null;
+    return chatInfluences(state).systemPrompt || null;
   }
 
   function getSelectedContextWindow() {
@@ -153,23 +190,9 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
   }
 
   // Presentation for this surface: toasts, then focus returns to the message box.
-  async function handleImageUpload(event) {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) return;
-    setAttachmentMenuOpen(false);
-
-    await uploadImage(file, {
-      onSuccess: () => {
-        showToast("Image attached to chat", "success");
-        textareaRef.current?.focus();
-      },
-      onError: (error) =>
-        showToast(
-          error.userFacing ? error.message : "Image upload failed: " + error.message,
-          "error"
-        ),
-    });
+  function handleImageUpload(event) {
+    const files=Array.from(event.target.files || []);event.target.value='';
+    stageAttachments(files);
   }
 
   async function handleDocumentUpload(event) {
@@ -196,19 +219,29 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
     void pasteChatFiles(event, {
       busy: isUploading || isGenerating,
       onError: message => showToast(message, "error"),
-      upload: files => {
-        setAttachmentMenuOpen(false);
-        return uploadFiles(files, {
-          onSuccess: () => showToast("Clipboard attachment saved to chat", "success"),
-          onError: error => showToast(error.userFacing ? error.message : "Clipboard attachment failed: " + error.message, "error"),
-        });
-      },
+      upload: files => {stageAttachments(files);return Promise.resolve(true);},
     });
   }
 
-  function sendMessage() {
+  async function sendMessage() {
+    if(attaching.current || isUploading)return;
+    if(!pendingImagesRef.current.length){sendTextMessage();return;}
+    attaching.current=true;
+    const text=textareaRef.current?.value.trim() || '';
+    let failed=false, targetId=null;
+    try {
+      const uploaded=await uploadFiles(pendingImagesRef.current.map(item=>item.file),{
+        onTarget:id=>{targetId=id;},
+        onSuccess:file=>{const item=pendingImagesRef.current.find(item=>item.file===file);if(item)removePendingImages([item]);},
+        onError:error=>{failed=true;showToast(error.message,'error');}
+      });
+      if(uploaded && !failed && currentSessionRef.current===targetId)sendTextMessage(text);
+    } finally {attaching.current=false;}
+  }
+
+  function sendTextMessage(submittedText) {
     if (isUploading) { showToast("Wait for the attachment to finish saving before sending.", "error"); return; }
-    const text = textareaRef.current?.value.trim();
+    const text = submittedText ?? textareaRef.current?.value.trim();
     if (!text) return;
     let submittedCanvas;
     try { submittedCanvas = /\b(canvas|whiteboard)\b/i.test(text) ? canvasContext() : undefined; }
@@ -229,8 +262,7 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
     const target = sourceId ? Promise.resolve({ id: sourceId }) : refs.pendingChatCreation;
     // Attach a handler immediately, even if the job waits behind another reply.
     const prepared = target.then(session => ({ session }), error => ({ error }));
-    textareaRef.current.value = "";
-    textareaRef.current.style.height = "44px";
+    if (textareaRef.current.value.trim() === text) { textareaRef.current.value = ""; textareaRef.current.style.height = "44px"; }
     const followUpId = createMessageId();
     chatSubmissionQueue.enqueue({ id: followUpId, label: text, session_id: sourceId, onError: error => showToast(error.message, "error"), run: async signal => {
       const { session, error } = await prepared;
@@ -256,7 +288,8 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
     let stopped = false;
     let saved;
     const userMsg = { id: createMessageId(), role: "user", content: text };
-    const assistantMsg = { id: createMessageId(), role: "assistant", content: "" };
+    const influencePlan=chatInfluences(state);
+    const assistantMsg = { id: createMessageId(), role: "assistant", content: "",influence_settings:influencePlan.summary };
     const wasStopped = () => stopped || abortController.signal.aborted || (refs.stopRequested && refs.generationRequestId === requestId);
     const showSavedSession = (session) => {
       if (session?.id && currentSessionRef.current === session.id) {
@@ -302,6 +335,7 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
         knowledgeDocIds,
         canvasContext: canvasData,
         systemPrompt: systemPromptValue, options: getModelOptions(), sessionId, requestId,
+        useDurableMemory:influencePlan.useDurableMemory,
         signal: abortController.signal,
         replyMessageId: assistantMsg.id,
       });
@@ -327,6 +361,7 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
           }
           if (event.artifacts) assistantMsg.artifacts = event.artifacts;
           if (event.knowledge_sources) assistantMsg.knowledge_sources = event.knowledge_sources;
+          if (event.influence_receipt) assistantMsg.influence_receipt = event.influence_receipt;
           if (event.canvas_edit) {
             try { applyCanvasEdit(event.canvas_edit); assistantMsg.canvas_applied = true; }
             catch (failure) { fullResponse += `\nCanvas was not changed: ${failure.message}\n`; showToast(failure.message, "error"); }
@@ -443,22 +478,41 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
   }
 
   return (
-    <div id="input-area">
+    <div id="input-area" onKeyDown={event => {
+      if (event.key !== 'Escape' || !openTool) return;
+      event.preventDefault(); event.stopPropagation();
+      toolBarRef.current?.querySelector('[aria-expanded="true"]')?.focus();
+      setOpenTool(null);
+    }}>
       {active && editJob?.sessionId === currentSessionId && privacy.ready && <ImageEditor key={editJob.id} inlineInput={editJob} onSave={saveChatEdit} onCancel={() => setEditJob(null)} />}
-      <div className="chat-edit-command"><button type="button" disabled={openingEdit} onClick={() => { textareaRef.current.value = "/Edit "; textareaRef.current.focus(); }}>/Edit</button><span>{openingEdit ? "Opening image editor…" : selectedEdit ? `Selected: ${selectedEdit.image.name}` : "Edit the latest chat image, or select Use with /Edit on an image."}</span>{selectedEdit && <button onClick={() => destinations.clearChatEdit()}>Clear selection</button>}<details><summary>Edit commands</summary><p>/Edit opens image controls here. Try /Edit reduce red hue, increase contrast, decrease exposure, or /Edit rotate right. Preview, adjust, then send the edited copy.</p></details></div>
-      <ChatImageControls active={active} onGenerate={generateChatImage} />
-      <ChatAudio active={active} sessionId={currentSessionId} onInsert={text => {
-        const input = textareaRef.current;
-        input.value = [input.value.trimEnd(), text].filter(Boolean).join('\n');
-        handleInput(); input.focus();
-      }}/>
-      <div className="chat-document-command"><button type="button" onClick={() => { textareaRef.current.value = "/docx " + (textareaRef.current.value || ""); textareaRef.current.focus(); }}>Create Word document</button><span>Describe the document here, or ask “make this a .docx”.</span></div>
+      {(openingEdit || selectedEdit) && <div className="chat-edit-selection" role="status"><span>{openingEdit ? "Opening image editor…" : `Edit: ${selectedEdit.image.name}`}</span>{selectedEdit && <button type="button" onClick={() => destinations.clearChatEdit()}>Clear selection</button>}</div>}
+      {pendingImages.length>0 && <section aria-label="Pending attachments">{pendingRemoval.toolbar}<div className="pending-chat-images">{pendingImages.map(item=><article key={item.id}>{item.url && <img src={item.url} alt={item.file.name}/>}<span>{item.file.name}</span>{pendingRemoval.controls(item,item.file.name)}</article>)}</div><small>Attached when you press Send. Remove keeps the original file.</small></section>}
       <QueueRequestStatus requestId={refs.generationRequestId} />
-      <small id="chat-clipboard-hint" role="status">{isUploading ? "Saving attachment to chat…" : "Paste screenshots or files here with Ctrl+V. Text pastes normally."}</small>
+      <small id="chat-clipboard-hint" className={isUploading ? "chat-upload-status" : "composer-sr-only"} role="status">{isUploading ? "Saving attachment to chat…" : "Paste screenshots or files here with Ctrl+V. Review attachments, then Send."}</small>
       {chatSubmissions.some(job => job.status === "waiting") && <div className="chat-pending-requests" aria-label="Waiting chat prompts">
         <small>Follow-ups wait for the earlier reply, then join Prompt Queue with its updated context.</small>
         {chatSubmissions.filter(job => job.status === "waiting").map(job => <div key={job.id}><span>{job.label}</span><button type="button" onClick={() => chatSubmissionQueue.cancel(job.id)}>Cancel waiting prompt</button></div>)}
       </div>}
+      <div className="chat-composer-tools" ref={toolBarRef} role="group" aria-label="Chat tools">
+        <ChatImageControls active={active} open={openTool === 'images'} onToggle={() => toggleTool('images')} onGenerate={generateChatImage} />
+        <button className="chat-tool-button" type="button" disabled={openingEdit} title="Edit the latest or selected chat image" onClick={() => { setOpenTool(null); textareaRef.current.value = "/Edit "; textareaRef.current.focus(); }}>/Edit</button>
+        <ChatAudio active={active} sessionId={currentSessionId} open={openTool === 'audio'} onToggle={() => toggleTool('audio')} onInsert={text => {
+          const input = textareaRef.current;
+          input.value = [input.value.trimEnd(), text].filter(Boolean).join('\n');
+          handleInput(); input.focus(); setOpenTool(null);
+        }}/>
+        <button className="chat-tool-button" type="button" title="Create a Word document from your message" aria-label="Create Word document" onClick={() => { setOpenTool(null); textareaRef.current.value = "/docx " + (textareaRef.current.value || ""); handleInput(); textareaRef.current.focus(); }}>Word</button>
+        <button className="chat-tool-button chat-composer-help" type="button" aria-label="Chat tools help" title="Chat tools help" aria-expanded={openTool === 'help'} aria-controls="chat-tools-help" onClick={() => toggleTool('help')}>? <span>Help</span></button>
+        {openTool === 'help' && <section id="chat-tools-help" className="chat-tool-panel chat-tool-help" aria-label="Chat tools help">
+          <header><strong>Chat shortcuts</strong><button type="button" className="chat-tool-button" onClick={() => { setOpenTool(null); toolBarRef.current?.querySelector('.chat-composer-help')?.focus(); }}>Close</button></header>
+          <p><strong>Send:</strong> Enter sends a message. Shift+Enter adds a new line.</p>
+          <p><strong>Attach:</strong> Use + or paste screenshots and files with Ctrl+V. Review attachments, then Send.</p>
+          <p><strong>Images:</strong> Choose a model, then Generate image to use the message as an image prompt. Enter still sends a text chat.</p>
+          <p><strong>/Edit:</strong> Edit the latest image, or choose Use with /Edit on an image. Try /Edit reduce red hue, increase contrast, or rotate right. Preview, adjust, then send the edited copy.</p>
+          <p><strong>Audio:</strong> Record or upload audio, transcribe, then insert the reviewed text into your message.</p>
+          <p><strong>Word:</strong> Describe a document after /docx, then Send.</p>
+        </section>}
+      </div>
       <div id="input-row">
         <div className="attachment-menu-wrapper" ref={attachmentMenuRef}>
           <button
@@ -501,6 +555,7 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
         <textarea
           ref={textareaRef}
           id="chat-input"
+          aria-label="Message"
           placeholder="Type a message... (Shift+Enter for new line)"
           autoComplete="off"
           rows={1}
@@ -532,6 +587,7 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
         className="hidden-input"
         type="file"
         accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp"
+        multiple
         onChange={handleImageUpload}
       />
       <FreshFileInput

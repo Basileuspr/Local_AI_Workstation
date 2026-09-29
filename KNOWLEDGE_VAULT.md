@@ -5,6 +5,11 @@ indexed-text reader. Uploads and individual/bulk removal operate on the existing
 RAG index. Removing a document removes its indexed chunks and vault relationships;
 the original source file is unchanged. Use Knowledge in chats controls retrieval.
 
+**Start character node** creates a document from a saved [Character Creator](CHARACTERS.md)
+profile. Its inspector provides a profile path, **Open character**, **Refresh
+character node**, and a copyable Knowledge link. These documents are snapshots;
+save character edits and refresh the node when you want its indexed text updated.
+
 Each node is one indexed document. Its size reflects the number of indexed chunks.
 Connections have explicit meanings:
 

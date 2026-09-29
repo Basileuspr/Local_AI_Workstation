@@ -1,5 +1,6 @@
 import { createMessageId } from "./messageIds";
-import { MAX_IMAGE_STEPS, MAX_IMAGE_GUIDANCE } from "./imageGenerationLimits";
+import { hasImageSeed } from "./imageSeed";
+import { MAX_IMAGE_STEPS, MAX_IMAGE_GUIDANCE, imageSizeLimits } from "./imageGenerationLimits";
 
 export function imageRequest(settings, requestId) {
   return {
@@ -8,6 +9,8 @@ export function imageRequest(settings, requestId) {
     steps: Number(settings.steps), guidance_scale: Number(settings.guidanceScale),
     seed: settings.seed === "" ? null : Number(settings.seed), lora_id: settings.loraId || null,
     lora_scale: settings.loraId ? Number(settings.loraScale ?? 1) : 1, long_prompt: settings.longPrompt !== false,
+    output_dir: settings.outputDir || null,
+    allow_long_wait: settings.allowLongWait === true,
   };
 }
 
@@ -31,9 +34,10 @@ export function validateImageSelection(settings, catalog) {
     throw new Error("LoRA strength must be from 0 through 2.");
   }
   if (!catalog.runtime?.ready) throw new Error("Image generation is unavailable. Check the Generate tab for runtime details.");
+  const limits = imageSizeLimits(settings.allowLongWait, catalog.runtime?.resolution_limits);
   for (const key of ["width", "height"]) {
     const size = Number(settings[key]);
-    if (!Number.isInteger(size) || size < 512 || size > 1536 || size % 8) throw new Error("Width and height must be 512–1536 pixels, in multiples of 8.");
+    if (!Number.isInteger(size) || size < limits.min || size > limits.max || size % 8) throw new Error(`Width and height must be ${limits.min}–${limits.max} pixels, in multiples of 8. Enable longer waits for larger sizes.`);
   }
   for (const [key, label, min, max, integer] of [["steps", "Steps", 1, MAX_IMAGE_STEPS, true], ["guidanceScale", "Guidance", 1, MAX_IMAGE_GUIDANCE, false], ["seed", "Seed", 0, 2147483647, true]]) {
     if (key === "seed" && settings[key] === "") continue;
@@ -56,12 +60,20 @@ export async function generateImageForSession({ api, settings, requestId, signal
   }], chatModel);
   onSubmitted?.(submitted);
   checkCancelled();
-  const generated = await api.generateImage({ ...imageRequest(settings, requestId), session_id: target }, { signal });
+  const generated = await api.generateImage({ ...imageRequest(settings, requestId), session_id: target,
+    ...(requestLabel ? {request_label:requestLabel.slice(0,160)} : {}),
+  }, { signal });
   checkCancelled();
+  const messageId = createMessageId(), imageId = createMessageId();
   const completed = await api.appendSessionMessages(target, [{
-    id: createMessageId(), role: "assistant", content: `[Image generated: ${generated.filename}]`,
-    generatedImages: [{ id: createMessageId(), src: generated.image_ref || generated.data_url, name: generated.filename, type: "image/png" }],
+    id: messageId, role: "assistant", content: `[Image generated: ${generated.filename}]${hasImageSeed(generated.seed) ? `\nSeed: ${generated.seed}` : ""}`,
+    generatedImages: [{ id: imageId, src: generated.image_ref || generated.data_url, name: generated.filename, type: "image/png",
+      ...(hasImageSeed(generated.seed) ? { seed: generated.seed } : {}),
+    }],
   }], chatModel);
   onCompleted?.(completed);
-  return generated;
+  // Use the persisted source shown by Gallery, rather than a second copy in
+  // the generator's output directory. This URL is ready after the append.
+  return { ...generated, url: `/sessions/${encodeURIComponent(target)}/images/by-id/${encodeURIComponent(messageId)}/${encodeURIComponent(imageId)}`,
+    session_id: target, message_id: messageId, image_id: imageId };
 }

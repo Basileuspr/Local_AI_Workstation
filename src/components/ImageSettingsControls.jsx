@@ -1,4 +1,4 @@
-import ImageResolutionControls from './ImageResolutionControls';
+import ImageGenerationSizing from './ImageGenerationSizing';
 import { adjustNumber, seedMax } from "../imageSettingsControls";
 import { MAX_IMAGE_STEPS, MAX_IMAGE_GUIDANCE } from "../imageGenerationLimits";
 
@@ -7,7 +7,7 @@ function NumberControl({ name, value, min, max, step = 1, increments, presets = 
     <label>{name}<input aria-label={name} type="number" min={min} max={max} step={step} value={value} placeholder={random ? "Random" : undefined} onChange={event => onChange(event.target.value)} /></label>
     <div className="image-quick-buttons" role="group" aria-label={`${name} presets`}>
       {presets.map(preset => <button type="button" key={preset} onClick={() => onChange(preset)}>{preset}</button>)}
-      {random && <button type="button" onClick={() => onChange("")}>Random</button>}
+      {random && <button type="button" aria-pressed={value === ""} onClick={() => onChange("")}>Random</button>}
     </div>
     <div className="image-quick-buttons" role="group" aria-label={`Adjust ${name.toLowerCase()}`}>
       {[-1, 1].map(sign => increments.map(amount => <button type="button" key={sign * amount}
@@ -16,9 +16,9 @@ function NumberControl({ name, value, min, max, step = 1, increments, presets = 
   </div>;
 }
 
-export default function ImageSettingsControls({ settings, onChange }) {
+export default function ImageSettingsControls({ settings, onChange, resolutionLimits }) {
   return <>
-    <ImageResolutionControls width={settings.width} height={settings.height} onChange={onChange}/>
+    <ImageGenerationSizing width={settings.width} height={settings.height} allowLongWait={settings.allowLongWait} limits={resolutionLimits} onChange={onChange}/>
     <div className="image-settings-grid">
       <NumberControl name="Steps" value={settings.steps} min={1} max={MAX_IMAGE_STEPS} increments={[1, 5, 10, 15]} presets={[10, 20, 30, 40, 50, 60, 100, MAX_IMAGE_STEPS]} onChange={steps => onChange({ steps })} />
       <NumberControl name="Guidance" value={settings.guidanceScale} min={1} max={MAX_IMAGE_GUIDANCE} step={0.1} increments={[0.1, 0.5, 1, 2]} presets={[3, 5.5, 7, 10, 15, 20, 25, MAX_IMAGE_GUIDANCE]} onChange={guidanceScale => onChange({ guidanceScale })} />

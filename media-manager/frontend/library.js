@@ -40,7 +40,7 @@ export function needsReview(record) {
 }
 export function filterRecords(records, filters) {
   const query = (filters.query || '').toLowerCase().trim();
-  return records.filter(r => (!filters.year || yearKey(r) === filters.year)
+  const matching = availableRecords(records).filter(r => (!filters.year || yearKey(r) === filters.year)
     && (filters.status === 'trash' ? r.Trashed : !r.Trashed)
     && (!filters.tag || (r.TagIds || []).includes(filters.tag))
     && (!filters.type || mediaType(r) === filters.type)
@@ -52,8 +52,23 @@ export function filterRecords(records, filters) {
     && (!filters.folder || r.CustomFolderId === filters.folder)
     && (!filters.category || (r.Classification || 'Unknown') === filters.category)
     && (!filters.review || needsReview(r))
-    && (!query || [r.OriginalFilename, r.CurrentPath, r.ProposedDestination, r.Classification, ...(r.Tags || [])].join(' ').toLowerCase().includes(query)))
-    .sort((a, b) => {
+    && (!query || [r.OriginalFilename, r.CurrentPath, r.ProposedDestination, r.Classification, ...(r.Tags || [])].join(' ').toLowerCase().includes(query)));
+  // Collapse only verified identical content, after applying the current scope.
+  // Keep Trash complete so every recoverable file remains accessible.
+  let visible = matching;
+  if (filters.showDuplicates === false && filters.status !== 'trash') {
+    const representatives = new Map();
+    for (const row of matching) {
+      if (!/^[a-f\d]{64}$/i.test(row.SHA256 || '')) continue;
+      const key = row.SHA256.toUpperCase(), previous = representatives.get(key);
+      if (!previous || (row.DuplicatePrimary === 'yes' && previous.DuplicatePrimary !== 'yes')
+        || (row.DuplicatePrimary === previous.DuplicatePrimary && String(row.CurrentPath || row.OriginalPath || '').localeCompare(String(previous.CurrentPath || previous.OriginalPath || '')) < 0)) {
+        representatives.set(key, row);
+      }
+    }
+    visible = matching.filter(row => !/^[a-f\d]{64}$/i.test(row.SHA256 || '') || representatives.get(row.SHA256.toUpperCase()) === row);
+  }
+  return visible.sort((a, b) => {
       const [field, direction] = (filters.order || 'newest').split('-');
       const keys = { duration:'Duration', size:'FileSize', fps:'FrameRate', bitrate:'BitRate' };
       if (keys[field] || field === 'resolution') {
@@ -91,10 +106,14 @@ export function durationLabel(seconds) {
   return hours ? `${hours}h ${minutes}m` : minutes ? `${minutes}m ${remainder}s` : `${remainder}s`;
 }
 
+export function availableRecords(records) {
+  return records.filter(row => row.Available !== false);
+}
+
 export function duplicateGroups(records, { query = '', year = '', order = 'newest' } = {}) {
   const byGroup = new Map();
   for (const row of records) {
-    if (row.Trashed || !/^[a-f\d]{64}$/i.test(row.SHA256 || '')) continue;
+    if (row.Available === false || row.Trashed || !/^[a-f\d]{64}$/i.test(row.SHA256 || '')) continue;
     const key = row.SHA256.toUpperCase();
     if (!byGroup.has(key)) byGroup.set(key, []);
     byGroup.get(key).push(row);

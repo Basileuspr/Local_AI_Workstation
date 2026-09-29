@@ -3,6 +3,7 @@ import * as faces from "../faceApi";
 import CharacterNameDialog from "./CharacterNameDialog";
 import ProtectedImage from "../ImagePrivacy";
 import MediaCardActions from "./MediaCardActions";
+import CharacterResources from './CharacterResources';
 
 function Distribution({ values }) {
   if (values.length < 2) return null;
@@ -40,16 +41,18 @@ function FaceTile({ member, datasetId, selected, onToggle, badge }) {
   </figure>;
 }
 
-export default function FaceBank({ onOpenExtractor }) {
+export default function FaceBank({ active = true, initialId = '', openCharacter, onSelectCharacter, onStartKnowledge, onOpenExtractor,onLoadRoleplay }) {
   const [characters, setCharacters] = useState([]);
   const [activeId, setActiveId] = useState("");
   const [character, setCharacter] = useState(null);
   const [selected, setSelected] = useState(() => new Set());
-  const [draft, setDraft] = useState({ notes: "", tags: "" });
+  const [draft, setDraft] = useState({ bio: '', notes: "", tags: "" });
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [renaming, setRenaming] = useState(null);
+  const [creating,setCreating] = useState(false);
+  const claimLoad = useMemo(() => faces.latestRequest(), []);
 
   const refresh = useCallback(async () => {
     const data = await faces.listCharacters();
@@ -58,20 +61,48 @@ export default function FaceBank({ onOpenExtractor }) {
   }, []);
 
   const load = useCallback(async (id) => {
+    const isCurrent = claimLoad();
     if (!id) return setCharacter(null);
     const data = await faces.getCharacter(id);
+    if (!isCurrent()) return;
     setCharacter(data);
-    setDraft({ notes: data.notes || "", tags: (data.tags || []).join(", ") });
+    setDraft({ bio: data.bio || '', notes: data.notes || "", tags: (data.tags || []).join(", ") });
     setSelected(new Set());
+    onSelectCharacter?.(data);
     return data;
-  }, []);
+  }, [claimLoad,onSelectCharacter]);
 
   useEffect(() => {
-    refresh().then((list) => { if (!activeId && list.length) setActiveId(list[0].id); })
-      .catch((failure) => setError(failure.message));
-  }, [refresh]);
+    if (!active) return;
+    let disposed = false;
+    refresh().then(list => {if (!disposed) setActiveId(current => current || (list.some(item => item.id === initialId) ? initialId : list[0]?.id || ''));})
+      .catch(failure => {if (!disposed) setError(failure.message);});
+    return () => {disposed = true;};
+  }, [active,refresh]);
 
-  useEffect(() => { load(activeId).catch((failure) => setError(failure.message)); }, [activeId, load]);
+  useEffect(() => {
+    let disposed = false;
+    if (openCharacter?.id) {
+      if (openCharacter.id !== activeId) setActiveId(openCharacter.id);
+      else if (openCharacter.refresh) load(activeId).catch(failure => {if (!disposed) setError(failure.message);});
+    }
+    return () => {disposed = true;};
+  },[openCharacter,load]);
+
+  useEffect(() => {
+    setCharacter(null);setError('');
+    let disposed = false;
+    load(activeId).catch(failure => {if (!disposed) setError(failure.message);});
+    return () => {disposed = true;claimLoad();};
+  }, [activeId, load,claimLoad]);
+
+  useEffect(() => {
+    if(!active || !activeId || busy)return;
+    let disposed=false;
+    faces.getCharacter(activeId).then(data=>{if(!disposed)setCharacter(current=>current?.id===data.id?{...current,resources:data.resources}:current);})
+      .catch(failure=>{if(!disposed)setError(failure.message);});
+    return()=>{disposed=true;};
+  },[active,activeId,busy]);
 
   async function guard(label, action) {
     setBusy(label); setError(""); setNotice("");
@@ -109,6 +140,7 @@ export default function FaceBank({ onOpenExtractor }) {
   const saveDetails = () => act("details",
     () => faces.editCharacter(activeId, {
       notes: draft.notes,
+      bio: draft.bio,
       tags: draft.tags.split(",").map((value) => value.trim()).filter(Boolean),
     }), "Details saved.");
 
@@ -118,13 +150,15 @@ export default function FaceBank({ onOpenExtractor }) {
     setCharacter(current => current?.id === updated.id ? { ...current, name: updated.name } : current);
     setCharacters(current => current.map(item => item.id === updated.id ? { ...item, name: updated.name } : item));
     setNotice("Character renamed.");
+    onSelectCharacter?.(updated);
   }
 
   const removeCharacter = () => guard("delete", async () => {
-    if (!window.confirm(`Delete "${character.name}"? Its faces stay in their datasets.`)) return;
+    if (!window.confirm(`Delete "${character.name}"? Its faces, linked resources, and saved files are preserved.`)) return;
     await faces.deleteCharacter(activeId);
     const list = await refresh();
     setActiveId(list[0]?.id || "");
+    if (!list.length) onSelectCharacter?.(null);
   });
 
   function toggle(faceId) {
@@ -142,19 +176,21 @@ export default function FaceBank({ onOpenExtractor }) {
   return <div className="face-bank">
     <aside className="bank-list">
       <h2>Characters</h2>
+      <button type="button" disabled={Boolean(busy)} onClick={() => setCreating(true)}>New character</button>
       {!characters.length && <p className="face-note">
-        No characters yet. Curate faces in the Extractor, select the good ones, and save them as a character.
+        Start a character with a name and notes. You can also curate faces in the Extractor and save them as a character.
         {onOpenExtractor && <> <button type="button" className="face-link" onClick={onOpenExtractor}>Open the Extractor</button></>}
       </p>}
       <ul>
         {characters.map((item) => <li key={item.id}>
-          <button type="button" className={item.id === activeId ? "active" : ""} onClick={() => setActiveId(item.id)}>
+          <button type="button" disabled={Boolean(busy)} className={item.id === activeId ? "active" : ""} onClick={() => setActiveId(item.id)}>
             {item.representative_face_id
               ? <img src={faces.cropUrl(item.representative_dataset_id, item.representative_face_id)} alt="" loading="lazy" />
               : <span className="bank-empty-thumb" aria-hidden="true" />}
             <span>
               <strong>{item.name}</strong>
-              <span className="face-meta">{item.reference_count} reference{item.reference_count === 1 ? "" : "s"}
+              <span className="face-meta">{item.reference_count} face{item.reference_count === 1 ? "" : "s"}
+                {item.resource_count ? ` · ${item.resource_count} linked resources` : ''}
                 {item.rejected_count ? ` · ${item.rejected_count} rejected` : ""}</span>
             </span>
           </button>
@@ -172,7 +208,8 @@ export default function FaceBank({ onOpenExtractor }) {
           <div>
             <h2>{character.name}</h2>
             <p className="face-meta">
-              {groups.accepted.length} accepted · {groups.rejected.length} rejected
+              {groups.accepted.length} accepted face{groups.accepted.length===1?'':'s'} · {character.resources?.length||0} linked resources
+              {groups.rejected.length>0 && ` · ${groups.rejected.length} rejected faces`}
               {groups.drifting.length ? ` · ${groups.drifting.length} possible drift` : ""}
               {character.missing_members?.length ? ` · ${character.missing_members.length} missing from dataset` : ""}
             </p>
@@ -185,7 +222,11 @@ export default function FaceBank({ onOpenExtractor }) {
           </div>
         </header>
 
+        {onStartKnowledge && <div className="face-row"><button type="button" disabled={Boolean(busy)} onClick={() => onStartKnowledge(character.id)}>Start / open Knowledge node</button><span className="face-note">Uses saved profile details.</span></div>}
+        {onLoadRoleplay&&<div className="face-row"><button type="button" disabled={Boolean(busy)} onClick={()=>onLoadRoleplay(character)}>Load saved profile into roleplay</button><span className="face-note">Replaces chat character fields with the saved name, biography, and notes. Earlier chat history stays.</span></div>}
+
         <div className="bank-summary">
+          {Boolean(character.members?.length) && <>
           <div className="bank-hero">
             <h3>Most representative face</h3>
             {representative
@@ -206,32 +247,40 @@ export default function FaceBank({ onOpenExtractor }) {
             </p>}
             <p className="face-note">Your explicit pick, kept separate from the computed representative face.</p>
           </div>
-          <div className="bank-hero">
+          </>}
+          <div className="bank-hero bank-profile">
             <h3>Profile</h3>
             {centroid?.usable && <p className="face-meta">
               coherence {centroid.coherence} · spread {centroid.spread} · {centroid.source_count} embeddings
             </p>}
             <Distribution values={groups.distribution} />
+            <label className="bank-field">Biography
+              <textarea aria-label="Character biography" rows={5} maxLength={20000} disabled={Boolean(busy)} value={draft.bio} onChange={event => setDraft({...draft,bio:event.target.value})} placeholder="Background, personality, appearance, history, and defining traits."/>
+            </label>
             <label className="bank-field">Notes
-              <textarea rows={3} value={draft.notes} onChange={(event) => setDraft({ ...draft, notes: event.target.value })} />
+              <textarea aria-label="Character notes" rows={3} maxLength={10000} disabled={Boolean(busy)} value={draft.notes} onChange={(event) => setDraft({ ...draft, notes: event.target.value })} />
             </label>
             <label className="bank-field">Tags (comma separated)
-              <input value={draft.tags} onChange={(event) => setDraft({ ...draft, tags: event.target.value })} />
+              <input disabled={Boolean(busy)} value={draft.tags} onChange={(event) => setDraft({ ...draft, tags: event.target.value })} />
             </label>
-            <button type="button" onClick={saveDetails} disabled={busy === "details"}>Save details</button>
+            <button type="button" onClick={saveDetails} disabled={Boolean(busy)}>Save details</button>
           </div>
         </div>
 
+        <CharacterResources key={character.id} character={character} active={active} disabled={Boolean(busy)} onBusy={value => setBusy(value ? 'resources' : '')}
+          onChange={async () => {const updated=await faces.getCharacter(activeId);setCharacter(updated);await refresh();}}/>
+
+        <h3>Face references</h3>
         <div className="face-row face-actions">
           <span>{selected.size} selected</span>
-          <button type="button" onClick={() => decide("accepted")} disabled={!selected.size}>Accept / restore</button>
-          <button type="button" onClick={() => decide("rejected")} disabled={!selected.size}>Reject</button>
-          <button type="button" onClick={() => mark("primary")} disabled={selected.size !== 1}>Set primary reference</button>
-          <button type="button" onClick={() => mark("additional")} disabled={selected.size !== 1}>Add as reference</button>
-          <button type="button" onClick={() => mark("none")} disabled={selected.size !== 1}>Clear reference</button>
-          <button type="button" onClick={drop} disabled={!selected.size}>Remove from character</button>
+          <button type="button" onClick={() => decide("accepted")} disabled={Boolean(busy)||!selected.size}>Accept / restore</button>
+          <button type="button" onClick={() => decide("rejected")} disabled={Boolean(busy)||!selected.size}>Reject</button>
+          <button type="button" onClick={() => mark("primary")} disabled={Boolean(busy)||selected.size !== 1}>Set primary reference</button>
+          <button type="button" onClick={() => mark("additional")} disabled={Boolean(busy)||selected.size !== 1}>Add as reference</button>
+          <button type="button" onClick={() => mark("none")} disabled={Boolean(busy)||selected.size !== 1}>Clear reference</button>
+          <button type="button" onClick={drop} disabled={Boolean(busy)||!selected.size}>Remove from character</button>
           <label>Move to
-            <select value="" disabled={!selected.size} onChange={(event) => event.target.value && move(event.target.value)}>
+            <select value="" disabled={Boolean(busy)||!selected.size} onChange={(event) => event.target.value && move(event.target.value)}>
               <option value="">Choose character…</option>
               {characters.filter((item) => item.id !== activeId).map((item) =>
                 <option key={item.id} value={item.id}>{item.name}</option>)}
@@ -260,5 +309,8 @@ export default function FaceBank({ onOpenExtractor }) {
     </section>
     {renaming && <CharacterNameDialog title="Rename character" initialName={renaming.name}
       onSave={rename} onClose={() => setRenaming(null)} />}
+    {creating && <CharacterNameDialog title="New character" description="Start with a name. Face references are optional."
+      onSave={async name => {const created = await faces.createCharacter({name});await refresh();setActiveId(created.id);setNotice('Character created. Add notes, tags, or face references.');}}
+      onClose={() => setCreating(false)}/>}
   </div>;
 }

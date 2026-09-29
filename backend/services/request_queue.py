@@ -43,6 +43,8 @@ class Job:
     cancel_callback: object = None
     stage: str | None = None
     requires_gpu: bool = True
+    timing_profile: str | None = None
+    cpu_lane: str | None = None
 
 
 class RequestQueue:
@@ -54,7 +56,7 @@ class RequestQueue:
         self.paused = False
 
     def enqueue(self, kind, label, request_id=None, *, owner=None, project_id=None, session_id=None, cancel=None,
-                requires_gpu=True):
+                requires_gpu=True, timing_profile=None, cpu_lane=None):
         request_id = request_id or uuid.uuid4().hex
         with self._lock:
             if any(job.kind == kind and job.request_id == request_id and job.status not in TERMINAL for job in self.jobs):
@@ -62,20 +64,22 @@ class RequestQueue:
             job = Job(kind, str(label)[:160], request_id, owner or f"{kind}:{request_id}", project_id, session_id)
             job.cancel_callback = cancel
             job.requires_gpu = requires_gpu
+            job.timing_profile = timing_profile
+            job.cpu_lane = cpu_lane if not requires_gpu else None
             finished = [entry for entry in self.jobs if entry.status in TERMINAL]
             remove = {entry.id for entry in finished[:-99]}
             self.jobs = [entry for entry in self.jobs if entry.id not in remove]
             self.jobs.append(job)
             return job
 
-    def find(self, *, job_id=None, kind=None, request_id=None, project_id=None):
+    def find(self, *, job_id=None, kind=None, request_id=None, project_id=None, include_finished=False):
         with self._lock:
             return next((job for job in reversed(self.jobs) if
                          (job_id is None or job.id == job_id) and
                          (kind is None or job.kind == kind) and
                          (request_id is None or job.request_id == request_id) and
                          (project_id is None or job.project_id == project_id) and
-                         (job_id is not None or job.status not in TERMINAL)), None)
+                         (include_finished or job_id is not None or job.status not in TERMINAL)), None)
 
     def try_start(self, job):
         with self._lock:
@@ -85,9 +89,18 @@ class RequestQueue:
                 return True
             if self.paused or job.status != "queued":
                 return False
+            if job.cpu_lane:
+                lane = [entry for entry in self.jobs if entry.cpu_lane == job.cpu_lane and entry.status not in TERMINAL]
+                if any(entry.status in {"running", "cancelling"} for entry in lane) or lane[0] is not job:
+                    return False
             if job.requires_gpu:
                 waiting = next((entry for entry in self.jobs if entry.status == "queued" and entry.requires_gpu), None)
                 if self.active is not None or waiting is not job:
+                    return False
+                # Bound decoded images/PNG buffers while CPU output work overlaps
+                # inference. Keep at most two output workers plus one GPU image.
+                if job.kind == "image" and sum(entry.kind == "image" and entry.stage == "saving"
+                                               and entry.status not in TERMINAL for entry in self.jobs) >= 2:
                     return False
                 if not self.coordinator.reserve(job.owner):
                     return False
@@ -138,6 +151,16 @@ class RequestQueue:
                 await result
         return True
 
+    def release_gpu_for_output(self, job):
+        """The provider has exited GPU work; CPU saving is still cancellable."""
+        with self._lock:
+            if self.active is not job:
+                raise ValueError("Only the active GPU request can begin saving")
+            self.coordinator.release(job.owner)
+            self.active = None
+            job.requires_gpu = False
+            job.stage = "saving"
+
     def finish(self, job, error=None):
         with self._lock:
             job.status = "cancelled" if job.cancel_event.is_set() else "failed" if error else "completed"
@@ -151,16 +174,17 @@ class RequestQueue:
 
     def snapshot(self):
         with self._lock:
-            position = 0
+            positions = {}
             entries = []
             for job in self.jobs:
                 if job.status == "queued":
-                    position += 1
+                    lane = "gpu" if job.requires_gpu else job.cpu_lane or job.id
+                    positions[lane] = positions.get(lane, 0) + 1
                 entries.append({key: getattr(job, key) for key in (
                     "id", "kind", "label", "request_id", "project_id", "session_id",
-                    "status", "created_at", "started_at", "finished_at", "error", "stage", "requires_gpu")})
-                entries[-1]["position"] = position if job.status == "queued" else None
-            return {"jobs": entries, "paused": self.paused, "gpu_owner": self.coordinator.current_owner()}
+                    "status", "created_at", "started_at", "finished_at", "error", "stage", "requires_gpu", "timing_profile", "cpu_lane")})
+                entries[-1]["position"] = positions[lane] if job.status == "queued" else None
+            return {"jobs": entries, "paused": self.paused, "gpu_owner": self.coordinator.current_owner(), "reported_at": now()}
 
 
 queue = RequestQueue()
@@ -172,7 +196,7 @@ async def prepare_runtime(kind):
     from starlette.concurrency import run_in_threadpool
     from services.image_generation import manager as image_manager
     if kind in {"chat", "compact", "analysis", "embedding"}:
-        await run_in_threadpool(image_manager.unload_for_training)
+        await run_in_threadpool(image_manager.park_for_chat)
     else:
         import httpx
         try:

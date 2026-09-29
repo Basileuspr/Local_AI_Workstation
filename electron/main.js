@@ -29,7 +29,8 @@ const { clearDesktopStorage } = require("./maintenanceStorage");
 const { trustedUrl, externalUrl, appAsset, APP_HEADERS } = require("./security");
 const { migratePreferences } = require("./preferenceMigration");
 const { createMediaManager } = require("./mediaManager");
-const { installAudioPermissions } = require("./audioPermissions");
+const { installAudioPermissions } = require('./audioPermissions');
+const { createViewerBrowser } = require("./viewerBrowser");
 const { mediaManagerPaths } = require("./mediaManagerPaths");
 const { createTabCapture } = require("./tabCapture");
 const { runDesktopAction, writeClipboardImage } = require("./desktopFunctions");
@@ -128,7 +129,15 @@ function trustedDesktop(event) {
     return trustedUrl(event.senderFrame.url, useViteDev ? CONFIG.viteDevUrl : null);
 }
 
-const tabCapture = createTabCapture({ BrowserWindow, screen, clipboard, ClipboardItem, getWindow: () => mainWindow, mediaManager });
+const viewerBrowser = createViewerBrowser({WebContentsView, session, getWindow:()=>mainWindow});
+const tabCapture = createTabCapture({ BrowserWindow, screen, clipboard, ClipboardItem, getWindow: () => mainWindow, mediaManager, viewerBrowser });
+for (const action of ['start','state','place','navigate','inspect','source','command']) {
+    ipcMain.handle(`viewer-browser:${action}`, async (event,value)=>{
+        if(!trustedDesktop(event))return {error:'Desktop access required.'};
+        try {return await viewerBrowser[action](value);}
+        catch(error){return {error:error.message};}
+    });
+}
 let desktopActionBusy = false;
 ipcMain.handle("functions:copy-image", async (event, value) => {
     if (!trustedDesktop(event)) return { error: "Desktop access required." };
@@ -203,7 +212,27 @@ ipcMain.handle("dashboard:open-app-folder", async (event) => {
     }
 });
 
+const gifFiles = require('./gifFiles').createGifFiles({
+    showSaveDialog: options => dialog.showSaveDialog(mainWindow, options),
+    showOpenDialog: options => dialog.showOpenDialog(mainWindow, options),
+    showItemInFolder: filename => shell.showItemInFolder(filename),
+    downloads: () => app.getPath('downloads'),
+});
+ipcMain.handle('gif:save', (event, value) => trustedDesktop(event) ? gifFiles.save(value) : {error: 'Desktop access required.'});
+ipcMain.handle('gif:choose-output', event => trustedDesktop(event) ? gifFiles.chooseOutput() : {error:'Desktop access required.'});
+ipcMain.handle('gif:reveal', (event, id) => trustedDesktop(event) ? gifFiles.reveal(id) : {error: 'Desktop access required.'});
+
 let pickerOpen = false;
+ipcMain.handle("image-generation:choose-output", async event => {
+    if (!trustedDesktop(event)) return { error: "Output folder selection requires the desktop app." };
+    if (pickerOpen) return { canceled: true };
+    pickerOpen = true;
+    try {
+        const { chooseOutputFolder } = require("./outputFolder");
+        return await chooseOutputFolder({ home: app.getPath("pictures"), showDialog: options => dialog.showOpenDialog(mainWindow, options) });
+    } catch (error) { return { error: error.message }; }
+    finally { pickerOpen = false; }
+});
 ipcMain.handle("uploads:choose", async (event, options) => {
     if (!trustedDesktop(event)) return { error: "Uploads are only available in the desktop app." };
     if (pickerOpen) return { canceled: true };
@@ -630,9 +659,10 @@ async function createWindow() {
 
     guardNavigation(mainWindow.webContents);
     installAudioPermissions(mainWindow.webContents, useViteDev ? CONFIG.viteDevUrl : null);
-    mainWindow.webContents.on("did-start-navigation", (_event, _url, _inPlace, isMainFrame) => { if (isMainFrame) mediaManager.hide(); });
+    mainWindow.webContents.on("did-start-navigation", (_event, _url, _inPlace, isMainFrame) => { if (isMainFrame) {mediaManager.hide();viewerBrowser.hide();} });
     mainWindow.webContents.on("render-process-gone", async (_event, details) => {
         mediaManager.hide();
+        viewerBrowser.hide();
         if (isQuitting || details.reason === "clean-exit") return;
         const result = await dialog.showMessageBox({ type: "error", title: "Desktop view stopped",
             message: "The desktop renderer stopped. Saved data is still on disk; unsaved edits may be lost.",
@@ -729,7 +759,7 @@ app.on("activate", () => {
     else mainWindow.show();
 });
 
-app.on("before-quit", () => { isQuitting = true; driveSpace.dispose(); mediaManager.dispose(); stopPythonBackend(); });
+app.on("before-quit", () => { isQuitting = true; driveSpace.dispose(); mediaManager.dispose(); viewerBrowser.dispose(); stopPythonBackend(); });
 app.on("will-quit", () => { stopPythonBackend(); });
 
 const gotLock = app.requestSingleInstanceLock();

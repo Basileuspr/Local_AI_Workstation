@@ -8,6 +8,8 @@ from services import audio
 router = APIRouter(prefix="/audio", tags=["audio"])
 from routes.voice_cloning import router as voice_router
 router.include_router(voice_router)
+from routes.audio_extraction import router as extraction_router
+router.include_router(extraction_router)
 
 
 @router.get("/status")

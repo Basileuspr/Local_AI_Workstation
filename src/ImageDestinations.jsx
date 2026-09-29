@@ -14,6 +14,11 @@ export function ImageDestinationsProvider({ children }) {
   const dispatch = useDispatch(), privacy = useImagePrivacy(), currentPrivacy = useRef(privacy);
   currentPrivacy.current = privacy;
   const [editorInput, setEditorInput] = useState(null);
+  const [gifInput, setGifInput] = useState(null);
+  function openGifMaker({ images = [], files = [] } = {}) {
+    if (images.length || files.length) setGifInput({ id: crypto.randomUUID(), images, files });
+    dispatch({ type: "SET_SIDEBAR_TAB", payload: "gif-maker" });
+  }
   const [filing, setFiling] = useState(null), [chatEdit, setChatEdit] = useState(null);
   const lock = useRef(false);
   async function readImage(image) {
@@ -32,7 +37,9 @@ export function ImageDestinationsProvider({ children }) {
     lock.current = true;
     try {
       const file = await readImage(image);
-      if (destination === "editor") {
+      if (destination === "gif") {
+        openGifMaker({ files: [file] });
+      } else if (destination === "editor") {
         setEditorInput({ file, id: crypto.randomUUID() });
         dispatch({ type: "SET_SIDEBAR_TAB", payload: "image-editor" });
       } else if (destination === "chat-edit") {
@@ -49,5 +56,6 @@ export function ImageDestinationsProvider({ children }) {
       }
     } finally { lock.current = false; }
   }
-  return <Context.Provider value={{ take, readImage, editorInput, chatEdit, clearChatEdit: () => setChatEdit(null), consumed: id => setEditorInput(value => value?.id === id ? null : value) }}>{children}{filing && <FileImagesDialog {...filing} onClose={() => setFiling(null)} />}</Context.Provider>;
+  return <Context.Provider value={{ take, readImage, openGifMaker, gifInput, editorInput, chatEdit, clearChatEdit: () => setChatEdit(null), consumed: id => setEditorInput(value => value?.id === id ? null : value) }}>{children}{filing && <FileImagesDialog {...filing} onClose={() => setFiling(null)} />}
+  </Context.Provider>;
 }

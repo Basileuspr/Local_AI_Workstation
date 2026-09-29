@@ -71,7 +71,7 @@ def validate_edit(edit, context):
     return {"revision": context.revision, "allowed_ids": [item.id for item in context.objects], "operations": [op.model_dump() for op in edit.operations]}
 
 
-async def stream_canvas(client, payload, request, client_request):
+async def stream_canvas(client, payload, request, client_request, influence_context=None):
     def event(**value): return f"data: {json.dumps(value)}\n\n"
     try:
         context = request.canvas_context
@@ -80,6 +80,8 @@ async def stream_canvas(client, payload, request, client_request):
                    "options": {**payload.get("options", {}), "temperature": 0, "num_predict": 4096}}
         content = ""; completed = False
         from config import settings
+        from services.chat_influences import event as influence_event
+        yield influence_event(payload, mode="canvas", context=influence_context)
         async with client.stream("POST", settings.ollama_base_url + "/api/chat", json=payload) as response:
             if response.is_error:
                 detail = (await response.aread()).decode("utf-8", errors="replace")[:1000]

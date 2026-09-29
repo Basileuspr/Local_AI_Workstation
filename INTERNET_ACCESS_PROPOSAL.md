@@ -6,9 +6,21 @@ Inspection and first implementation: September 7, 2026 (America/Denver).
 
 Add deliberate public-source imports to the existing local chat pipeline. Keep network fetching in FastAPI, and keep inference, source storage, and conversations on the workstation. Begin with reviewed public sources, then extend coverage behind the same request scheduler and provenance model.
 
-In Chat, expand **Internet · Import a public page**, enter a supported HTTPS URL, select **Import page**, review the preview, and select **Open new chat with source**. Ask a question in that chat using the existing composer and selected local model.
+Following the user's explicit follow-up to implement, test, and open a demo, the first version is implemented. In Chat, expand **Internet · Import a public page**, enter a supported HTTPS URL, select **Import page**, review the preview, and select **Open new chat with source**. Ask a question in that chat using the existing composer and selected local model.
 
 This version supports arbitrary public `https://` pages, including query parameters, fragments and ordinary redirects. Wikipedia keeps a richer adapter that returns article text and a revision id. It reads one selected page per import; it does not recursively crawl, search the entire internet, sign in, execute website JavaScript, or let model-generated instructions initiate network requests. Those are distinct expansion decisions, not implied by an imported URL.
+
+### Page images (September 25, 2026)
+
+**Save page images locally** is enabled by default. HTML images are discovered in document order, including relative URLs, common lazy-loading attributes and responsive `srcset` candidates. Duplicate URLs are removed. Each image host and redirect passes the same public-HTTPS/DNS checks and robots policy as pages. The renderer displays only local image bytes, never website-hosted image URLs.
+
+The importer accepts verified PNG, JPEG, WebP and GIF images, up to 24 per page, 10 MB each, 50 MB downloaded image data per import and 40 million pixels per image. Images and their robots checks count toward the existing 30-request/hour budget and 10-second spacing. Image imports allow up to 20 minutes to accommodate pacing; Stop still cancels the active request or wait. Missing, blocked or unsupported images are reported individually. A denial/cooldown or exhausted hourly budget stops further image requests while retaining readable text and successfully saved images.
+
+Expand **Read saved images in page order** to read the local copy. **Open new chat with source** persists the ordered image previews using the existing blob store and chat image viewer, including offline access after reopening. The text sent to the model explicitly states that image pixels and text inside panels were not supplied; importing a chapter does not automatically run OCR or vision inference over every panel. Wikipedia's existing API adapter continues to supply text only. CSS background images, JavaScript-only image discovery, SVG and authenticated content are not supported.
+
+Text-only and image-enabled imports have separate 24-hour cache entries, so an older text snapshot cannot hide newly requested images. A cancelled import does not publish a source snapshot; fully downloaded blobs may remain in the existing non-destructive blob store. Existing image privacy checks apply to the preview endpoint and saved chat images.
+
+Live verification with the supplied Reborn Rich chapter 101 URL saved all 18 discovered images (8,683,441 bytes) without image warnings. This records the observed result on the verification date; future site changes or policy limits may affect imports.
 
 ## Current project state, verified against source
 
@@ -56,7 +68,7 @@ These are conservative application defaults, not promises of a site's permitted 
 | Wikipedia | Uses the documented public read-only MediaWiki Action API with `maxlag=5`, article text and revision metadata. This adapter follows API policy; it does not reinterpret HTML robots exclusions as API authorization. |
 | Throttling | 429/503 produces a persisted pause, respecting Retry-After seconds or HTTP dates, with a 60-second minimum. No automatic retry. API errors also stop with a pause. |
 | Denial | 401/403 stops access and pauses requests for an hour. No alternate hostname, proxy, credential, CAPTCHA, or alternate-endpoint workaround. |
-| Download bounds | 5 MB decoded response limit, 35-second request deadline, 240-second import deadline. Only HTML, XHTML and plain text are accepted; other content types are reported, not imported. |
+| Download bounds | Pages: 5 MB decoded response limit, 35-second request deadline, 240-second text-only import deadline. HTML, XHTML and plain text page URLs are accepted. Optional page-image imports have the separate bounds described above and a 1,200-second overall deadline. |
 | Stop | Cancels the asyncio task, aborts the active HTTP operation or delay, clears active state, and avoids saving partial text. UI reload can reconnect to an active backend job. |
 
 It is impossible to guarantee a website will not classify automated access as a bot. The objective is identifiable, low-load, policy-compatible automation. Rate limits are enforced in the application's normal single backend; multiple independently launched backends sharing one data directory are not a supported deployment mode.
@@ -67,7 +79,7 @@ It is impossible to guarantee a website will not classify automated access as a 
 - Up to 5 redirects are followed. Every hop is re-validated through the same gate and re-resolved before it is contacted, so a public first hop cannot redirect into a private destination. Loops and overlong chains stop with a named error.
 - DNS must resolve exclusively to public IPs. The checked IP is used for the connection, retaining the original hostname for TLS SNI and certificate verification. This avoids a second DNS lookup between checking and connecting.
 - Environment proxy settings and browser cookies are not used. The scraper does not send local files, prompts, chat history, or account tokens to sources.
-- HTML is extracted as inert text; scripts, styles and several navigation/form elements are omitted. Website assets are not loaded by the scraper.
+- HTML is extracted as inert text; scripts, styles and several navigation/form elements are omitted. When image saving is enabled, bounded raster images are downloaded by the backend after validation; website scripts and styles are never executed.
 - A backend system instruction treats web snapshots as untrusted reference material and requests URL citations. It cannot guarantee model compliance, but website text has no executable tool path.
 - Cache files live beneath `LAW_DATA_DIR/web`; session copies follow existing session persistence and export behavior. They are user data and remain ignored by Git.
 - Source cache and jobs are separate: completed snapshots persist, while job status is process-local and disappears on backend restart. There is no automatic resume or retry after restart.
@@ -77,12 +89,14 @@ It is impossible to guarantee a website will not classify automated access as a 
 | File | Responsibility |
 |---|---|
 | `backend/services/web_access.py` | Approved-source adapters, URL/DNS validation, paced HTTP requests, cache, extraction, job lifecycle and cancellation. |
-| `backend/routes/web.py` | `POST /web/jobs`, `GET /web/active`, `GET /web/jobs/{id}`, `POST /web/jobs/{id}/stop`. |
+| `backend/routes/web.py` | `POST /web/jobs` (URL and `include_images`), `GET /web/active`, `GET /web/jobs/{id}`, `POST /web/jobs/{id}/stop`, authenticated local `GET /web/images/{digest}`. |
 | `backend/main.py` | Router registration and web-reference instructions for local chat. |
 | `src/webAccess.js` | API helpers, bounded source message construction, creation and persistence of a new source chat. |
 | `src/components/WebAccess.jsx` and `.css` | Collapsible importer, progress, Stop, preview, source link and new-chat action. |
+| `src/components/WebImageReader.jsx` and `.css` | Ordered local image reader shared by the import preview and saved source chat. |
 | `src/App.jsx` | Places the importer in the existing Chat pane. |
 | `tests/backend/test_web_access.py` | URL restrictions, DNS pinning, persistent budget/cache/cooldown, robots, size limits, API errors, routes and true cancellation. |
+| `tests/backend/test_web_images.py` | Image discovery, offline reuse, unsafe redirects/DNS, robots, raster validation, size/count limits, partial failures, cancellation, chat persistence and locked image access. |
 | `tests/frontend/webAccess.test.js` | Source attribution and excerpt budget through context serialization; separate saved-chat creation. |
 
 ## General ingestion update

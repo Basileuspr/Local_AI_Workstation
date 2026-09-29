@@ -42,6 +42,17 @@ def test_entries_require_title_and_content(prompt_index_paths):
         create_entry("title", "   ")
 
 
+def test_prompt_variations_create_separate_entries_without_changing_editor_draft(prompt_index_paths):
+    save_draft("new", {"title": "Unfinished", "content": "Keep editing this"})
+    first = create_entry("Forest", "Positive prompt:\nForest\n\nNegative prompt:\nblurry", "Generate", ["image-generation"])
+    second = create_entry("Forest", "Positive prompt:\nForest at dusk\n\nNegative prompt:\nblurry", "Generate", ["image-generation"])
+    state = load_state()
+    assert first["id"] != second["id"]
+    assert len(state["entries"]) == 2
+    assert {entry["content"] for entry in state["entries"]} == {first["content"], second["content"]}
+    assert state["draft"]["form"]["title"] == "Unfinished"
+
+
 def test_tags_are_deduplicated_case_insensitively(prompt_index_paths):
     entry = create_entry("T", "C", None, ["Writing", "writing", "WRITING", "image"])
 

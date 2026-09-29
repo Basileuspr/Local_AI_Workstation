@@ -274,3 +274,17 @@ def test_previous_image_source_survives_save_settings_changes_and_reorder(client
     saved["stages"] = [saved["stages"][3]]
     saved = update(client, saved).json()
     assert saved["stages"][0]["source"] is None  # No invalid future/self-reference.
+
+
+def test_removed_selection_persists_without_deleting_owned_images(client):
+    project = upload(client, create(client))
+    asset = project["assets"][0]
+    saved = update(client, project, removed_asset_ids=[asset["id"]])
+    assert saved.status_code == 200
+    reloaded = client.get(f"/image-workflows/{project['id']}").json()
+    assert reloaded["removed_asset_ids"] == [asset["id"]]
+    assert reloaded["assets"] == project["assets"]
+    assert client.get(f"/image-workflows/{project['id']}/assets/{asset['id']}").content == picture()
+    restored = update(client, reloaded, removed_asset_ids=[])
+    assert restored.status_code == 200
+    assert restored.json()["removed_asset_ids"] == []

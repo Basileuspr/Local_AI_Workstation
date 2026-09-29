@@ -6,9 +6,12 @@ import KnowledgeContext from "./KnowledgeContext";
 import BulkActions, { SelectionCheckbox } from "./BulkActions";
 import { useSelection, useBatchAction } from "../useSelection";
 import "./KnowledgeVault.css";
+import {KnowledgeCharacterStart,CharacterNodePointer} from './KnowledgeCharacters';
+import {useCharacterWorkspace} from '../CharacterWorkspace';
 
 export default function KnowledgeVault({ active }) {
   const state = useStore(), dispatch = useDispatch();
+  const characters=useCharacterWorkspace();
   const [graph, setGraph] = useState({ nodes: [], edges: [] });
   const [selectedId, setSelectedId] = useState(() => {
     try { return localStorage.getItem("knowledge-vault-selected-v1") || ""; } catch { return ""; }
@@ -31,6 +34,9 @@ export default function KnowledgeVault({ active }) {
     finally { if (version === request.current) setLoading(false); }
   }
   useEffect(() => { if (active) refresh(); return () => { request.current++; }; }, [active, state.kbDocuments]);
+  useEffect(() => {
+    if(characters?.documentTarget){setQuery('');setSelectedId(characters.documentTarget.id);setPage(0);}
+  },[characters?.documentTarget]);
   useEffect(() => { setPage(0); setTarget(""); }, [selectedId]);
   useEffect(() => {
     let cancelled = false; setDetail(null); setDetailError("");
@@ -54,6 +60,10 @@ export default function KnowledgeVault({ active }) {
     });
   }
   const selected = graph.nodes.find(node => node.doc_id === selectedId);
+  async function selectIndexedCharacter(docId) {
+    dispatch({type:'SET_KB_DOCUMENTS',payload:await api.listKnowledgeBase()});
+    await refresh();setQuery('');setSelectedId(docId);setPage(0);
+  }
   const connections = graph.edges.filter(edge => edge.source === selectedId || edge.target === selectedId);
   const visibleNodes = graph.nodes.filter(node => node.filename.toLowerCase().includes(query.toLowerCase()));
   function removeDocuments(items) {
@@ -70,6 +80,7 @@ export default function KnowledgeVault({ active }) {
       <button disabled={busy} onClick={() => upload.current?.click()}>{busy ? "Working…" : "+ Add document"}</button>
       <input ref={upload} type="file" accept=".txt,.md,.pdf,.docx" hidden onChange={addFile} />
     </header>
+    <KnowledgeCharacterStart active={active} nodes={graph.nodes} onSelect={id => {setQuery('');setSelectedId(id);}} onIndexed={selectIndexedCharacter}/>
     {error && <div className="vault-error" role="alert">{error} <button onClick={refresh}>Retry</button></div>}
     <div className="vault-workspace">
       <aside className="vault-files" aria-label="Vault documents"><label>Find a document<input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Search filenames…" /></label>
@@ -86,6 +97,7 @@ export default function KnowledgeVault({ active }) {
       <aside className="vault-inspector" aria-label="Document details">
         {!selected ? <div className="vault-inspector-empty"><h2>Select a document</h2><p>Explore its indexed text and connected documents.</p><p>Connect documents here, or import text containing <code>[[another document]]</code>.</p><p>Lines show explicit links, not inferred similarity. Disconnected documents still participate in RAG.</p></div> : <>
           <div className="vault-inspector-heading"><h2>{selected.filename}</h2><button onClick={() => setSelectedId("")} aria-label="Close document">×</button></div>
+          <CharacterNodePointer key={selectedId} filename={selected.filename} onIndexed={selectIndexedCharacter}/>
           <p>{selected.chunks} indexed chunks</p><button className="vault-remove" disabled={batch.busy || busy} onClick={() => removeDocuments([selected])}>Remove from Knowledge</button><h3>Connections</h3>
           {!connections.length && <p>No connections yet.</p>}
           {connections.map(edge => {

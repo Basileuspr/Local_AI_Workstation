@@ -7,6 +7,14 @@
 .vault-header { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 18px 20px; border-bottom: 1px solid var(--border); }
 .vault-header h1 { font-size: 20px; margin: 0 0 5px; }
 .vault-header p, .vault-inspector p, .vault-files p { font-size: 12px; color: var(--text-dim); line-height: 1.65; margin: 0; }
+.vault-character-start {padding:12px 20px; border-bottom:1px solid var(--border); display:flex; flex-wrap:wrap; gap:8px;}
+.vault-character-form {flex-basis:100%; display:flex; flex-wrap:wrap; align-items:center; gap:8px;}
+.vault-character-form label {display:flex; flex-wrap:wrap; gap:8px; align-items:center;}
+.vault-character-form select {max-width:100%; background:var(--bg-input); color:var(--text); padding:8px; border:1px solid var(--border); border-radius:6px;}
+.vault-character-form p {flex-basis:100%; font-size:12px; margin:0; line-height:1.5;}
+.vault-character-pointer {display:flex; flex-direction:column; align-items:flex-start; gap:8px; margin:12px 0;}
+.vault-character-pointer code {overflow-wrap:anywhere; max-width:100%; font-size:11px;}
+.vault-character-pointer small {font-size:11px; color:var(--text-dim);}
 .vault-rag { display: flex; align-items: center; gap: 7px; margin-left: auto; font-size: 12px; }
 .vault-error { padding: 10px 20px; background: var(--bg-surface); color: var(--red); font-size: 12px; }
 .vault-workspace { display: grid; grid-template-columns: 180px minmax(240px, 1fr) 290px; flex: 1; min-height: 0; }

@@ -14,7 +14,7 @@ import httpx
 from PIL import Image, ImageOps
 
 from config import settings
-from services.image_generation_limits import MAX_IMAGE_STEPS, MAX_IMAGE_GUIDANCE
+from services.image_generation_limits import MAX_IMAGE_STEPS, MAX_IMAGE_GUIDANCE, current_resolution_limits, validate_dimensions
 from .providers import StageResult, WorkflowCancelled
 
 _vision_cache = (0, None, [])
@@ -67,7 +67,8 @@ def capability_catalog(operations):
     providers = [
         {"id": "local-sdxl", "name": "Local SDXL", "operations": ["txt2img", "img2img", "inpaint"],
          "models": [{"id": m["id"], "name": m["name"]} for m in sdxl_models()],
-         "available": bool(runtime.get("cuda_available")), "help": f"Installed SDXL base; 256–1024 pixels per side, up to {MAX_IMAGE_STEPS} steps and guidance {MAX_IMAGE_GUIDANCE}. Source and mask resize to the chosen output dimensions."},
+         "resolution_limits": runtime.get("resolution_limits") or current_resolution_limits(),
+         "available": bool(runtime.get("cuda_available")), "help": f"Installed SDXL base; hardware-aware size controls, up to {MAX_IMAGE_STEPS} steps and guidance {MAX_IMAGE_GUIDANCE}. Larger images can use slower CPU offload. Source and mask resize to the chosen dimensions."},
         {"id": "ollama-vision", "name": "Ollama vision", "operations": ["describe"],
          "models": vision_models(), "available": True, "help": "Description and OCR; results stay separate from prompts until you choose to use them."},
         {"id": "pillow-lanczos", "name": "Lanczos resize (CPU)", "operations": ["upscale"],
@@ -125,6 +126,7 @@ class SDXLProvider:
 
     def generate(self, request, context):
         stage, prompts = request.stage, request.prompt_settings
+        validate_dimensions(stage.width, stage.height, stage.allow_long_wait, current_resolution_limits())
         model = next((m for m in sdxl_models() if m["id"] == stage.model_id), None)
         if model is None:
             raise ValueError("Selected SDXL model is unavailable")
@@ -151,7 +153,7 @@ class SDXLProvider:
                 from services.image_generation import manager
                 if not torch.cuda.is_available():
                     raise RuntimeError("This SDXL provider requires CUDA")
-                resident = manager.workflow_pipeline(model, stage.operation, context)
+                resident = manager.workflow_pipeline(model, stage.operation, context, allow_long_wait=stage.allow_long_wait)
                 pipeline = resident.__enter__()
                 context.check_cancelled()
 

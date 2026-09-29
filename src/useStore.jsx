@@ -1,5 +1,5 @@
 import { createContext, useContext, useReducer, useRef, useCallback } from "react";
-import { defaultRoleplayConfig, mergeRoleplayConfig } from "./roleplayPrompt";
+import { defaultRoleplayConfig, mergeRoleplayConfig,roleplayFromCharacter } from "./roleplayPrompt";
 import { defaultImageSettings, loadPreferences } from "./preferences";
 import { loadNavigation } from "./navigation";
 import { orderModels } from "./modelOrder";
@@ -375,12 +375,17 @@ export function reducer(state, action) {
         roleplay: mergeRoleplayConfig(action.payload),
       });
 
+    case "LOAD_ROLEPLAY_CHARACTER":
+      return {...state,activeCustomProfileId:'',roleplay:roleplayFromCharacter(action.payload,state.roleplay)};
+
     case "SET_ROLEPLAY_FIELD":
       return updateActiveCustomProfile({
         ...state,
         roleplay: {
           ...state.roleplay,
           [action.key]: action.value,
+          source:state.roleplay.source && !['enabled','includeGeneralPrompt','includeResponseStyle','useDurableMemory'].includes(action.key)
+            ? {...state.roleplay.source,edited:true} : state.roleplay.source,
         },
       });
 

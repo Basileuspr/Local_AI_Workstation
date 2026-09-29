@@ -3,7 +3,7 @@
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-from services.image_generation_limits import MAX_IMAGE_STEPS, MAX_IMAGE_GUIDANCE
+from services.image_generation_limits import MAX_IMAGE_STEPS, MAX_IMAGE_GUIDANCE, validate_dimensions
 from .scene_state import Scene, build_prompt, FrameRef
 
 Id = Annotated[str, Field(pattern=r"^[0-9a-f]{32}$")]
@@ -50,14 +50,20 @@ class Stage(Record):
     # Registered provider key, never a browser-supplied file path or download URL.
     provider_slot: str = Field(default="", max_length=100, pattern=r"^[a-zA-Z0-9_.-]*$")
     model_id: str = Field(default="", max_length=200)
-    width: int = Field(default=512, ge=256, le=1024, multiple_of=8)
-    height: int = Field(default=512, ge=256, le=1024, multiple_of=8)
+    width: int = Field(default=512, ge=256, le=2048, multiple_of=8)
+    height: int = Field(default=512, ge=256, le=2048, multiple_of=8)
+    allow_long_wait: bool = False
     strength: float = Field(default=0.55, ge=0, le=1)
     control_scale: float = Field(default=1, ge=0, le=2)
     control_kind: Literal["edges", "depth", "pose", "other"] = "edges"
     upscale_factor: int = Field(default=2, ge=2, le=4)
     analysis_kind: Literal["description", "scene", "edit_guidance"] = "description"
     reference_roles: list[Annotated[str, Field(min_length=1, max_length=300)]] = Field(default_factory=list, max_length=8)
+
+    @model_validator(mode="after")
+    def supported_dimensions(self):
+        validate_dimensions(self.width, self.height, self.allow_long_wait)
+        return self
 
 
 class CreateRequest(Record):
@@ -73,6 +79,7 @@ class CreateRequest(Record):
 
 
 class Draft(CreateRequest):
+    removed_asset_ids: list[AssetId] = Field(default_factory=list, max_length=100)
     scene: Scene | None = None
     scene_notes: str = Field(default="", max_length=8000)
     prompt_settings: PromptSettings = Field(default_factory=PromptSettings)
@@ -87,6 +94,7 @@ class Draft(CreateRequest):
             self.stages = [Stage(id="0" * 32, operation="img2img" if scene.source_asset_id else "txt2img",
                 source=Source(kind="asset", id=scene.source_asset_id) if scene.source_asset_id else None,
                 provider_slot="local-sdxl", model_id=scene.model_id, width=scene.width, height=scene.height,
+                allow_long_wait=scene.allow_long_wait,
                 strength=scene.denoise, reference_asset_ids=scene.identity_asset_ids)]
         elif self.scene is not None:
             raise ValueError("Scene state requires iterative scene mode")

@@ -171,6 +171,7 @@ def _message_image_records(message: dict) -> list[dict]:
                 "name": preview.get("name") or preview.get("filename"),
                 "type": preview.get("type") or preview.get("mime_type"),
                 "size": preview.get("size"),
+                **({"seed": preview["seed"]} if type(preview.get("seed")) is int and 0 <= preview["seed"] <= 2_147_483_647 else {}),
                 "source": forced_source
                 or ("generated" if message.get("role") == "assistant" else "uploaded"),
             })
@@ -502,6 +503,7 @@ def list_session_images(hidden: bool = False) -> list:
                         "name": record.get("name") or f"Chat image {image_index + 1}",
                         "type": record.get("type"),
                         "size": record.get("size"),
+                        **({"seed": record["seed"]} if "seed" in record else {}),
                         "source": record.get("source") or "uploaded",
                         "updated_at": session.get("updated_at") or session.get("created_at") or "",
                         "url": f"/sessions/{session['id']}/images/by-id/{message['id']}/{image_id}",

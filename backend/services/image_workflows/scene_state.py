@@ -6,6 +6,7 @@ propose the same bounded patches that the manual editor uses today.
 from copy import deepcopy
 from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+from services.image_generation_limits import validate_dimensions
 
 Text = Annotated[str, Field(max_length=400)]
 Id = Annotated[str, Field(pattern=r"^[0-9a-f]{32}$")]
@@ -95,9 +96,15 @@ class Scene(Record):
     parent_frame: FrameRef | None = None
     identity_asset_ids: list[AssetId] = Field(default_factory=list, max_length=8)
     model_id: str = Field(default="", max_length=200)
-    width: int = Field(default=512, ge=256, le=1024, multiple_of=8)
-    height: int = Field(default=512, ge=256, le=1024, multiple_of=8)
+    width: int = Field(default=512, ge=256, le=2048, multiple_of=8)
+    height: int = Field(default=512, ge=256, le=2048, multiple_of=8)
+    allow_long_wait: bool = False
     denoise: float = Field(default=0.25, ge=0, le=1)
+
+    @model_validator(mode="after")
+    def supported_dimensions(self):
+        validate_dimensions(self.width, self.height, self.allow_long_wait)
+        return self
 
 
 def patch_state(state: SceneState, changes: dict, remove_objects=()) -> SceneState:

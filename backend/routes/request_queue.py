@@ -6,7 +6,12 @@ router = APIRouter(prefix="/queue", tags=["queue"])
 
 @router.get("")
 async def list_queue():
-    return queue.snapshot()
+    snapshot = queue.snapshot()
+    from services.image_generation import manager
+    for job in snapshot["jobs"]:
+        if job["kind"] == "image" and job["status"] == "running":
+            job["progress"] = manager.generation_progress(job["request_id"])
+    return snapshot
 
 
 @router.post("/{job_id}/cancel")

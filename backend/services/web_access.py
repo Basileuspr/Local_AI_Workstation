@@ -2,11 +2,13 @@
 import asyncio
 import hashlib
 import ipaddress
+import io
 import json
 import re
 import socket
 import time
 import uuid
+import warnings
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from html.parser import HTMLParser
@@ -15,8 +17,10 @@ from urllib.parse import unquote, urlsplit
 from urllib.robotparser import RobotFileParser
 
 import httpx
+from PIL import Image, UnidentifiedImageError
 
 from config import settings
+from services import image_store
 
 USER_AGENT = "LocalAIWorkstation/1.0 (+https://github.com/Basileuspr/Local_AI_Workstation)"
 ACCEPT = "text/html,application/xhtml+xml;q=0.9,text/plain;q=0.8,*/*;q=0.1"
@@ -28,6 +32,11 @@ MAX_BYTES = 5 * 1024 * 1024
 MAX_TEXT = 80000
 MAX_REDIRECTS = 5
 MAX_URL = 2000
+MAX_IMAGES = 24
+MAX_IMAGE_BYTES = 10 * 1024 * 1024
+MAX_IMAGE_TOTAL = 50 * 1024 * 1024
+MAX_IMAGE_PIXELS = 40_000_000
+IMAGE_TYPES = {"image/png", "image/jpeg", "image/webp", "image/gif"}
 READABLE_TYPES = {"text/html", "application/xhtml+xml", "text/plain"}
 REDIRECT_STATUSES = {301, 302, 303, 307, 308}
 
@@ -170,7 +179,7 @@ def decode_page(body, content_type):
 
 
 class PageText(HTMLParser):
-    """Extract inert text only; never execute or load HTML assets."""
+    """Extract inert text and image candidates; never execute website HTML."""
 
     SKIP = {"script", "style", "nav", "footer", "aside", "noscript", "button",
             "svg", "form", "iframe", "template", "select", "dialog"}
@@ -185,8 +194,35 @@ class PageText(HTMLParser):
         self.title = []
         self.social_title = ""
         self.heading = []
+        self.images = []
+        self.base = ""
+        self.image_overflow = False
 
     def handle_starttag(self, tag, attrs):
+        values = dict(attrs)
+        if tag == "base" and not self.base:
+            self.base = values.get("href") or ""
+        if tag == "img" and not (set(self.stack) & (self.SKIP | {"head"})):
+            if len(self.images) >= 200:
+                self.image_overflow = True
+            else:
+                # Lazy loaders often put a tracking pixel/data URL in src.
+                source = next((values.get(key) for key in ("data-src", "data-lazy-src", "data-original")
+                               if values.get(key)), "")
+                if not source:
+                    srcset = values.get("data-srcset") or values.get("srcset") or ""
+                    choices = []
+                    for item in srcset.split(","):
+                        fields = item.strip().split()
+                        if fields:
+                            weight = re.fullmatch(r"([0-9.]+)[wx]", fields[-1]) if len(fields) > 1 else None
+                            try:
+                                choices.append((float(weight[1]) if weight else 1, fields[0]))
+                            except ValueError:
+                                continue
+                    source = max(choices, default=(0, ""))[1] or values.get("src") or ""
+                if source:
+                    self.images.append({"url": source.strip(), "alt": (values.get("alt") or "")[:300]})
         if tag not in self.VOID:
             self.stack.append(tag)
         elif tag == "meta":
@@ -236,7 +272,7 @@ class WebAccess:
         self.robots = {}
         self.lock = asyncio.Lock()
 
-    def start(self, value):
+    def start(self, value, include_images=True):
         url = normalize_url(value)
         if any(not task.done() for task in self.tasks.values()):
             raise WebError("Another web import is running. Wait or stop it first.")
@@ -246,7 +282,8 @@ class WebAccess:
             self.jobs.pop(oldest)
             self.tasks.pop(oldest, None)
         job_id = uuid.uuid4().hex
-        self.jobs[job_id] = {"id": job_id, "url": url, "status": "queued", "message": "Queued"}
+        self.jobs[job_id] = {"id": job_id, "url": url, "include_images": include_images,
+                             "status": "queued", "message": "Queued"}
         self.tasks[job_id] = asyncio.create_task(self._run(job_id))
         return self.jobs[job_id].copy()
 
@@ -301,7 +338,7 @@ class WebAccess:
                 raise WebError(f"'{host}' resolves to an address that {rejection}. That destination is blocked.")
         return addresses
 
-    async def _request(self, url, job, delay=INTERVAL, space=True):
+    async def _request(self, url, job, delay=INTERVAL, space=True, *, max_bytes=MAX_BYTES, image=False, byte_budget=None):
         async with self.lock:
             limits = self._limits()
             now = self.now()
@@ -310,9 +347,10 @@ class WebAccess:
                 raise WebError(f"Site cooldown active. Try again in {int(limits['blocked_until'] - now) + 1} seconds.")
             if len(limits["requests"]) >= HOURLY_LIMIT:
                 raise WebError(f"Hourly web limit reached ({HOURLY_LIMIT} requests). Try again later.")
+            progress = f"Image {job['image_index']} of {job['image_total']} · " if job.get("image_total") else ""
             wait = max(0, limits["next_at"] - now) if space else 0
             if wait:
-                job.update(status="waiting", message=f"Respecting request spacing ({wait:.0f}s)")
+                job.update(status="waiting", message=f"{progress}Respecting request spacing ({wait:.0f}s)")
                 await self.sleep(wait)
             original = httpx.URL(url)
             if original.scheme != "https":
@@ -327,8 +365,9 @@ class WebAccess:
             limits["next_at"] = self.now() + max(INTERVAL, delay)
             atomic_json(self.root / "limits.json", limits)
             host_header = hostname if original.port is None else f"{hostname}:{original.port}"
-            headers = {"Host": host_header, "User-Agent": USER_AGENT, "Accept": ACCEPT}
-            job.update(status="fetching", message=f"Fetching {hostname}")
+            headers = {"Host": host_header, "User-Agent": USER_AGENT,
+                       "Accept": "image/png,image/jpeg,image/webp,image/gif" if image else ACCEPT}
+            job.update(status="fetching", message=f"{progress}Fetching {hostname}")
             try:
                 async with asyncio.timeout(35):
                     async with httpx.AsyncClient(timeout=20, trust_env=False, follow_redirects=False,
@@ -345,14 +384,22 @@ class WebAccess:
                             if response.status_code in REDIRECT_STATUSES or response.status_code == 404:
                                 return response.status_code, response.headers, b""
                             response.raise_for_status()
+                            if image and response.headers.get("content-type", "").split(";")[0].strip().lower() not in IMAGE_TYPES:
+                                raise WebError("Image URL did not return a supported raster image (PNG, JPEG, WebP or GIF).")
                             body = bytearray()
                             async for chunk in response.aiter_bytes():
+                                if byte_budget is not None:
+                                    byte_budget["remaining"] -= len(chunk)
+                                    if byte_budget["remaining"] < 0:
+                                        raise WebError("The 50 MB image download budget was reached.")
                                 body.extend(chunk)
-                                if len(body) > MAX_BYTES:
-                                    raise WebError(f"Page exceeds the {MAX_BYTES // (1024 * 1024)} MB download limit.")
+                                if len(body) > max_bytes:
+                                    raise WebError(f"{'Image' if image else 'Page'} exceeds the {max_bytes // (1024 * 1024)} MB download limit.")
                             return response.status_code, response.headers, bytes(body)
             except httpx.TooManyRedirects as exc:
                 raise WebError("That address redirects in a loop.") from exc
+            except TimeoutError as exc:
+                raise WebError(f"'{hostname}' exceeded the request deadline.") from exc
             except httpx.ConnectTimeout as exc:
                 raise WebError(f"'{hostname}' did not answer in time.") from exc
             except httpx.ConnectError as exc:
@@ -403,28 +450,34 @@ class WebAccess:
     async def _run(self, job_id):
         job = self.jobs[job_id]
         try:
-            async with asyncio.timeout(240):
-                result = await self.fetch(job["url"], job)
-            job.update(status="complete", message="Ready to open in chat", source=result)
+            async with asyncio.timeout(1200 if job["include_images"] else 240):
+                result = await self.fetch(job["url"], job, include_images=job["include_images"])
+            message = f"Imported · {len(result.get('images', []))} images saved"
+            if result.get("image_warnings"):
+                message += " · Some images could not be imported; see details below"
+            job.update(status="complete", message=message, source=result)
         except asyncio.CancelledError:
             job.update(status="cancelled", message="Stopped")
         except WebError as exc:
             job.update(status="error", message=str(exc))
+        except TimeoutError:
+            job.update(status="error", message="The import reached its time limit. No source snapshot was saved.")
         except Exception as exc:
             job.update(status="error", message=f"Web import failed ({type(exc).__name__}). No automatic retry.")
 
-    async def fetch(self, url, job):
+    async def fetch(self, url, job, include_images=True):
         # ``start`` already normalizes, but this is the entry point a later
         # caller (RAG ingestion, a batch importer) would reach for, so it
         # validates its own input rather than trusting the caller to have done
         # it. Normalizing is idempotent and keeps the cache key canonical.
         url = normalize_url(url)
-        key = hashlib.sha256(url.encode()).hexdigest()
+        key = hashlib.sha256((url + ("|images-v1" if include_images else "")).encode()).hexdigest()
         path = self.root / "cache" / (key + ".json")
         if path.exists():
             try:
                 cached = json.loads(path.read_text(encoding="utf-8"))
-                if 0 <= self.now() - cached["fetched_epoch"] < CACHE_SECONDS:
+                if (0 <= self.now() - cached["fetched_epoch"] < CACHE_SECONDS
+                        and all(image_store.exists(item["src"]) for item in cached.get("images", []))):
                     return {**cached, "cached": True}
             except (OSError, ValueError, KeyError, TypeError):
                 pass
@@ -436,8 +489,16 @@ class WebAccess:
             result = await self._wikipedia(url, host, job)
         else:
             result = await self._page(url, job)
-        if not result["text"]:
-            raise WebError("No readable page text was returned.")
+        candidates = result.pop("image_candidates", [])
+        result.setdefault("image_warnings", [])
+        result["images"] = []
+        result["images_found"] = len(candidates)
+        result["include_images"] = include_images
+        if include_images:
+            await self._import_images(result, candidates, job)
+        if not result["text"] and not result["images"]:
+            detail = " " + result["image_warnings"][0] if result["image_warnings"] else ""
+            raise WebError("No readable page text or supported images were returned." + detail)
         text = result["text"][:MAX_TEXT]
         result.update({
             "id": key, "requested_url": url, "title": (result["title"] or host)[:300],
@@ -479,6 +540,7 @@ class WebAccess:
                 raise WebError(f"That link returned '{media or 'an unknown type'}', which this importer cannot read. "
                                "It imports web pages, not files such as PDFs, images, or downloads.")
             decoded = decode_page(body, headers.get("content-type"))
+            candidates, image_warnings = [], []
             if media == "text/plain":
                 text, title = decoded.strip(), ""
             else:
@@ -488,14 +550,98 @@ class WebAccess:
                 except (AssertionError, ValueError) as exc:
                     raise WebError("That page's HTML could not be read as text.") from exc
                 text, title = parser.text(), parser.page_title()
+                base = current
+                if parser.base:
+                    try:
+                        base = normalize_url(str(httpx.URL(current).join(parser.base)))
+                    except (WebError, httpx.InvalidURL):
+                        image_warnings.append("The page's unsupported image base URL was ignored.")
+                seen_images = set()
+                for candidate in parser.images:
+                    try:
+                        image_url = normalize_url(str(httpx.URL(base).join(candidate["url"])))
+                    except (WebError, httpx.InvalidURL, ValueError):
+                        image_warnings.append("An image with an unsafe or unsupported address was skipped.")
+                        continue
+                    if image_url not in seen_images:
+                        seen_images.add(image_url)
+                        candidates.append({**candidate, "url": image_url})
+                if parser.image_overflow:
+                    image_warnings.append("Image discovery stopped after 200 candidates.")
             host = httpx.URL(current).raw_host.decode("ascii")
             return {
                 "url": current, "title": title, "text": text, "status_code": status,
                 "content_type": media, "redirect_chain": chain,
                 "attribution": f"Retrieved from {host}. Rights remain with the original publisher.",
                 "license_url": None, "revision": None,
+                "image_candidates": candidates, "image_warnings": image_warnings,
             }
         raise WebError(f"That address redirected more than {MAX_REDIRECTS} times.")
+
+    async def _import_images(self, result, candidates, job):
+        byte_budget = {"remaining": MAX_IMAGE_TOTAL}
+        if len(candidates) > MAX_IMAGES:
+            result["image_warnings"].append(f"Only the first {MAX_IMAGES} images are imported per page.")
+        for index, candidate in enumerate(candidates[:MAX_IMAGES]):
+            job.update(image_index=index + 1, image_total=min(len(candidates), MAX_IMAGES),
+                       images_saved=len(result["images"]))
+            if byte_budget["remaining"] <= 0:
+                result["image_warnings"].append("The 50 MB image budget was reached; remaining images were skipped.")
+                break
+            try:
+                body, final_url = await self._image(candidate["url"], job, min(MAX_IMAGE_BYTES, byte_budget["remaining"]), byte_budget)
+                metadata = await asyncio.to_thread(self._validate_image, body)
+                reference = image_store.put_bytes(body)
+                result["images"].append({
+                    "id": f"web-{index + 1}", "src": reference,
+                    "name": candidate["alt"] or f"Image {index + 1}", "source": "web",
+                    "source_url": candidate["url"], "url": final_url, "order": index + 1,
+                    "size": len(body), **metadata,
+                })
+            except WebError as exc:
+                result["image_warnings"].append(f"Image {index + 1}: {exc}")
+                limits = self._limits()
+                if limits["blocked_until"] > self.now() or len([t for t in limits["requests"] if t > self.now() - 3600]) >= HOURLY_LIMIT:
+                    result["image_warnings"].append("Remaining images were skipped because requests are paused or the hourly budget was reached.")
+                    break
+
+    @staticmethod
+    def _validate_image(body):
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("error", Image.DecompressionBombWarning)
+                with Image.open(io.BytesIO(body)) as image:
+                    media = Image.MIME.get(image.format)
+                    if media not in IMAGE_TYPES or image.width * image.height > MAX_IMAGE_PIXELS:
+                        raise WebError("Unsupported image format or image exceeds the 40-million-pixel limit.")
+                    metadata = {"width": image.width, "height": image.height, "type": media}
+                    image.verify()
+                    return metadata
+        except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError, Image.DecompressionBombWarning) as exc:
+            raise WebError("Image data is invalid, unsupported or too large to display safely.") from exc
+
+    async def _image(self, url, job, max_bytes, byte_budget):
+        current, seen = url, {url}
+        for hop in range(MAX_REDIRECTS + 1):
+            delay = await self._check_robots(current, job)
+            status, headers, body = await self._request(current, job, delay, max_bytes=max_bytes, image=True, byte_budget=byte_budget)
+            if status in REDIRECT_STATUSES:
+                if hop == MAX_REDIRECTS:
+                    raise WebError("Image redirected too many times.")
+                location = headers.get("location")
+                if not location:
+                    raise WebError("Image redirect has no destination.")
+                try:
+                    current = normalize_url(str(httpx.URL(current).join(location)))
+                except (httpx.InvalidURL, ValueError) as exc:
+                    raise WebError(f"Image redirect is not allowed: {exc}") from exc
+                if current in seen:
+                    raise WebError("Image redirects in a loop.")
+                seen.add(current)
+                continue
+            if status == 404:
+                raise WebError("Image was not found (404).")
+            return body, current
 
     async def _wikipedia(self, url, host, job):
         # Public read-only API adapter follows Wikimedia's API etiquette;

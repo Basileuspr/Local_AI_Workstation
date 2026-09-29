@@ -1,9 +1,11 @@
 import ImageBatchControls from './ImageBatchControls';
-import ProtectedImage from "../ImagePrivacy";
+import ImageBatchOutput from './ImageBatchOutput';
+import GeneratedImagePreview from "./GeneratedImagePreview";
+import ImageViewer from "./ImageViewer";
 import { useEffect, useState } from "react";
 import { useDispatch, useRefs, useStore, profiles } from "../useStore.jsx";
 import * as api from "../api";
-import ImageRequests from "./ImageRequests";
+import ImageGenerationStatus from "./ImageGenerationStatus";
 import ImageSettingsControls from "./ImageSettingsControls";
 import ImageGenerationHelp from "./ImageGenerationHelp";
 import CustomProfileControls from "./CustomProfileControls";
@@ -11,23 +13,59 @@ import { useImageGeneration } from "../ImageGenerationContext";
 import { useAnalyzeIterate } from "../AnalyzeIterateContext";
 import ImageRequestEditor from "./ImageRequestEditor";
 import { copyImage } from "../imageClipboard";
+import { useImageDestinations } from "../ImageDestinations";
+import ImageSeedControls from "./ImageSeedControls";
+import ImageOutputFolder from "./ImageOutputFolder";
+import SaveImagePrompts from "./SaveImagePrompts";
+import { generationViewerImages } from "../generationHistory";
+import "./ImageStudio.css";
 
 export default function ImageStudio({ active = true }) {
   const state = useStore();
   const iterate = useAnalyzeIterate();
   const dispatch = useDispatch();
   const refs = useRefs();
-  const { models, loras, runtime, catalogError, loraError, isGenerating,
-    result, setResult, generate, generateBatch, stop: handleStop } = useImageGeneration();
+  const destinations = useImageDestinations();
+  const { models, loras, runtime, catalogError, connectionError, loraError, isGenerating,
+    result, setResult, batch, requests, generate, generateBatch, removeImages, stop: handleStop } = useImageGeneration();
   const [promptTokens, setPromptTokens] = useState(null);
   const [editingRequest, setEditingRequest] = useState(false);
   const [copying, setCopying] = useState(false);
+  const [openingEditor, setOpeningEditor] = useState(false);
+  const [editError, setEditError] = useState("");
+  const [imageSize, setImageSize] = useState(null);
+  const [selectedImageId, setSelectedImageId] = useState(null);
+  const viewerImages = generationViewerImages(batch ? batch.slots.filter(slot => slot.image).map(slot => slot.image) : result ? [result] : [], api.apiUrl);
+  const previewImage = result ? {
+    id: result.url, url: api.apiUrl(result.url), name: result.filename || "Generated image", seed: result.seed,
+  } : null;
+  const size = imageSize?.url === result?.url ? imageSize : null;
   const settings = state.imageSettings;
   const compatibleLoras = loras.filter(adapter => adapter.base_model_id === settings.modelId);
   const missingLora = settings.loraId && !compatibleLoras.some(adapter => adapter.id === settings.loraId);
 
   function setImageSettings(changes) {
     dispatch({ type: "SET_IMAGE_SETTINGS", payload: changes });
+  }
+
+  useEffect(() => {
+    setEditError("");
+  }, [result]);
+
+  async function handleEdit(image = previewImage) {
+    if (!image || !destinations || openingEditor) return;
+    setOpeningEditor(true);
+    setEditError("");
+    try { await destinations.take(image, "editor"); }
+    catch (error) { setEditError(error.message); }
+    finally { setOpeningEditor(false); }
+  }
+
+  async function handleCopy(image) {
+    setCopying(true);
+    try { await copyImage(image.url); dispatch({ type: "SHOW_TOAST", payload: { message: "Image copied to clipboard", type: "success" } }); }
+    catch (error) { dispatch({ type: "SHOW_TOAST", payload: { message: error.message, type: "error" } }); }
+    finally { setCopying(false); }
   }
 
   // Use the model's own tokenizer, not a character estimate, so the warning
@@ -84,8 +122,9 @@ export default function ImageStudio({ active = true }) {
         </div>
       </header>
       {catalogError && <p role="alert">{catalogError}</p>}
-      <form className="image-studio-layout" onSubmit={handleGenerate}>
-        <div className="image-studio-controls">
+      {connectionError && <p role="status">{connectionError}</p>}
+      <div className="image-studio-layout">
+        <form className="image-studio-controls" aria-label="Image generation controls" onSubmit={handleGenerate}>
           <label>Image Model
             <select value={settings.modelId} onChange={(event) => setImageSettings({ modelId: event.target.value, loraId: "" })} disabled={models.length === 0}>
               <option value="">{models.length === 0 ? "No supported image models installed" : "Select an image model"}</option>
@@ -125,31 +164,50 @@ export default function ImageStudio({ active = true }) {
           <label>Negative Prompt
             <textarea value={settings.negativePrompt} onFocus={(event) => { refs.imagePromptTarget = event.target; }} onChange={(event) => setImageSettings({ negativePrompt: event.target.value })} placeholder="Optional" />
           </label>
+          <SaveImagePrompts />
           <label className="image-long-prompt-toggle">
             <input type="checkbox" checked={settings.longPrompt !== false} onChange={(event) => setImageSettings({ longPrompt: event.target.checked })} />
             <span>Use long-prompt encoding (up to 4 chunks)</span>
           </label>
           <div className="image-settings-heading">Generation Settings</div>
-          <ImageSettingsControls settings={settings} onChange={setImageSettings} />
+          <ImageSettingsControls settings={settings} onChange={setImageSettings} resolutionLimits={runtime?.resolution_limits} />
           <ImageBatchControls settings={settings} onChange={setImageSettings} onSubmit={generateBatch} disabled={!settings.modelId || !settings.prompt.trim() || !runtime?.ready}/>
-          <ImageRequests active={active} />
+          <ImageOutputFolder value={settings.outputDir} onChange={outputDir => setImageSettings({ outputDir })} />
           <button className="analyze-iterate-button" type="button" disabled={!settings.prompt.trim() || !iterate} onClick={() => iterate.prompts()} title="Analyze and refine the current prompts for your next image">Analyze &amp; Iterate</button>
           <button className="image-generate-btn" type="submit" disabled={!settings.modelId || !settings.prompt.trim() || !runtime?.ready}>{isGenerating ? "Queue image" : "Generate"}</button>
           <button className="image-generate-btn" type="button" disabled={!settings.modelId || !runtime?.ready} onClick={() => setEditingRequest(true)}>Edit Image Request Before Send</button>
           {isGenerating && <button className="image-stop-btn" type="button" onClick={handleStop}>Stop all image requests</button>}
           <button className="image-reset-btn" type="button" onClick={handleReset} title="Clear prompts and selections, and restore generation defaults">RESET DEFAULT</button>
+          <button type="button" className="generate-shortcut" onClick={() => dispatch({ type: "SET_SIDEBAR_TAB", payload: "chats" })}>Jump to Chat →</button>
+        </form>
+        <div className="image-studio-output">
+          <ImageGenerationStatus active={active} />
+          <div className={`image-studio-result${batch ? " has-batch" : ""}`} aria-label="Generated image preview">
+          {batch ? <ImageBatchOutput batch={batch} requests={requests}
+            onRemove={removeImages}
+            onOpen={image => setSelectedImageId(image.url)}
+            onEdit={image => handleEdit(generationViewerImages([image], api.apiUrl)[0])}
+            onCopy={image => handleCopy(generationViewerImages([image], api.apiUrl)[0])}
+            editDisabled={!destinations || openingEditor} copying={copying} /> : result ? <>
+            <GeneratedImagePreview key={previewImage.url} className="image-studio-preview" src={previewImage.url} alt="Generated image"
+              onOpen={() => setSelectedImageId(result.url)}
+              onLoad={event => setImageSize({ url: result.url, width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight })} />
+            <div className="image-studio-result-actions">
+              <button type="button" className="image-generate-btn" disabled={!destinations || openingEditor} onClick={() => handleEdit()}>{openingEditor ? "Opening image…" : "Edit Image"}</button>
+              <button type="button" className="generate-copy" disabled={copying} onClick={() => handleCopy(previewImage)}>{copying ? "Copying…" : "Copy Image"}</button>
+              <button type="button" onClick={() => removeImages([result])}>Remove image</button>
+            </div>
+            <ImageSeedControls seed={result.seed} showMissing />
+            {editError && <p role="alert">{editError}</p>}
+            {result.output_warning && <p role="alert">{result.output_warning}</p>}
+            <p>{result.filename} {size ? `| ${size.width} × ${size.height} pixels` : ""} {result.generation_seconds != null ? `| generated in ${result.generation_seconds.toFixed(1)}s` : ""} {result.peak_vram_bytes ? `| peak ${(result.peak_vram_bytes / 1024 ** 3).toFixed(2)} GiB` : ""}</p>
+            <p>Click to enlarge. Hover to zoom.</p>
+          </> : <p className="image-studio-empty">Generated images will appear here and in the Images gallery.</p>}
+          {batch && editError && <p role="alert">{editError}</p>}
+          </div>
         </div>
-        <div className="image-studio-result">
-          {result && <button type="button" className="generate-copy" disabled={copying} onClick={async () => {
-            setCopying(true);
-            try { await copyImage(api.apiUrl(result.url)); dispatch({ type: "SHOW_TOAST", payload: { message: "Image copied to clipboard", type: "success" } }); }
-            catch (error) { dispatch({ type: "SHOW_TOAST", payload: { message: error.message, type: "error" } }); }
-            finally { setCopying(false); }
-          }}>{copying ? "Copying…" : "Copy Image"}</button>}
-          {result ? <><ProtectedImage src={api.apiUrl(result.url)} alt="Generated image" /><p>{result.filename} {result.generation_seconds != null ? `| generated in ${result.generation_seconds.toFixed(1)}s` : ""} {result.peak_vram_bytes ? `| peak ${(result.peak_vram_bytes / 1024 ** 3).toFixed(2)} GiB` : ""}</p></> : <p>Generated images will appear here and in the Images gallery.</p>}
-        </div>
-      </form>
-      <button type="button" className="generate-shortcut" onClick={() => dispatch({ type: "SET_SIDEBAR_TAB", payload: "chats" })}>Jump to Chat →</button>
+      </div>
+      <ImageViewer images={viewerImages} selectedId={selectedImageId} onSelect={setSelectedImageId} onClose={() => setSelectedImageId(null)} active={active} onRemove={images => removeImages(images.map(image => ({url:image.id})))} />
       {editingRequest && <ImageRequestEditor settings={settings} models={models} loras={loras} runtime={runtime} loraError={loraError} onClose={() => setEditingRequest(false)} onSend={request => {
         setEditingRequest(false); setImageSettings(request); void generate(request);
       }} />}

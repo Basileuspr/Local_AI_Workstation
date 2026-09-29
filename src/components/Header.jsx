@@ -3,8 +3,7 @@ import { useStore, useDispatch } from "../useStore.jsx";
 import * as api from "../api";
 import { formatModelLabel } from "../modelCatalog";
 import { formatTokenEstimate, getContextStatus, getContextUsage } from "../contextMemory";
-import { buildRoleplaySystemPrompt } from "../roleplayPrompt";
-import { mergeSystemPrompt } from "../responseStyle";
+import {chatInfluences} from '../chatInfluences';
 import { describeStatus, statusIndicator } from "../serviceStatus";
 import ModelOrder from "./ModelOrder";
 import KnowledgeContext from "./KnowledgeContext";
@@ -50,11 +49,7 @@ export default function Header({ onSessionRenamed, onCompactMemory }) {
     : chatStatus.label;
 
   const selectedModelInfo = models.find((model) => model.name === selectedModel);
-  const contextSystemPrompt = mergeSystemPrompt({
-    basePrompt: systemPrompt,
-    roleplayPrompt: buildRoleplaySystemPrompt("", roleplay),
-    responseStyle,
-  });
+  const contextSystemPrompt = chatInfluences(state).systemPrompt;
   const contextUsage = getContextUsage({
     messages: conversationHistory,
     memorySummary,

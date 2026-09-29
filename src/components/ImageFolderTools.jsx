@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as api from "../imageLibraryApi";
 import { processBatch, batchFeedback } from "../bulkActions";
+import {useImageRemoval} from './ImageRemovalControls';
 
 export function FolderEditor({ folder, onClose, onSaved }) {
   const dialog = useRef(null);
@@ -25,9 +26,14 @@ export default function FileImagesDialog({ images, folders, onClose, createNew =
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState("");
   const remaining = useRef(images);
+  const [pending,setPending]=useState(images);
+  const removal=useImageRemoval(pending, removed=>{
+    const next=remaining.current.filter(image=>!removed.includes(image));
+    remaining.current=next;setPending(next);
+  },{label:'images to file',disabled:busy,key:image=>images.indexOf(image)});
   useEffect(() => { dialog.current.showModal(); }, []);
   async function save(event) {
-    event.preventDefault(); if (busy) return;
+    event.preventDefault(); if (busy || !remaining.current.length) return;
     setBusy(true);
     try {
       const id = newName.trim() ? (await api.folder(newName)).id : destination;
@@ -43,18 +49,20 @@ export default function FileImagesDialog({ images, folders, onClose, createNew =
         return api.importSource(api.sourceFor(image), id);
       });
       remaining.current = result.failed.map(item => item.item);
+      setPending(remaining.current);
       setFeedback(batchFeedback(result, "Added to folder:")); api.changed();
       if (!result.failed.length) onClose();
     } catch (error) { setFeedback(error.message); }
     finally { setBusy(false); }
   }
   return <dialog ref={dialog} className="collection-dialog" aria-label="Add images to folder" onCancel={event => { if (busy) event.preventDefault(); }} onClose={onClose}>
-    <form onSubmit={save}><h2>Add {images.length} image(s) to a folder</h2>
+    <form onSubmit={save}><h2>Add {pending.length} image(s) to a folder</h2>
+      {removal.toolbar}<ul>{pending.map(image=><li key={images.indexOf(image)}>{image.name || image.filename || 'Image'}{removal.controls(image,image.name || image.filename || `image ${images.indexOf(image)+1}`)}</li>)}</ul>
       {!createNew && <label>Choose folder<select value={destination} onChange={event => setDestination(event.target.value)}><option value="">Choose…</option>{folders.map(folder => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></label>}
       <label>{createNew ? "New folder name" : "Or create a folder"}<input autoFocus={createNew} value={newName} maxLength={120} onChange={event => setNewName(event.target.value)} placeholder="Folder name" /></label>
       <p>Folder images are saved copies with links to their source. Removing a source chat won't remove these copies.</p>
       {feedback && <p role="status">{feedback}</p>}
-      <footer><button type="button" disabled={busy} onClick={onClose}>Close</button><button disabled={busy || (createNew && !newName.trim() && !destination)}>{busy ? "Saving…" : "Add to folder"}</button></footer>
+      <footer><button type="button" disabled={busy} onClick={onClose}>Close</button><button disabled={busy || !pending.length || (createNew && !newName.trim() && !destination)}>{busy ? "Saving…" : "Add to folder"}</button></footer>
     </form>
   </dialog>;
 }

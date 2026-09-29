@@ -3,7 +3,7 @@ import { attachPlayback } from './playback.js';
 import { createLocalAdapter } from './adapter.js';
 import { mediaActions } from './actions.js';
 import { imageTools } from './image-tools.js';
-import { mediaBatchSizes, mediaBatchSize, mediaType, bytes, timelineGroups, dateKey, dateLabel, duplicateGroups, durationLabel, filterRecords, needsReview, yearKey } from './library.js';
+import { availableRecords, mediaBatchSizes, mediaBatchSize, mediaType, bytes, timelineGroups, dateKey, dateLabel, duplicateGroups, durationLabel, filterRecords, needsReview, yearKey } from './library.js';
 
 const escape = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 const paths = {
@@ -29,7 +29,7 @@ export class MediaOrganizer extends HTMLElement {
     this.adapter ||= createLocalAdapter();
     this.data = null;
     this.restoreScope = true;
-    this.filters = { query: '', year: '', category: '', review: false, order: 'newest' };
+    this.filters = { query: '', year: '', category: '', review: false, order: 'newest', showDuplicates: false };
     this.pageSize = 50;
     try { this.pageSize = mediaBatchSize(localStorage.getItem('mo-page-size')); } catch {}
     this.limit = this.pageSize;
@@ -77,7 +77,7 @@ export class MediaOrganizer extends HTMLElement {
           <details id="mo-job-details" hidden><summary>Operation report</summary><pre></pre></details>
           <section id="mo-library" class="mo-library" aria-labelledby="mo-library-title" tabindex="-1">
             <div class="mo-library-heading"><div><h2 id="mo-library-title">Your media, by date <span id="mo-count">0</span></h2><p id="mo-scope-description">One timeline across every folder and category.</p></div><div class="mo-segmented" aria-label="Media layout"><label>Group by<select id="mo-grouping" aria-label="Group media by"><option value="day">Day</option><option value="month" selected>Month</option><option value="year">Year</option><option value="none">No groups</option></select></label><button data-view="gallery" aria-label="Large gallery view" aria-pressed="false">Large previews</button><button data-view="grid" aria-label="Grid view" aria-pressed="true">${icon('grid')}</button><button data-view="list" aria-label="List view" aria-pressed="false">${icon('list')}</button></div></div>
-            <div class="mo-filters"><label class="mo-search">${icon('search')}<input id="mo-search" type="search" placeholder="Search filenames, folders, or categories" aria-label="Search media"></label><select id="mo-category" aria-label="Filter by category"><option value="">All categories</option></select><select id="mo-order" aria-label="Sort media"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="duration-desc">Duration · longest first</option><option value="duration-asc">Duration · shortest first</option><option value="size-desc">Size · largest first</option><option value="size-asc">Size · smallest first</option><option value="type-asc">Type / codec</option><option value="name-asc">Filename · A–Z</option><option value="name-desc">Filename · Z–A</option><option value="resolution-desc">Resolution · highest first</option><option value="fps-desc">Frame rate · highest first</option><option value="bitrate-desc">Bit rate · highest first</option></select><button id="mo-review" aria-pressed="false">Needs review <span id="mo-review-count">0</span></button></div>
+            <div class="mo-filters"><label class="mo-search">${icon('search')}<input id="mo-search" type="search" placeholder="Search filenames, folders, or categories" aria-label="Search media"></label><select id="mo-category" aria-label="Filter by category"><option value="">All categories</option></select><select id="mo-order" aria-label="Sort media"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="duration-desc">Duration · longest first</option><option value="duration-asc">Duration · shortest first</option><option value="size-desc">Size · largest first</option><option value="size-asc">Size · smallest first</option><option value="type-asc">Type / codec</option><option value="name-asc">Filename · A–Z</option><option value="name-desc">Filename · Z–A</option><option value="resolution-desc">Resolution · highest first</option><option value="fps-desc">Frame rate · highest first</option><option value="bitrate-desc">Bit rate · highest first</option></select><button id="mo-review" aria-pressed="false">Needs review <span id="mo-review-count">0</span></button><button id="mo-show-duplicates" aria-pressed="false" title="Show extra copies of identical files">Show duplicates</button></div>
             <details class="mo-advanced-filters"><summary>More filters · type, duration, size, audio, Trash</summary><div class="mo-frame-options"><label>Type / codec<select id="mo-type"><option value="">All types</option></select></label><label>Library status<select id="mo-library-status"><option value="">Active media</option><option value="trash">Recoverable Trash</option></select></label><label>Audio<select id="mo-audio"><option value="">Any audio</option><option value="sound">Has audio</option><option value="silent">No audio</option></select></label><label>Minimum duration (seconds)<input id="mo-minDuration" type="number" min="0" step="any"></label><label>Maximum duration (seconds)<input id="mo-maxDuration" type="number" min="0" step="any"></label><label>Minimum size (MiB)<input id="mo-minSize" type="number" min="0" step="any"></label><label>Maximum size (MiB)<input id="mo-maxSize" type="number" min="0" step="any"></label></div></details>
             <div id="mo-user-tags" class="mo-category-tags" role="group" aria-label="Custom tag filters"></div>
             <div id="mo-category-tags" class="mo-category-tags" role="group" aria-label="Category filter tags" hidden></div>
@@ -113,10 +113,37 @@ export class MediaOrganizer extends HTMLElement {
     this.renderLibrary();
     try { if (sessionStorage.getItem('mo-active-tab') === 'duplicates') this.switchTab('duplicates'); } catch {}
     this.poll();
+    this.checkAvailability = () => { void this.refreshAvailability(); };
+    window.addEventListener('focus', this.checkAvailability);
+    document.addEventListener('visibilitychange', this.checkAvailability);
+    this.availabilityTimer = setInterval(this.checkAvailability, 15000);
   }
   disconnectedCallback() {
+    clearInterval(this.availabilityTimer);
+    window.removeEventListener('focus', this.checkAvailability);
+    document.removeEventListener('visibilitychange', this.checkAvailability);
+    this.libraryRequest = (this.libraryRequest || 0) + 1;
     this.rotationObserver?.disconnect(); clearTimeout(this.timer); this.initialized = false; }
   $(selector) { return this.querySelector(selector); }
+  async refreshAvailability() {
+    // Recheck real paths without resetting filters, selection, pagination or playback.
+    if (!this.isConnected || document.hidden || this.busy || this.checkingAvailability || !this.data || this.querySelector('dialog[open]')) return;
+    const previous = this.data, request = this.libraryRequest;
+    this.checkingAvailability = true;
+    try {
+      const data = await this.adapter.library(previous.uiRunId);
+      if (!this.isConnected || this.busy || this.querySelector('dialog[open]') || this.data !== previous || this.libraryRequest !== request) return;
+      if (JSON.stringify(data.records) !== JSON.stringify(previous.records)) {
+        this.data = data;
+        this.updatePlan();
+        this.renderLibrary();
+      }
+    } catch {
+      // A failed check is not evidence that every file disappeared. Retry later.
+    } finally {
+      this.checkingAvailability = false;
+    }
+  }
   async poll() {
     if (!this.isConnected) return;
     try { await this.refresh(); }
@@ -230,13 +257,14 @@ export class MediaOrganizer extends HTMLElement {
     this.$('#mo-search').addEventListener('input', event => { this.filters.query = event.target.value; this.limit = this.pageSize; this.renderLibrary(); });
     for (const key of ['category', 'order']) this.$(`#mo-${key}`).addEventListener('change', event => { this.filters[key] = event.target.value; this.limit = this.pageSize; this.renderLibrary(); });
     this.$('#mo-review').addEventListener('click', () => { this.filters.review = !this.filters.review; this.limit = this.pageSize; this.renderLibrary(); });
+    this.$('#mo-show-duplicates').addEventListener('click', () => { this.filters.showDuplicates = !this.filters.showDuplicates; this.limit = this.pageSize; this.renderLibrary(); });
     this.querySelectorAll('[data-view]').forEach(button => button.addEventListener('click', () => { this.view = button.dataset.view;try{localStorage.setItem('mo-view',this.view);}catch{} this.renderLibrary(); }));
     this.$('#mo-move').addEventListener('click', () => this.confirmMove());
     this.$('#mo-detail').addEventListener('close', () => { this.$('#mo-detail').innerHTML = ''; });
   }
   newScan() {
     this.libraryRequest = (this.libraryRequest || 0) + 1;
-    this.data = null; this.selected.clear(); this.filters = { query:'', year:'', category:'', review:false, order:'newest' };
+    this.data = null; this.selected.clear(); this.filters = { query:'', year:'', category:'', review:false, order:'newest', showDuplicates:false };
     this.$('#mo-history').value = this.$('#mo-duplicate-history').value = '';
     this.$('#mo-source').value = this.$('#mo-destination').value = this.$('#mo-search').value = '';
     try { sessionStorage.setItem('mo-library-scope', ''); } catch {}
@@ -324,7 +352,7 @@ export class MediaOrganizer extends HTMLElement {
     this.customFolders = this.data.customFolders || this.customFolders;
     this.selected.clear();
     this.planDirty = false;
-    this.filters = { query: '', year: '', category: '', review: false, order: 'newest' };
+    this.filters = { query: '', year: '', category: '', review: false, order: 'newest', showDuplicates: false };
     this.limit = this.pageSize;
     this.duplicateFilters = { query: '', year: '', order: 'newest' };
     this.duplicateLimit = 12;
@@ -344,7 +372,7 @@ export class MediaOrganizer extends HTMLElement {
   }
   renderLibrary() {
     this.renderDuplicates();
-    const records = this.data?.records || [];
+    const records = availableRecords(this.data?.records || []);
     const scope = this.$('#mo-scope-description');
     scope.textContent = this.data?.aggregate ? `All videos across ${this.data.folderCount} scanned folders · ${this.data.scanCount} saved scans. Years use each video's resolved media date.${this.data.readErrors.length ? ` ${this.data.readErrors.length} saved scan(s) could not be read.` : ''}` : this.data ? `This saved scan: ${this.data.run.source_root}` : 'Scan folders to add their videos, then choose All videos to browse them together.';
     scope.title=(this.data?.readErrors || []).map(item=>`${item.scan}: ${item.error}`).join('\n');scope.classList.toggle('mo-warning',Boolean(this.data?.readErrors?.length));
@@ -356,6 +384,9 @@ export class MediaOrganizer extends HTMLElement {
     this.$('#mo-years').innerHTML = [{ key: '', name: 'All dates', count: records.length }, ...years.map(key => ({ key, name: key === 'Unknown' ? 'Unknown date' : key, count: records.filter(r => yearKey(r) === key).length }))].map(item => `<button class="mo-year" data-year="${item.key}" aria-pressed="${this.filters.year === item.key}"><span>${item.name}</span><span>${item.count}</span></button>`).join('');
     this.querySelectorAll('[data-year]').forEach(button => button.addEventListener('click', () => { this.filters.year = button.dataset.year; try { if(this.data?.aggregate) sessionStorage.setItem('mo-library-year:all-scans', this.filters.year); } catch {} this.limit = this.pageSize; this.renderLibrary(); this.$(`[data-year="${button.dataset.year}"]`).focus(); }));
     this.$('#mo-review').setAttribute('aria-pressed', String(this.filters.review));
+    this.$('#mo-show-duplicates').setAttribute('aria-pressed', String(this.filters.showDuplicates === true));
+    this.$('#mo-show-duplicates').disabled = this.filters.status === 'trash';
+    this.$('#mo-show-duplicates').title = this.filters.status === 'trash' ? 'Trash always shows every copy for recovery' : 'Show extra copies of identical files';
     this.$('#mo-review-count').textContent = records.filter(needsReview).length;
     this.querySelectorAll('[data-view]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.view === this.view)));
     const filtered = filterRecords(records, this.filters);
@@ -364,8 +395,14 @@ export class MediaOrganizer extends HTMLElement {
     this.$('#mo-count').textContent = filtered.length;
     const result = this.$('#mo-results');
     if (!filtered.length) {
+      const unavailable = this.data?.records.length && !records.length;
       result.innerHTML = `<div class="mo-empty"><span class="mo-empty-icon">${icon(records.length ? 'search' : 'film')}</span><h3>${records.length ? 'No matching videos' : this.data ? 'No MP4 files in this scan' : 'Your timeline starts here'}</h3><p>${records.length ? 'Try another date, category, or search.' : this.data ? 'Choose another source folder and scan again.' : 'Choose a source and destination above, then scan.<br>Your videos will appear here, grouped by date.'}</p>${records.length ? '<button id="mo-clear">Clear filters</button>' : '<span class="mo-empty-note">01 Choose folders <span>→</span> 02 Scan & preview <span>→</span> 03 Review & move</span>'}</div>`;
-      this.$('#mo-clear')?.addEventListener('click', () => { this.filters = { query: '', year: '', category: '', review: false, order: 'newest' }; this.$('#mo-search').value = ''; this.$('#mo-category').value = ''; this.$('#mo-order').value = 'newest'; this.renderLibrary(); });
+      if (unavailable) {
+        result.querySelector('h3').textContent = 'No available videos';
+        result.querySelector('p').textContent = 'Files at the saved locations could not be found. Reconnect their drive, or scan the folder they moved to.';
+        result.querySelector('.mo-empty-note')?.remove();
+      }
+      this.$('#mo-clear')?.addEventListener('click', () => { this.filters = { query: '', year: '', category: '', review: false, order: 'newest', showDuplicates: false }; this.$('#mo-search').value = ''; this.$('#mo-category').value = ''; this.$('#mo-order').value = 'newest'; this.renderLibrary(); });
       return;
     }
     const groups = timelineGroups(filtered, this.grouping, this.filters.order);
@@ -445,7 +482,7 @@ export class MediaOrganizer extends HTMLElement {
   }
   canSelect(row) { return Boolean(!row.Trashed && row.Available && row.SHA256 && ['OK', 'OK_WITH_WARNINGS'].includes(row.IntegrityStatus)); }
   updateSelection() {
-    const records = this.data?.records || [];
+    const records = availableRecords(this.data?.records || []);
     const eligible = new Set(records.filter(row => this.canSelect(row)).map(row => row.RecordId));
     this.selected.forEach(id => { if (!eligible.has(id)) this.selected.delete(id); });
     const matching = filterRecords(records, this.filters).filter(row => this.canSelect(row));
@@ -466,7 +503,7 @@ export class MediaOrganizer extends HTMLElement {
     });
   }
   renderCustomFolders() {
-    const records = this.data?.records || [];
+    const records = availableRecords(this.data?.records || []);
     const saved = [...this.customFolders].sort((a, b) => a.name.localeCompare(b.name));
     const active = saved.find(folder => folder.id === this.filters.folder);
     this.$('#mo-library-title').firstChild.textContent = active ? `${active.name} ` : this.data?.aggregate ? 'All videos, by date ' : 'Your media, by date ';

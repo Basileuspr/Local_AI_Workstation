@@ -15,6 +15,8 @@ export const defaultImageSettings = {
   loraId: "",
   loraScale: 1,
   longPrompt: true,
+  allowLongWait: false,
+  outputDir: "",
 };
 
 const DEFAULT_PREFERENCES = {

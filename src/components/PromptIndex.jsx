@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useDispatch } from "../useStore.jsx";
 import * as api from "../api";
 import BulkActions, { SelectionCheckbox } from "./BulkActions";
+import SaveImagePrompts from "./SaveImagePrompts";
 import { useSelection, useBatchAction } from "../useSelection";
 
 const EMPTY_ENTRY = { title: "", content: "", source: "", tags: "" };
@@ -229,7 +230,10 @@ export default function PromptIndex({ active = true }) {
           <div className="prompt-index-eyebrow">Reference Library</div>
           <h1>Prompt Index</h1>
         </div>
-        <button className="prompt-index-add" type="button" onClick={openNewEntry} disabled={batch.busy || saving}>+ Add entry</button>
+        <div className="save-image-prompts-actions">
+          <SaveImagePrompts label="Import from Generate" onSaved={refreshEntries} />
+          <button className="prompt-index-add" type="button" onClick={openNewEntry} disabled={batch.busy || saving}>+ Add entry</button>
+        </div>
       </header>
 
       <div className="prompt-index-toolbar">

@@ -5,11 +5,13 @@ from __future__ import annotations
 import gc
 import json
 import logging
+import secrets
 import threading
 import time
 import uuid
 from datetime import datetime
 from pathlib import Path
+from PIL.PngImagePlugin import PngInfo
 
 
 from config import settings
@@ -20,6 +22,26 @@ OUTPUT_DIR = settings.generated_images_dir
 SUPPORTED_PIPELINES = {"StableDiffusionXLPipeline"}
 LONG_PROMPT_MAX_CHUNKS = 4
 _TOKENIZER_CACHE: dict[str, tuple] = {}
+
+
+class _ExecutionDeviceTextEncoder:
+    """Compel must return embeddings to the execution device, never meta storage.
+
+    Compel 2.x moves weighted embeddings to text_encoder.device after forward.
+    Accelerate's sequential hooks have already returned the weights to meta at
+    that point. Keep the real encoder and its hooks intact; only its Compel view
+    reports the execution device instead of the offloaded parameter device.
+    """
+
+    def __init__(self, encoder, device):
+        self._encoder = encoder
+        self.device = device
+
+    def __getattr__(self, name):
+        return getattr(self._encoder, name)
+
+    def __call__(self, *args, **kwargs):
+        return self._encoder(*args, **kwargs)
 
 
 class ImageGenerationCancelled(RuntimeError):
@@ -138,6 +160,7 @@ class ImageGenerationManager:
 
     def runtime_status(self) -> dict:
         from services.capabilities import IMAGE_PACKAGES, missing_packages
+        from services.image_generation_limits import current_resolution_limits
         try:
             import torch
             cuda_available = torch.cuda.is_available()
@@ -159,6 +182,7 @@ class ImageGenerationManager:
             "loaded_model": self._model_id,
             "offload_strategy": self._offload_strategy if self._pipeline is not None else "automatic",
             "active_request_id": self.active_request_id(),
+            "resolution_limits": current_resolution_limits(),
         }
 
     def _unload(self) -> None:
@@ -253,7 +277,20 @@ class ImageGenerationManager:
         pipeline.set_progress_bar_config(disable=True)
         self._active_pipeline = pipeline
 
-    def workflow_pipeline(self, model, operation, context):
+    def _configure_wait_mode(self, allow_long_wait):
+        from services.capabilities import image_offload_strategy
+        from services.image_generation_limits import current_resolution_limits
+        desired = "sequential" if allow_long_wait else image_offload_strategy(current_resolution_limits()["vram_bytes"])
+        if desired == self._offload_strategy:
+            return
+        # Shared workflow modules must have only one active offload hook chain.
+        if self._active_pipeline is not None:
+            self._active_pipeline.remove_all_hooks()
+            self._active_pipeline.to("cpu")
+            self._active_pipeline = None
+        self._offload_strategy = desired
+
+    def workflow_pipeline(self, model, operation, context, allow_long_wait=False):
         from contextlib import contextmanager
 
         @contextmanager
@@ -263,6 +300,7 @@ class ImageGenerationManager:
             with self._lock:
                 context.check_cancelled()
                 self._load(model)
+                self._configure_wait_mode(allow_long_wait)
                 context.check_cancelled()
                 if self._lora_id is not None:
                     self._activate_pipeline(self._pipeline)
@@ -295,6 +333,26 @@ class ImageGenerationManager:
         with self._lock:
             self._unload()
 
+    def park_for_chat(self) -> None:
+        """Free VRAM while retaining one SDXL model in RAM when there is room."""
+        import psutil
+        with self._lock:
+            if self._pipeline is None:
+                return
+            self._compel = None  # cached conditioning can own CUDA tensors
+            if self._active_pipeline is not None:
+                self._active_pipeline.remove_all_hooks()
+                self._active_pipeline.to("cpu")
+                self._active_pipeline = None
+            memory = psutil.virtual_memory()
+            # Reserve RAM for Windows and Ollama loading/KV data. Low-memory
+            # machines retain the previous full-unload behavior.
+            if memory.available < max(8 * 1024 ** 3, memory.total // 4):
+                self._unload()
+            else:
+                import torch
+                torch.cuda.empty_cache()
+
     def active_request_id(self) -> str | None:
         with self._cancel_state_lock:
             return self._active_request_id
@@ -305,7 +363,15 @@ class ImageGenerationManager:
             if progress is None:
                 return None
             result = dict(progress)
-        result["elapsed_seconds"] = round(time.monotonic() - result.pop("started"), 1)
+        now = time.monotonic()
+        result["elapsed_seconds"] = round(now - result.pop("started"), 1)
+        denoising_started = result.pop("denoising_started", None)
+        step_elapsed = result.pop("step_elapsed", None)
+        step, total = result.get("step", 0), result.get("total_steps", 0)
+        if denoising_started is not None and step_elapsed is not None and 0 < step < total:
+            # Exclude loading/prompt setup. Subtract time since the last completed step.
+            estimate = step_elapsed / step * (total - step) - (now - denoising_started - step_elapsed)
+            result["estimated_remaining_seconds"] = round(max(0, estimate), 1)
         return result
 
     def _update_progress(self, request_id: str, **values) -> None:
@@ -351,6 +417,9 @@ class ImageGenerationManager:
             raise RuntimeError("Long-prompt support is unavailable; install the image-generation requirements") from exc
         if self._compel is None:
             self._compel = CompelForSDXL(self._pipeline, device="cuda")
+            for compel in (self._compel.compel_1, self._compel.compel_2):
+                provider = compel.conditioning_provider
+                provider.text_encoder = _ExecutionDeviceTextEncoder(provider.text_encoder, "cuda")
         conditioning = self._compel(prompt, negative_prompt=negative_prompt or "")
         return {
             "prompt_embeds": conditioning.embeds,
@@ -401,7 +470,11 @@ class ImageGenerationManager:
         long_prompt: bool = True,
         request_id: str | None = None,
         cancellation_event: threading.Event | None = None,
+        allow_long_wait: bool = False,
+        on_gpu_complete=None,
     ) -> dict:
+        from services.image_generation_limits import current_resolution_limits, validate_dimensions
+        validate_dimensions(width, height, allow_long_wait, current_resolution_limits())
         models = {model["id"]: model for model in discover_models()}
         model = models.get(model_id)
         if not model:
@@ -413,6 +486,7 @@ class ImageGenerationManager:
             owner = gpu_coordinator.current_owner() or "another local task"
             raise RuntimeError(f"Image generation is paused while {owner} owns the GPU.")
         started = time.monotonic()
+        gpu_finished = False
         try:
             cancel_event = cancellation_event if cancellation_event is not None else threading.Event()
             with self._cancel_state_lock:
@@ -424,6 +498,7 @@ class ImageGenerationManager:
                 if training_manager.is_active():
                     raise RuntimeError("Image generation is paused while local LoRA training owns the GPU.")
                 self._load(model)
+                self._configure_wait_mode(allow_long_wait)
                 self._activate_pipeline(self._pipeline)
                 if cancel_event.is_set():
                     raise ImageGenerationCancelled("Image generation stopped")
@@ -445,13 +520,14 @@ class ImageGenerationManager:
 
                 torch.cuda.empty_cache()
                 torch.cuda.reset_peak_memory_stats()
-                generator = None
-                if seed is not None:
-                    generator = torch.Generator(device="cuda").manual_seed(seed)
+                if seed is None:
+                    seed = secrets.randbelow(2_147_483_648)
+                generator = torch.Generator(device="cuda").manual_seed(seed)
 
                 def step_completed(_pipeline, step, _timestep, callback_kwargs):
                     self._raise_if_cancelled(cancel_event, callback_kwargs)
-                    self._update_progress(request_id, step=min(step + 1, steps), phase="Decoding image" if step + 1 >= steps else "Generating image")
+                    self._update_progress(request_id, step=min(step + 1, steps), step_elapsed=time.monotonic() - denoising_started,
+                                          phase="Decoding image" if step + 1 >= steps else "Generating image")
                     return callback_kwargs
 
                 pipeline_args = {
@@ -468,41 +544,62 @@ class ImageGenerationManager:
                     pipeline_args.update(prompt=prompt, negative_prompt=negative_prompt or None)
                 if cancel_event.is_set():
                     raise ImageGenerationCancelled("Image generation stopped")
+                denoising_started = time.monotonic()
+                self._update_progress(request_id, phase="Generating image", denoising_started=denoising_started)
                 result = self._pipeline(**pipeline_args)
                 if cancel_event.is_set():
                     raise ImageGenerationCancelled("Image generation stopped")
                 torch.cuda.synchronize()
                 peak_vram_bytes = torch.cuda.max_memory_allocated()
+                image = result.images[0]
+                del result, pipeline_args, generator
 
-                OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-                output_id = uuid.uuid4().hex
-                filename = f"{datetime.now().strftime('%Y%m%d-%H%M%S')}-{output_id[:8]}.png"
-                output_path = OUTPUT_DIR / filename
-                self._update_progress(request_id, phase="Saving image")
-                result.images[0].save(output_path, format="PNG")
+            # Pixels are now on CPU and no pipeline tensors are used below.
+            # Let the next GPU job run while this worker encodes/saves the PNG.
+            gpu_finished = True
+            gpu_coordinator.release(lease_owner)
+            self._update_progress(request_id, phase="Saving image")
+            if on_gpu_complete is not None:
+                on_gpu_complete()
+            if cancel_event.is_set():
+                raise ImageGenerationCancelled("Image generation stopped")
+            OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+            output_id = uuid.uuid4().hex
+            filename = f"{datetime.now().strftime('%Y%m%d-%H%M%S')}-{output_id[:8]}.png"
+            output_path = OUTPUT_DIR / filename
+            metadata = PngInfo()
+            metadata.add_text("local_ai_seed", str(seed))
+            partial_path = output_path.with_suffix(".png.part")
+            try:
+                image.save(partial_path, format="PNG", pnginfo=metadata)
+                partial_path.replace(output_path)
+            finally:
+                partial_path.unlink(missing_ok=True)
 
-                return {
-                    "id": output_id,
-                    "filename": filename,
-                    "model_id": model_id,
-                    "width": width,
-                    "height": height,
-                    "seed": seed,
-                    "peak_vram_bytes": peak_vram_bytes,
-                    "generation_seconds": round(time.monotonic() - started, 2),
-                    "long_prompt_used": bool(long_prompt and needs_long_prompt),
-                    "url": f"/image-generation/outputs/{filename}",
-                }
-        except (MemoryError, RuntimeError) as exc:
+            return {
+                "id": output_id,
+                "filename": filename,
+                "model_id": model_id,
+                "width": width,
+                "height": height,
+                "seed": seed,
+                "peak_vram_bytes": peak_vram_bytes,
+                "generation_seconds": round(time.monotonic() - started, 2),
+                "long_prompt_used": bool(long_prompt and needs_long_prompt),
+                "url": f"/image-generation/outputs/{filename}",
+            }
+        except Exception as exc:
+            # Failed/cancelled calls skip Diffusers' end-of-call hook cleanup.
+            # Discard that runtime before another image can reuse stale hooks.
+            # CPU output failures must never touch the next job's pipeline.
+            if not gpu_finished:
+                with self._lock:
+                    try:
+                        self._unload()
+                    except Exception:
+                        logging.getLogger(__name__).warning("Could not fully release failed image runtime", exc_info=True)
             if not isinstance(exc, MemoryError) and "out of memory" not in str(exc).lower():
                 raise
-            # Drop partially loaded pipelines before releasing the GPU lease.
-            # Never silently shrink the user's image or replay an expensive job.
-            with self._lock:
-                try:
-                    self._unload()
-                except Exception:
-                    logging.getLogger(__name__).warning("Could not fully release image runtime after memory exhaustion", exc_info=True)
             raise RuntimeError(
                 "Image generation ran out of memory on this PC. Try a smaller image, close other GPU-heavy apps, "
                 "or use a smaller model. This request was not retried. If memory remains occupied, reset the idle "

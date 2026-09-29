@@ -8,9 +8,11 @@ import BulkActions, { SelectionCheckbox } from "./BulkActions";
 import { useSelection, useBatchAction } from "../useSelection";
 import * as api from "../imageLibraryApi";
 import FileImagesDialog from "./ImageFolderTools";
+import { useImageDestinations } from "../ImageDestinations";
 
 export default function CollectionImages({ images, folders = [], tags = [], title = "Saved Images", active = true, onOpenSource, onLock, extraActions = [], folderId, searchQuery, compactView, workspace = false }) {
   const iterate = useAnalyzeIterate();
+  const destinations = useImageDestinations();
   const [localQuery, setQuery] = useState("");
   const [localCompact, setCompact] = useState(true);
   const query = searchQuery ?? localQuery;
@@ -30,6 +32,7 @@ export default function CollectionImages({ images, folders = [], tags = [], titl
       <input type="search" aria-label={`Search ${title}`} value={query} onChange={event => { setQuery(event.target.value); setPage(0); }} placeholder="Search names…" /></>}
       <BulkActions selection={selection} items={filtered} label="images" batch={batch} actions={[
         ...extraActions,
+        ...(destinations ? [{ label: "Make GIF from selected", onClick: images => destinations.openGifMaker({ images }) }] : []),
         { label: "Add selected to folder", onClick: setFiling },
         ...(folderId ? [{ label: "Remove selected from folder", onClick: items => apply(items, item => api.edit(item.id, { folder_ids: item.folder_ids.filter(id => id !== folderId) }), "Removed from folder:") }] : []),
         ...(onLock ? [{ label: "Lock selected images", onClick: onLock }] : []),
@@ -46,7 +49,7 @@ export default function CollectionImages({ images, folders = [], tags = [], titl
       {selection.has(image) && <ImageItemActions image={image} />}
     </div>)}</div>
     <ImageViewer active={active && !selection.enabled} selectedId={view} images={filtered.map(image => ({ ...image, session_id: image.origin?.session_id, message_id: image.origin?.message_id, caption: image.rating ? `Preference: ${image.rating}` : "Not rated" }))} onClose={() => setView(null)} onSelect={setView} onOpenSource={onOpenSource} onAnalyze={iterate?.image}
-      actions={image => <><div className="collection-annotations"><p>{image.annotations?.caption || "No caption yet."}</p><p>{tags.filter(tag => image.tag_ids?.includes(tag.id)).map(tag => tag.name).join(" · ") || "No image tags yet."}</p></div><button type="button" onClick={() => { setView(null); setFiling([image]); }}>Add to folder</button>{onLock && <button type="button" onClick={() => { setView(null); onLock([image]); }}>Lock image</button>}</>} />
+      actions={image => <><div className="collection-annotations"><p>{image.annotations?.caption || "No caption yet."}</p><p>{tags.filter(tag => image.tag_ids?.includes(tag.id)).map(tag => tag.name).join(" · ") || "No image tags yet."}</p></div><button type="button" onClick={() => { setView(null); setFiling([image]); }}>Add to folder</button>{onLock && <button type="button" onClick={() => { setView(null); onLock([image], () => setView(image.id)); }}>Lock image</button>}</>} />
     {filing && <FileImagesDialog images={filing} folders={folders} onClose={() => setFiling(null)} />}
   </section>;
 }

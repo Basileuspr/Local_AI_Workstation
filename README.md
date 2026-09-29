@@ -6,8 +6,20 @@ image generation, LoRA workflows, face curation and persistent scene editing.
 
 From an already configured checkout, run `npm start`.
 
-The [Audio workspace](AUDIO.md) provides microphone recording, local transcription
-with speaker separation, system read-aloud, and local voice cloning with
+[Character Creator](CHARACTERS.md) is a dedicated workspace for biographies,
+notes, images, videos, audio, faces, parts, and LoRA references, with shortcuts
+from Audio and Packager and linked character nodes in Knowledge. Profiles can
+be loaded into chat roleplay; Response influences shows the active setup and
+records the context supplied for each new reply. Faces remains the extraction
+workspace.
+
+Images includes a GIF Maker with frame ordering, sizing, timing, preview, and
+local saving. Packager builds ZIP copies of selected files and folders. The
+Browser workspace uses an isolated web session and can send inspected page
+source to the HTML, CSS, and JavaScript viewers.
+
+The [Audio workspace](AUDIO.md) provides video-to-audio extraction, microphone
+recording, local transcription with speaker separation, system read-aloud, and local voice cloning with
 OmniVoice, Chatterbox Turbo, and Qwen3-TTS. See its setup guide for optional
 runtimes and model downloads; recordings and model weights stay on your PC.
 

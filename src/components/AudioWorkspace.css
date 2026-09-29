@@ -5,10 +5,19 @@
 .audio-transcription, .audio-speech, .audio-help {border:1px solid var(--border-color, #344155); border-radius:12px; padding:18px; background:var(--bg-secondary, #111a28);}
 .audio-help {margin-top:18px;}
 .audio-cloning {margin-top:20px;}
+.audio-extractor {margin-top:20px;}
+.audio-track-number {width:65px; padding:6px; color:inherit; background:#152135; border:1px solid #42546e; border-radius:6px;}
 .audio-voice-recorder {border:1px solid #42546e; border-radius:8px; padding:16px; margin:16px 0; background:#0b1320;}
 .audio-voice-recorder p {color:#aab9ce; margin:8px 0;}
 .audio-workspace .audio-demo-button {background:#244e7c; border-color:#6ba2dd; font-weight:600;}
 .audio-demo-text {color:#b8cce7; font-style:italic;}
+.audio-reading-prompt {margin:16px 0; padding:16px; border:1px solid #435679; border-left:3px solid #9b9cff; border-radius:8px; background:#151e32;}
+.audio-reading-heading {display:flex; flex-wrap:wrap; align-items:baseline; gap:8px 16px;}
+.audio-reading-heading > span, .audio-phrase-mood {font-size:12px; color:#b8c8df;}
+.audio-reading-prompt blockquote {margin:12px 0; font-size:clamp(17px, 1.6vw, 21px); line-height:1.65; color:#edf2ff; max-width:72ch;}
+.audio-reading-prompt .audio-controls {margin:12px 0;}
+.audio-recorded-phrase {margin:14px 0; padding:12px; border:1px solid #42546e; border-radius:8px;}
+.audio-recorded-phrase summary {cursor:pointer; color:#c1d2ed;}
 .audio-help summary {cursor:pointer;}
 .audio-workspace h2, .audio-transcription h2 {font-size:18px; margin:0 0 12px;}
 .audio-controls {display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin:14px 0;}

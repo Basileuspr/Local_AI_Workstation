@@ -1,0 +1,10 @@
+.image-removal-toolbar,.image-removal-controls{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:8px 0}
+.image-removal-controls label{display:inline-flex;align-items:center;gap:5px}
+.image-removal-controls input[type=checkbox]{width:18px;height:18px;margin:0}
+.image-removal-toolbar button,.image-removal-controls button{min-height:30px;padding:5px 10px;color:#e5edf5;background:#1b2938;border:1px solid #42576d;border-radius:5px;cursor:pointer;font:inherit;font-size:12px}
+.image-removal-toolbar button:disabled,.image-removal-controls button:disabled{opacity:.45;cursor:default}
+.image-removal-toolbar button:focus-visible,.image-removal-controls button:focus-visible{outline:2px solid #64b5f6;outline-offset:2px}
+.removable-image{min-width:0}
+.pending-chat-images{display:flex;flex-wrap:wrap;gap:10px;max-height:240px;overflow:auto}
+.pending-chat-images article{max-width:190px;border:1px solid #34465a;border-radius:8px;padding:8px;overflow-wrap:anywhere}
+.pending-chat-images img{width:160px;height:110px;object-fit:contain;display:block}

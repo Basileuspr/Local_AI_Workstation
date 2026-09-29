@@ -1,0 +1,15 @@
+.save-image-prompts-button { padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-card); color: var(--accent); cursor: pointer; font: inherit; }
+.save-image-prompts-button:disabled { opacity: .5; cursor: default; }
+.save-image-prompts-dialog { margin: auto; width: min(600px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow-y: auto; padding: 24px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-surface); color: var(--text); }
+.save-image-prompts-dialog::backdrop { background: rgb(0 0 0 / 65%); }
+.save-image-prompts-dialog form, .save-image-prompts-dialog label { display: flex; flex-direction: column; gap: 8px; }
+.save-image-prompts-dialog form { gap: 16px; }
+.save-image-prompts-dialog p { color: var(--text-muted); }
+.save-image-prompts-dialog input, .save-image-prompts-dialog textarea { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-input); color: var(--text); font: inherit; }
+.save-image-prompts-dialog textarea { min-height: 100px; resize: vertical; }
+.save-image-prompts-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.save-image-prompts-actions button { padding: 8px 14px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-card); color: var(--text); cursor: pointer; }
+.save-image-prompts-actions button:last-child { background: var(--accent); color: var(--bg-primary); }
+.save-image-prompts-actions button:disabled { opacity: .5; cursor: default; }
+.save-image-prompts-dialog [role="alert"] { color: var(--red); }
+.save-image-prompts-dialog :focus-visible, .save-image-prompts-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

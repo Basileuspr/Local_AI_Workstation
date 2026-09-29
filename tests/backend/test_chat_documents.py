@@ -174,6 +174,12 @@ def test_stream_persists_artifact_before_completion_and_retains_context(document
     message = session_store.get_session(document_session)["messages"][0]
     assert message["id"] == "reply-1" and message["artifacts"] == result["artifacts"]
     assert "Amplitude | 1" in message["document_text"]
+    trace = next(event["influence_receipt"] for event in events if "influence_receipt" in event)
+    assert trace == message["influence_receipt"]
+    assert trace["mode"] == "document" and trace["structured_output"]
+    assert trace["options"] == captured[0]["options"]
+    assert trace["options"]["temperature"] == 0
+    assert trace["messages"][0]["text"] == captured[0]["messages"][0]["content"]
 
 
 @pytest.mark.parametrize("kwargs", [{"output": "```python\nprint('fake file')\n```"}, {"end": False}, {"error": "CUDA failure"}, {"reason": "length"}])
