@@ -33,7 +33,7 @@ export default function VoiceOutputSettings() {
     }}><option value="">Choose a saved voice reference</option>{value.referenceId && !files.some(file => file.id === value.referenceId) && <option value={value.referenceId}>{value.referenceName || 'Saved reference'} · unavailable until refreshed</option>}{files.map(file => <option key={file.id} value={file.id}>{file.name}</option>)}</select></label>
     <VoiceEngineControls value={value} onChange={update} chat/>
     <label>Words spoken in the reference<textarea aria-label="Chat voice reference transcript" rows={2} maxLength={4000} value={value.referenceText} onChange={e => update({referenceText:e.target.value})}/></label>
-    <small>Choose a 6–30 second recording of one voice. In Audio → Voice cloning, “Use this voice for chat” saves your reference and selects its settings here. OmniVoice and Qwen need its exact transcript. Speech starts after a reply completes, up to 1,500 characters. Audio is generated locally and kept only for playback.</small>
+
     <button type="button" onClick={() => refresh(value => value+1)}>Refresh saved voices</button>
     {status && !status.engines?.[value.engine]?.ready && <p role="status">This voice engine needs installation. Open Audio → Voice cloning for setup.</p>}
     {error && <p role="alert">{error}</p>}

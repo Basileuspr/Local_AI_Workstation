@@ -51,7 +51,7 @@ def test_reset_clears_all_data_including_vault_recovery_training_and_tags(data):
 @pytest.mark.parametrize("confirmation", [None, "", "reset", "DELETE"])
 def test_exact_confirmation_required_without_any_mutation(data, confirmation):
     result = exported(data)
-    with pytest.raises(ValueError, match="Type RESET"):
+    with pytest.raises(ValueError, match="Confirm permanent deletion"):
         service.reset_data(result["archive"], result["sha256"], confirmation, data)
     assert (data / "memory.db").exists()
     assert not (data / service.MARKER).exists()

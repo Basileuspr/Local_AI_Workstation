@@ -20,7 +20,7 @@ export default function CharacterRegionEditor({ initial, source, dataset, catalo
   return <dialog ref={dialog} className="character-dialog character-region-editor" aria-label="Review character region" onCancel={event => { event.preventDefault(); if (!busy) onClose(); }}>
     <header><div><h2>{initial.id ? "Review selection" : "Add a selection"}</h2><p>{source.name} · {source.width} × {source.height}</p></div><button type="button" disabled={busy} onClick={onClose}>Close</button></header>
     <div className="character-editor-grid">
-      <div><p className="character-help">Drag a rectangle around the region, or set its edges below. The full source remains available.</p>
+      <div>
         <div className="character-crop-canvas" style={{ aspectRatio: `${source.width} / ${source.height}`, maxWidth: `calc(max(260px, 100dvh - 240px) * ${source.width / source.height})` }}><ProtectedImage rotateView={false} src={api.sourceUrl(dataset.id, source.id)} alt={source.name} />
         <svg viewBox={`0 0 ${source.width} ${source.height}`} role="img" aria-label="Source image with editable crop rectangle"
           onPointerDown={event => { if (busy) return; drag.current = point(event); event.currentTarget.setPointerCapture(event.pointerId); }}
@@ -40,13 +40,13 @@ export default function CharacterRegionEditor({ initial, source, dataset, catalo
         <label>Anatomical side<select value={draft.side} onChange={event => change({ side: event.target.value })}>{Object.entries(catalog.sides).map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
         <label>Viewing angle<select value={draft.view} onChange={event => change({ view: event.target.value })}>{Object.entries(catalog.views).map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
         <label>{draft.part === "custom" ? "Selection name" : "Specific detail"}<input required={draft.part === "custom"} maxLength={100} value={draft.detail} onChange={event => change({ detail: event.target.value })} placeholder={draft.part === "custom" ? "e.g. hip-to-thigh transition, jacket folds" : "e.g. index finger, big toe, open palm"} /></label>
-        {!named && <p className="character-help">Name this area so it can be found and compared in other images.</p>}
+
         <label>Include in training export<select value={draft.export_mode} onChange={event => change({ export_mode: event.target.value })}><option value="both">Full image and crop</option><option value="full">Full image only</option><option value="crop">Crop only</option></select></label>
         <label>Crop caption<textarea rows={3} maxLength={2000} value={draft.caption} onChange={event => change({ caption: event.target.value })} placeholder="Describe only what is visible in this crop. Include your trigger word if needed." /></label>
         <label>Review notes<textarea rows={2} maxLength={2000} value={draft.notes} onChange={event => change({ notes: event.target.value })} /></label>
         {earlierFocus(initial, reference) && <p className="character-help">These analysis notes used an earlier reference. Compare this crop with your current focus above.</p>}
         {draft.flags.length > 0 && <p className="character-flags">Suggested quality flags: {draft.flags.join(" · ")}</p>}
-        {initial.origin === "vision" && <p className="character-help">Check the box, anatomical side and viewing angle before accepting this suggestion.</p>}
+
       </fieldset>
     </div>
     {error && <p className="character-error" role="alert">{error}</p>}

@@ -8,6 +8,7 @@ import asyncio
 
 from fastapi import APIRouter, File, HTTPException, UploadFile, Request
 from fastapi.responses import FileResponse
+from services.image_thumbnails import path_response
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
@@ -114,14 +115,14 @@ async def upload_images(project_id: str, files: list[UploadFile] = File(...)):
 
 
 @router.get("/projects/{project_id}/images/{image_id}")
-def get_image(project_id: str, image_id: str):
+def get_image(project_id: str, image_id: str, thumbnail: bool = False):
     try:
         path = lora_store.image_path(project_id, image_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     if path is None:
         raise HTTPException(status_code=404, detail="Training image not found")
-    return FileResponse(path, headers={"Cache-Control": "no-store"})
+    return path_response(path) if thumbnail else FileResponse(path, headers={"Cache-Control": "no-store"})
 
 
 @router.put("/projects/{project_id}/images/{image_id}/caption")

@@ -500,6 +500,9 @@ def test_real_chat_stream_wrapper_closes_upstream_before_queue_release(monkeypat
             def __init__(self, **_kwargs): pass
             async def __aenter__(self): return self
             async def __aexit__(self, *_args): pass
+            async def post(self, url, **_kwargs):
+                import httpx
+                return httpx.Response(200, json={'capabilities': ['completion']}, request=httpx.Request('POST', url))
             def stream(self, _method, _url, json):
                 assert json["keep_alive"] == main.settings.ollama_keep_alive_seconds
                 return Response()

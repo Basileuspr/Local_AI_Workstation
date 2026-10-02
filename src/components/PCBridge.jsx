@@ -104,7 +104,7 @@ export default function PCBridge({ active = true }) {
 
   return <section className="dashboard-card pc-bridge" aria-label="PC bridge">
     <h2>PC bridge</h2>
-    <p>Pair two PCs to delegate chat and image generation. Each PC keeps its own queue and models. Start the bridge explicitly on both PCs each time you open the app.</p>
+
     {error && <p role="alert">{error}</p>}{pollError && <p role="alert">{pollError}</p>}{notice && <p role="status">{notice}</p>}
     <p><strong>{pollError ? "Bridge status unknown" : !status ? "Checking bridge status…" : status.running ? `Listening at ${status.url}` : "Network bridge off"}</strong></p>
     {status?.listener_error && <p role="alert">{status.listener_error}</p>}
@@ -117,14 +117,14 @@ export default function PCBridge({ active = true }) {
       <datalist id="bridge-local-addresses">{status?.network?.addresses?.map(item => <option key={`${item.name}-${item.address}`} value={item.address}>{item.name}</option>)}</datalist>
       <label>Port<input type="number" min={1024} max={65535} value={port} disabled={status?.running || busy} onChange={event => setPort(Number(event.target.value))} /></label>
     </div>
-    <p className="dashboard-note">Find the Wi-Fi or Ethernet IPv4 address with ipconfig. Use a private LAN or VPN address. If Windows asks, allow this Python environment on private networks. Changing the address requires pairing again.</p>
+
     <div className="bridge-actions">
       {!status?.running ? <button disabled={busy || !!pollError || !status || !address || !name} onClick={() => action("/start", "POST", { address, port, name })}>Start bridge</button> :
         <button disabled={busy} onClick={() => perform(async () => { await bridgeRequest("/stop", "POST"); setInvitation(""); })}>Stop bridge</button>}
       <button disabled={busy || !status?.running} onClick={() => perform(async () => { setInvitation((await bridgeRequest("/invitation", "POST")).code); })}>Create pairing invitation</button>
     </div>
     {invitation && <div><label>Private invitation · expires in 5 minutes<textarea readOnly value={invitation} rows={3} /></label><button onClick={() => perform(async () => { await navigator.clipboard.writeText(invitation); setNotice("Invitation copied. Paste it only into your other PC’s bridge."); })}>Copy invitation</button></div>}
-    <details><summary>Pair with another PC</summary><p>Create an invitation on the other PC and paste it here. This approves delegation in both directions. Keep the invitation private.</p>
+    <details><summary>Pair with another PC</summary>
       <label>Invitation<textarea rows={3} value={code} maxLength={14000} onChange={event => setCode(event.target.value)} /></label>
       <button disabled={busy || !status?.running || !code.trim()} onClick={() => perform(async () => { await bridgeRequest("/pair", "POST", { code }); setCode(""); setNotice("PCs paired in both directions."); })}>Pair PCs</button>
     </details>
@@ -146,7 +146,7 @@ export default function PCBridge({ active = true }) {
       <label>Square image size<select value={size} onChange={event => setSize(Number(event.target.value))}><option value={512}>512</option><option value={768}>768</option><option value={1024}>1024</option></select></label>
       <label>Steps<input type="number" min={1} max={50} value={steps} onChange={event => setSteps(Number(event.target.value))} /></label>
     </div>}
-    <p className="dashboard-note">Only this prompt and these settings are sent. This first version does not send chat history, attachments, memories, knowledge collections, LoRAs or training datasets. Results stay in Bridge until you save them to Chats.</p>
+
     <button disabled={busy || !!pollError || !status?.running || !peerId || !model || !prompt.trim() || !peers.some(peer => peer.id === peerId && peer.enabled)} onClick={submit}>Send task to selected PC</button>
     <h3>Bridge jobs</h3>
     <BridgeJobs jobs={jobs} peers={peers} busy={busy} action={action} showResult={showResult} saveResult={saveResult} />
@@ -154,6 +154,6 @@ export default function PCBridge({ active = true }) {
       {result.text && <pre>{result.text}</pre>}
       {result.image && <><img src={result.image} alt="Result generated on the paired PC" /><a href={result.image} download="bridge-result.png">Download PNG</a></>}
     </section>}
-    <p className="dashboard-note">Keep both apps open. A sleeping or disconnected worker does not trigger an automatic replacement job. After reconnecting, status and results resume. This shares tasks, not GPU memory.</p>
+
   </section>;
 }

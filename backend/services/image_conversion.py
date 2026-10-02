@@ -8,23 +8,25 @@ from pathlib import Path
 
 from PIL import Image, ImageOps, UnidentifiedImageError
 from config import settings
+from services import storage_libraries as storage
 from services import image_vault, session_store
 
 ROOT = settings.data_dir / "artifacts" / "conversions"
-FORMATS = {"png": ("PNG", "image/png"), "jpg": ("JPEG", "image/jpeg"), "webp": ("WEBP", "image/webp"), "bmp": ("BMP", "image/bmp"), "tiff": ("TIFF", "image/tiff")}
+FORMATS = {"png": ("PNG", "image/png"), "jpg": ("JPEG", "image/jpeg"), "webp": ("WEBP", "image/webp"), "bmp": ("BMP", "image/bmp"), "tiff": ("TIFF", "image/tiff"), "ico": ("ICO", "image/vnd.microsoft.icon")}
 MAX_BYTES = 20 * 1024 * 1024
+ICON_SIZES = (16, 24, 32, 48, 64, 128, 256)
 
 
 def conversion_target(text):
     text = re.sub(r"```[\s\S]*?```", "", text).strip().lower()
     if re.search(r"\b(how|explain|don't|do not)\b", text): return None
     if not re.search(r"\b(convert|save|export|turn|change)\b", text): return None
-    match = re.search(r"\b(?:to|as|into)\s+(?:(?:an?|the)\s+)?\.?(png|jpe?g|webp|bmp|tiff?)\b", text)
+    match = re.search(r"\b(?:to|as|into)\s+(?:(?:an?|the)\s+)?\.?(png|jpe?g|webp|bmp|tiff?|ico)\b", text)
     return {"jpeg": "jpg", "tif": "tiff"}.get(match[1], match[1]) if match else None
 
 
 def convert(raw, name, target, quality=92, session_id=None):
-    if target not in FORMATS: raise ValueError("Choose PNG, JPG, WebP, BMP, or TIFF.")
+    if target not in FORMATS: raise ValueError("Choose PNG, JPG, WebP, BMP, TIFF, or ICO.")
     if not raw or len(raw) > MAX_BYTES: raise ValueError("Choose an image up to 20 MB.")
     digest = hashlib.sha256(raw).hexdigest(); image_vault.require_public(digest)
     try:
@@ -35,6 +37,15 @@ def convert(raw, name, target, quality=92, session_id=None):
             if target in ("jpg", "bmp"):
                 background = Image.new("RGB", image.size, "white"); background.paste(image, mask=image.getchannel("A")); image = background
             output = io.BytesIO(); options = {"quality": quality} if target in ("jpg", "webp") else {}
+            if target == "ico":
+                # Square, transparent padding preserves the complete image.
+                # Bound the largest frame and avoid enlarging source pixels.
+                side = max(size for size in ICON_SIZES if size <= max(16, max(image.size)))
+                image.thumbnail((side, side), Image.Resampling.LANCZOS)
+                canvas = Image.new("RGBA", (side, side), (0, 0, 0, 0))
+                canvas.alpha_composite(image, ((side - image.width) // 2, (side - image.height) // 2))
+                image = canvas
+                options = {"sizes": [(size, size) for size in ICON_SIZES if size <= side]}
             image.save(output, format=FORMATS[target][0], **options)
     except (UnidentifiedImageError, OSError, Image.DecompressionBombError) as exc:
         raise ValueError("This file could not be decoded as a supported image.") from exc
@@ -44,16 +55,16 @@ def convert(raw, name, target, quality=92, session_id=None):
     ROOT.mkdir(parents=True, exist_ok=True)
     data = output.getvalue()
     image_vault.require_public(hashlib.sha256(data).hexdigest())
-    destination = ROOT / f"{ident}.{target}"
+    destination = storage.resolve(ROOT / f"{ident}.{target}", create=True)
     destination.write_bytes(data)
     result = {"id": ident, "kind": "converted-image", "name": name + "." + target, "format": target, "size": len(data), "width": image.width, "height": image.height}
-    (ROOT / f"{ident}.json").write_text(json.dumps({**result, "source_hash": digest, "session_id": session_id}), encoding="utf-8")
+    storage.resolve(ROOT / f"{ident}.json", create=True).write_text(json.dumps({**result, "source_hash": digest, "session_id": session_id}), encoding="utf-8")
     return result
 
 
 def read(ident):
     if not re.fullmatch(r"[a-f0-9]{32}", ident): raise FileNotFoundError("Converted file not found.")
-    meta = ROOT / f"{ident}.json"
+    meta = storage.resolve(ROOT / f"{ident}.json")
     if meta.is_symlink(): raise FileNotFoundError("Converted file not found.")
     try: value = json.loads(meta.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc: raise FileNotFoundError("Converted file not found.") from exc
@@ -61,8 +72,8 @@ def read(ident):
     image_vault.require_public(value["source_hash"])
     target = value["format"]
     if target not in FORMATS: raise FileNotFoundError("Converted file not found.")
-    file = ROOT / f"{ident}.{target}"
-    if not file.is_file() or file.is_symlink() or file.resolve().parent != ROOT.resolve(): raise FileNotFoundError("Converted file not found.")
+    file = storage.resolve(ROOT / f"{ident}.{target}")
+    if not file.is_file() or file.is_symlink() or file.resolve().parent != meta.resolve().parent: raise FileNotFoundError("Converted file not found.")
     image_vault.guard_path(file)
     return value, file
 

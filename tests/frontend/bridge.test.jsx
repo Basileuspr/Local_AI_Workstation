@@ -2,14 +2,16 @@ import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import PCBridge, { BridgeJobs } from "../../src/components/PCBridge";
 import { bridgeJobStatus } from "../../src/bridgeApi";
+import {WorkspaceHelpContent} from '../../src/components/WorkspaceInfo';
 
 describe("PC bridge", () => {
   it("starts visibly off and explains what data delegation sends", () => {
     const html = renderToStaticMarkup(<PCBridge />);
     expect(html).toContain("Checking bridge status");
     expect(html).toContain("Start bridge");
-    expect(html).toContain("Only this prompt and these settings are sent");
-    expect(html).toContain("does not send chat history");
+    const help = renderToStaticMarkup(<WorkspaceHelpContent tab="dashboard"/>);
+    expect(help).toContain("Sends the chosen prompt and settings");
+    expect(help).toContain("does not send chat history");
     expect(html).toContain("Pair PCs");
   });
   it("does not present disconnected jobs as failed or available for blind reexecution", () => {

@@ -1,3 +1,6 @@
+import {useRangeSelection} from '../useRangeSelection';
+import {preventSelectionText} from '../fileSelection';
+import ImageThumbnail from "./ImageThumbnail";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import * as faces from "../faceApi";
 import CharacterNameDialog from "./CharacterNameDialog";
@@ -25,8 +28,8 @@ function Distribution({ values }) {
 
 function FaceTile({ member, datasetId, selected, onToggle, badge }) {
   return <figure className={`face-card bank-tile ${selected ? "selected" : ""} ${member.drift ? "drifting" : ""}`}>
-    <button type="button" className="face-thumb" onClick={() => onToggle(member.face_id)} aria-pressed={selected}>
-      <ProtectedImage src={faces.cropUrl(datasetId || member.dataset_id, member.face_id)} alt="" loading="lazy" />
+    <button type="button" className="face-thumb" onMouseDown={preventSelectionText} onClick={event => onToggle(member.face_id,event)} aria-pressed={selected}>
+      <ImageThumbnail src={faces.cropUrl(datasetId || member.dataset_id, member.face_id)} alt="" loading="lazy" />
     </button>
     <figcaption>
       {badge && <span className="bank-badge">{badge}</span>}
@@ -161,13 +164,8 @@ export default function FaceBank({ active = true, initialId = '', openCharacter,
     if (!list.length) onSelectCharacter?.(null);
   });
 
-  function toggle(faceId) {
-    setSelected((current) => {
-      const next = new Set(current);
-      next.has(faceId) ? next.delete(faceId) : next.add(faceId);
-      return next;
-    });
-  }
+  const faceRange = useRangeSelection([...groups.accepted,...groups.rejected].map(member => member.face_id), selected, setSelected, {scope:activeId});
+  function toggle(faceId,event) { faceRange.toggle(faceId,event); }
 
   const centroid = character?.centroid;
   const representative = character?.members?.find((m) => m.face_id === character.representative_face_id);
@@ -177,15 +175,12 @@ export default function FaceBank({ active = true, initialId = '', openCharacter,
     <aside className="bank-list">
       <h2>Characters</h2>
       <button type="button" disabled={Boolean(busy)} onClick={() => setCreating(true)}>New character</button>
-      {!characters.length && <p className="face-note">
-        Start a character with a name and notes. You can also curate faces in the Extractor and save them as a character.
-        {onOpenExtractor && <> <button type="button" className="face-link" onClick={onOpenExtractor}>Open the Extractor</button></>}
-      </p>}
+      {!characters.length && onOpenExtractor && <button type="button" className="face-link" onClick={onOpenExtractor}>Open the Extractor</button>}
       <ul>
         {characters.map((item) => <li key={item.id}>
           <button type="button" disabled={Boolean(busy)} className={item.id === activeId ? "active" : ""} onClick={() => setActiveId(item.id)}>
             {item.representative_face_id
-              ? <img src={faces.cropUrl(item.representative_dataset_id, item.representative_face_id)} alt="" loading="lazy" />
+              ? <ImageThumbnail src={faces.cropUrl(item.representative_dataset_id, item.representative_face_id)} alt={item.name || "Representative face"} />
               : <span className="bank-empty-thumb" aria-hidden="true" />}
             <span>
               <strong>{item.name}</strong>
@@ -222,8 +217,8 @@ export default function FaceBank({ active = true, initialId = '', openCharacter,
           </div>
         </header>
 
-        {onStartKnowledge && <div className="face-row"><button type="button" disabled={Boolean(busy)} onClick={() => onStartKnowledge(character.id)}>Start / open Knowledge node</button><span className="face-note">Uses saved profile details.</span></div>}
-        {onLoadRoleplay&&<div className="face-row"><button type="button" disabled={Boolean(busy)} onClick={()=>onLoadRoleplay(character)}>Load saved profile into roleplay</button><span className="face-note">Replaces chat character fields with the saved name, biography, and notes. Earlier chat history stays.</span></div>}
+        {onStartKnowledge && <div className="face-row"><button type="button" disabled={Boolean(busy)} onClick={() => onStartKnowledge(character.id)}>Start / open Knowledge node</button></div>}
+        {onLoadRoleplay&&<div className="face-row"><button type="button" disabled={Boolean(busy)} onClick={()=>onLoadRoleplay(character)}>Load saved profile into roleplay</button></div>}
 
         <div className="bank-summary">
           {Boolean(character.members?.length) && <>
@@ -235,7 +230,7 @@ export default function FaceBank({ active = true, initialId = '', openCharacter,
                   <p className="face-meta">similarity {representative.similarity?.toFixed(3)} to the group centroid</p>
                 </>
               : <p className="face-note">{centroid && centroid.usable === false ? centroid.detail : "No accepted faces yet."}</p>}
-            <p className="face-note">Chosen from the real crops — the centroid only points at which one is most typical. Nothing is averaged into a new image.</p>
+
           </div>
           <div className="bank-hero">
             <h3>Primary reference</h3>
@@ -245,7 +240,7 @@ export default function FaceBank({ active = true, initialId = '', openCharacter,
             {character.additional_references?.length > 0 && <p className="face-meta">
               + {character.additional_references.length} additional reference(s)
             </p>}
-            <p className="face-note">Your explicit pick, kept separate from the computed representative face.</p>
+
           </div>
           </>}
           <div className="bank-hero bank-profile">
@@ -309,7 +304,7 @@ export default function FaceBank({ active = true, initialId = '', openCharacter,
     </section>
     {renaming && <CharacterNameDialog title="Rename character" initialName={renaming.name}
       onSave={rename} onClose={() => setRenaming(null)} />}
-    {creating && <CharacterNameDialog title="New character" description="Start with a name. Face references are optional."
+    {creating && <CharacterNameDialog title="New character"
       onSave={async name => {const created = await faces.createCharacter({name});await refresh();setActiveId(created.id);setNotice('Character created. Add notes, tags, or face references.');}}
       onClose={() => setCreating(false)}/>}
   </div>;

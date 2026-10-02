@@ -1,4 +1,5 @@
 export const responseStyles = {
+  default: { label: "Default", prompt: "" },
   structured: {
     label: "Structured",
     prompt:
@@ -22,7 +23,8 @@ export const responseStyles = {
 };
 
 export function buildResponseStylePrompt(styleKey) {
-  const style = responseStyles[styleKey] || responseStyles.structured;
+  const style = responseStyles[styleKey] || responseStyles.default;
+  if (!style.prompt) return "";
   return [
     "Write for easy reading. Use paragraphs, headings, lists, emphasis, quotations, and fenced code blocks only when they genuinely clarify the answer. Keep formatting semantic and do not force a template onto short replies.",
     style.prompt,

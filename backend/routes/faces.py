@@ -1,6 +1,7 @@
 """Face dataset API. Detection runs in the background through the shared queue."""
 from fastapi import APIRouter, File, Form, HTTPException, Path, Query, UploadFile
 from fastapi.responses import Response, FileResponse
+from services.image_thumbnails import response as image_response
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
@@ -158,10 +159,10 @@ async def recrop(dataset_id: str, request: FaceIdsRequest):
 
 
 @router.get("/datasets/{dataset_id}/faces/{face_id}/crop")
-async def crop(dataset_id: str, face_id: str):
+async def crop(dataset_id: str, face_id: str, thumbnail: bool = False):
     path = await run_in_threadpool(call, store.crop_path, dataset_id, face_id)
-    return Response(content=await run_in_threadpool(path.read_bytes), media_type="image/png",
-                    headers={"Cache-Control": "no-cache"})
+    data = await run_in_threadpool(path.read_bytes)
+    return await run_in_threadpool(image_response, data, "image/png", thumbnail)
 
 
 @router.post("/datasets/{dataset_id}/state")

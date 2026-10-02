@@ -60,7 +60,7 @@ export default function ReferenceAnalysis({ reference, prompt, onPrompt, onBusyC
   }
   return <details className="reference-analysis">
     <summary>Read likeness, style and composition</summary>
-    <p>Use an installed vision model to extract editable details. Reading saves a local analysis workflow. Your prompt changes only when you apply the reviewed details.</p>
+
     <button type="button" disabled={busy} onClick={discover}>Find vision models</button>
     {!!models.length && <label>Reference vision model<select value={model} disabled={busy} onChange={event => setModel(event.target.value)}>
       {models.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}

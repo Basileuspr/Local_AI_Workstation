@@ -89,6 +89,35 @@ def generation_options(request_id="image-request-1"):
     }
 
 
+def test_generated_png_and_chat_blob_use_selected_storage_library(monkeypatch, tmp_path):
+    from pathlib import Path
+    from PIL import Image
+    from routes import image_generation as routes
+    from services import storage_libraries as storage
+
+    class Pipeline:
+        def __call__(self, **kwargs):
+            return SimpleNamespace(images=[Image.new('RGB', (8, 8))])
+
+    libraries = storage.Libraries(tmp_path/'app-data')
+    monkeypatch.setattr(storage, 'manager', lambda: libraries)
+    library = libraries.add(str(tmp_path), 'Media Library')
+    libraries.set_default(library['id'])
+    output = libraries.root/'generated_images'
+    manager, _ = configure_manager(monkeypatch, output, Pipeline())
+    monkeypatch.setattr(routes, 'manager', manager)
+    monkeypatch.setattr(routes, 'OUTPUT_DIR', output)
+    monkeypatch.setattr(routes.image_store, 'BLOBS_DIR', libraries.root/'blobs')
+    result = routes._generate_image(routes.ImageGenerationRequest(**generation_options()))
+    path = libraries.path(output/result['filename'])
+    assert path.is_relative_to(Path(library['path']))
+    assert not (output/result['filename']).exists()
+    payload = path.read_bytes()
+    libraries.set_default('primary')
+    assert routes.image_store.get_bytes(result['image_ref'])[0] == payload
+    assert libraries.path(output/result['filename']).read_bytes() == payload
+
+
 @pytest.mark.parametrize("requested_seed", [None, 0, 2147483647])
 def test_actual_seed_drives_pipeline_and_survives_png(monkeypatch, tmp_path, requested_seed):
     from PIL import Image

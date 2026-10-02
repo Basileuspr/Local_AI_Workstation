@@ -3,19 +3,28 @@ import { useStore, useDispatch, useRefs } from "../useStore.jsx";
 import * as api from "../api";
 import { runtimeObserver } from "../appPolling";
 import { chatSubmissionQueue } from "../chatSubmissionQueue";
+import { chatStageLabel } from "../chatActivity";
+import { useDualChat } from "../ChatPane";
+import { useChatWorkspace } from "../ChatWorkspace";
 import PromptPhraseButtons from "./PromptPhraseButtons";
 import ImageGallery from "./ImageGallery";
 import SidebarNavigation from "./SidebarNavigation";
 import BulkActions, { SelectionCheckbox } from "./BulkActions";
 import { useSelection, useBatchAction } from "../useSelection";
+import { applySessionRename } from '../sessionPersistence';
+import { ChatSessionItem, ChatRenameDialog } from './ChatListActions';
 
 export default function Sidebar({ onLoadSession, onNewChat, onNavigate, imageLibraryTarget, imagesActive }) {
   const state = useStore();
+  const chats = useDualChat(), workspace = useChatWorkspace();
+  const dual = workspace?.pin?.kind === "chat";
+  const secondSessionId = dual ? chats?.secondary.sessionId : null;
   const dispatch = useDispatch();
   const refs = useRefs();
   const [deleted, setDeleted] = useState([]);
   const [runtimeStatus, setRuntimeStatus] = useState(null);
   const [isResetting, setIsResetting] = useState(false);
+  const [renaming, setRenaming] = useState(null);
 
   const {
     activeSidebarTab,
@@ -97,8 +106,11 @@ export default function Sidebar({ onLoadSession, onNewChat, onNavigate, imageLib
     ...(runtimeStatus?.ollama_loaded_models || []),
     ...(runtimeStatus?.image?.loaded_model ? [`image:${runtimeStatus.image.loaded_model}`] : []),
   ]).size;
+  const modelActivity = runtimeStatus?.chat_activity?.find(job => ["running", "cancelling"].includes(job.status));
   const runtimeLabel = runtimeStatus?.unavailable
     ? "Runtime status unavailable"
+    : modelActivity
+      ? `${modelActivity.status === "cancelling" ? "Stopping Request" : chatStageLabel(modelActivity.stage)}${modelActivity.model ? ` · ${modelActivity.model}` : ""}`
     : runtimeActivities.length
       ? `Running: ${runtimeActivities.join(" + ")}`
       : loadedRuntimeCount
@@ -135,10 +147,12 @@ export default function Sidebar({ onLoadSession, onNewChat, onNavigate, imageLib
     return chatBatch.run({items, selection:chatSelection, verb:"Moved to Recently deleted:",
       confirm:`Delete ${items.length} selected chat(s)? You can restore them from Recently deleted.`,
       action:item => {
-        if (latest.current.isGenerating && latest.current.currentSessionId === item.id) throw new Error("Stop this chat's generation before deleting it.");
+        if ((latest.current.isGenerating && latest.current.currentSessionId === item.id)
+          || chatSubmissionQueue.getSnapshot().some(job => job.session_id === item.id)) throw new Error("Finish or cancel this chat's requests before deleting it.");
         return api.deleteSession(item.id);
       }, after:async result => {
         const removed = new Set(result.succeeded.map(item => item.id));
+        window.dispatchEvent(new CustomEvent("chat-sessions-deleted", { detail: [...removed] }));
         const remaining = latest.current.sessions.filter(item => !removed.has(item.id));
         dispatch({type:"SET_SESSIONS", payload:remaining});
         dispatch({type:"SET_SESSION_IMAGES", payload:latest.current.sessionImages.filter(image => !removed.has(image.session_id))});
@@ -153,6 +167,13 @@ export default function Sidebar({ onLoadSession, onNewChat, onNavigate, imageLib
   async function handleDeleteSession(sessionId, e) {
     e.stopPropagation();
     return deleteChats(sessions.filter(item => item.id === sessionId));
+  }
+
+  async function renameSession(session, title) {
+    const saved = await api.updateSessionMetadata(session.id, { title });
+    applySessionRename(dispatch, saved);
+    chats?.controller.current?.metadataSaved?.(saved);
+    showToast('Chat renamed', 'success');
   }
 
   async function galleryImagesRemoved(result, permanent) {
@@ -253,25 +274,15 @@ export default function Sidebar({ onLoadSession, onNewChat, onNavigate, imageLib
           actions={[{label:"Delete selected chats", danger:true, onClick:deleteChats}]} />
         {(
           sessions.map((s) => (
-            <div
+            <ChatSessionItem
               key={s.id}
-              className={`session-item ${s.id === currentSessionId ? "active" : ""}`}
-              onClick={() => { if (!chatBatch.busy) { if (chatSelection.enabled) chatSelection.toggle(s); else onLoadSession(s.id); } }}
-            >
-              <SelectionCheckbox selection={chatSelection} item={s} label={`chat ${s.title}`} disabled={chatBatch.busy} />
-              <div className="session-info">
-                <div className="session-title">{s.title}</div>
-                <div className="session-meta">{s.message_count} msgs</div>
-              </div>
-              <button
-                className="delete-btn"
-                disabled={chatBatch.busy}
-                aria-label={`Delete chat ${s.title}`}
-                onClick={(e) => handleDeleteSession(s.id, e)}
-              >
-                &times;
-              </button>
-            </div>
+              session={s} active={s.id === currentSessionId} disabled={chatBatch.busy}
+              paneLabel={dual && s.id === currentSessionId ? 'Chat A' : s.id === secondSessionId ? 'Chat B' : ''}
+              selection={<SelectionCheckbox selection={chatSelection} item={s} label={`chat ${s.title}`} disabled={chatBatch.busy}/>}
+              onOpen={() => { if (chatSelection.enabled) chatSelection.toggle(s); else onLoadSession(s.id); }}
+              onDelete={event => handleDeleteSession(s.id, event)}
+              onRename={(session, returnFocus) => setRenaming({ session, returnFocus })}
+            />
           ))
         )}
 
@@ -288,7 +299,7 @@ export default function Sidebar({ onLoadSession, onNewChat, onNavigate, imageLib
       </div>
 
       <div id="sidebar-footer">
-        <span className={`runtime-indicator ${runtimeActivities.length ? "busy" : ""}`} title="Live local model and GPU activity">
+        <span className={`runtime-indicator ${runtimeActivities.length ? "busy" : ""}`} title={modelActivity?.stage_detail || "Live local model and GPU activity"} role="status">
           <span className="runtime-dot" aria-hidden="true" />
           {runtimeLabel}
         </span>
@@ -297,6 +308,8 @@ export default function Sidebar({ onLoadSession, onNewChat, onNavigate, imageLib
         </button>
       </div>
 
+      {renaming && <ChatRenameDialog session={renaming.session} returnFocus={renaming.returnFocus} onClose={() => setRenaming(null)}
+        onSave={title => renameSession(renaming.session, title)}/>}
 
     </div>
   );

@@ -43,10 +43,10 @@ export default function KnowledgeNodeEditor({ node, onPreview, onSave, disabled 
         <label>Graph label<select value={draft.label_mode} onChange={event => change({ label_mode: event.target.value })}><option value="short">Short label</option><option value="full">Full label</option><option value="hidden">Hidden</option></select></label>
         <label>Label text size: {draft.font_size}<input type="range" min="10" max="20" value={draft.font_size} onChange={event => change({ font_size: Number(event.target.value) })} /></label>
         <label>Tags (comma separated)<input value={draft.tags.join(",")} onChange={event => change({ tags: event.target.value.split(",") })} placeholder="research, project, favorite" /></label>
-        <small>Up to 12 tags, 30 characters each. Search finds tags and notes.</small>
+
         <label>Node note<textarea rows={3} maxLength={2000} value={draft.note} onChange={event => change({ note: event.target.value })} /></label>
         <label className="vault-node-lock"><input type="checkbox" checked={draft.locked} onChange={event => change({ locked: event.target.checked })} />Lock position</label>
-        <small>Names, tags, and notes organize the graph. Indexed document text stays the source for chat retrieval.</small>
+
         <div className="vault-node-actions"><button type="submit" disabled={!dirty}>{saving ? "Saving…" : "Save node"}</button><button type="button" disabled={!dirty} onClick={() => { const saved = nodeOptions(node); setDraft(saved); onPreview(null); setError(""); }}>Cancel</button><button type="button" onClick={() => change({ ...NODE_DEFAULTS, tags: [], icon: nodeOptions(node).icon })}>Reset options</button></div>
         <small role="status">{dirty ? "Unsaved preview" : "Node options saved"}</small>
       </fieldset>

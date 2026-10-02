@@ -4,11 +4,12 @@ FastAPI server that talks to Ollama and streams responses.
 This is the PYTHON side of the wall. It handles all AI logic.
 """
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 from services.chat_canvas import CanvasContext
+from services import thinking_trace
 from starlette.concurrency import run_in_threadpool
 import httpx
 import json
@@ -33,6 +34,8 @@ def _log_uncaught(kind, value, traceback):
     sys.stderr.write(redact(f"{kind.__name__}: {value}\n"))
 if __name__ == "__main__":
     sys.excepthook = _log_uncaught
+    from services.desktop_control import contain_desktop_processes
+    _desktop_job = contain_desktop_processes()
 from services.maintenance_paths import import_journal
 if import_journal(settings.data_dir).exists():
     raise RuntimeError("A backup import was interrupted. Use Recover previous data in the desktop Dashboard.")
@@ -56,6 +59,7 @@ from routes.image_workflows import router as image_workflows_router
 from routes.system_stats import router as system_stats_router
 from routes.request_queue import router as request_queue_router
 from services.request_queue import queue, QueueCancelled, prepare_runtime
+from services.chat_model_runtime import prepare_chat_model, activity as chat_runtime_activity
 from config import settings
 from services import image_store
 from services.memory_store import (
@@ -115,6 +119,25 @@ from routes.artifacts import router as artifacts_router
 app.include_router(artifacts_router)
 from routes.workspaces import router as workspaces_router
 app.include_router(workspaces_router)
+from routes.local_files import router as local_files_router
+app.include_router(local_files_router)
+from routes.document_editor import router as document_editor_router
+app.include_router(document_editor_router)
+from routes.hash_auditor import router as hash_auditor_router
+app.include_router(hash_auditor_router)
+from routes.storage_libraries import router as storage_libraries_router
+app.include_router(storage_libraries_router)
+from routes.visual_review import router as visual_review_router
+app.include_router(visual_review_router)
+from services.storage_libraries import StorageUnavailable
+
+
+@app.exception_handler(StorageUnavailable)
+async def storage_unavailable(_request, exc):
+    from fastapi.responses import JSONResponse
+    return JSONResponse(status_code=503, content={"detail": str(exc)})
+from routes.folder_review import router as folder_review_router
+app.include_router(folder_review_router)
 app.include_router(memory_router)
 app.include_router(prompt_index_router)
 app.include_router(image_generation_router)
@@ -128,6 +151,8 @@ from routes.bridge import router as bridge_router
 app.include_router(bridge_router)
 from routes.image_library import router as image_library_router
 app.include_router(image_library_router)
+from routes.image_manager import router as image_manager_router
+app.include_router(image_manager_router)
 from routes.faces import router as faces_router
 app.include_router(faces_router)
 from routes.character_parts import router as character_parts_router
@@ -202,6 +227,7 @@ class ChatRequest(BaseModel):
     request_id: str | None = None
     document_format: Literal["docx"] | None = None
     reply_message_id: str | None = None
+    exclusive_model: bool = False
 
 
 class CompactMemoryRequest(BaseModel):
@@ -211,32 +237,36 @@ class CompactMemoryRequest(BaseModel):
     messages: list[ChatMessage]
     target_tokens: int = 700
     request_id: str | None = None
+    exclusive_model: bool = False
 
 
 # _append_thinking runs once per streamed chunk. Re-creating the directory and
 # stat-ing the file on every token added several syscalls each time, directly
 # in the streaming hot path, for no benefit after the first call.
 _thinking_log_ready = False
+_thinking_log_revision = uuid.uuid4().hex
 
 
 def _ensure_thinking_log() -> None:
-    global _thinking_log_ready
+    global _thinking_log_ready, _thinking_log_revision
     if _thinking_log_ready and THINKING_LOG_PATH.exists():
         return
     THINKING_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
     if not THINKING_LOG_PATH.exists():
         THINKING_LOG_PATH.touch()
+        _thinking_log_revision = uuid.uuid4().hex
     _thinking_log_ready = True
 
 
 def _reset_thinking_log() -> None:
-    global _thinking_log_ready
+    global _thinking_log_ready, _thinking_log_revision
     THINKING_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
     THINKING_LOG_PATH.write_text("", encoding="utf-8")
     _thinking_log_ready = True
+    _thinking_log_revision = uuid.uuid4().hex
 
 
-_reset_thinking_log()
+_ensure_thinking_log()
 
 
 def _append_thinking(text: str) -> None:
@@ -248,57 +278,6 @@ def _append_thinking(text: str) -> None:
     with open(THINKING_LOG_PATH, "a", encoding="utf-8") as f:
         f.write(text)
         f.flush()
-
-
-def _partial_tag_suffix_length(text: str, tag: str) -> int:
-    max_len = min(len(tag) - 1, len(text))
-    for length in range(max_len, 0, -1):
-        if text.endswith(tag[:length]):
-            return length
-    return 0
-
-
-def _split_visible_and_thinking(text: str, state: dict, flush: bool = False) -> tuple[str, str]:
-    """
-    Separate visible response text from explicit <think>...</think> blocks.
-    Some local models stream these tags as plain content instead of a dedicated
-    reasoning field, so this keeps the chat clean and writes the trace elsewhere.
-    """
-    buffer = state.get("pending", "") + (text or "")
-    state["pending"] = ""
-    visible_parts = []
-    thinking_parts = []
-    index = 0
-
-    while index < len(buffer):
-        tag = "</think>" if state.get("in_think") else "<think>"
-        tag_index = buffer.find(tag, index)
-
-        if tag_index == -1:
-            segment = buffer[index:]
-            hold_len = 0 if flush else _partial_tag_suffix_length(segment, tag)
-            emit_segment = segment[: len(segment) - hold_len] if hold_len else segment
-
-            if state.get("in_think"):
-                thinking_parts.append(emit_segment)
-            else:
-                visible_parts.append(emit_segment)
-
-            if hold_len:
-                state["pending"] = segment[-hold_len:]
-            break
-
-        segment = buffer[index:tag_index]
-        if state.get("in_think"):
-            thinking_parts.append(segment)
-            state["in_think"] = False
-        else:
-            visible_parts.append(segment)
-            state["in_think"] = True
-
-        index = tag_index + len(tag)
-
-    return "".join(visible_parts), "".join(thinking_parts)
 
 
 # --- Routes ---
@@ -352,6 +331,8 @@ async def service_status():
             "active_chat_requests": sum(1 for task in active_generation_tasks.values() if not task.done()),
             "image": {},
             "ollama_loaded_models": [],
+            "chat_activity": [entry for entry in queue.snapshot()["jobs"]
+                              if entry["kind"] in {"chat", "compact"} and entry["status"] in {"queued", "running", "cancelling"}],
         },
     }
 
@@ -539,6 +520,8 @@ async def runtime_status():
         "workflows": workflow_manager.status(),
         "ollama_loaded_models": loaded_models,
         "ollama_error": ollama_error,
+        "chat_activity": [entry for entry in queue.snapshot()["jobs"]
+                          if entry["kind"] in {"chat", "compact"} and entry["status"] in {"queued", "running", "cancelling"}],
     }
 
 
@@ -566,8 +549,10 @@ async def list_models():
                     )
                     show_response.raise_for_status()
                     show_data = show_response.json()
+                    thinking_trace.remember_model(model["name"], show_data)
                     capabilities = show_data.get("capabilities", [])
                     model_info["capabilities"] = capabilities
+                    model_info["thinking"] = show_data.get("thinking")
                     context_lengths = [
                         value
                         for key, value in (show_data.get("model_info") or {}).items()
@@ -583,6 +568,10 @@ async def list_models():
                         trained = max(context_lengths)
                         model_info["trained_context_length"] = trained
                         model_info["context_length"] = min(trained, settings.num_ctx)
+
+                    from services.context_awareness import remember_limit
+                    model_info["context_length"] = remember_limit(model["name"], show_data.get("model_info") or {})
+                    model_info["context_limit_source"] = "model_metadata_and_app_config" if context_lengths else "app_config_model_limit_unknown"
 
                     if "completion" in capabilities:
                         models.append(model_info)
@@ -622,12 +611,19 @@ def export_thinking_log():
     _ensure_thinking_log()
     content = THINKING_LOG_PATH.read_text(encoding="utf-8")
     filename = f"thinking-trace-{datetime.now().strftime('%Y%m%d-%H%M%S')}.txt"
-    _reset_thinking_log()
     return Response(
         content=content,
         media_type="text/plain",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": f'attachment; filename="{filename}"', "Cache-Control": "no-store"},
     )
+
+
+@app.get("/thinking/trace")
+def get_thinking_trace(offset: int = Query(0, ge=0), revision: str | None = None):
+    from fastapi.responses import JSONResponse
+    _ensure_thinking_log()
+    return JSONResponse(thinking_trace.read_trace(THINKING_LOG_PATH, offset, _thinking_log_revision, revision),
+                        headers={"Cache-Control": "no-store"})
 
 
 @app.post("/thinking/open-terminal")
@@ -682,15 +678,22 @@ def _fallback_memory_summary(previous_summary: str, messages: list[ChatMessage],
 async def compact_memory(request: CompactMemoryRequest, client_request: Request):
     request.request_id = request.request_id or uuid.uuid4().hex
     job = queue.enqueue("compact", "Chat context compaction", request.request_id,
-                        session_id=request.session_id,
+                        session_id=request.session_id, model=request.model,
                         cancel=lambda: _stop_chat_task(request.request_id))
     error = None
     try:
         await queue.wait(job, client_request)
         active_generation_tasks[request.request_id] = asyncio.current_task()
+        queue.set_stage(job, "preparing", "Preparing conversation context")
         await prepare_runtime("compact")
         if job.cancel_event.is_set():
             raise QueueCancelled()
+        if request.exclusive_model:
+            from services.context_awareness import model_limit
+            async for _ in prepare_chat_model(job, request.model, OLLAMA_BASE_URL,
+                                               options={"num_ctx": await model_limit(request.model)}, request_queue=queue):
+                pass
+        queue.set_stage(job, "compacting", "Compacting conversation context")
         return await _compact_memory(request)
     except (QueueCancelled, asyncio.CancelledError):
         job.cancel_event.set()
@@ -704,6 +707,8 @@ async def compact_memory(request: CompactMemoryRequest, client_request: Request)
 
 
 async def _compact_memory(request: CompactMemoryRequest):
+    from services.context_awareness import model_limit
+    context_limit = await model_limit(request.model)
     task = asyncio.current_task()
     if request.request_id and request.request_id in cancelled_generation_ids:
         cancelled_generation_ids.discard(request.request_id)
@@ -745,7 +750,7 @@ async def _compact_memory(request: CompactMemoryRequest):
                         {"role": "user", "content": prompt},
                     ],
                     "options": {"temperature": 0.1, "num_predict": target_tokens + 96,
-                                "num_ctx": settings.num_ctx},
+                                "num_ctx": context_limit},
                 },
             )
             response.raise_for_status()
@@ -787,7 +792,7 @@ def _stop_chat_task(request_id: str):
 async def chat(request: ChatRequest, client_request: Request):
     request.request_id = request.request_id or uuid.uuid4().hex
     label = next((message.content for message in reversed(request.messages) if message.role == "user"), "Chat")
-    job = queue.enqueue("chat", label, request.request_id, session_id=request.session_id,
+    job = queue.enqueue("chat", label, request.request_id, session_id=request.session_id, model=request.model,
                         cancel=lambda: _stop_chat_task(request.request_id))
 
     async def stream_queued_chat():
@@ -796,13 +801,15 @@ async def chat(request: ChatRequest, client_request: Request):
             if request.request_id in cancelled_generation_ids:
                 raise QueueCancelled()
             # Send headers immediately and keep a long queue wait alive.
-            yield f"data: {json.dumps({'queue_id': job.id})}\n\n"
+            yield f"data: {json.dumps({'queue_id': job.id, 'runtime_status': {**chat_runtime_activity(job), 'stage': 'queued', 'detail': 'Waiting for the shared model queue'}})}\n\n"
             while not queue.try_start(job):
                 if await client_request.is_disconnected():
                     raise QueueCancelled()
                 yield ": waiting in prompt queue\n\n"
                 await asyncio.sleep(0.5)
             active_generation_tasks[request.request_id] = asyncio.current_task()
+            queue.set_stage(job, "preparing", "Preparing chat and freeing idle image memory")
+            yield f"data: {json.dumps({'runtime_status': chat_runtime_activity(job)})}\n\n"
             await prepare_runtime("chat")
             if job.cancel_event.is_set():
                 raise QueueCancelled()
@@ -811,6 +818,8 @@ async def chat(request: ChatRequest, client_request: Request):
                 for line in (chunk.decode() if isinstance(chunk, bytes) else chunk).splitlines():
                     if line.startswith("data: "):
                         event = json.loads(line[6:])
+                        if event.get("document_status"):
+                            queue.set_stage(job, "creating_document", event["document_status"])
                         if event.get("error"):
                             error = event["error"]
                 yield chunk
@@ -819,7 +828,7 @@ async def chat(request: ChatRequest, client_request: Request):
             yield f"data: {json.dumps({'cancelled': True, 'done': True})}\n\n"
         except Exception as exc:
             error = str(exc)
-            yield f"data: {json.dumps({'token': f'[Error: {exc}]', 'done': True})}\n\n"
+            yield f"data: {json.dumps({'token': f'[Error: {exc}]', 'error': str(exc), 'done': True})}\n\n"
         finally:
             active_generation_tasks.pop(request.request_id, None)
             cancelled_generation_ids.discard(request.request_id)
@@ -1037,7 +1046,8 @@ async def _chat(request: ChatRequest, client_request: Request):
     # num_ctx is always sent. Leaving it out let Ollama pick its own window
     # while the interface budgeted against the model's trained size, so
     # compaction could not fire until long after the real window had overflowed.
-    ollama_options = {"num_ctx": settings.num_ctx}
+    from services.context_awareness import model_limit, payload_usage
+    ollama_options = {"num_ctx": await model_limit(request.model)}
     if request.options:
         if request.options.temperature is not None:
             ollama_options["temperature"] = request.options.temperature
@@ -1055,9 +1065,6 @@ async def _chat(request: ChatRequest, client_request: Request):
         "messages": messages_to_send,
         "stream": True,
         "keep_alive": settings.ollama_keep_alive_seconds,
-        # Thinking-capable models can otherwise spend the full token budget in
-        # Ollama's hidden `thinking` field and leave the chat response empty.
-        "think": _ollama_think_setting(request.model),
     }
 
     if ollama_options:
@@ -1080,7 +1087,8 @@ async def _chat(request: ChatRequest, client_request: Request):
     request_id = request.request_id or uuid.uuid4().hex
 
     async def generate():
-        thinking_state = {"in_think": False, "pending": ""}
+        trace = thinking_trace.TraceCapture(_append_thinking)
+        trace_status = "Response interrupted before completion"
         full_response_parts = []
         if request_id in cancelled_generation_ids:
             cancelled_generation_ids.discard(request_id)
@@ -1094,22 +1102,39 @@ async def _chat(request: ChatRequest, client_request: Request):
             "\n"
             + "=" * 72
             + f"\n{datetime.now().isoformat(timespec='seconds')} | model: {request.model}\n"
+            + f"session: {request.session_id or 'unsaved'} | request: {request_id}\n"
             + "=" * 72
             + "\n"
         )
         try:
+            job = queue.find(kind="chat", request_id=request_id)
+            if request.exclusive_model and job:
+                # Knowledge/memory preparation has finished. Unload auxiliary
+                # models here so they do not contend with the selected chat model.
+                async for progress in prepare_chat_model(job, request.model, OLLAMA_BASE_URL,
+                                                         options={"num_ctx": ollama_options["num_ctx"]}, request_queue=queue):
+                    yield f"data: {json.dumps({'runtime_status': progress})}\n\n"
+            elif job:
+                queue.set_stage(job, "preparing_model", f"Preparing {request.model}; loading if needed, then processing its prompt")
+                yield f"data: {json.dumps({'runtime_status': chat_runtime_activity(job)})}\n\n"
             async with httpx.AsyncClient(
                 timeout=httpx.Timeout(600.0, connect=10.0)
             ) as client:
+                think = await thinking_trace.resolve_thinking(client, OLLAMA_BASE_URL, request.model)
+                if think is not None:
+                    ollama_payload["think"] = think
+                if not (edit_canvas or create_word):
+                    ollama_payload["options"] = thinking_trace.reserve_thinking_budget(ollama_options, think)
                 if edit_canvas:
-                    async for event in stream_canvas(client, ollama_payload, request, client_request, influence_context=influence_context):
+                    async for event in stream_canvas(client, ollama_payload, request, client_request, influence_context=influence_context, trace=trace):
                         yield event
                     return
                 if create_word:
-                    async for event in stream_document(client, ollama_payload, request, client_request, influence_context=influence_context):
+                    async for event in stream_document(client, ollama_payload, request, client_request, influence_context=influence_context, trace=trace):
                         yield event
                     return
                 yield chat_influences.event(ollama_payload, context=influence_context)
+                provider_done = False
                 async with client.stream(
                     "POST",
                     f"{OLLAMA_BASE_URL}/api/chat",
@@ -1126,38 +1151,45 @@ async def _chat(request: ChatRequest, client_request: Request):
                             f"[Error: Ollama request failed ({response.status_code}): "
                             f"{error_detail}]"
                         )
+                        trace_status = "Ollama request failed"
                         yield f"data: {json.dumps({'token': message, 'error': message, 'done': True})}\n\n"
                         return
 
                     async for line in response.aiter_lines():
                         if await client_request.is_disconnected():
-                            _append_thinking("\n[Response cancelled by client disconnect]\n")
+                            trace_status = "Response cancelled by client disconnect"
                             return
                         if line:
+                            if job and job.stage != "responding":
+                                queue.set_stage(job, "responding", f"{request.model} is responding")
+                                yield f"data: {json.dumps({'runtime_status': chat_runtime_activity(job)})}\n\n"
                             chunk = json.loads(line)
-                            message = chunk.get("message", {})
-                            raw_token = message.get("content", "")
-                            thinking_token = (
-                                message.get("thinking")
-                                or message.get("reasoning")
-                                or message.get("thought")
-                                or ""
-                            )
-                            token, inline_thinking = _split_visible_and_thinking(
-                                raw_token, thinking_state
-                            )
-                            _append_thinking(thinking_token + inline_thinking)
+                            if chunk.get("error"):
+                                raise ValueError(str(chunk["error"]))
+                            token, thinking_token = trace.chunk(chunk)
                             if token:
                                 full_response_parts.append(token)
                             done = chunk.get("done", False)
 
-                            yield f"data: {json.dumps({'token': token, 'done': done})}\n\n"
+                            event = {"token": token, "done": done}
+                            if done:
+                                event["context_usage"] = payload_usage(ollama_payload, chunk)
+                            if thinking_token:
+                                event["thinking"] = thinking_token
+                            if done and chunk.get("done_reason") == "length":
+                                trace_status = "Output limit reached; trace may be incomplete"
+                                if not "".join(full_response_parts).strip():
+                                    event["token"] = "[The model reached its output limit while thinking. Open Thinking to view the captured trace; use a longer response length or Unlimited to allow an answer.]"
+                                event["notice"] = {"kind": "output_limit", "message": "The model reached its output limit. The answer and thinking trace may be incomplete."}
+                            elif done:
+                                trace_status = "Response complete"
+                                if not "".join(full_response_parts).strip():
+                                    event["token"] = "[The model finished without an answer. Open Thinking to inspect any emitted trace, then retry.]"
+                            yield f"data: {json.dumps(event)}\n\n"
 
                             if done:
-                                _, trailing_thinking = _split_visible_and_thinking(
-                                    "", thinking_state, flush=True
-                                )
-                                _append_thinking(trailing_thinking + "\n")
+                                provider_done = True
+                                trace.finish(trace_status)
                                 if memory_session_id and full_response_parts:
                                     try:
                                         # A commit at the tail of the stream;
@@ -1172,15 +1204,20 @@ async def _chat(request: ChatRequest, client_request: Request):
                                     except Exception:
                                         logger.exception("Could not record assistant message in durable memory")
                                 break
+                    if not provider_done:
+                        raise ValueError("The model stream ended before completion. Any partial thinking is available in Thinking.")
 
         except asyncio.CancelledError:
-            _append_thinking("\n[Response stopped by user]\n")
+            trace_status = "Response stopped by user"
             raise
         except httpx.ConnectError:
+            trace_status = "Ollama connection failed"
             yield f"data: {json.dumps({'token': '[Error: Ollama is not running. Start it and try again.]', 'error': 'Ollama is not running', 'done': True})}\n\n"
         except Exception as e:
+            trace_status = "Response failed"
             yield f"data: {json.dumps({'token': f'[Error: {str(e)}]', 'error': str(e), 'done': True})}\n\n"
         finally:
+            trace.finish(trace_status)
             active_generation_tasks.pop(request_id, None)
 
     return StreamingResponse(generate(), media_type="text/event-stream")
@@ -1224,4 +1261,10 @@ if __name__ == "__main__":
 
     # log_config=None keeps uvicorn from replacing our handlers, so its startup
     # and access lines land in the same file as everything else.
-    uvicorn.run(app, host=settings.host, port=settings.port, log_config=None, proxy_headers=False)
+    from services.desktop_control import watch_parent
+    server = uvicorn.Server(uvicorn.Config(
+        app, host=settings.host, port=settings.port, log_config=None, proxy_headers=False,
+        timeout_graceful_shutdown=10 if os.environ.get("LAW_DESKTOP_CONTROL") == "1" else None,
+    ))
+    watch_parent(server)
+    server.run()

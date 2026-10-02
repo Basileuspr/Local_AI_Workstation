@@ -1,12 +1,16 @@
 const {trustedUrl} = require('./security');
+const cameraGrants = new WeakMap();
+function grantTextureCamera(contents) { cameraGrants.set(contents, Date.now() + 30000); }
+function revokeTextureCamera(contents) { cameraGrants.delete(contents); }
 
 function allowAudioPermission(contents, permission, details, mainContents, devUrl = null) {
     if (!contents || contents !== mainContents || !trustedUrl(contents.getURL(), devUrl)) return false;
     const origin = details.requestingUrl || details.securityOrigin;
     if (!origin || !trustedUrl(origin, devUrl) || details.isMainFrame === false) return false;
     if (permission === 'media') {
-        if (Array.isArray(details.mediaTypes)) return details.mediaTypes.length > 0 && details.mediaTypes.every(type => type === 'audio');
-        return details.mediaType === 'audio';
+        const types = Array.isArray(details.mediaTypes) ? details.mediaTypes : [details.mediaType];
+        if (types.length > 0 && types.every(type => type === 'audio')) return true;
+        return types.length > 0 && types.every(type => type === 'video') && (cameraGrants.get(contents) || 0) > Date.now();
     }
     return permission === 'clipboard-sanitized-write' || permission === 'clipboard-read';
 }
@@ -20,4 +24,4 @@ function installAudioPermissions(contents, devUrl = null) {
     });
 }
 
-module.exports = {allowAudioPermission, installAudioPermissions};
+module.exports = {allowAudioPermission, installAudioPermissions, grantTextureCamera, revokeTextureCamera};

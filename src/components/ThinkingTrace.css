@@ -1,0 +1,22 @@
+.thinking-trace-dialog {
+  margin: auto; width: min(850px, calc(100vw - 32px)); max-height: calc(100vh - 32px);
+  padding: 20px; overflow: auto; border: 1px solid var(--border-active); border-radius: 10px;
+  background: var(--bg-surface); color: var(--text); box-shadow: 0 20px 70px #0006;
+}
+.thinking-trace-dialog::backdrop { background: #0009; }
+.thinking-trace-dialog header, .thinking-trace-dialog footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.thinking-trace-dialog h2 { margin: 0; font-size: 15px; font-weight: 500; }
+.thinking-trace-dialog p, .thinking-trace-dialog small { color: var(--text-dim); font-size: 12px; line-height: 1.6; }
+.thinking-trace-dialog small { display: block; margin-top: 10px; }
+.thinking-trace-dialog pre {
+  height: min(55vh, 560px); overflow: auto; padding: 14px; margin: 14px 0;
+  border: 1px solid var(--border); border-radius: 6px; background: var(--bg-primary);
+  color: var(--text); font: 12px/1.65 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.thinking-trace-dialog button {
+  padding: 6px 9px; background: transparent; color: var(--text-dim); border: 1px solid var(--border);
+  border-radius: 5px; font: 11px var(--font-mono); cursor: pointer;
+}
+.thinking-trace-dialog button:hover { color: var(--text); border-color: var(--border-active); }
+.thinking-trace-dialog button:disabled { opacity: .45; cursor: default; }
+.thinking-trace-dialog :focus-visible { outline: 2px solid var(--border-active); outline-offset: 3px; }

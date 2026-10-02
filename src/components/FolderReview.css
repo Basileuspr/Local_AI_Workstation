@@ -1,0 +1,17 @@
+.folder-review-workspace { padding: 24px; max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+.folder-review-workspace label { display: flex; flex-direction: column; gap: 6px; }
+.folder-review-workspace input, .folder-review-workspace select { background: var(--bg-input); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 9px; min-width: 0; }
+.folder-review-workspace button, .folder-review-workspace a { padding: 8px 12px; border-radius: 6px; }
+.folder-review-settings, .folder-review-progress { display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid var(--border); border-radius: 8px; }
+.folder-review-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.folder-review-actions input { flex: 1; min-width: 180px; }
+.folder-review-workspace .folder-review-check { flex-direction: row; align-items: center; }
+.folder-review-limits { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; padding-top: 12px; }
+.folder-review-files { display: flex; flex-direction: column; gap: 8px; }
+.folder-review-files details { padding: 12px; border: 1px solid var(--border); border-radius: 6px; }
+.folder-review-files summary { cursor: pointer; overflow-wrap: anywhere; }
+.folder-review-files summary span { margin-left: 12px; color: var(--text-dim); }
+.folder-review-workspace pre { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; font-family: var(--font-code, monospace); }
+.folder-review-report pre { max-height: 600px; overflow-y: auto; }
+.folder-review-warning, .folder-review-workspace [role=alert] { color: var(--warning, #e8b867); }
+.folder-review-help { color: var(--text-dim); line-height: 1.6; }

@@ -17,8 +17,8 @@ export const mediaActions = {
   extraActions(row, expanded = false) {
     const disabled = this.busy || !row.Available ? 'disabled' : '';
     const frames = `<button data-tool="frames" data-record="${esc(row.RecordId)}" ${disabled}>Parse frames</button>`;
-    return `${expanded && !row.Trashed ? frames : ''}<details class="mo-item-more"><summary>More actions</summary><div>${row.Trashed ? `<button data-tool="restore" data-record="${esc(row.RecordId)}" ${disabled}>Restore from Trash</button>` :
-      `<button data-tool="rename" data-record="${esc(row.RecordId)}" ${disabled}>Rename</button><button data-tool="delete" data-record="${esc(row.RecordId)}" ${disabled}>Delete</button>${expanded ? '' : frames}<button data-tool="tags" data-record="${esc(row.RecordId)}" ${disabled}>Tags</button>`}</div></details>`;
+    const fileAction = row.Trashed ? `<button data-tool="restore" data-record="${esc(row.RecordId)}" ${disabled}>Restore from Trash</button><button class="mo-delete-action" data-tool="purge" data-record="${esc(row.RecordId)}" ${disabled}>Delete permanently</button>` : `<button class="mo-delete-action" data-tool="delete" data-record="${esc(row.RecordId)}" aria-label="Delete ${esc(row.OriginalFilename)}" ${disabled}>Delete</button>`;
+    return `${fileAction}${expanded && !row.Trashed ? frames : ''}${!row.Trashed ? `<details class="mo-item-more"><summary>More actions</summary><div><button data-tool="rename" data-record="${esc(row.RecordId)}" ${disabled}>Rename</button>${expanded ? '' : frames}<button data-tool="tags" data-record="${esc(row.RecordId)}" ${disabled}>Tags</button></div></details>` : ''}`;
   },
   bindTools(root) {
     root.querySelectorAll('[data-tool]').forEach(button => { button.onclick = () => {
@@ -58,14 +58,41 @@ export const mediaActions = {
     return job;
   },
   openFileAction(row, action) {
-    const title = {rename:'Rename media', delete:'Delete to recoverable Trash', restore:'Restore media'}[action];
-    const dialog = this.toolDialog(title, `<p>${this.identity(row)}</p><code class="mo-path">${esc(row.CurrentPath)}</code>${action === 'rename' ? `<label>New filename<input id="mo-rename" value="${esc(row.OriginalFilename)}" maxlength="200"></label><p>The .mp4 extension is retained. Existing files are never overwritten.</p>` : action === 'delete' ? `<p>This copy moves into Media Manager's recoverable Trash on the same drive. Other copies remain in place. Choose Trash in the library filter to restore it.</p><label>Type DELETE to confirm<input id="mo-delete-word" autocomplete="off"></label>` : `<p>Restore to <code>${esc(row.RestorePath)}</code>. An existing file at that location will not be overwritten.</p>`}<p data-task-progress role="status"></p><button id="mo-file-submit" class="mo-primary" ${action==='delete'?'disabled':''}>${action === 'delete' ? 'Delete this copy' : action === 'rename' ? 'Rename file' : 'Restore file'}</button>`);
+    const runId = this.data.uiRunId, filters = {...this.filters}, duplicateFilters = {...this.duplicateFilters};
+    const title = {rename:'Rename media', delete:'Delete to recoverable Trash', restore:'Restore media', purge:'Permanently delete media from Trash'}[action];
+    const dialog = this.toolDialog(title, `<p>${this.identity(row)}</p><code class="mo-path">${esc(row.CurrentPath)}</code>${action === 'rename' ? `<label>New filename<input id="mo-rename" value="${esc(row.OriginalFilename)}" maxlength="200"></label>` : action === 'delete' ? `<p>This copy moves into Media Manager's recoverable Trash on the same drive. Other copies remain in place. Choose Trash in the library filter to restore it.</p>` : action === 'purge' ? `<p>This file will be permanently deleted from Media Manager's Trash. This cannot be undone. Other copies stay in place.</p>` : `<p>Restore to <code>${esc(row.RestorePath)}</code>. An existing file at that location will not be overwritten.</p>`}<p data-task-progress role="status"></p><button id="mo-file-submit" class="mo-primary">${action === 'delete' ? 'Delete this copy' : action === 'rename' ? 'Rename file' : action === 'purge' ? 'Delete permanently' : 'Restore file'}</button>`);
     const version = dialog.toolVersion;
-    if (action === 'delete') dialog.querySelector('#mo-delete-word').oninput = e => { dialog.querySelector('#mo-file-submit').disabled = e.target.value !== 'DELETE'; };
     dialog.querySelector('#mo-file-submit').onclick = () => this.dialogAttempt(dialog, async () => {
       const button = dialog.querySelector('#mo-file-submit'); button.disabled = true;
-      try { await this.waitOperation('file-action', {...this.payload(row), action, name:dialog.querySelector('#mo-rename')?.value, confirmation:dialog.querySelector('#mo-delete-word')?.value}, dialog); if (dialog.toolVersion === version) dialog.close(); }
+      try {
+        await this.waitOperation('file-action', {...this.payload(row), action, name:dialog.querySelector('#mo-rename')?.value, confirmation:action === 'purge' ? 'DELETE FOREVER' : action === 'delete' ? 'DELETE' : undefined}, dialog);
+        this.filters = filters; this.duplicateFilters = duplicateFilters;
+        await this.load(runId, {preserveFilters:true});
+        if (dialog.toolVersion === version) dialog.close();
+      }
       finally { button.disabled = false; }
+    });
+  },
+  openBulkDelete(action = this.filters.status === 'trash' ? 'purge' : 'delete') {
+    if (this.busy || !this.selected.size) return;
+    const rows = this.data.records.filter(row => this.selected.has(row.RecordId));
+    if (rows.length !== this.selected.size || rows.some(row => !this.canSelect(row))) return;
+    const runId = this.data.uiRunId, items = rows.map(row => ({ recordId: row.RecordId, expectedPath: row.CurrentPath }));
+    const filters = {...this.filters}, duplicateFilters = {...this.duplicateFilters};
+    const phrase = `${{delete:'DELETE', restore:'RESTORE', purge:'DELETE FOREVER'}[action]} ${rows.length}`;
+    const title = {delete:'Delete selected media to recoverable Trash', restore:'Restore selected media', purge:'Permanently delete selected media from Trash'}[action];
+    const explanation = action === 'delete' ? 'Only these copies move to Trash on the same drive. Other copies stay in place. View Trash to restore files. Trash retains the bytes and does not free disk space.' : action === 'purge' ? 'These Trash files will be permanently removed. This cannot be undone. Copies outside Trash stay in place.' : 'These files return to their original folders. Existing files will not be overwritten.';
+    const dialog = this.toolDialog(title, `<p>${rows.length} files selected, including selections hidden by filters. ${explanation}</p><div class="mo-delete-review">${rows.map(row => `<p>${this.identity(row)}<strong>${esc(row.OriginalFilename)}</strong><code class="mo-path">${esc(row.CurrentPath)}</code></p>`).join('')}</div><p data-task-progress role="status"></p><div class="mo-dialog-actions"><button id="mo-bulk-delete-cancel">Cancel</button><button id="mo-bulk-delete-submit" class="mo-delete-action">${action === 'restore' ? 'Restore reviewed files' : action === 'purge' ? 'Permanently delete reviewed files' : 'Delete reviewed files'}</button></div>`);
+    const version = dialog.toolVersion, button = dialog.querySelector('#mo-bulk-delete-submit');
+    dialog.querySelector('#mo-bulk-delete-cancel').onclick = () => dialog.close();
+    button.onclick = () => this.dialogAttempt(dialog, async () => {
+      button.disabled = true;
+      try {
+        await this.waitOperation('file-action', { runId, items, action, confirmation: phrase }, dialog);
+        this.selected.clear(); this.filters = filters; this.duplicateFilters = duplicateFilters;
+        await this.load(runId, { preserveFilters: true });
+        if (dialog.toolVersion === version) dialog.close();
+      } finally { button.disabled = false; }
     });
   },
   renderUserTags() {
@@ -76,7 +103,7 @@ export const mediaActions = {
     node.querySelectorAll('[data-tag-filter]').forEach(button=>{button.onclick=()=>{this.filters.tag=this.filters.tag===button.dataset.tagFilter?'':button.dataset.tagFilter; this.renderLibrary();};});
   },
   openTagDialog(ids = [], creating = false) {
-    const dialog = this.toolDialog('Custom media tags', `<p>${ids.length} item(s) selected. Tags follow the content hash, so identical copies share tags.</p><form id="mo-tag-create"><label>New tag name<input id="mo-tag-name" maxlength="60" required></label><button>Create tag${ids.length ? ' and apply' : ''}</button></form><div id="mo-tag-list">${(this.data?.tags||this.tags||[]).map(tag=>`<div class="mo-tag-row"><span>${esc(tag.name)}</span><button data-tag-assign="${esc(tag.id)}" ${ids.length?'':'disabled'}>Apply</button><button data-tag-remove="${esc(tag.id)}" ${ids.length?'':'disabled'}>Remove from selection</button></div>`).join('')}</div>`);
+    const dialog = this.toolDialog('Custom media tags', `<p>${ids.length} item(s) selected.</p><form id="mo-tag-create"><label>New tag name<input id="mo-tag-name" maxlength="60" required></label><button>Create tag${ids.length ? ' and apply' : ''}</button></form><div id="mo-tag-list">${(this.data?.tags||this.tags||[]).map(tag=>`<div class="mo-tag-row"><span>${esc(tag.name)}</span><button data-tag-assign="${esc(tag.id)}" ${ids.length?'':'disabled'}>Apply</button><button data-tag-remove="${esc(tag.id)}" ${ids.length?'':'disabled'}>Remove from selection</button></div>`).join('')}</div>`);
     const runId = this.data?.uiRunId, version = dialog.toolVersion;
     const refresh = async () => { if (runId) { this.data=await this.adapter.library(runId); this.renderLibrary(); } else { this.tags=(await this.adapter.state()).tags; this.renderUserTags(); } };
     dialog.querySelector('form').onsubmit = event => {event.preventDefault(); this.dialogAttempt(dialog, async()=>{
@@ -100,9 +127,9 @@ export const mediaActions = {
     });
   },
   frameOptions(row, info) {
-    const dialog=this.toolDialog('Parse video frames', `<p><strong>${esc(row.OriginalFilename)}</strong> · ${info.width} × ${info.height} · ${esc(info.codec)}</p><p><strong>${info.frames.toLocaleString()} decoded source frames</strong> · average ${info.fps?.toFixed(3) || 'unknown'} FPS · nominal ${info.nominalFps?.toFixed(3) || 'unknown'} FPS${info.variableFrameRate==='yes'?' · Variable frame rate':''}</p><p>Samples use source frame numbers, including variable-rate video. 1/15 saves frame 1, 16, 31…</p>
+    const dialog=this.toolDialog('Parse video frames', `<p><strong>${esc(row.OriginalFilename)}</strong> · ${info.width} × ${info.height} · ${esc(info.codec)}</p><p><strong>${info.frames.toLocaleString()} decoded source frames</strong> · average ${info.fps?.toFixed(3) || 'unknown'} FPS · nominal ${info.nominalFps?.toFixed(3) || 'unknown'} FPS${info.variableFrameRate==='yes'?' · Variable frame rate':''}</p>
       <div class="mo-frame-options"><label>Sampling interval<select id="mo-frame-interval">${info.intervals.map(n=>`<option value="${n}" ${n===15?'selected':''}>1/${n}${n===1?' · every frame':n===2?' · every other frame':` · every ${n} frames`}</option>`).join('')}</select></label><label>Image format<select id="mo-frame-format"><option value="png">PNG · lossless</option><option value="jpg">JPEG · high quality, smaller files</option></select></label><label>First source frame<input id="mo-frame-start" type="number" min="1" max="${info.frames}" value="1"></label><label>Last source frame<input id="mo-frame-end" type="number" min="1" max="${info.frames}" value="${info.frames}"></label><label>Output width<select id="mo-frame-width"><option value="0">Original resolution</option><option value="1920">Up to 1920 px</option><option value="1280">Up to 1280 px</option><option value="640">Up to 640 px</option></select></label><label>Rotation<select id="mo-frame-rotation"><option value="0">Source orientation</option><option value="${row.ViewRotation||0}">Apply saved view rotation (${row.ViewRotation||0}°)</option></select></label></div>
-      <label>Output destination folder<input id="mo-frame-destination" value="${esc(row.ScanDestination || this.data.run.destination_root)}" placeholder="Absolute folder path"></label><button id="mo-frame-pick">Choose output folder</button><p>A new frame-set subfolder is created here for each run. The video stays in its current location; use Place in folder to move it through Media Manager.</p><p id="mo-frame-estimate" role="status"></p><p data-task-progress role="status"></p><button id="mo-frame-run" class="mo-primary">Parse frames</button><button id="mo-frame-cancel" hidden>Cancel parsing</button>`);
+      <label>Output destination folder<input id="mo-frame-destination" value="${esc(row.ScanDestination || this.data.run.destination_root)}" placeholder="Absolute folder path"></label><button id="mo-frame-pick">Choose output folder</button><p id="mo-frame-estimate" role="status"></p><p data-task-progress role="status"></p><button id="mo-frame-run" class="mo-primary">Parse frames</button><button id="mo-frame-cancel" hidden>Cancel parsing</button>`);
     const version = dialog.toolVersion;
     const settings=()=>({...this.payload(row),probeId:info.id,interval:Number(dialog.querySelector('#mo-frame-interval').value),start:Number(dialog.querySelector('#mo-frame-start').value),end:Number(dialog.querySelector('#mo-frame-end').value),format:dialog.querySelector('#mo-frame-format').value,width:Number(dialog.querySelector('#mo-frame-width').value),rotation:Number(dialog.querySelector('#mo-frame-rotation').value),destination:dialog.querySelector('#mo-frame-destination').value});
     const estimate=()=>{const s=settings(),count=Math.max(0,Math.floor((s.end-s.start)/s.interval)+1);dialog.querySelector('#mo-frame-estimate').textContent=`${count.toLocaleString()} output images. PNG/JPEG sizes depend on image content; every-frame export can use substantial space.`;};
@@ -111,7 +138,7 @@ export const mediaActions = {
     dialog.querySelector('#mo-frame-cancel').onclick=()=>this.frameJobId && this.adapter.cancelFrames(this.frameJobId);
     dialog.querySelector('#mo-frame-run').onclick=()=>this.dialogAttempt(dialog,async()=>{
       const payload=settings(),button=dialog.querySelector('#mo-frame-run');button.disabled=true;dialog.querySelector('#mo-frame-cancel').hidden=false;
-      try{const job=await this.waitOperation('frame-extract',payload,dialog);if(dialog.open && dialog.toolVersion === version){const output=job.frameOutput;this.toolDialog('Frames ready',`<p>${output.count.toLocaleString()} ${esc(output.settings.format.toUpperCase())} images created. Original video retained.</p><code class="mo-path">${esc(output.output)}</code><p>frames.json records the source and exact source-frame number for each numbered image.</p><button id="mo-frames-open">Open output folder</button><button id="mo-frames-again">Parse with different options</button>`);dialog.querySelector('#mo-frames-open').onclick=()=>this.dialogAttempt(dialog,()=>this.adapter.openFolder(output.output));dialog.querySelector('#mo-frames-again').onclick=()=>this.frameOptions(row,info);}}
+      try{const job=await this.waitOperation('frame-extract',payload,dialog);if(dialog.open && dialog.toolVersion === version){const output=job.frameOutput;this.toolDialog('Frames ready',`<p>${output.count.toLocaleString()} ${esc(output.settings.format.toUpperCase())} images created. Original video retained.</p><code class="mo-path">${esc(output.output)}</code><button id="mo-frames-open">Open output folder</button><button id="mo-frames-again">Parse with different options</button>`);dialog.querySelector('#mo-frames-open').onclick=()=>this.dialogAttempt(dialog,()=>this.adapter.openFolder(output.output));dialog.querySelector('#mo-frames-again').onclick=()=>this.frameOptions(row,info);}}
       finally{button.disabled=false; const cancel=dialog.querySelector('#mo-frame-cancel');if(cancel && dialog.toolVersion === version)cancel.hidden=true;}
     });
   },

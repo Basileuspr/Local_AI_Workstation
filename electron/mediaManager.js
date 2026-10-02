@@ -1,4 +1,4 @@
-// Access-only integration. No Workstation API, credentials, files or media store.
+// Isolated view; the server gets only a narrowly scoped classification bridge.
 const fs = require("node:fs");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
@@ -18,7 +18,7 @@ function mediaOrigin(value) {
     } catch { return null; }
 }
 
-function createMediaManager({ WebContentsView, session, getWindow, python, directory, reports, spawnProcess = spawn }) {
+function createMediaManager({ WebContentsView, session, getWindow, python, directory, reports, reviewConnection, spawnProcess = spawn }) {
     let child = null, view = null, pending = null, origin = null, disposed = false, failure = null;
     let placement = { visible: false };
 
@@ -58,7 +58,9 @@ function createMediaManager({ WebContentsView, session, getWindow, python, direc
             origin = await new Promise((resolve, reject) => {
                 const args = ["-m", "media_organizer.ui_server", "--desktop-bridge"];
                 if (reports) args.push("--reports", reports);
-                const process = spawnProcess(python, args, { cwd: directory, env: childEnvironment(global.process.env), windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
+                const connection = reviewConnection?.();
+                const reviewEnvironment = connection ? { LAW_MEDIA_REVIEW_BASE: connection.base, LAW_MEDIA_REVIEW_TOKEN: connection.token } : {};
+                const process = spawnProcess(python, args, { cwd: directory, env: { ...childEnvironment(global.process.env), ...reviewEnvironment }, windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
                 child = process;
                 let buffer = "", settled = false;
                 const timeout = setTimeout(() => finish(new Error("Media Manager did not start within 20 seconds.")), 20000);
@@ -124,6 +126,8 @@ function createMediaManager({ WebContentsView, session, getWindow, python, direc
                 }
             });
             await contents.loadURL(origin);
+            const initialized = await contents.executeJavaScript("(() => { const ui = document.querySelector('media-organizer'); return Boolean(ui?.dataset.mediaManagerReady === 'true' && ui.querySelector('#mo-results')); })()");
+            if (!initialized) throw new Error("Media Manager could not load its page. Restart the app after updating, or check the bundled media-manager files.");
             place(placement);
             return { ready: true };
         })().catch(error => {

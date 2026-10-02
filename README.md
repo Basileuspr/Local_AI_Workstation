@@ -6,6 +6,30 @@ image generation, LoRA workflows, face curation and persistent scene editing.
 
 From an already configured checkout, run `npm start`.
 
+**File → Exit & Restart** stops the owned backend and opens a fresh application
+instance after it has exited. **File → Exit**, the window's **X** (or Alt+F4),
+and the tray's **Quit** all fully exit the application; the X no longer hides
+it in the tray. The tray also offers **Exit & Restart**. Minimize the window
+when you want to keep the app running.
+
+Exiting requests the backend's graceful shutdown, like its first Ctrl+C, and
+waits for cleanup. If it stalls for 20 seconds, the app stops only its owned
+backend process tree and waits up to 10 more seconds to confirm termination.
+Restart is cancelled if the old backend cannot be confirmed stopped. On Windows,
+backend child workers are contained so they cannot remain running after their
+backend exits. Independently running Ollama and other applications stay running.
+Completed saved work remains on disk; active backend work stops on exit/restart.
+
+**Workspace → Folder Review** inventories a selected folder, reviews readable
+source/document text in batches, and saves per-file findings and a combined
+report. Images receive metadata only; PDFs require extractable text. See the
+[Folder Review guide](FOLDER_REVIEW.md).
+
+**Dashboard > GitHub update** reviews source changes and offers separate
+**Validate selected changes**, **Commit locally**, and **Push to GitHub** actions.
+See the [publication guide](GITHUB_PUBLICATION.md)
+for setup, private-data exclusions and progress logs.
+
 For the dated application audit, dependency inventory, searchable feature history,
 and source comparisons, open the [local review reader](docs/application-review/index.html).
 The [recording workflow](docs/application-review/README.md) saves later observations
@@ -22,6 +46,58 @@ be loaded into chat roleplay; Response influences shows the active setup and
 records the context supplied for each new reply. Faces remains the extraction
 workspace.
 
+Opening the app or choosing **New Chat** shows a blank, unsaved draft. A chat
+session is created when you submit your first prompt; typing or selecting
+attachments does not create one. Saved conversations remain in the sidebar.
+The workspace's **Refresh** button keeps its current view and selected chat.
+
+Every workspace has a circular **i** Info button at the top right, including
+pinned tool panes. It opens that workspace's instructions, controls, settings,
+and examples. Generate and LoRA include detailed setting scales; Audio includes
+transcription, extraction, and voice-cloning guides. Close or Escape returns to
+your workspace without clearing its draft. Help lives in these panels instead
+of separate how-to dropdowns on the work surface.
+
+Use **Workspace options → Appearance** in any workspace, or open
+**Chat options → Model / roleplay settings**,
+to choose a color theme, interface font, and code/data font. Changes preview
+immediately and are saved on this device. **Reset appearance** restores the
+default look without changing chat or model settings. Fonts use local system
+installations; document pages and website previews retain their own formatting.
+
+**UI contrast** in Appearance adjusts interface text and borders from softer
+(75%) to stronger (150%) within the selected theme. It previews immediately
+and is saved on this device. **Reset contrast** restores 100% while keeping
+your theme and fonts. This changes UI colors without applying a filter to
+images, videos, or document pages.
+
+The chat header keeps the conversation title, model picker, and model status
+visible. **Chat options** groups response length, Knowledge, model order,
+model/roleplay settings, context usage, memory compaction, thinking, rename,
+exports, and Response influences. **Workspace options** contains side-pane,
+appearance, and refresh controls. **Internet** in the composer opens public-page
+import; its draft is retained when switching tools, and active import progress
+stays visible when the panel is closed. Press **Escape** or click outside a popup
+menu or dialog to close it, including chat tools and Media Manager dialogs.
+Escape closes the innermost popup first and returns focus to its opener; retained
+chat-tool drafts and selections remain available when reopened. Dialogs carrying
+out an operation retain their existing cancellation rules.
+
+**Chat options → Thinking trace** opens a live, scrollable trace viewer. The app
+uses Ollama's reported thinking controls, including renamed models and named
+reasoning levels, and captures native fields and explicit inline thinking tags.
+Only text emitted by the model is available; responses without a trace are
+marked. Capture also covers Word document and canvas requests. Finite output
+budgets reserve 8,192 extra tokens for thinking when enabled; **Unlimited**
+remains unlimited. An output-limit notice identifies incomplete responses.
+Thinking can increase response time.
+
+Use **Export thinking trace** inside the viewer or **Chat options → Export conversation**
+to download the complete recorded history across chats as text. Export and app
+restart preserve that history; explicit maintenance/reset actions still clear
+it. The viewer keeps older text accessible while new output arrives. **Open
+terminal** remains available inside the viewer.
+
 Chat supports clickable Markdown checklists. Ask for a to-do list, or write
 `- [ ] Task` and `- [x] Completed task` directly in a message. Click a box or
 its label, or focus it with Tab and press Space. Changes save with the chat
@@ -34,9 +110,14 @@ Use **Edit list** below a checklist to change item text, add or remove items,
 then **Save list** or **Cancel**. Edits affect only the tasks, preserving other
 message text and attachments. **Pin list beside chat** shows the same saved
 list in a second pane, with synchronized checkboxes and editing.
+**List history** below the list retains dated additions, removals, text edits and
+completion changes, with the list before and after each saved change. History
+stays with the conversation after reopening it; Cancel and failed saves add no
+history. Lists created before this feature start tracking with their next edit.
 
-The **Side pane** selector in Chat opens a tool alongside the conversation.
-You can also choose **Pin beside chat** from a tool's workspace. **Unpin ×**
+The **Workspace options → Side pane** selector in Chat opens a tool alongside
+the conversation. You can also choose **Workspace options → Pin beside chat**
+from a tool's workspace. **Unpin ×**
 closes the second pane. The selection is remembered separately for each chat
 on this device; tool drafts remain in their usual workspace. Newly created
 Word documents open beside the chat automatically, and existing attachments
@@ -51,10 +132,72 @@ the sidebar for a minimal chat view; its width and folded state are remembered
 on this device. Focus either divider and use the arrow keys to resize, or
 double-click it (or press Enter) to reset. Escape cancels a drag.
 
+**Index** stores notes, prompts, glossary entries, and other reference text.
+On a saved entry, open **Connect to Knowledge**, choose an existing node, and
+click **Connect**. Entries can link to more than one node. The node inspector
+lists its connected **Index entries**, with buttons to open them or unlink.
+These are saved references: the text stays editable in Index and is not added
+to chat retrieval by linking. Import content into Knowledge when it should
+participate in retrieval. Unlinking leaves both items intact.
+
 Images includes a GIF Maker with frame ordering, sizing, timing, preview, and
 local saving. Packager builds ZIP copies of selected files and folders. The
 Browser workspace uses an isolated web session and can send inspected page
 source to the HTML, CSS, and JavaScript viewers.
+
+**Images → [Image Manager](IMAGE_MANAGER.md)** catalogs existing still-image
+folders with previews, search, dates, tags, favorites and exact duplicate review.
+It provides reviewed, hash-verified copy/move plans and reusable image functions
+for scans, duplicate checks, organization plans and saved reports. Its code and
+local catalog are separate from Media Manager.
+
+[Review & classify](VISUAL_REVIEW.md) brings slideshow ratings, captions, tags,
+exports, person groups and scene filters to Image Review and both managers.
+Name a face group once; local matching associates later images with that group.
+Media Manager initially classifies one preview frame per video.
+
+Use **Arrange tabs** at the top of navigation to save section and tab priorities
+across the app. Image Manager keeps its filters/tagging controls visible while
+scrolling, can hide tagged images, and selects images with a thumbnail click.
+Its **Send duplicates to folder** action prepares a reviewed copy/move plan into
+the selected source's `Duplicates` subfolder.
+
+**Workspace → Hash Auditor** reads selected folders or drive roots and saves a
+local inventory of full SHA-256 hashes, sizes, timestamps and file locations.
+Add multiple paths with **Browse folders** or paste one absolute path per line,
+then choose **Start audit**. **Exclude folders** narrows the scan. Nothing scans
+automatically, and the auditor never moves or deletes source files.
+
+Matches span all recorded locations, including folders scanned separately.
+Choose exact hashes or metadata candidates; matching metadata alone does not
+prove identical contents. Hard links are labeled. Results show their read
+dates, so rescan locations to refresh them. Cancel keeps completed reads;
+closing the app interrupts scanning but preserves saved records. Links,
+junctions, cloud placeholders, NVIDIA locations and the catalog itself are
+skipped, with errors and exclusions listed below the results. The subtle
+**Export** menu saves the complete inventory or current match type as CSV.
+
+**Dashboard → Storage libraries** creates dedicated app folders on selected
+local drives, similar to game-launcher libraries. Choose a drive or parent
+folder, create a library, then select **Use for new files**. The app remembers
+all libraries and shows their availability and free drive space. An existing
+marked library can be reattached using its parent folder and folder name.
+
+New generated images, chat images, image imports, Word documents, conversions,
+character attachments, face datasets, Character Parts datasets and image
+workflows use the default library. Earlier files and projects stay in place
+and remain accessible across libraries. A disconnected destination produces
+an error rather than saving to another drive. **Use library** in image/GIF
+output controls selects an export-copy folder in the default library.
+
+Models, chats, settings, search indexes, encrypted vaults, and audit catalogs
+keep their original locations. Temporary processing and download dialogs keep
+their existing behavior. Backups include managed files from every registered
+library; reconnect those drives before exporting. Restoring flattens those
+files into the original app-data folder and resets the default there. Reset
+and import preserve external library folders; reset removes their registrations.
+Export copies and other external files remain outside app backups. Metadata-only
+inventory counts describe the original app-data folder.
 
 The [Audio workspace](AUDIO.md) provides video-to-audio extraction, microphone
 recording, local transcription with speaker separation, system read-aloud, and local voice cloning with

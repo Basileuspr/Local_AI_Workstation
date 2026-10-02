@@ -1,6 +1,8 @@
 """HTTP adapter checks on disposable media, never on the user's archive."""
 import http.client
 import json
+import posixpath
+import re
 from pathlib import Path
 import tempfile
 import threading
@@ -79,6 +81,31 @@ class UIServerTests(unittest.TestCase):
         self.assertIn(self.server.state.token.encode(), raw)
         self.assertIn("frame-ancestors 'none'", headers["Content-Security-Policy"])
 
+    def test_page_and_every_imported_frontend_module_are_served(self):
+        # A missing static import leaves the custom element empty even though
+        # the HTML and Python server both loaded successfully.
+        code, html, _ = self.request("/", token=False)
+        self.assertEqual(code, 200)
+        pending = re.findall(rb'<script\b[^>]*\bsrc="([^"]+)"', html)
+        pending = [asset.decode() for asset in pending]
+        visited = set()
+        while pending:
+            asset = pending.pop()
+            if asset in visited:
+                continue
+            visited.add(asset)
+            with self.subTest(asset=asset):
+                code, source, headers = self.request(asset, token=False)
+                self.assertEqual(code, 200)
+                self.assertTrue(headers.get("Content-Type", "").startswith("text/javascript"))
+                for imported in re.findall(r'(?:\bfrom\s*|\bimport\s*\(?\s*)[\'\"](\.[^\'\"]+)[\'\"]', source.decode()):
+                    pending.append(posixpath.normpath(posixpath.join(posixpath.dirname(asset), imported)))
+        self.assertIn("/organizer.js", visited)
+        self.assertIn("/popup-dismissal.js", visited)
+        self.assertIn("/folder-picker.js", visited)
+        self.assertEqual(self.request("/../README.md", token=False)[0], 404)
+        self.assertEqual(self.request("/not-a-public-module.js", token=False)[0], 404)
+
     def test_scan_reports_real_progress_in_quiet_mode(self):
         phases = [event['phase'] for event in self.scan_events]
         self.assertEqual(phases[0], 'preparing')
@@ -129,6 +156,29 @@ class UIServerTests(unittest.TestCase):
         self.assertEqual(self.request("/api/scan", {"source": "", "destination": ""})[0], 400)
         self.assertEqual(self.request("/api/scan", {"source": str(self.source), "destination": str(self.source / "inside")})[0], 400)
         self.assertEqual(self.request("/api/scan", {"source": str(self.source), "destination": str(self.root)})[0], 400)
+
+    def test_image_thumbnail_route_validates_session_batch_index_and_source(self):
+        source = self.root / 'thumbnail-fixture.png'
+        source.write_bytes(b'synthetic source')
+        stat = source.stat()
+        batch = {'source': str(self.root), 'records': [{'path': str(source), 'size': stat.st_size, 'mtime': stat.st_mtime_ns}]}
+        self.server.state.image_batches['thumbnail-fixture'] = batch
+        url = '/api/image-thumbnail?batchId=thumbnail-fixture&index=0'
+        with patch.object(self.server.state.thumbnails, 'get', return_value=b'\xff\xd8test') as decoder:
+            self.assertEqual(self.request(url, token=False)[0], 403)
+            for bad in ('-1', '2', '../secret', ''):
+                self.assertEqual(self.request('/api/image-thumbnail?batchId=thumbnail-fixture&index=' + bad)[0], 400)
+            self.assertEqual(self.request('/api/image-thumbnail?batchId=unknown&index=0')[0], 400)
+            decoder.assert_not_called()
+            code, raw, headers = self.request(url)
+            self.assertEqual((code, raw, headers['Content-Type']), (200, b'\xff\xd8test', 'image/jpeg'))
+            self.assertIn('no-store', headers['Cache-Control'])
+            source.write_bytes(b'changed')
+            self.assertEqual(self.request(url)[0], 400)
+            self.assertEqual(decoder.call_count, 1)
+            outside = source.parent.parent / 'outside-thumbnail.png'
+            batch['records'][0]['path'] = str(outside)
+            self.assertEqual(self.request(url)[0], 403)
 
     def test_native_actions_are_explicit_and_use_actual_paths(self):
         with patch("media_organizer.ui_server.choose_folder", return_value="") as picker:

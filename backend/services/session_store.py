@@ -23,6 +23,7 @@ from datetime import datetime
 from pathlib import Path
 
 from config import settings
+from services import storage_libraries as storage
 from services import image_store
 from services.app_logging import get_logger
 
@@ -329,7 +330,7 @@ def create_session(title: str = None) -> dict:
     """
     ensure_sessions_dir()
 
-    session_id = str(uuid.uuid4())[:8]  # Short readable ID like "a3f1b2c9"
+    session_id = uuid.uuid4().hex
     now = datetime.now().isoformat()
 
     session = {
@@ -449,6 +450,15 @@ def update_session(
 
     _check_revision(session, expected_revision)
 
+    # Narrow checklist saves own this history. Whole-chat saves from older clients
+    # may omit it, and must not erase it when keeping the same message.
+    previous_messages = {message.get("id"): message for message in session["messages"] if isinstance(message, dict)}
+    for message in messages:
+        previous = previous_messages.get(message.get("id")) if isinstance(message, dict) else None
+        if previous:
+            for field in ("checklist_history", "checklist_editable"):
+                if field in previous:
+                    message[field] = previous[field]
     session["messages"] = messages
     _ensure_stable_ids(session)
     # Incoming messages may carry freshly uploaded or generated payloads; move
@@ -497,12 +507,12 @@ def update_checklist_item(session_id, message_id, *, line_index, checked, expect
 def edit_message_checklist(session_id, message_id, *, items, expected_content):
     from services.chat_checklists import edit_checklist
     return _update_checklist_message(session_id, message_id, expected_content,
-                                     lambda content: edit_checklist(content, items))
+                                     lambda content: edit_checklist(content, items), items=items)
 
 
-def _update_checklist_message(session_id, message_id, expected_content, transform):
+def _update_checklist_message(session_id, message_id, expected_content, transform, *, items=None):
     """Called under the lock; preserve concurrent appends and all other metadata."""
-    from services.chat_checklists import checklist_lines
+    from services.chat_checklists import checklist_lines, checklist_history_change
     if not re.fullmatch(r"[A-Za-z0-9_-]+", session_id or ""):
         raise ValueError("Invalid session ID")
     session = get_session(session_id)
@@ -521,6 +531,11 @@ def _update_checklist_message(session_id, message_id, expected_content, transfor
         previous_revision = session["revision"]
         content = transform(expected_content)
         if content != expected_content:
+            changed_at = datetime.now().astimezone().isoformat()
+            entry = checklist_history_change(expected_content, content, items)
+            if entry["changes"]:
+                message["checklist_history"] = [*message.get("checklist_history", []),
+                                                dict(id=uuid.uuid4().hex, at=changed_at, **entry)]
             message["content"] = content
             message["checklist_editable"] = True
             # An old summary must not continue telling the model a completed task is pending.
@@ -530,6 +545,7 @@ def _update_checklist_message(session_id, message_id, expected_content, transfor
             session["updated_at"] = datetime.now().isoformat()
             _save_session(session)
         return {"id": session_id, "message_id": message_id, "content": content, "checklist_editable": True,
+                "checklist_history": message.get("checklist_history", []),
                 "previous_revision": previous_revision, "revision": session["revision"],
                 "memory_summary": session.get("memory_summary", ""),
                 "summarized_message_count": session.get("summarized_message_count", 0)}
@@ -866,7 +882,7 @@ def permanently_delete_session_image(session_id: str, image_id: str) -> bool:
                 _remove_blob_if_unused(source)
                 if filename and not _generated_output_is_retained(filename):
                     try:
-                        (GENERATED_IMAGES_DIR / Path(filename).name).unlink(missing_ok=True)
+                        storage.resolve(GENERATED_IMAGES_DIR / Path(filename).name).unlink(missing_ok=True)
                     except OSError:
                         logger.exception("Could not remove generated image %s", filename)
                 return True
@@ -1011,7 +1027,7 @@ def permanently_delete_trashed_session(filename: str) -> bool:
     for filename in generated:
         if not _generated_output_is_retained(filename):
             try:
-                (GENERATED_IMAGES_DIR / Path(filename).name).unlink(missing_ok=True)
+                storage.resolve(GENERATED_IMAGES_DIR / Path(filename).name).unlink(missing_ok=True)
             except OSError:
                 logger.exception("Could not remove generated image %s", filename)
     logger.info("Permanently removed trashed session %s", session_id)

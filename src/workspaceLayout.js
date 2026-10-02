@@ -35,9 +35,9 @@ export function saveWorkspaceLayout(layout) {
 }
 
 // horizontal = panes beside one another; vertical = panes stacked.
-export function splitLimits(length, axis) {
-  const first = axis === "vertical" ? 280 : 320;
-  const second = axis === "vertical" ? 200 : 280;
+export function splitLimits(length, axis, secondChat = false) {
+  const first = axis === "vertical" ? secondChat ? 320 : 280 : 320;
+  const second = axis === "vertical" ? secondChat ? 400 : 200 : secondChat ? 320 : 280;
   const available = Math.max(length - DIVIDER_SIZE, first + second);
   return { min: Math.max(20, first / available * 100), max: Math.min(80, (1 - second / available) * 100), available };
 }

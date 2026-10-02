@@ -41,7 +41,7 @@ export function KnowledgeCharacterStart({active,nodes,onSelect,onIndexed}) {
     {open && <div className="vault-character-form">
       <label>Saved character <select aria-label="Character for Knowledge node" disabled={busy || loading} value={id} onChange={e => setId(e.target.value)}><option value="">Choose a character…</option>{characters.map(character => <option key={character.id} value={character.id}>{character.name}</option>)}</select></label>
       <button type="button" disabled={!id || busy || loading} onClick={start}>{busy ? 'Creating character node…' : existing ? 'Open character node' : 'Create character node'}</button>
-      <p>Starts a document node with the saved biography, notes, tags, references, and a path back to the character. Uses your local Knowledge index.</p>
+
       {loading && <p role="status">Loading characters…</p>}
       {!loading && !characters.length && !error && <p>Create a character in Character Creator first. Face images are optional.</p>}
       {error && <p role="alert">{error}</p>}
@@ -61,7 +61,7 @@ export function CharacterNodePointer({filename,onIndexed}) {
     catch(e) {setMessage(e.message);}
     finally {lock.current = false;setBusy(false);}
   }
-  return <div className="vault-character-pointer"><strong>Character profile</strong><code>face_bank/{id}.json</code><small>Relative to app data. This node contains a snapshot of saved details.</small>
+  return <div className="vault-character-pointer"><strong>Character profile</strong><code>face_bank/{id}.json</code>
     <button type="button" onClick={() => workspace.openCreator(id)}>Open character</button>
     <button type="button" disabled={busy} onClick={refresh}>{busy ? 'Refreshing character node…' : 'Refresh character node'}</button>
     <button type="button" onClick={async () => {try {await navigator.clipboard.writeText(`[[${filename}]]`);setMessage('Knowledge link copied.');} catch {setMessage('Clipboard unavailable. Copy this link: '+`[[${filename}]]`);}}}>Copy Knowledge link</button>

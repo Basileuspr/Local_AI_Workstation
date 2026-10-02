@@ -8,6 +8,7 @@ the request, calls the service, and returns the result.
 """
 
 from fastapi import APIRouter, HTTPException, Response
+from services.image_thumbnails import response as image_response
 from pydantic import BaseModel, Field
 
 # Import the session store service (Python side only)
@@ -139,31 +140,23 @@ def migrate_selected_session_metadata(request: MetadataMigrationRequest):
 
 
 @router.get("/{session_id}/images/by-id/{message_id}/{image_id}")
-def get_image_by_stable_id(session_id: str, message_id: str, image_id: str):
+def get_image_by_stable_id(session_id: str, message_id: str, image_id: str, thumbnail: bool = False):
     """Stream one gallery image using its persistent IDs."""
     image = get_session_image_by_id(session_id, message_id, image_id)
     if not image:
         raise HTTPException(status_code=404, detail="Image not found")
     image_bytes, media_type = image
-    return Response(
-        content=image_bytes,
-        media_type=media_type,
-        headers={"Cache-Control": "no-store"},
-    )
+    return image_response(image_bytes, media_type, thumbnail)
 
 
 @router.get("/{session_id}/images/{message_index}/{image_index}")
-def get_image_by_id(session_id: str, message_index: int, image_index: int):
+def get_image_by_id(session_id: str, message_index: int, image_index: int, thumbnail: bool = False):
     """Legacy index-based image route retained for old URLs."""
     image = get_session_image(session_id, message_index, image_index)
     if not image:
         raise HTTPException(status_code=404, detail="Image not found")
     image_bytes, media_type = image
-    return Response(
-        content=image_bytes,
-        media_type=media_type,
-        headers={"Cache-Control": "no-store"},
-    )
+    return image_response(image_bytes, media_type, thumbnail)
 
 
 @router.delete("/{session_id}/gallery-images/{image_id}")

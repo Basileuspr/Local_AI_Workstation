@@ -1,3 +1,4 @@
+import ImageThumbnail from "./ImageThumbnail";
 import ImageGenerationSizing from './ImageGenerationSizing';
 import {useImageRemoval} from './ImageRemovalControls';
 import {availableWorkflowAssets, removeWorkflowAssets} from '../imageWorkflow';
@@ -14,8 +15,8 @@ import SceneStudio from "./SceneStudio";
 import { useDispatch, useStore } from "../useStore";
 import { MAX_IMAGE_STEPS, MAX_IMAGE_GUIDANCE } from "../imageGenerationLimits";
 
-function Field({ label, help, children }) {
-  return <label className="workflow-field"><span>{label}</span>{children}{help && <small>{help}</small>}</label>;
+function Field({ label, children }) {
+  return <label className="workflow-field"><span>{label}</span>{children}</label>;
 }
 
 export default function ImageWorkflows({ active }) {
@@ -263,10 +264,10 @@ function StageWorkflows({ active }) {
 
   return <section className="image-workflows" aria-label="Image Workflows">
     <header className="workflow-heading">
-      <div><p className="workflow-eyebrow">LOCAL · MODEL-INDEPENDENT</p><h1>Image Workflows</h1><p>Arrange the assets and stages for an image-editing pipeline.</p></div>
+      <div><p className="workflow-eyebrow">LOCAL · MODEL-INDEPENDENT</p><h1>Image Workflows</h1></div>
       <span className="workflow-badge">Local execution · Review results before reuse</span>
     </header>
-    <p className="workflow-banner">Run stages in order using installed local providers. SDXL supports image-to-image and masked editing; Ollama vision describes images; Lanczos resizes on CPU. ControlNet and multi-reference adapters are not installed. Completed results appear in Images → Workflow Images. Keep a result or stitched image as a reference to reuse it in later scenes.</p>
+
     {error && <div className="workflow-error" role="alert">{error}</div>}
     {notice && <p role="status" className="workflow-notice">{notice}</p>}
     {warnings.map(warning => <p className="workflow-error" key={warning}>{warning}</p>)}
@@ -289,34 +290,34 @@ function StageWorkflows({ active }) {
         actions={[{label:"Delete selected workflows", danger:true, onClick:setDeleting}]} />
       {workflowSelection.enabled && <div className="workflow-selection-list">{library.map(item => <label key={item.id}><SelectionCheckbox selection={workflowSelection} item={item} label={`workflow ${item.name}`} disabled={busy} /> {item.name}{item.deletion_pending ? " · retry cleanup" : ""}</label>)}</div>}
       {deleting && <WorkflowDeleteDialog items={deleting} onDeleted={deleted} onClose={() => setDeleting(null)} onRefresh={refreshLibrary} />}
-      {!draft ? <div className="workflow-empty"><h2>Start with your reference images</h2><p>Create a workflow, attach images, then arrange processing stages. No models are needed to prepare the structure.</p><p>Each workflow owns its assets, editable draft, and read-only preparation history.</p></div> : <div className="workflow-layout">
+      {!draft ? <div className="workflow-empty"><h2>Start with your reference images</h2></div> : <div className="workflow-layout">
         <fieldset disabled={busy} className="workflow-editor">
           <section className="workflow-card">
             <Field label="Workflow name"><input value={draft.name} maxLength={120} onChange={event => change({ name: event.target.value })} /></Field>
-            <Field label="Scene continuity notes" help="Planning notes for appearance, action, and what must remain consistent. These notes are not silently appended to the prompt."><textarea rows={2} maxLength={8000} value={draft.scene_notes} onChange={event => change({ scene_notes: event.target.value })} /></Field>
+            <Field label="Scene continuity notes"><textarea rows={2} maxLength={8000} value={draft.scene_notes} onChange={event => change({ scene_notes: event.target.value })} /></Field>
             {draft.parent && <p className="workflow-muted">Branched from workflow {draft.parent.workflow_id}, revision {draft.parent.revision}.</p>}
           </section>
           <section className="workflow-card">
-            <h2>1 · Reference assets</h2><p>Upload source images, masks, and control maps here; assign their roles in each stage. Originals are copied, not moved.</p>
-            <Field label="Attach images" help="Select several PNG, JPEG, or WebP files together. Each: single frame, up to 20 MiB / 24 megapixels. Saves pending draft changes first."><FreshFileInput type="file" multiple accept="image/png,image/jpeg,image/webp" onChange={event => { const files = Array.from(event.target.files || []); event.target.value = ""; run(() => upload(files)); }} /></Field>
+            <h2>1 · Reference assets</h2>
+            <Field label="Attach images"><FreshFileInput type="file" multiple accept="image/png,image/jpeg,image/webp" onChange={event => { const files = Array.from(event.target.files || []); event.target.value = ""; run(() => upload(files)); }} /></Field>
             {assetRemoval.toolbar}
             {!!draft.removed_asset_ids?.length && <button type="button" onClick={() => change({removed_asset_ids:[]})}>Restore removed references</button>}
             <div className="workflow-assets">{availableAssets.map(asset => <div key={asset.id} className="removable-image"><a href={api.assetUrl(draft.id, asset.id)} target="_blank" rel="noreferrer" title={`Open ${asset.name}`}>
-              <ProtectedImage src={api.assetUrl(draft.id, asset.id)} alt={asset.name} loading="lazy" /><span>{asset.name}</span><small>{asset.width} × {asset.height}</small>
+              <ImageThumbnail src={api.assetUrl(draft.id, asset.id)} alt={asset.name} loading="lazy" /><span>{asset.name}</span><small>{asset.width} × {asset.height}</small>
             </a>{assetRemoval.controls(asset, asset.name)}</div>)}</div>
           </section>
           <section className="workflow-card">
-            <h2>2 · Prompt settings</h2><p>SDXL stages use these settings. Describe / OCR reports image content separately; Lanczos changes size without using a prompt.</p>
-            <Field label="Positive prompt" help="Describe the image or edit you want. Recognition suggestions will need your approval before filling this field."><textarea rows={3} maxLength={12000} value={draft.prompt_settings.prompt} onChange={event => change({ prompt_settings: { ...draft.prompt_settings, prompt: event.target.value } })} /></Field>
-            <Field label="Negative prompt" help="Describe things to avoid. Some model families do not support negative prompts; their adapter must report that."><textarea rows={2} maxLength={12000} value={draft.prompt_settings.negative_prompt} onChange={event => change({ prompt_settings: { ...draft.prompt_settings, negative_prompt: event.target.value } })} /></Field>
+            <h2>2 · Prompt settings</h2>
+            <Field label="Positive prompt"><textarea rows={3} maxLength={12000} value={draft.prompt_settings.prompt} onChange={event => change({ prompt_settings: { ...draft.prompt_settings, prompt: event.target.value } })} /></Field>
+            <Field label="Negative prompt"><textarea rows={2} maxLength={12000} value={draft.prompt_settings.negative_prompt} onChange={event => change({ prompt_settings: { ...draft.prompt_settings, negative_prompt: event.target.value } })} /></Field>
             <div className="workflow-numbers">{[
-              ["seed", "Seed", -1, 4294967295, 1, "-1 requests a new random seed. A fixed seed helps comparisons but does not guarantee identical results across models or hardware."],
-              ["steps", "Steps", 1, MAX_IMAGE_STEPS, 1, `SDXL refinement steps, up to ${MAX_IMAGE_STEPS}. Steps multiplied by strength must be at least 1 unless strength is 0.`],
-              ["guidance", "Guidance", 0, MAX_IMAGE_GUIDANCE, 0.1, "How strongly a compatible model follows your prompt. Too much can introduce harsh or distorted details."],
-            ].map(([key, label, min, max, step, help]) => <Field key={key} label={label} help={help}><input type="number" min={min} max={max} step={step} value={draft.prompt_settings[key]} onChange={event => change({ prompt_settings: { ...draft.prompt_settings, [key]: Number(event.target.value) } })} /></Field>)}</div>
+              ["seed", "Seed", -1, 4294967295, 1],
+              ["steps", "Steps", 1, MAX_IMAGE_STEPS, 1],
+              ["guidance", "Guidance", 0, MAX_IMAGE_GUIDANCE, 0.1],
+            ].map(([key, label, min, max, step]) => <Field key={key} label={label}><input type="number" min={min} max={max} step={step} value={draft.prompt_settings[key]} onChange={event => change({ prompt_settings: { ...draft.prompt_settings, [key]: Number(event.target.value) } })} /></Field>)}</div>
           </section>
           <section className="workflow-card">
-            <h2>3 · Processing stages</h2><p>Work flows from top to bottom. Previous-image links follow the processing order when stages change. Choose a particular image or stage only when you want a fixed source.</p>
+            <h2>3 · Processing stages</h2>
             <BulkActions selection={stageSelection} items={draft.stages} label="stages" disabled={busy}
               actions={[{label:"Remove selected stages", danger:true, onClick:items => {
                 if (!window.confirm(`Remove ${items.length} selected stage(s) from this draft? Remaining stages may need new source selections. Save changes to keep this edit.`)) return;
@@ -342,14 +343,14 @@ function StageWorkflows({ active }) {
                   {sourceValue && sourceValue!=="previous" && !options.some(item => item.value === sourceValue) && <option value={sourceValue}>Invalid reference — choose another source</option>}
                   {options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select></Field>}
-                {stage.operation === "inpaint" && <Field label={`Stage ${index + 1} mask`} help="White = edit, black = preserve. Match the source dimensions; this release does not include a mask painter.">{assetSelect(stage.mask_asset_id, value => changeStage(stage.id, { mask_asset_id: value }), `Stage ${index + 1} mask`)}</Field>}
+                {stage.operation === "inpaint" && <Field label={`Stage ${index + 1} mask`}>{assetSelect(stage.mask_asset_id, value => changeStage(stage.id, { mask_asset_id: value }), `Stage ${index + 1} mask`)}</Field>}
                 {stage.operation === "controlnet" && <>
-                  <Field label="Control map type" help="Records how the map should be interpreted. The eventual adapter must support this type."><select value={stage.control_kind} onChange={event => changeStage(stage.id, { control_kind: event.target.value })}><option value="edges">Edges</option><option value="depth">Depth</option><option value="pose">Pose</option><option value="other">Other / adapter-specific</option></select></Field>
-                  <Field label={`Stage ${index + 1} control map`} help="Upload an already prepared map. Map extraction and model-family compatibility checks are future adapter work.">{assetSelect(stage.control_asset_id, value => changeStage(stage.id, { control_asset_id: value }), `Stage ${index + 1} control map`)}</Field>
-                  <Field label="Control influence" help="Higher values give the map more influence over structure."><input type="number" min={0} max={2} step={0.05} value={stage.control_scale} onChange={event => changeStage(stage.id, { control_scale: Number(event.target.value) })} /></Field>
+                  <Field label="Control map type"><select value={stage.control_kind} onChange={event => changeStage(stage.id, { control_kind: event.target.value })}><option value="edges">Edges</option><option value="depth">Depth</option><option value="pose">Pose</option><option value="other">Other / adapter-specific</option></select></Field>
+                  <Field label={`Stage ${index + 1} control map`}>{assetSelect(stage.control_asset_id, value => changeStage(stage.id, { control_asset_id: value }), `Stage ${index + 1} control map`)}</Field>
+                  <Field label="Control influence"><input type="number" min={0} max={2} step={0.05} value={stage.control_scale} onChange={event => changeStage(stage.id, { control_scale: Number(event.target.value) })} /></Field>
                 </>}
-                {["img2img", "inpaint", "multi_reference"].includes(stage.operation) && <Field label="Change strength" help="0 stays closest to the source; 1 allows the largest change. Exact behavior is adapter-dependent."><input type="number" min={0} max={1} step={0.05} value={stage.strength} onChange={event => changeStage(stage.id, { strength: Number(event.target.value) })} /></Field>}
-                {stage.operation === "upscale" && <Field label="Size multiplier" help="Lanczos resampling on CPU, not AI detail reconstruction. Output is limited to 24 megapixels."><select value={stage.upscale_factor} onChange={event => changeStage(stage.id, { upscale_factor: Number(event.target.value) })}><option value={2}>2×</option><option value={3}>3×</option><option value={4}>4×</option></select></Field>}
+                {["img2img", "inpaint", "multi_reference"].includes(stage.operation) && <Field label="Change strength"><input type="number" min={0} max={1} step={0.05} value={stage.strength} onChange={event => changeStage(stage.id, { strength: Number(event.target.value) })} /></Field>}
+                {stage.operation === "upscale" && <Field label="Size multiplier"><select value={stage.upscale_factor} onChange={event => changeStage(stage.id, { upscale_factor: Number(event.target.value) })}><option value={2}>2×</option><option value={3}>3×</option><option value={4}>4×</option></select></Field>}
                 {stage.operation === "multi_reference" && <div className="workflow-references"><p>Reference images (up to eight)</p>{availableAssets.map(asset => <label key={asset.id}><input type="checkbox" checked={stage.reference_asset_ids.includes(asset.id)} disabled={!stage.reference_asset_ids.includes(asset.id) && stage.reference_asset_ids.length >= 8} onChange={event => changeStage(stage.id, { reference_asset_ids: event.target.checked ? [...stage.reference_asset_ids, asset.id] : stage.reference_asset_ids.filter(id => id !== asset.id) })} />{asset.name}</label>)}</div>}
                 <Field label={`Stage ${index + 1} provider`}><select value={stage.provider_slot} onChange={event => { const provider = catalog.providers.find(item => item.id === event.target.value); changeStage(stage.id, { provider_slot: event.target.value, model_id: provider?.models[0]?.id || "" }); }}>
                   <option value="">Choose a provider</option>
@@ -384,11 +385,11 @@ function StageWorkflows({ active }) {
             <div className="workflow-actions"><button disabled={busy} onClick={() => run(async () => setReport(await api.validate(await saveCurrent())))}>Validate inputs</button><button disabled={busy} onClick={() => run(prepare)}>Prepare snapshot</button><button disabled={busy || !draft.stages.length} onClick={() => run(execute)}>Run workflow</button></div>
             {report && <div aria-live="polite"><h3>{snapshot ? `Snapshot revision ${snapshot.snapshot.revision}` : `Draft revision ${report.revision}`}</h3><p>{report.ready ? "Ready to run with the selected local providers." : "Resolve these issues before running."}</p><ul>{report.issues.map((issue, index) => <li key={index}>{issue.message}</li>)}</ul></div>}
           </section>
-          <section className="workflow-card"><h2>Snapshots and runs</h2><p>Each run keeps its original input snapshot. Select a run to inspect its state and review completed results.</p>
+          <section className="workflow-card"><h2>Snapshots and runs</h2>
             <div className="workflow-history">{jobs.length ? jobs.map(item => <button key={item.id} disabled={busy} onClick={() => run(async () => { const record = await api.job(draft.id, item.id); setSnapshot(record); setReport(record.preflight); setExecution(item.execution ? await api.runState(draft.id, item.id) : null); })}>Revision {item.revision} · {item.status}<small>{new Date(item.created_at).toLocaleString()}</small></button>) : <p>No snapshots yet.</p>}</div>
             {snapshot && <details><summary>Snapshot JSON and planned output paths</summary><pre>{JSON.stringify(snapshot, null, 2)}</pre></details>}
           </section>
-          <section className="workflow-card"><h2>Running and keeping results</h2><p>Workflows share Prompt Queue with chat, image generation and LoRA work. Stop workflow or the sidebar Reset / Unload cancels the current run and waits for the provider to stop.</p><p>Completed images remain separate from references until you choose Keep as reference. Branch next scene copies your owned references; select a kept result as the new source.</p><p>After an interrupted backend restart, review the saved run and start again. Interrupted outputs are never accepted automatically.</p></section>
+          <section className="workflow-card"><h2>Running and keeping results</h2></section>
         </aside>
       </div>}
     </>}

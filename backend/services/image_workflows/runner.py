@@ -74,7 +74,7 @@ def preflight(workflow):
             if not prompts.prompt.strip():
                 issue("prompt_required", f"Stage {number}: enter a positive prompt.", stage.id)
             if prompts.steps > MAX_IMAGE_STEPS or (stage.operation != "txt2img" and stage.strength > 0 and int(prompts.steps * stage.strength) < 1):
-                issue("steps_unsupported", f"Stage {number}: use at most {MAX_IMAGE_STEPS} steps and steps × strength ≥ 1 (or strength 0 to preserve the source).", stage.id)
+                issue("steps_unsupported", f"Stage {number}: use at most {MAX_IMAGE_STEPS} steps and steps \u00d7 strength \u2265 1 (or strength 0 to preserve the source).", stage.id)
             if prompts.guidance <= 1 and prompts.negative_prompt.strip():
                 issue("negative_prompt_unsupported", f"Stage {number}: set guidance above 1 to use a negative prompt with SDXL.", stage.id)
             if provider and stage.provider_slot == "local-sdxl" and stage.model_id in {m["id"] for m in provider["models"]}:
@@ -225,7 +225,7 @@ class Runner:
             for number, stage in enumerate(workflow.stages, 1):
                 if job.cancel_event.is_set():
                     raise WorkflowCancelled("Workflow stopped")
-                job.stage = f"{number}/{len(workflow.stages)} · {stage.operation}"
+                job.stage = f"{number}/{len(workflow.stages)} \u00b7 {stage.operation}"
                 _patch(workflow.id, job_id, stage_number=number, phase="Preparing stage", step=0, total_steps=0)
                 directory = store.confined(_job_dir(workflow.id, job_id) / "outputs" / stage.id)
                 directory.mkdir(parents=True, exist_ok=True)
@@ -302,7 +302,7 @@ class Runner:
 
     def recover(self):
         recovered = 0
-        for path in store.ROOT.glob("*/jobs/*/run.json"):
+        for path in store.storage.glob_paths(store.ROOT, "*/jobs/*/run.json"):
             workflow_id, job_id = path.parents[2].name, path.parent.name
             try:
                 record = read_run(workflow_id, job_id)

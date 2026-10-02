@@ -120,6 +120,8 @@ def test_prompt_analysis_opt_out_never_reads_or_writes_chat_memory(monkeypatch):
     async def prepare(_): pass
     monkeypatch.setattr(main, "prepare_runtime", prepare)
     async def handler(request):
+        if request.url.path == '/api/show':
+            return httpx.Response(200, json={'capabilities': ['completion']})
         payload = json.loads(request.content)
         assert len(payload["messages"]) == 2
         return httpx.Response(200, text='{"message":{"content":"revision"},"done":true}\n')

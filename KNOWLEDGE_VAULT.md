@@ -25,6 +25,14 @@ profile. Its inspector provides a profile path, **Open character**, **Refresh
 character node**, and a copyable Knowledge link. These documents are snapshots;
 save character edits and refresh the node when you want its indexed text updated.
 
+Saved **Index** entries can connect to existing nodes through **Connect to
+Knowledge** in Index. The selected node's **Index entries** section opens each
+connected entry or removes its link. These references use stable entry and
+document IDs, so edits and renames preserve them. Removing either item removes
+its references while leaving the other item intact. Links are stored alongside
+the vault relationships in `vault.sqlite3` and included in normal app backups.
+Index entry text stays in Index; linking alone does not add it to the RAG index.
+
 Each node is one indexed document. Its default size reflects the number of indexed chunks.
 **Node symbol** is always available in the inspector and saves automatically,
 without opening Customize node. Choose Document, Star, Person, Idea, Book, Flag,

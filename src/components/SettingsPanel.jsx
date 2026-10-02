@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { useDismissiblePopup } from '../useDismissiblePopup';
+import { useChatPane } from "../ChatPane";
 import { useStore, useDispatch, profiles } from "../useStore.jsx";
 import * as api from "../api";
 import {
@@ -10,10 +12,16 @@ import {
 import { responseStyles } from "../responseStyle";
 import CustomProfileControls from "./CustomProfileControls";
 import VoiceOutputSettings from './VoiceOutputSettings';
+import AppearanceSettings from "./AppearanceSettings";
 
 export default function SettingsPanel() {
   const state = useStore();
+  const pane = useChatPane();
   const dispatch = useDispatch();
+  const panel = useRef(null);
+  useDismissiblePopup({ open: state.settingsOpen, container: panel,
+    onDismiss: () => dispatch({ type: 'SET_SETTINGS_OPEN', payload: false }),
+    returnFocus: () => document.getElementById(pane.domId('header'))?.querySelector('[aria-label="Chat options"]') });
   const [durableMemoryDraft, setDurableMemoryDraft] = useState("");
   const [savingDurableMemory, setSavingDurableMemory] = useState(false);
 
@@ -89,8 +97,9 @@ export default function SettingsPanel() {
   if (!settingsOpen) return null;
 
   return (
-    <div id="settings-panel" className="visible">
-      <div id="settings-inner">
+    <div id={pane.domId("settings-panel")} className="visible" ref={panel}>
+      <div id={pane.domId("settings-inner")}>
+        <AppearanceSettings />
         <VoiceOutputSettings/>
         <div className="roleplay-area">
           <div className="settings-top-actions">
@@ -106,7 +115,7 @@ export default function SettingsPanel() {
                 className="roleplay-link"
                 type="button"
                 aria-expanded={roleplayOpen}
-                aria-controls="character-fields"
+                aria-controls={pane.domId("character-fields")}
                 onClick={() => dispatch({ type: "TOGGLE_ROLEPLAY_OPEN" })}
               >
                 {roleplayOpen ? "- Character fields" : "+ Character fields"}
@@ -125,8 +134,8 @@ export default function SettingsPanel() {
           </div>
 
           {roleplayOpen && (
-            <div id="character-fields" className="roleplay-grid">
-              <p className="roleplay-wide">These are chat roleplay fields. Saving this preset does not update Character Creator. All fields, including those named post-history, are currently assembled into one system prompt before chat history. Response influences shows the included text.</p>
+            <div id={pane.domId("character-fields")} className="roleplay-grid">
+
               <label>
                 <span>Character</span>
                 <input
@@ -271,6 +280,12 @@ export default function SettingsPanel() {
         </div>
 
         <div className="settings-section-label">Profile</div>
+        <label>On startup
+          <select aria-label="On startup" value={state.startupBehavior || "new"}
+            onChange={event => dispatch({ type: "SET_STARTUP_BEHAVIOR", payload: event.target.value })}>
+            <option value="new">New Chat</option><option value="resume">Resume Last Chat</option>
+          </select>
+        </label>
         <div className="profile-row">
           {Object.entries(profiles).map(([key, profile]) => (
             <button
@@ -397,8 +412,9 @@ export default function SettingsPanel() {
               ))}
             </select>
             <div className="system-prompt-label">System Prompt</div>
+
             <textarea
-              id="system-prompt"
+              id={pane.domId("system-prompt")}
               placeholder="Optional: instruct the model how to behave..."
               value={systemPrompt}
               onChange={(e) => setParam("systemPrompt", e.target.value)}

@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 
 import pytest
 from fastapi import FastAPI
@@ -169,3 +170,64 @@ def test_edit_preserves_newer_appends_and_clears_obsolete_summary(client):
     assert saved['messages'][1]['content'] == 'Keep me'
     assert saved['memory_summary'] == ''
     assert saved['summarized_message_count'] == 0
+
+
+def test_manual_changes_keep_snapshots_and_precise_history_with_duplicate_text(client):
+    content = '# Tasks\n- [ ] Same task\n- [x] Same task\n- [ ] Rename me\n```\n- [ ] Example\n```'
+    session = seed(content)
+    response = client.put(f"/sessions/{session['id']}/messages/tasks/checklist", json={
+        'expected_content': content, 'items': [
+            {'line_index': 2, 'text': 'Same task', 'checked': True},
+            {'line_index': 3, 'text': 'Renamed task', 'checked': True},
+            {'text': 'Added task', 'checked': False},
+        ]})
+    assert response.status_code == 200
+    saved = store.get_session(session['id'])
+    history = saved['messages'][0]['checklist_history']
+    assert response.json()['checklist_history'] == history and len(history) == 1
+    entry = history[0]
+    assert entry['id'] and datetime.fromisoformat(entry['at']).tzinfo
+    assert entry['action'] == 'edit'
+    assert [change['kind'] for change in entry['changes']] == ['removed', 'edited', 'completed', 'added']
+    assert entry['changes'][0]['before']['line_index'] == 1
+    assert entry['changes'][0]['before']['checked'] is False
+    assert entry['changes'][1]['before']['text'] == 'Rename me'
+    assert entry['changes'][1]['after']['text'] == 'Renamed task'
+    assert [item['text'] for item in entry['before']] == ['Same task', 'Same task', 'Rename me']
+    assert [item['text'] for item in entry['after']] == ['Same task', 'Renamed task', 'Added task']
+    assert '- [ ] Example' in saved['messages'][0]['content']
+    assert saved['messages'][0]['artifacts'] == [{'id': 'keep-me'}]
+    # Reopen and edit another item: older entries and their IDs remain unchanged.
+    response = patch(client, saved, line=1, checked=False)
+    assert response.status_code == 200
+    history = store.get_session(session['id'])['messages'][0]['checklist_history']
+    assert history[0] == entry and len(history) == 2
+    assert history[1]['changes'][0]['kind'] == 'reopened'
+
+
+def test_empty_list_history_survives_additions_and_whole_chat_saves(client):
+    session = seed('- [ ] Retain deleted item')
+    url = f"/sessions/{session['id']}/messages/tasks/checklist"
+    assert client.put(url, json={'expected_content': session['messages'][0]['content'], 'items': []}).status_code == 200
+    removed = store.get_session(session['id'])
+    assert removed['messages'][0]['checklist_history'][0]['after'] == []
+    # An older client replaces this chat without checklist metadata.
+    saved = store.update_session(session['id'], [{'id': 'tasks', 'role': 'assistant', 'content': ''}], expected_revision=removed['revision'])
+    assert saved['messages'][0]['checklist_history'] == removed['messages'][0]['checklist_history']
+    assert saved['messages'][0]['checklist_editable']
+    added = client.put(url, json={'expected_content': '', 'items': [{'text': 'New item', 'checked': False}]})
+    assert added.status_code == 200
+    assert len(added.json()['checklist_history']) == 2
+    assert added.json()['checklist_history'][1]['changes'][0]['kind'] == 'added'
+
+
+def test_noops_and_rejected_edits_do_not_append_history(client, sessions_dir):
+    session = seed('- [ ] Task')
+    assert patch(client, session).status_code == 200
+    saved = store.get_session(session['id'])
+    before = (sessions_dir / f"{session['id']}.json").read_bytes()
+    noop = patch(client, saved)
+    assert noop.status_code == 200 and len(noop.json()['checklist_history']) == 1
+    assert patch(client, session).status_code == 409
+    assert patch(client, saved, line=42).status_code == 422
+    assert (sessions_dir / f"{session['id']}.json").read_bytes() == before

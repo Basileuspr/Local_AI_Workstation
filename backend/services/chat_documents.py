@@ -18,6 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from starlette.concurrency import run_in_threadpool
 
 from config import settings
+from services import storage_libraries as storage
 from services.app_logging import get_logger
 from services import session_store, image_vault
 
@@ -108,11 +109,10 @@ def document_instruction(inventory: dict) -> str:
     )
 
 
-def _artifact_dir(artifact_id: str) -> Path:
+def _artifact_dir(artifact_id: str, *, create=False) -> Path:
     if not re.fullmatch(r"[a-f0-9]{32}", artifact_id): raise FileNotFoundError("Document not found")
-    root = ROOT.resolve()
-    target = ROOT / artifact_id
-    if target.resolve().parent != root or target.is_symlink(): raise FileNotFoundError("Document not found")
+    target = storage.resolve(ROOT / artifact_id, create=create)
+    storage.confined(target, ROOT)
     return target
 
 
@@ -171,7 +171,8 @@ def create_document(spec: DocumentSpec, session_id: str, inventory: dict, cancel
         raise ValueError("The source chat no longer exists.")
     artifact_id = uuid.uuid4().hex
     ROOT.mkdir(parents=True, exist_ok=True)
-    temporary = ROOT / (".partial-" + artifact_id)
+    destination = _artifact_dir(artifact_id, create=True)
+    temporary = destination.parent / (".partial-" + artifact_id)
     temporary.mkdir()
     try:
         doc = Document()
@@ -240,17 +241,20 @@ def create_document(spec: DocumentSpec, session_id: str, inventory: dict, cancel
         (temporary / "document.json").write_text(json.dumps(metadata, ensure_ascii=False), encoding="utf-8")
         for digest in source_hashes: image_vault.require_public(digest)
         if cancel.is_set(): raise InterruptedError("Document creation cancelled")
-        temporary.rename(_artifact_dir(artifact_id))
+        temporary.rename(destination)
         logger.info("Created Word artifact %s for session %s (%d bytes)", artifact_id, session_id, descriptor["size"])
         return descriptor
     finally:
         # Only our newly-created partial directory can be removed here.
-        if temporary.exists() and temporary.resolve().parent == ROOT.resolve() and temporary.name == ".partial-" + artifact_id:
+        if temporary.exists() and temporary.resolve().parent == destination.parent.resolve() and temporary.name == ".partial-" + artifact_id:
             shutil.rmtree(temporary)
 
 
-async def stream_document(client, payload, request, client_request, influence_context=None):
+async def stream_document(client, payload, request, client_request, influence_context=None, trace=None):
     """Use the existing chat queue/cancellation task; publish only complete files."""
+    from services.thinking_trace import TraceCapture, reserve_thinking_budget
+    trace = trace or TraceCapture()
+    trace_status = "Document response interrupted"
     cancel = threading.Event()
     worker = None
     def event(**value): return f"data: {json.dumps(value)}\n\n"
@@ -261,6 +265,7 @@ async def stream_document(client, payload, request, client_request, influence_co
                    "messages": [{"role": "system", "content": context_notes + "\n\n" + document_instruction(inventory)},
                                 *[{"role": m["role"], "content": m["content"]} for m in payload["messages"] if m["role"] != "system"]],
                    "options": {**payload.get("options", {}), "temperature": 0, "num_predict": 4096}}
+        payload["options"] = reserve_thinking_budget(payload["options"], payload.get("think"))
         from services.chat_influences import receipt
         influence_receipt = receipt(payload, mode="document", context=influence_context)
         yield event(influence_receipt=influence_receipt)
@@ -275,7 +280,9 @@ async def stream_document(client, payload, request, client_request, influence_co
                 if not line: continue
                 chunk = json.loads(line)
                 if chunk.get("error"): raise ValueError(str(chunk["error"]))
-                content += chunk.get("message", {}).get("content", "")
+                visible, thinking = trace.chunk(chunk)
+                content += visible
+                if thinking: yield event(thinking=thinking, done=False)
                 if len(content) > 180000: raise ValueError("This document is too large. Try creating it in smaller sections.")
                 yield ": drafting document\n\n"
                 if chunk.get("done"):
@@ -299,6 +306,7 @@ async def stream_document(client, payload, request, client_request, influence_co
                    "influence_receipt": influence_receipt}
         saved = await run_in_threadpool(session_store.append_messages, request.session_id, [message], model=request.model)
         if saved is None: raise ValueError("The source chat was deleted before the document could be attached.")
+        trace_status = "Document response complete"
         yield event(token=summary, artifacts=[artifact], document_text=message["document_text"], done=True)
     except asyncio.CancelledError:
         cancel.set()
@@ -310,4 +318,7 @@ async def stream_document(client, payload, request, client_request, influence_co
         logger.exception("Word document creation failed for session %s", request.session_id)
         detail = str(exc) if isinstance(exc, (ValueError, ImportError, OSError)) else "Document creation failed. See the app logs and try again."
         if isinstance(exc, ImportError): detail = "Word document tools are unavailable. Run the app setup again to install python-docx and Pillow, then retry."
+        trace_status = f"Document response failed: {detail}"
         yield event(token=f"[Error: {detail}]", error=detail, done=True)
+    finally:
+        trace.finish(trace_status)

@@ -1,7 +1,7 @@
 import { beforeEach, expect, it, vi } from "vitest";
 const fixture = vi.hoisted(() => ({ state: {}, dispatch: vi.fn() }));
 vi.mock("../../src/useStore", () => ({ useStore: () => fixture.state, useDispatch: () => fixture.dispatch }));
-vi.mock("react", async importOriginal => ({ ...await importOriginal(), useState: initial => [initial === false ? true : initial, vi.fn()] }));
+vi.mock("react", async importOriginal => ({ ...await importOriginal(), useState: initial => [initial === false ? true : initial, vi.fn()], useRef: initial => ({ current: initial }), useEffect: vi.fn() }));
 import KnowledgeContext from "../../src/components/KnowledgeContext";
 
 function findSelect(node) {

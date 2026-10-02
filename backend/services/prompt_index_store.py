@@ -70,7 +70,7 @@ def _entry_payload(title: str, content: str, source: str | None, tags: list[str]
     if not clean_title:
         raise ValueError("An entry title is required")
     if not clean_content:
-        raise ValueError("Reusable text is required")
+        raise ValueError("Content is required")
     return {
         "title": clean_title,
         "content": clean_content,

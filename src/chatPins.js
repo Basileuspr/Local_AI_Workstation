@@ -5,6 +5,8 @@ export const pinnableTabs = appTabs.filter(tab => tab !== "chats")
   .sort((a, b) => appTabLabels[a].localeCompare(appTabLabels[b]));
 
 export function validChatPin(value) {
+  if (value?.kind === "chat" && (value.sessionId == null || /^[A-Za-z0-9_-]{1,200}$/.test(value.sessionId)))
+    return { kind: "chat", sessionId: value.sessionId || null };
   if (value?.kind === "tool" && pinnableTabs.includes(value.tab)) return { kind: "tool", tab: value.tab };
   if (value?.kind === "document" && /^[a-f0-9]{32}$/.test(value.artifactId || "")) return { kind: "document", artifactId: value.artifactId };
   if (value?.kind === "message" && typeof value.messageId === "string" && value.messageId.length <= 200 && value.messageId)

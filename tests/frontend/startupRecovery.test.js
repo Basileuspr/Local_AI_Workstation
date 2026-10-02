@@ -15,7 +15,7 @@ function desktop(env = {}, httpMock = null) {
   const handlers = new Map();
   const app = { isPackaged: false, getPath: () => "C:\\fixture", setPath() {}, on() {},
     whenReady: () => new Promise(() => {}), requestSingleInstanceLock: () => true,
-    disableHardwareAcceleration: vi.fn(), quit: vi.fn() };
+    disableHardwareAcceleration: vi.fn(), quit: vi.fn(), commandLine: { appendSwitch: vi.fn() } };
   const electron = { app, ipcMain: { on() {}, handle() {} },
     protocol: { registerSchemesAsPrivileged() {}, handle: (scheme, handler) => handlers.set(scheme, handler) },
     net: { fetch: vi.fn(async () => new Response("recovery")) } };
@@ -28,6 +28,11 @@ function desktop(env = {}, httpMock = null) {
       if (name === "child_process") return { spawn };
       if (name === "http" && httpMock) return httpMock;
       if (name === "./logger") return { createLogger: () => logger, logFilePath: () => null };
+      if (name === "./windowRendering") {
+        const rendering = realRequire(name);
+        return { ...rendering, configureRendering: options => rendering.configureRendering({ ...options,
+          environment: { LAW_PYTHON: "python.exe", ...env }, args: [], platform: "win32" }) };
+      }
       return realRequire(name);
     },
   });

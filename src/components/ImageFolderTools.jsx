@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import * as api from "../imageLibraryApi";
 import { processBatch, batchFeedback } from "../bulkActions";
 import {useImageRemoval} from './ImageRemovalControls';
+import ImageThumbnail, { FileImageThumbnail, ThumbnailRetryButton } from "./ImageThumbnail";
 
 export function FolderEditor({ folder, onClose, onSaved }) {
   const dialog = useRef(null);
@@ -57,10 +58,11 @@ export default function FileImagesDialog({ images, folders, onClose, createNew =
   }
   return <dialog ref={dialog} className="collection-dialog" aria-label="Add images to folder" onCancel={event => { if (busy) event.preventDefault(); }} onClose={onClose}>
     <form onSubmit={save}><h2>Add {pending.length} image(s) to a folder</h2>
-      {removal.toolbar}<ul>{pending.map(image=><li key={images.indexOf(image)}>{image.name || image.filename || 'Image'}{removal.controls(image,image.name || image.filename || `image ${images.indexOf(image)+1}`)}</li>)}</ul>
+      <ThumbnailRetryButton />
+      {removal.toolbar}<ul className="thumbnail-file-list">{pending.map(image=><li key={images.indexOf(image)}>{image.url ? <span className="file-thumbnail-slot"><ImageThumbnail src={image.url} alt={image.name || image.filename || 'Image'} /></span> : <FileImageThumbnail file={image.file} />}<span className="thumbnail-filename">{image.name || image.filename || 'Image'}</span>{removal.controls(image,image.name || image.filename || `image ${images.indexOf(image)+1}`)}</li>)}</ul>
       {!createNew && <label>Choose folder<select value={destination} onChange={event => setDestination(event.target.value)}><option value="">Choose…</option>{folders.map(folder => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></label>}
       <label>{createNew ? "New folder name" : "Or create a folder"}<input autoFocus={createNew} value={newName} maxLength={120} onChange={event => setNewName(event.target.value)} placeholder="Folder name" /></label>
-      <p>Folder images are saved copies with links to their source. Removing a source chat won't remove these copies.</p>
+
       {feedback && <p role="status">{feedback}</p>}
       <footer><button type="button" disabled={busy} onClick={onClose}>Close</button><button disabled={busy || !pending.length || (createNew && !newName.trim() && !destination)}>{busy ? "Saving…" : "Add to folder"}</button></footer>
     </form>

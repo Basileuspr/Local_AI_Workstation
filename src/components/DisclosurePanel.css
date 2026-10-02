@@ -1,0 +1,13 @@
+.disclosure-control { position: relative; flex: 0 0 auto; }
+.disclosure-trigger { display: inline-flex; gap: 6px; align-items: center; padding: 7px 11px; border: 1px solid var(--border); border-radius: 7px; background: var(--bg-input); color: var(--text); font: 12px var(--font-body); cursor: pointer; white-space: nowrap; }
+.disclosure-trigger[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+.disclosure-trigger:focus-visible, .disclosure-panel :is(button, select, summary):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.disclosure-panel { position: absolute; z-index: 450; top: calc(100% + 8px); right: 0; width: min(340px, calc(100vw - 28px)); max-height: min(70dvh, 580px); overflow: auto; overscroll-behavior: contain; padding: 16px; border: 1px solid var(--border-active); border-radius: 10px; background: var(--bg-surface); color: var(--text); box-shadow: 0 12px 40px #0006; font: 13px var(--font-body); }
+.disclosure-panel[hidden] { display: none; }
+.disclosure-indicator { color: var(--yellow); }
+.workspace-options { margin-left: auto; }
+.workspace-options .disclosure-panel { display: flex; flex-direction: column; align-items: stretch; gap: 12px; }
+.workspace-options .disclosure-panel[hidden] { display: none; }
+.workspace-options .chat-pin-picker { flex-wrap: wrap; }
+.workspace-options .chat-pin-picker select { flex: 1; max-width: 100%; }
+.workspace-options .workspace-appearance, .workspace-options .workspace-refresh { margin-left: 0; text-align: left; }

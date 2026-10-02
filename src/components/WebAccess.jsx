@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../useStore.jsx";
+import { useChatPane } from "../ChatPane";
 import { createWebChat, getActiveWebImport, getWebImport, startWebImport, stopWebImport, webImageUrl } from "../webAccess";
 import WebImageReader from "./WebImageReader";
 import "./WebAccess.css";
 
 const terminal = new Set(["complete", "cancelled", "error"]);
 
-export default function WebAccess({ onOpenSession }) {
+export default function WebAccess({ onOpenSession, embedded = false, onActivity }) {
+  const pane = useChatPane();
   const { isGenerating, selectedModel } = useStore();
   const [url, setUrl] = useState("");
   const [includeImages, setIncludeImages] = useState(true);
@@ -17,6 +19,9 @@ export default function WebAccess({ onOpenSession }) {
   const [stopping, setStopping] = useState(false);
   const busy = useRef(false);
   const active = job && !terminal.has(job.status);
+  useEffect(() => {
+    onActivity?.({ active: Boolean(active) || starting, complete: job?.status === "complete", message: job?.message || "", error });
+  }, [Boolean(active), starting, job?.status, job?.message, error, onActivity]);
 
   useEffect(() => {
     let disposed = false;
@@ -80,13 +85,14 @@ export default function WebAccess({ onOpenSession }) {
     finally { busy.current = false; setOpening(false); }
   }
 
-  return <details className="web-access">
-    <summary>Internet · Import a public page</summary>
-    <p>Fetch one public <code>https://</code> page — an article, documentation, or any ordinary web page, including addresses with query parameters. Local and private network addresses are refused. Nothing is fetched until you click Import. Chat and inference stay local.</p>
+  const Container = embedded ? "section" : "details";
+  return <Container className={`web-access${embedded ? " embedded" : ""}`}>
+    {!embedded && <summary>Internet · Import a public page</summary>}
+
     <form onSubmit={importPage}>
-      <label htmlFor="web-page-url">Public page URL</label>
+      <label htmlFor={pane.domId("web-page-url")}>Public page URL</label>
       <div className="web-access-row">
-        <input id="web-page-url" type="url" required placeholder="https://example.com/article" value={url} onChange={(event) => setUrl(event.target.value)} disabled={Boolean(active) || starting} />
+        <input id={pane.domId("web-page-url")} type="url" required placeholder="https://example.com/article" value={url} onChange={(event) => setUrl(event.target.value)} disabled={Boolean(active) || starting} />
         <button type="submit" disabled={Boolean(active) || starting}>{starting ? "Starting…" : "Import page"}</button>
         {active && <button type="button" onClick={stop} disabled={stopping}>{stopping ? "Stopping…" : "Stop import"}</button>}
       </div>
@@ -94,7 +100,7 @@ export default function WebAccess({ onOpenSession }) {
         onChange={event => setIncludeImages(event.target.checked)} disabled={Boolean(active) || starting} />
         Save page images locally (up to 24 images, 10 MB each, 50 MB total)</label>
     </form>
-    <p className="web-access-note">One request at a time · 10+ seconds apart · 30 requests/hour · 24-hour cache. Images count toward these limits; a chapter can take several minutes. Site limits may require longer pauses.</p>
+
     {job && <p role="status">{job.message}{job.source?.cached ? " · Loaded from local cache" : ""}</p>}
     {error && <p role="alert">{error}</p>}
     {job?.status === "complete" && <div className="web-source-preview">
@@ -112,5 +118,5 @@ export default function WebAccess({ onOpenSession }) {
       <button type="button" onClick={openChat} disabled={opening || isGenerating}>{opening ? "Opening…" : "Open new chat with source"}</button>
       {isGenerating && <p>Finish or stop the current reply before opening a new chat.</p>}
     </div>}
-  </details>;
+  </Container>;
 }

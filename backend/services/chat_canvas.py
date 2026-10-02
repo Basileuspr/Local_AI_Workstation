@@ -71,13 +71,17 @@ def validate_edit(edit, context):
     return {"revision": context.revision, "allowed_ids": [item.id for item in context.objects], "operations": [op.model_dump() for op in edit.operations]}
 
 
-async def stream_canvas(client, payload, request, client_request, influence_context=None):
+async def stream_canvas(client, payload, request, client_request, influence_context=None, trace=None):
+    from services.thinking_trace import TraceCapture, reserve_thinking_budget
+    trace = trace or TraceCapture()
+    trace_status = "Canvas response interrupted"
     def event(**value): return f"data: {json.dumps(value)}\n\n"
     try:
         context = request.canvas_context
         message = instruction(context) + "\nReturn ONLY a JSON edit matching the provided schema. Apply the user's requested edit with minimal operations. Preserve unrelated objects. A new text object must have meaningful text. Schema: " + json.dumps(CanvasEdit.model_json_schema())
         payload = {**payload, "messages": [*payload["messages"], {"role": "system", "content": message}], "format": CanvasEdit.model_json_schema(),
                    "options": {**payload.get("options", {}), "temperature": 0, "num_predict": 4096}}
+        payload["options"] = reserve_thinking_budget(payload["options"], payload.get("think"))
         content = ""; completed = False
         from config import settings
         from services.chat_influences import event as influence_event
@@ -91,7 +95,9 @@ async def stream_canvas(client, payload, request, client_request, influence_cont
                 if not line: continue
                 item = json.loads(line)
                 if item.get("error"): raise ValueError(item["error"])
-                content += item.get("message", {}).get("content", "")
+                visible, thinking = trace.chunk(item)
+                content += visible
+                if thinking: yield event(thinking=thinking, done=False)
                 if len(content) > 100000: raise ValueError("Canvas edit was too large. Ask for a smaller edit.")
                 yield ": drafting canvas\n\n"
                 if item.get("done"):
@@ -100,6 +106,10 @@ async def stream_canvas(client, payload, request, client_request, influence_cont
         if not completed: raise ValueError("Canvas response ended before completion.")
         spec = CanvasEdit.model_validate_json(content)
         patch = validate_edit(spec, context)
+        trace_status = "Canvas response complete"
         yield event(token=spec.summary or "Canvas edit ready.", canvas_edit=patch, done=True)
     except (ValueError, OSError) as exc:
+        trace_status = f"Canvas response failed: {exc}"
         yield event(token=f"Canvas was not changed: {exc}", error=str(exc), done=True)
+    finally:
+        trace.finish(trace_status)

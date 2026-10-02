@@ -204,12 +204,12 @@ export default function GifMaker({ open, input, readImage }) {
   function setting(setter, value) { setter(value); setResult(null); }
   return <><section className="gif-maker gif-maker-workspace" aria-labelledby="gif-maker-title"
     onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); const files = Array.from(event.dataTransfer.files); void add(async () => files); }}>
-    <header><div><h2 id="gif-maker-title">GIF Maker</h2><p>Add images, arrange frames, then preview and save.</p>
+    <header><div><h2 id="gif-maker-title">GIF Maker</h2>
       {busy && progress && <div className="gif-maker-progress"><span role="status">{progress.phase}{progress.total ? ` · ${progress.completed} / ${progress.total}` : '…'}{Number.isFinite(progress.elapsed_seconds) ? ` · ${Math.floor(progress.elapsed_seconds)}s elapsed` : ''}</span><progress aria-label="GIF Maker progress" {...(progress.total && progress.completed !== null ? {max:progress.total,value:progress.completed} : {})} /></div>}
     </div>{busy && controller.current && <button type="button" onClick={()=>controller.current?.abort()}>Cancel {queueRequestId ? 'GIF' : 'export'}</button>}</header>
     {queueRequestId && <QueueRequestStatus requestId={queueRequestId} kind="gif"/>}
     <QueueTimeSummary kind="gif"/>
-    <p>Your draft stays here while you use Generate, Editor, or Gallery. Drop PNG, JPEG, or WebP images to add frames.</p>
+
     <GifOutputFolder value={outputFolder} onChange={setOutputFolder} disabled={busy}/>
     <div className="gif-maker-toolbar"><button type="button" disabled={busy} onClick={() => picker.current.click()}>Add images</button>
       <input ref={picker} hidden type="file" multiple accept="image/png,image/jpeg,image/webp" onChange={event => { const files = Array.from(event.target.files); event.target.value = ""; void add(async () => files); }} />
@@ -227,7 +227,7 @@ export default function GifMaker({ open, input, readImage }) {
       <label>Thumbnail export size<select aria-label="Thumbnail export size" disabled={busy} value={thumbnailEdge} onChange={event=>setThumbnailEdge(Number(event.target.value))}>{[160,320,640,1024].map(value=><option key={value} value={value}>{value}px max edge</option>)}</select></label>
       <label>Grid size<select aria-label="Thumbnail grid size" value={tileSize} onChange={event=>setTileSize(event.target.value)}><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select></label>
       <button type="button" disabled={busy || blocked || !thumbnailsReady} onClick={saveThumbnailZip}>Save thumbnails ZIP</button>
-    </div><p>Click an image to view the original. Copy thumbnail puts a small PNG on your clipboard; Save thumbnail downloads it at the selected export size. ZIP includes all frames in order. Originals stay unchanged.</p>
+    </div>
     {thumbnailNotice && <p role="status">{thumbnailNotice}</p>}
     {!blocked && <div className="gif-thumbnail-summary" role="status">{readyThumbnails} / {frames.length} thumbnails ready{failedThumbnails > 0 && ` · ${failedThumbnails} failed — retry or remove these frames before creating the GIF.`}{!thumbnailsReady && !failedThumbnails && <progress aria-label="Building frame thumbnails" value={readyThumbnails} max={frames.length}/>}</div>}
     </>}
@@ -250,7 +250,7 @@ export default function GifMaker({ open, input, readImage }) {
       <label>Background<input type="color" value={background} onChange={event => setting(setBackground, event.target.value)} /></label>
       <label>Frame sizing<select aria-label="GIF frame sizing" value={fit} onChange={event => setting(setFit, event.target.value)}><option value="cover">Fill frame · crop edges</option><option value="contain">Fit whole image · keep borders</option></select></label>
       <label className="gif-maker-loop"><input type="checkbox" checked={loop} onChange={event => setting(setLoop, event.target.checked)} />Loop forever</label>
-    </fieldset><p>{fit === 'cover' ? 'Images fill the frame without stretching. Edges are cropped when proportions differ.' : 'The whole image fits without stretching; different proportions leave borders.'} Small images enlarge to fit. Transparent areas use the background color. Up to 40 MiB and 24 megapixels per image; 160 MiB total.</p>
+    </fieldset>
       <button type="submit" disabled={busy || blocked || frames.length < 2 || !thumbnailsReady}>Create GIF</button>
       {busy && controller.current && <button type="button" onClick={() => controller.current?.abort()}>Cancel</button>}
     </form>

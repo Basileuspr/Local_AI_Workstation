@@ -75,6 +75,7 @@ export async function createSession() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({}),
   });
+  if (!res.ok) throw new Error("Could not create a new chat. Previous chats were preserved.");
   return await res.json();
 }
 
@@ -309,6 +310,7 @@ export async function parseFile(file) {
 }
 
 export async function streamChat({
+  exclusiveModel = false,
   replyMessageId,
   documentFormat,
   model,
@@ -344,6 +346,7 @@ export async function streamChat({
       username,
       reply_message_id: replyMessageId,
       document_format: documentFormat,
+      exclusive_model: exclusiveModel,
     }),
     signal,
   });
@@ -380,7 +383,7 @@ export function getThinkingExportUrl() {
   return apiUrl(`/thinking/export`);
 }
 
-export async function compactMemory({ model, previousSummary, messages, targetTokens, requestId, sessionId, signal }) {
+export async function compactMemory({ model, previousSummary, messages, targetTokens, requestId, sessionId, signal, exclusiveModel = false }) {
   const res = await fetchWorkload(apiUrl(`/memory/compact`), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -391,6 +394,7 @@ export async function compactMemory({ model, previousSummary, messages, targetTo
       messages,
       target_tokens: targetTokens,
       request_id: requestId,
+      exclusive_model: exclusiveModel,
     }),
     signal,
   });
@@ -432,7 +436,7 @@ async function promptIndexRequest(path = "", options) {
   const res = await fetch(apiUrl(`/prompt-index${path}`), options);
   if (!res.ok) {
     const error = await res.json().catch(() => ({}));
-    throw new Error(error.detail || "Could not update Prompt Index");
+    throw new Error(error.detail || "Could not update Index");
   }
   return await res.json();
 }
@@ -476,6 +480,13 @@ export async function updatePromptIndexEntry(entryId, entry) {
 
 export async function deletePromptIndexEntry(entryId) {
   return promptIndexRequest(`/${entryId}`, { method: "DELETE" });
+}
+
+export async function indexKnowledgeLinksRequest(filters = {}, method = "GET", link) {
+  const query = new URLSearchParams(filters).toString();
+  return promptIndexRequest(`/knowledge-links${query ? `?${query}` : ""}`, {
+    method, ...(link ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(link) } : {}),
+  });
 }
 
 export async function loadImageGenerationModels() {

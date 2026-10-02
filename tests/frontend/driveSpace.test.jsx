@@ -3,6 +3,7 @@ import { EventEmitter } from "node:events";
 import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { FolderSpaceResults, folderBytes } from "../../src/components/DriveFolderSizes";
+import {WorkspaceHelpContent} from '../../src/components/WorkspaceInfo';
 const { createDriveSpace } = createRequire(import.meta.url)("../../electron/driveSpace");
 
 function fixture() {
@@ -67,7 +68,8 @@ it("renders sorted folder shares, root files, small sizes and incomplete coverag
   const row = (name, bytes) => ({name, bytes, status: "done", files: 1, errors: 0, skipped_links: 0, shared_files: 0});
   const html = renderToStaticMarkup(<FolderSpaceResults status="complete" report={{folders: [row("Small", 10), row("Large", 80)], root_files: row("Files in drive root", 10), total_bytes: 100, files: 3, errors: 1, skipped_links: 0, sampled_at: "2026-09-22T00:00:00Z"}} />);
   expect(html.indexOf('>Large</span>')).toBeLessThan(html.indexOf('>Small</span>'));
-  for (const text of ["80 B", "80.0%", "Files in drive root", "Partial coverage", "not total drive capacity"]) expect(html).toContain(text);
+  for (const text of ["80 B", "80.0%", "Files in drive root", "Partial coverage"]) expect(html).toContain(text);
+  expect(renderToStaticMarkup(<WorkspaceHelpContent tab="dashboard"/>)).toContain('Folder percentages use scanned file sizes');
   expect(html).not.toContain("NaN");
   expect(folderBytes(512)).toBe("512 B");
   expect(folderBytes(1024)).toBe("1 KiB");

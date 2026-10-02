@@ -1,8 +1,11 @@
 import { captureTools } from './captures.js';
+import { mountReview } from './review.js';
+import {selectFileRange, selectionModifiers, hasSelectionModifier, preventSelectionText} from './selection.js';
 import { attachPlayback } from './playback.js';
 import { createLocalAdapter } from './adapter.js';
 import { mediaActions } from './actions.js';
 import { imageTools } from './image-tools.js';
+import { installPopupDismissal } from './popup-dismissal.js';
 import { availableRecords, mediaBatchSizes, mediaBatchSize, mediaType, bytes, timelineGroups, dateKey, dateLabel, duplicateGroups, durationLabel, filterRecords, needsReview, yearKey } from './library.js';
 
 const escape = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
@@ -44,29 +47,29 @@ export class MediaOrganizer extends HTMLElement {
     try{const grouping=localStorage.getItem('mo-grouping'),view=localStorage.getItem('mo-view');if(['day','month','year','none'].includes(grouping))this.grouping=grouping;if(['grid','list','gallery'].includes(view))this.view=view;}catch{}
     this.innerHTML = `
       <a class="mo-skip" href="#mo-library">Skip to media library</a>
-      <header class="mo-header"><div class="mo-brand"><span class="mo-brand-mark">${icon('film')}</span><strong>Media Manager</strong><span class="mo-version">LOCAL WORKSPACE</span></div><div class="mo-header-tools"><button id="mo-image-tools">Image tools</button><span class="mo-local"><i></i> On your computer</span></div></header>
+      <header class="mo-header"><div class="mo-brand"><span class="mo-brand-mark">${icon('film')}</span><strong>Media Manager</strong><span class="mo-version">LOCAL WORKSPACE</span></div><div class="mo-header-tools"><button id="mo-reload-thumbnails">Reload thumbnails</button><span class="mo-local"><i></i> On your computer</span></div></header>
       <div class="mo-layout">
         <aside class="mo-sidebar" aria-label="Library navigation">
           <div class="mo-sidebar-top"><span class="mo-eyebrow">WORKSPACE</span><div class="mo-nav-current">${icon('grid')} Media library</div></div>
           <div class="mo-sidebar-section"><button id="mo-all-videos" class="mo-year" aria-pressed="false">All videos · all scans</button><label class="mo-eyebrow" for="mo-history">LIBRARY SCOPE / SAVED SCANS</label><select id="mo-history"><option value="">Start a new scan</option></select></div>
           <nav class="mo-sidebar-section" aria-label="Browse by year"><span class="mo-eyebrow">BROWSE BY DATE</span><div id="mo-years"></div></nav>
           <section class="mo-sidebar-section mo-custom-section" aria-labelledby="mo-custom-label"><div class="mo-custom-heading"><span id="mo-custom-label" class="mo-eyebrow">Custom Folders</span><button id="mo-add-custom-folder" class="mo-icon-button" aria-label="Add custom folder" title="Add custom folder">+</button></div><div id="mo-custom-folders"></div></section>
-          <div class="mo-sidebar-bottom">${icon('folder')}<div><strong>Your folders. Your files.</strong><p>Media stays on your computer, accessible in File Explorer.</p></div></div>
+          <div class="mo-sidebar-bottom">${icon('folder')}<div><strong>Your folders. Your files.</strong></div></div>
         </aside>
         <main class="mo-main">
           <div class="mo-display-toolbar"><label for="mo-page-size">Items at a time</label><select id="mo-page-size">${mediaBatchSizes.map(size => `<option value="${size}" ${mediaBatchSize(size) === this.pageSize ? 'selected' : ''}>${size}</option>`).join('')}</select><span id="mo-visible-count" role="status"></span></div>
           <div class="mo-workspace-tabs" role="tablist" aria-label="Media workspace"><button id="mo-library-tab" role="tab" aria-selected="true" aria-controls="mo-organize-panel" data-tab="library">${icon('grid')} Media library</button><button id="mo-duplicates-tab" role="tab" aria-selected="false" aria-controls="mo-duplicates-panel" tabindex="-1" data-tab="duplicates">${icon('film')} Duplicates <span id="mo-duplicate-tab-count">0</span></button></div>
           <div class="mo-capture-access"><button id="mo-snapshots">Snapshots</button><button id="mo-clips">Saved clips</button></div>
           <div id="mo-organize-panel" role="tabpanel" aria-labelledby="mo-library-tab">
-          <div class="mo-title"><div><div class="mo-eyebrow">A PLACE FOR EVERY RECORDING</div><h1>From scattered to sorted.</h1><p>Choose your folders. Review the plan. Find every moment by date.</p></div><span class="mo-tag">MP4 videos</span></div>
+          <div class="mo-title"><div><div class="mo-eyebrow">A PLACE FOR EVERY RECORDING</div><h1>From scattered to sorted.</h1></div><span class="mo-tag">MP4 videos</span></div>
           <section class="mo-flow" aria-label="Organizing workflow">
-            <article class="mo-step"><div class="mo-step-heading"><span class="mo-step-number">01</span><h2>Take from</h2>${icon('folder')}</div><p>Your backup or unsorted media folder.</p><label for="mo-source">Source folder</label><input id="mo-source" type="text" spellcheck="false" placeholder="Paste a full folder path" autocomplete="off"><div class="mo-step-actions"><button data-pick="source">${icon('folder')} Choose folder</button><button class="mo-icon-button" data-open="source" aria-label="Open source folder in File Explorer" title="Open source folder">${icon('external')}</button></div><small>Includes MP4 files in subfolders.</small></article>
+            <article class="mo-step"><div class="mo-step-heading"><span class="mo-step-number">01</span><h2>Take from</h2>${icon('folder')}</div><label for="mo-source">Source folder</label><input id="mo-source" type="text" spellcheck="false" placeholder="Paste a full folder path" autocomplete="off"><div class="mo-step-actions"><button data-pick="source">${icon('folder')} Choose folder</button><button class="mo-icon-button" data-open="source" aria-label="Open source folder in File Explorer" title="Open source folder">${icon('external')}</button></div></article>
             <span class="mo-connector">${icon('arrow')}</span>
-            <article class="mo-step mo-process"><div class="mo-step-heading"><span class="mo-step-number">02</span><h2>Find & organize</h2>${icon('scan')}</div><p>Read dates, identify duplicates, and plan.</p><label for="mo-duplicates">Duplicate copies</label><select id="mo-duplicates"><option value="all">Keep every copy</option><option value="separate">Put extra copies in _Duplicates</option><option value="leave">Leave extra copies in the source</option></select><div class="mo-process-details"><span>${icon('check')} Date & category</span><span>${icon('check')} File integrity</span></div><small>Scanning does not move your files.</small></article>
+            <article class="mo-step mo-process"><div class="mo-step-heading"><span class="mo-step-number">02</span><h2>Find & organize</h2>${icon('scan')}</div><label for="mo-duplicates">Duplicate copies</label><select id="mo-duplicates"><option value="all">Keep every copy</option><option value="separate">Put extra copies in _Duplicates</option><option value="leave">Leave extra copies in the source</option></select><div class="mo-process-details"><span>${icon('check')} Date & category</span><span>${icon('check')} File integrity</span></div></article>
             <span class="mo-connector">${icon('arrow')}</span>
-            <article class="mo-step"><div class="mo-step-heading"><span class="mo-step-number">03</span><h2>Put into</h2>${icon('folder')}</div><p>Your organized archive on disk.</p><label for="mo-destination">Destination folder</label><input id="mo-destination" type="text" spellcheck="false" placeholder="Paste a full folder path" autocomplete="off"><div class="mo-step-actions"><button data-pick="destination">${icon('folder')} Choose folder</button><button class="mo-icon-button" data-open="destination" aria-label="Open destination folder in File Explorer" title="Open destination folder">${icon('external')}</button></div><small>Year / Category / Original filename.mp4</small></article>
+            <article class="mo-step"><div class="mo-step-heading"><span class="mo-step-number">03</span><h2>Put into</h2>${icon('folder')}</div><label for="mo-destination">Destination folder</label><input id="mo-destination" type="text" spellcheck="false" placeholder="Paste a full folder path" autocomplete="off"><div class="mo-step-actions"><button data-pick="destination">${icon('folder')} Choose folder</button><button class="mo-icon-button" data-open="destination" aria-label="Open destination folder in File Explorer" title="Open destination folder">${icon('external')}</button></div></article>
           </section>
-          <div class="mo-action-bar"><div><span id="mo-phase" class="mo-phase">Ready when you are</span><p id="mo-plan-caption">Select two folders to preview how your videos will be organized.</p></div><div class="mo-actions"><button id="mo-scan" class="mo-primary">${icon('scan')} Scan & preview</button><button id="mo-move" disabled>Review move ${icon('arrow')}</button></div></div>
+          <div class="mo-action-bar"><div><span id="mo-phase" class="mo-phase">Ready when you are</span><p id="mo-plan-caption">No scan loaded.</p></div><div class="mo-actions"><button id="mo-scan" class="mo-primary">${icon('scan')} Scan & preview</button><button id="mo-move" disabled>Review move ${icon('arrow')}</button></div></div>
           <div id="mo-status" class="mo-status" role="status" aria-live="polite" hidden></div>
           <section id="mo-progress" class="mo-progress" aria-labelledby="mo-progress-title" hidden>
             <div class="mo-progress-heading"><strong id="mo-progress-title">Preparing…</strong><span id="mo-progress-count"></span></div>
@@ -76,18 +79,19 @@ export class MediaOrganizer extends HTMLElement {
           </section>
           <details id="mo-job-details" hidden><summary>Operation report</summary><pre></pre></details>
           <section id="mo-library" class="mo-library" aria-labelledby="mo-library-title" tabindex="-1">
-            <div class="mo-library-heading"><div><h2 id="mo-library-title">Your media, by date <span id="mo-count">0</span></h2><p id="mo-scope-description">One timeline across every folder and category.</p></div><div class="mo-segmented" aria-label="Media layout"><label>Group by<select id="mo-grouping" aria-label="Group media by"><option value="day">Day</option><option value="month" selected>Month</option><option value="year">Year</option><option value="none">No groups</option></select></label><button data-view="gallery" aria-label="Large gallery view" aria-pressed="false">Large previews</button><button data-view="grid" aria-label="Grid view" aria-pressed="true">${icon('grid')}</button><button data-view="list" aria-label="List view" aria-pressed="false">${icon('list')}</button></div></div>
+            <div class="mo-library-heading"><div><h2 id="mo-library-title">Your media, by date <span id="mo-count">0</span></h2><p id="mo-scope-description">All catalog folders.</p></div><div class="mo-segmented" aria-label="Media layout"><label>Group by<select id="mo-grouping" aria-label="Group media by"><option value="day">Day</option><option value="month" selected>Month</option><option value="year">Year</option><option value="none">No groups</option></select></label><button data-view="gallery" aria-label="Large gallery view" aria-pressed="false">Large previews</button><button data-view="grid" aria-label="Grid view" aria-pressed="true">${icon('grid')}</button><button data-view="list" aria-label="List view" aria-pressed="false">${icon('list')}</button></div></div>
             <div class="mo-filters"><label class="mo-search">${icon('search')}<input id="mo-search" type="search" placeholder="Search filenames, folders, or categories" aria-label="Search media"></label><select id="mo-category" aria-label="Filter by category"><option value="">All categories</option></select><select id="mo-order" aria-label="Sort media"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="duration-desc">Duration · longest first</option><option value="duration-asc">Duration · shortest first</option><option value="size-desc">Size · largest first</option><option value="size-asc">Size · smallest first</option><option value="type-asc">Type / codec</option><option value="name-asc">Filename · A–Z</option><option value="name-desc">Filename · Z–A</option><option value="resolution-desc">Resolution · highest first</option><option value="fps-desc">Frame rate · highest first</option><option value="bitrate-desc">Bit rate · highest first</option></select><button id="mo-review" aria-pressed="false">Needs review <span id="mo-review-count">0</span></button><button id="mo-show-duplicates" aria-pressed="false" title="Show extra copies of identical files">Show duplicates</button></div>
             <details class="mo-advanced-filters"><summary>More filters · type, duration, size, audio, Trash</summary><div class="mo-frame-options"><label>Type / codec<select id="mo-type"><option value="">All types</option></select></label><label>Library status<select id="mo-library-status"><option value="">Active media</option><option value="trash">Recoverable Trash</option></select></label><label>Audio<select id="mo-audio"><option value="">Any audio</option><option value="sound">Has audio</option><option value="silent">No audio</option></select></label><label>Minimum duration (seconds)<input id="mo-minDuration" type="number" min="0" step="any"></label><label>Maximum duration (seconds)<input id="mo-maxDuration" type="number" min="0" step="any"></label><label>Minimum size (MiB)<input id="mo-minSize" type="number" min="0" step="any"></label><label>Maximum size (MiB)<input id="mo-maxSize" type="number" min="0" step="any"></label></div></details>
             <div id="mo-user-tags" class="mo-category-tags" role="group" aria-label="Custom tag filters"></div>
             <div id="mo-category-tags" class="mo-category-tags" role="group" aria-label="Category filter tags" hidden></div>
-            <div id="mo-selection-bar" class="mo-selection-bar" hidden><span id="mo-selection-count" role="status">0 selected</span><div><button id="mo-select-matching">Select matching clips</button><button id="mo-clear-selection" disabled>Clear selection</button><button id="mo-tag-selected" disabled>Tag selected</button><button id="mo-sort-custom" class="mo-primary" disabled>${icon('folder')} Place in folder</button><button id="mo-new-with-selected" disabled>Start Folder with item</button><button id="mo-rotate-selected" disabled title="Rotate view right; originals unchanged">Rotate selected ↷</button></div></div>
+            <div class="mo-trash-controls"><button id="mo-trash-view">View Trash</button></div>
+            <div id="mo-selection-bar" class="mo-selection-bar" hidden><span id="mo-selection-count" role="status" title="Ctrl-click toggles clips. Shift-click selects a displayed range. Ctrl+Shift adds a range.">0 selected</span><div><button id="mo-select-matching">Select matching clips</button><button id="mo-clear-selection" disabled>Clear selection</button><button id="mo-delete-selected" class="mo-delete-action" disabled>Delete selected</button><button id="mo-restore-selected" hidden disabled>Restore selected</button><button id="mo-tag-selected" disabled>Tag selected</button><button id="mo-sort-custom" class="mo-primary" disabled>${icon('folder')} Place in folder</button><button id="mo-new-with-selected" disabled>Start Folder with item</button><button id="mo-rotate-selected" disabled title="Rotate view right; originals unchanged">Rotate selected ↷</button></div></div>
             <div id="mo-results" aria-live="polite"></div>
           </section>
           <footer class="mo-footer"><span>${icon('clock')} Dates follow the scan’s best available evidence.</span><span>Unknown dates stay visible.</span></footer>
           </div>
           <section id="mo-duplicates-panel" role="tabpanel" aria-labelledby="mo-duplicates-tab" tabindex="-1" hidden>
-            <div class="mo-duplicate-heading"><div><h1>Duplicates</h1><p id="mo-duplicate-summary">Identical files, together. Click a preview to enlarge.</p></div><label class="mo-duplicate-history">Saved scan<select id="mo-duplicate-history"><option value="">Start a new scan</option></select></label></div>
+            <div class="mo-duplicate-heading"><div><h1>Duplicates</h1><p id="mo-duplicate-summary">No duplicate scan loaded.</p></div><label class="mo-duplicate-history">Saved scan<select id="mo-duplicate-history"><option value="">Start a new scan</option></select></label></div>
             <div class="mo-duplicate-toolbar"><label class="mo-search">${icon('search')}<input id="mo-duplicate-search" type="search" aria-label="Search duplicates" placeholder="Search filenames or locations"></label><select id="mo-duplicate-year" aria-label="Filter duplicates by year"><option value="">All dates</option></select><select id="mo-duplicate-order" aria-label="Sort duplicate groups by date"><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select><button id="mo-duplicate-size" aria-pressed="false">Larger previews</button></div>
             <p id="mo-duplicate-job" class="mo-duplicate-job" role="status" hidden></p><p id="mo-duplicate-notice" class="mo-status mo-error" role="alert" hidden></p>
             <div id="mo-duplicate-results"></div>
@@ -100,7 +104,10 @@ export class MediaOrganizer extends HTMLElement {
       <dialog class="mo-dialog mo-custom-dialog" id="mo-custom-dialog" aria-labelledby="mo-custom-dialog-title"></dialog>
       <dialog class="mo-dialog mo-confirm" id="mo-confirm" aria-labelledby="mo-confirm-title"></dialog>`;
     this.$('#mo-all-videos').onclick = () => this.attempt(() => this.load('all-scans'));
-    this.$('#mo-image-tools').onclick = () => this.openImageTools();
+    this.$('#mo-reload-thumbnails').onclick = () => this.bindThumbnails(this, true);
+    this.$('#mo-delete-selected').onclick = () => this.openBulkDelete();
+    this.$('#mo-restore-selected').onclick = () => this.openBulkDelete('restore');
+    this.$('#mo-trash-view').onclick = () => { this.selected.clear(); this.filters.status = this.filters.status === 'trash' ? '' : 'trash'; this.$('#mo-library-status').value = this.filters.status; this.renderLibrary(); };
     this.$('#mo-tag-selected').onclick = () => this.openTagDialog([...this.selected]);
     for(const key of ['type','status','audio','minDuration','maxDuration','minSize','maxSize']) this.$(`#mo-${key==='status'?'library-status':key}`).onchange = event => { this.filters[key]=event.target.value; this.limit=this.pageSize; this.renderLibrary(); };
     this.$('#mo-page-size').onchange = event => {
@@ -110,6 +117,8 @@ export class MediaOrganizer extends HTMLElement {
       this.renderLibrary();
     };
     this.bind();
+    this.removePopupDismissal = installPopupDismissal(document);
+    mountReview(this);
     this.renderLibrary();
     try { if (sessionStorage.getItem('mo-active-tab') === 'duplicates') this.switchTab('duplicates'); } catch {}
     this.poll();
@@ -117,8 +126,11 @@ export class MediaOrganizer extends HTMLElement {
     window.addEventListener('focus', this.checkAvailability);
     document.addEventListener('visibilitychange', this.checkAvailability);
     this.availabilityTimer = setInterval(this.checkAvailability, 15000);
+    this.dataset.mediaManagerReady = 'true';
   }
   disconnectedCallback() {
+    delete this.dataset.mediaManagerReady;
+    this.removePopupDismissal?.(); this.removePopupDismissal = null;
     clearInterval(this.availabilityTimer);
     window.removeEventListener('focus', this.checkAvailability);
     document.removeEventListener('visibilitychange', this.checkAvailability);
@@ -408,11 +420,21 @@ export class MediaOrganizer extends HTMLElement {
     const groups = timelineGroups(filtered, this.grouping, this.filters.order);
     let remaining=this.limit;
     result.innerHTML=groups.map(group=>{if(remaining<=0)return '';const rows=group.rows.slice(0,remaining);remaining-=rows.length;return `<section class="mo-date-group"><h3>${icon('clock')} <strong>${escape(group.label)}</strong><span>${group.rows.length} video${group.rows.length===1?'':'s'}</span></h3><div class="mo-media-${this.view}">${rows.map(r=>this.card(r)).join('')}</div></section>`;}).join('')+(filtered.length>this.limit?`<div class="mo-more"><button id="mo-more">Show next ${Math.min(this.pageSize,filtered.length-this.limit)} videos</button><span>Showing ${this.limit} of ${filtered.length}</span></div>`:'');
-    this.querySelectorAll('[data-detail]').forEach(button => button.addEventListener('click', () => this.showDetail(button.dataset.detail)));
-    this.$('#mo-results').querySelectorAll('[data-select-media]').forEach(checkbox => checkbox.addEventListener('change', () => {
-      if (checkbox.checked) this.selected.add(checkbox.dataset.selectMedia); else this.selected.delete(checkbox.dataset.selectMedia);
-      this.updateSelection();
-    }));
+    const selectionOrder = [...result.querySelectorAll('[data-select-media]')].map(input => input.dataset.selectMedia);
+    const selectionScope = JSON.stringify([this.data?.uiRunId,this.filters,this.grouping,selectionOrder]);
+    if (selectionScope !== this.selectionScope) this.selectionAnchor = null;
+    this.selectionScope = selectionScope;
+    result.querySelectorAll('[data-detail]').forEach(button => {
+      button.addEventListener('mousedown', preventSelectionText);
+      button.addEventListener('click', event => {
+        if (hasSelectionModifier(event)) this.selectMedia(button.dataset.detail,event);
+        else this.showDetail(button.dataset.detail);
+      });
+    });
+    result.querySelectorAll('[data-select-media]').forEach(checkbox => {
+      checkbox.addEventListener('mousedown', preventSelectionText);
+      checkbox.addEventListener('click', event => this.selectMedia(checkbox.dataset.selectMedia,event));
+    });
     this.updateSelection();
     this.bindThumbnails(this.$('#mo-results')); this.bindItemActions(this.$('#mo-results'));
     this.querySelectorAll('[data-reveal]').forEach(button => button.addEventListener('click', () => this.attempt(() => this.adapter.reveal(this.data.uiRunId, button.dataset.reveal))));
@@ -480,11 +502,19 @@ export class MediaOrganizer extends HTMLElement {
       media.dataset.rotation = String(angle);
     });
   }
-  canSelect(row) { return Boolean(!row.Trashed && row.Available && row.SHA256 && ['OK', 'OK_WITH_WARNINGS'].includes(row.IntegrityStatus)); }
+  canSelect(row) { return Boolean(Boolean(row.Trashed) === (this.filters.status === 'trash') && row.Available && row.SHA256 && ['OK', 'OK_WITH_WARNINGS'].includes(row.IntegrityStatus)); }
+  selectMedia(id,event) {
+    if (this.busy) return;
+    const ordered = [...this.$('#mo-results').querySelectorAll('[data-select-media]')].filter(input => !input.disabled).map(input => input.dataset.selectMedia);
+    const result = selectFileRange(this.selected,this.selectionAnchor,ordered,id,selectionModifiers(event));
+    this.selected = result.ids; this.selectionAnchor = result.anchor;
+    this.updateSelection();
+  }
   updateSelection() {
     const records = availableRecords(this.data?.records || []);
     const eligible = new Set(records.filter(row => this.canSelect(row)).map(row => row.RecordId));
     this.selected.forEach(id => { if (!eligible.has(id)) this.selected.delete(id); });
+    if (!this.selected.size) this.selectionAnchor = null;
     const matching = filterRecords(records, this.filters).filter(row => this.canSelect(row));
     const visible = new Set(matching.map(row => row.RecordId));
     const hidden = [...this.selected].filter(id => !visible.has(id)).length;
@@ -492,10 +522,16 @@ export class MediaOrganizer extends HTMLElement {
     this.$('#mo-selection-count').textContent = `${this.selected.size} selected${hidden ? ` · ${hidden} hidden by filters` : ''}`;
     this.$('#mo-select-matching').disabled = this.busy || !matching.length;
     this.$('#mo-clear-selection').disabled = this.busy || !this.selected.size;
-    this.$('#mo-tag-selected').disabled = this.busy || !this.selected.size;
-    this.$('#mo-sort-custom').disabled = this.busy || !this.selected.size;
-    this.$('#mo-new-with-selected').disabled = this.busy || !this.selected.size;
-    this.$('#mo-rotate-selected').disabled = this.busy || !this.selected.size;
+    this.$('#mo-delete-selected').disabled = this.busy || !this.selected.size;
+    this.$('#mo-delete-selected').textContent = this.filters.status === 'trash' ? 'Delete selected permanently' : 'Delete selected';
+    this.$('#mo-restore-selected').hidden = this.filters.status !== 'trash';
+    this.$('#mo-restore-selected').disabled = this.busy || !this.selected.size;
+    this.$('#mo-trash-view').textContent = this.filters.status === 'trash' ? 'Back to active media' : 'View Trash';
+    this.$('#mo-trash-view').disabled = this.busy;
+    this.$('#mo-tag-selected').disabled = this.busy || !this.selected.size || this.filters.status === 'trash';
+    this.$('#mo-sort-custom').disabled = this.busy || !this.selected.size || this.filters.status === 'trash';
+    this.$('#mo-new-with-selected').disabled = this.busy || !this.selected.size || this.filters.status === 'trash';
+    this.$('#mo-rotate-selected').disabled = this.busy || !this.selected.size || this.filters.status === 'trash';
     this.$('#mo-results').querySelectorAll('[data-select-media]').forEach(input => {
       input.checked = this.selected.has(input.dataset.selectMedia);
       input.disabled = this.busy || !eligible.has(input.dataset.selectMedia);
@@ -507,7 +543,7 @@ export class MediaOrganizer extends HTMLElement {
     const saved = [...this.customFolders].sort((a, b) => a.name.localeCompare(b.name));
     const active = saved.find(folder => folder.id === this.filters.folder);
     this.$('#mo-library-title').firstChild.textContent = active ? `${active.name} ` : this.data?.aggregate ? 'All videos, by date ' : 'Your media, by date ';
-    this.$('#mo-custom-folders').innerHTML = `<button class="mo-year" data-custom-filter="" aria-pressed="${!this.filters.folder}"><span>All folders</span><span>${records.length}</span></button>` + saved.map(folder => `<div class="mo-custom-folder-row"><button class="mo-year" data-custom-filter="${escape(folder.id)}" aria-pressed="${this.filters.folder === folder.id}" title="${escape(folder.path)}"><span>${escape(folder.name)}</span><span>${records.filter(row => row.CustomFolderId === folder.id).length}</span></button><button class="mo-icon-button" data-custom-open="${escape(folder.id)}" aria-label="Open ${escape(folder.name)} folder" title="Open folder in Explorer">${icon('external')}</button></div>`).join('') + (!saved.length ? '<p class="mo-custom-hint">Add a folder, then select clips to move into it.</p>' : '<p class="mo-custom-hint">Counts show clips in the selected library scope.</p>');
+    this.$('#mo-custom-folders').innerHTML = `<button class="mo-year" data-custom-filter="" aria-pressed="${!this.filters.folder}"><span>All folders</span><span>${records.length}</span></button>` + saved.map(folder => `<div class="mo-custom-folder-row"><button class="mo-year" data-custom-filter="${escape(folder.id)}" aria-pressed="${this.filters.folder === folder.id}" title="${escape(folder.path)}"><span>${escape(folder.name)}</span><span>${records.filter(row => row.CustomFolderId === folder.id).length}</span></button><button class="mo-icon-button" data-custom-open="${escape(folder.id)}" aria-label="Open ${escape(folder.name)} folder" title="Open folder in Explorer">${icon('external')}</button></div>`).join('') + (!saved.length ? '' : '');
     this.querySelectorAll('[data-custom-filter]').forEach(button => { button.onclick = () => {
       this.filters.folder = button.dataset.customFilter;
       this.limit = this.pageSize;
@@ -518,7 +554,7 @@ export class MediaOrganizer extends HTMLElement {
   }
   openCustomFolderDialog(afterSave = null) {
     const dialog = this.$('#mo-custom-dialog');
-    dialog.innerHTML = `<div class="mo-dialog-heading"><h2 id="mo-custom-dialog-title">Create or connect a folder</h2><button data-custom-close class="mo-icon-button" aria-label="Close custom folder dialog">${icon('close')}</button></div><p>Create a real folder from here. Selected clips move only after you review and confirm.</p><label for="mo-custom-mode">Folder location</label><select id="mo-custom-mode"><option value="managed">Create in Media Manager</option><option value="external">Create in another PC location</option><option value="existing">Connect an existing folder</option></select><label for="mo-custom-name">Folder name</label><input id="mo-custom-name" maxlength="100" placeholder="For example: Favorites"><div id="mo-custom-location" hidden><label id="mo-custom-path-label" for="mo-custom-path">Parent folder</label><input id="mo-custom-path" spellcheck="false" placeholder="Choose a location below"><button id="mo-custom-browse">${icon('folder')} Browse PC folders</button></div><p id="mo-custom-result-path" class="mo-path"></p><p class="mo-dialog-error mo-warning" role="alert"></p><div class="mo-dialog-actions"><button data-custom-cancel>Cancel</button><button id="mo-custom-save" class="mo-primary">Create folder</button></div>`;
+    dialog.innerHTML = `<div class="mo-dialog-heading"><h2 id="mo-custom-dialog-title">Create or connect a folder</h2><button data-custom-close class="mo-icon-button" aria-label="Close custom folder dialog">${icon('close')}</button></div><label for="mo-custom-mode">Folder location</label><select id="mo-custom-mode"><option value="managed">Create in Media Manager</option><option value="external">Create in another PC location</option><option value="existing">Connect an existing folder</option></select><label for="mo-custom-name">Folder name</label><input id="mo-custom-name" maxlength="100" placeholder="For example: Favorites"><div id="mo-custom-location" hidden><label id="mo-custom-path-label" for="mo-custom-path">Parent folder</label><input id="mo-custom-path" spellcheck="false" placeholder="Choose a location below"><button id="mo-custom-browse">${icon('folder')} Browse PC folders</button></div><p id="mo-custom-result-path" class="mo-path"></p><p class="mo-dialog-error mo-warning" role="alert"></p><div class="mo-dialog-actions"><button data-custom-cancel>Cancel</button><button id="mo-custom-save" class="mo-primary">Create folder</button></div>`;
     const update=()=>{
       const mode=dialog.querySelector('#mo-custom-mode').value,name=dialog.querySelector('#mo-custom-name').value.trim();
       dialog.querySelector('#mo-custom-location').hidden=mode==='managed';
@@ -571,18 +607,17 @@ export class MediaOrganizer extends HTMLElement {
   }
   showCustomMovePreview(plan) {
     const dialog = this.$('#mo-custom-dialog');
-    dialog.innerHTML = `<div class="mo-dialog-heading"><h2 id="mo-custom-dialog-title">Review ${plan.files.length} selected moves</h2><button data-custom-close class="mo-icon-button" aria-label="Close move preview">${icon('close')}</button></div><p class="mo-custom-help">Move directly into <strong>${escape(plan.folder.name)}</strong>. Filenames are kept unless a collision requires a new name. Existing files are never overwritten.</p><div class="mo-custom-preview-list">${plan.files.map(file => `<div class="mo-custom-preview-item"><span>From</span><code>${escape(file.source)}</code><span>To</span><code>${escape(file.destination)}</code></div>`).join('')}</div>${plan.skipped.length ? `<details><summary>${plan.skipped.length} selected clips will stay in place</summary>${plan.skipped.map(file => `<p>${escape(file.name)}: ${escape(file.reason)}</p>`).join('')}</details>` : ''}<p class="mo-custom-help">These files leave their current locations. The operation is logged for undo.</p><label for="mo-custom-confirm">Type MOVE to confirm</label><input id="mo-custom-confirm" autocomplete="off" spellcheck="false"><p class="mo-dialog-error mo-warning" role="alert"></p><div class="mo-dialog-actions"><button id="mo-custom-back">Go back</button><button id="mo-custom-execute" class="mo-primary" disabled>Move selected clips</button></div>`;
+    dialog.innerHTML = `<div class="mo-dialog-heading"><h2 id="mo-custom-dialog-title">Review ${plan.files.length} selected moves</h2><button data-custom-close class="mo-icon-button" aria-label="Close move preview">${icon('close')}</button></div><p class="mo-custom-help">Move directly into <strong>${escape(plan.folder.name)}</strong>. Filenames are kept unless a collision requires a new name. Existing files are never overwritten.</p><div class="mo-custom-preview-list">${plan.files.map(file => `<div class="mo-custom-preview-item"><span>From</span><code>${escape(file.source)}</code><span>To</span><code>${escape(file.destination)}</code></div>`).join('')}</div>${plan.skipped.length ? `<details><summary>${plan.skipped.length} selected clips will stay in place</summary>${plan.skipped.map(file => `<p>${escape(file.name)}: ${escape(file.reason)}</p>`).join('')}</details>` : ''}<p class="mo-custom-help">These files leave their current locations. The operation is logged for undo.</p><p class="mo-dialog-error mo-warning" role="alert"></p><div class="mo-dialog-actions"><button id="mo-custom-back">Go back</button><button id="mo-custom-execute" class="mo-primary">Move selected clips</button></div>`;
     dialog.querySelector('[data-custom-close]').onclick = () => dialog.close();
     dialog.querySelector('#mo-custom-back').onclick = () => this.openCustomMoveDialog(plan.folder.id, this.customMoveIds);
-    dialog.querySelector('#mo-custom-confirm').oninput = event => { dialog.querySelector('#mo-custom-execute').disabled = event.target.value !== 'MOVE'; };
     dialog.querySelector('#mo-custom-execute').onclick = () => this.dialogAttempt(dialog, async () => {
       const button = dialog.querySelector('#mo-custom-execute'); button.disabled = true;
       try {
-        await this.adapter.customMove(plan.runId, plan.planId, dialog.querySelector('#mo-custom-confirm').value);
+        await this.adapter.customMove(plan.runId, plan.planId, 'MOVE');
         dialog.close(); this.setBusy(true); await this.refresh();
       } catch (error) { button.disabled = false; throw error; }
     });
-    dialog.querySelector('#mo-custom-confirm').focus();
+    dialog.querySelector('#mo-custom-back').focus();
   }
   switchTab(tab) {
     this.tab = tab;
@@ -600,15 +635,18 @@ export class MediaOrganizer extends HTMLElement {
     });
     this.renderDuplicates();
   }
-  bindThumbnails(root) {
+  bindThumbnails(root, retry = false) {
     this.rotationObserver ||= new ResizeObserver(() => this.applyRotations(this));
     this.rotationObserver.disconnect();
     this.querySelectorAll('.mo-thumbnail').forEach(node => this.rotationObserver.observe(node));
     this.applyRotations(root);
     root.querySelectorAll('[data-thumbnail-src]').forEach(img => {
-      img.addEventListener('load', () => img.parentElement.classList.add('mo-thumb-ready'), { once: true });
-      img.addEventListener('error', () => { img.parentElement.classList.add('mo-thumb-failed'); img.remove(); }, { once: true });
-      img.src = img.dataset.thumbnailSrc;
+      img.parentElement.classList.remove('mo-thumb-ready', 'mo-thumb-failed');
+      img.onload = () => { img.parentElement.classList.remove('mo-thumb-failed'); img.parentElement.classList.add('mo-thumb-ready'); };
+      img.onerror = () => { img.parentElement.classList.remove('mo-thumb-ready'); img.parentElement.classList.add('mo-thumb-failed'); };
+      const url = new URL(img.dataset.thumbnailSrc, document.baseURI);
+      if (retry) url.searchParams.set('preview_retry', String(Date.now()));
+      img.src = url.href;
     });
   }
   duplicateThumbnail(row, size = 'large') {
@@ -691,7 +729,7 @@ export class MediaOrganizer extends HTMLElement {
   showDetail(id) {
     const row = this.data.records.find(r => r.RecordId === id);
     const dialog = this.$('#mo-detail');
-    dialog.innerHTML = `<div class="mo-dialog-heading"><div><span class="mo-eyebrow">FILE DETAILS</span><h2 id="mo-detail-title">${escape(row.OriginalFilename)}</h2></div><button data-close class="mo-icon-button" aria-label="Close file details">${icon('close')}</button></div>${row.Available ? `<div class="mo-video-frame"><video data-rotation-record="${escape(row.RecordId)}" controls preload="metadata" src="${escape(this.adapter.mediaUrl(this.data.uiRunId, id))}" aria-label="Preview ${escape(row.OriginalFilename)}"></video></div><p class="mo-playback-note">If this video cannot play in your browser, use Show in folder to open it in your media player.</p>` : '<p class="mo-warning">File unavailable. It may have been moved outside this app.</p>'}${this.identity(row)}${this.itemActions(row, true)}${row.OriginRunId ? `<div class="mo-location"><label>Saved scan · ${escape(row.ScanFinished)} · seen in ${row.SeenInScans.length} scan(s)</label><code>${escape(row.ScanSource)}</code><button id="mo-open-origin-scan">Open this saved scan</button></div>` : ''}<div class="mo-detail-facts"><span>${escape(mediaType(row))}</span><span>${Number(row.FrameRate)||'?'} FPS</span><span>${durationLabel(row.Duration)}</span><span>${escape(dateLabel(row))}</span><span>${escape(row.Classification)}</span><span>${bytes(row.FileSize)}</span></div><div class="mo-location"><label>Current file location</label><code>${escape(row.CurrentPath)}</code><button id="mo-detail-reveal" ${!row.Available ? 'disabled' : ''}>${icon('external')} Show in folder</button><button id="mo-copy-path">Copy path</button></div><div class="mo-location"><label>${row.Moved ? 'Actual archive location' : 'Planned destination · not moved yet'}</label><code>${escape(row.Moved ? row.ActualDestination : row.ProposedDestination || 'Stays in source; not eligible for this move.')}</code></div><details><summary>Date & classification evidence</summary><dl><dt>Date source</dt><dd>${escape(row.DateSource || 'Unknown')} · ${escape(row.DateConfidence)} confidence</dd><dt>Date notes</dt><dd>${escape(row.DateNotes || 'No additional notes.')}</dd><dt>Classification</dt><dd>${escape(row.ClassificationEvidence || 'No additional evidence.')} · ${escape(row.ClassificationConfidence)} confidence</dd><dt>Duplicate evidence</dt><dd>Compared using full-file SHA-256, never filename alone. Primary is the best-evidenced available scan copy, not a claim about which copy was created first.</dd><dt>SHA-256</dt><dd class="mo-path">${escape(row.SHA256 || 'Unavailable')}</dd><dt>Integrity</dt><dd>${escape(row.IntegrityStatus)} · ${escape(row.IntegrityNotes)}</dd><dt>Plan</dt><dd>${escape(row.OperationStatus)}</dd></dl></details>`;
+    dialog.innerHTML = `<div class="mo-dialog-heading"><div><span class="mo-eyebrow">FILE DETAILS</span><h2 id="mo-detail-title">${escape(row.OriginalFilename)}</h2></div><button data-close class="mo-icon-button" aria-label="Close file details">${icon('close')}</button></div>${row.Available ? `<div class="mo-video-frame"><video data-rotation-record="${escape(row.RecordId)}" controls preload="metadata" src="${escape(this.adapter.mediaUrl(this.data.uiRunId, id))}" aria-label="Preview ${escape(row.OriginalFilename)}"></video></div>` : '<p class="mo-warning">File unavailable. It may have been moved outside this app.</p>'}${this.identity(row)}${this.itemActions(row, true)}${row.OriginRunId ? `<div class="mo-location"><label>Saved scan · ${escape(row.ScanFinished)} · seen in ${row.SeenInScans.length} scan(s)</label><code>${escape(row.ScanSource)}</code><button id="mo-open-origin-scan">Open this saved scan</button></div>` : ''}<div class="mo-detail-facts"><span>${escape(mediaType(row))}</span><span>${Number(row.FrameRate)||'?'} FPS</span><span>${durationLabel(row.Duration)}</span><span>${escape(dateLabel(row))}</span><span>${escape(row.Classification)}</span><span>${bytes(row.FileSize)}</span></div><div class="mo-location"><label>Current file location</label><code>${escape(row.CurrentPath)}</code><button id="mo-detail-reveal" ${!row.Available ? 'disabled' : ''}>${icon('external')} Show in folder</button><button id="mo-copy-path">Copy path</button></div><div class="mo-location"><label>${row.Moved ? 'Actual archive location' : 'Planned destination · not moved yet'}</label><code>${escape(row.Moved ? row.ActualDestination : row.ProposedDestination || 'Stays in source; not eligible for this move.')}</code></div><details><summary>Date & classification evidence</summary><dl><dt>Date source</dt><dd>${escape(row.DateSource || 'Unknown')} · ${escape(row.DateConfidence)} confidence</dd><dt>Date notes</dt><dd>${escape(row.DateNotes || 'No additional notes.')}</dd><dt>Classification</dt><dd>${escape(row.ClassificationEvidence || 'No additional evidence.')} · ${escape(row.ClassificationConfidence)} confidence</dd><dt>Duplicate evidence</dt><dd>Compared using full-file SHA-256, never filename alone. Primary is the best-evidenced available scan copy, not a claim about which copy was created first.</dd><dt>SHA-256</dt><dd class="mo-path">${escape(row.SHA256 || 'Unavailable')}</dd><dt>Integrity</dt><dd>${escape(row.IntegrityStatus)} · ${escape(row.IntegrityNotes)}</dd><dt>Plan</dt><dd>${escape(row.OperationStatus)}</dd></dl></details>`;
     dialog.querySelector('[data-close]').onclick = () => dialog.close();
     dialog.querySelector('#mo-open-origin-scan')?.addEventListener('click', () => { dialog.close(); this.attempt(() => this.load(row.OriginRunId)); });
     dialog.querySelector('#mo-detail-reveal').onclick = () => this.dialogAttempt(dialog, () => this.adapter.reveal(this.data.uiRunId, id));
@@ -708,16 +746,15 @@ export class MediaOrganizer extends HTMLElement {
     const pending = this.pendingRecords();
     if (this.busy || this.planDirty || !pending.length) return;
     const dialog = this.$('#mo-confirm');
-    dialog.innerHTML = `<div class="mo-dialog-heading"><h2 id="mo-confirm-title">Move ${pending.length} reviewed files?</h2><button data-close class="mo-icon-button" aria-label="Cancel move">${icon('close')}</button></div><p>This moves all eligible files in this scan, including files hidden by your current filters.</p><div class="mo-location"><label>From</label><code>${escape(this.data.run.source_root)}</code><label>To</label><code>${escape(this.data.run.destination_root)}</code></div><p>Source files will move to the archive. Invalid files and excluded duplicates stay in place. Existing files are never overwritten, and moves are logged for undo through the command-line tool.</p><label for="mo-confirm-word">Type MOVE to confirm</label><input id="mo-confirm-word" autocomplete="off" spellcheck="false"><p class="mo-dialog-error mo-warning" role="alert"></p><div class="mo-dialog-actions"><button data-cancel>Go back</button><button id="mo-execute" class="mo-primary" disabled>Move ${pending.length} files</button></div>`;
+    dialog.innerHTML = `<div class="mo-dialog-heading"><h2 id="mo-confirm-title">Move ${pending.length} reviewed files?</h2><button data-close class="mo-icon-button" aria-label="Cancel move">${icon('close')}</button></div><p>This moves all eligible files in this scan, including files hidden by your current filters.</p><div class="mo-location"><label>From</label><code>${escape(this.data.run.source_root)}</code><label>To</label><code>${escape(this.data.run.destination_root)}</code></div><p>Source files will move to the archive. Invalid files and excluded duplicates stay in place. Existing files are never overwritten, and moves are logged for undo through the command-line tool.</p><p class="mo-dialog-error mo-warning" role="alert"></p><div class="mo-dialog-actions"><button data-cancel>Go back</button><button id="mo-execute" class="mo-primary">Move ${pending.length} files</button></div>`;
     dialog.querySelector('[data-close]').onclick = dialog.querySelector('[data-cancel]').onclick = () => dialog.close();
-    dialog.querySelector('input').oninput = event => { dialog.querySelector('#mo-execute').disabled = event.target.value !== 'MOVE'; };
     dialog.querySelector('#mo-execute').onclick = () => this.dialogAttempt(dialog, async () => {
       dialog.querySelector('#mo-execute').disabled = true;
-      try { await this.adapter.move(this.data.uiRunId, dialog.querySelector('input').value); dialog.close(); this.setBusy(true); await this.refresh(); }
+      try { await this.adapter.move(this.data.uiRunId, 'MOVE'); dialog.close(); this.setBusy(true); await this.refresh(); }
       catch (error) { dialog.querySelector('#mo-execute').disabled = false; throw error; }
     });
     dialog.showModal();
-    dialog.querySelector('input').focus();
+    dialog.querySelector('[data-cancel]').focus();
   }
 }
 Object.assign(MediaOrganizer.prototype, mediaActions, imageTools, captureTools);

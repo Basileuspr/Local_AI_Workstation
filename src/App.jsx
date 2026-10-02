@@ -1,14 +1,18 @@
-import { useEffect, useCallback, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useCallback, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { StoreProvider, useStore, useDispatch } from "./useStore.jsx";
+import { StoreProvider, useStore, useDispatch, useRefs } from "./useStore.jsx";
 import * as api from "./api";
 import { statusObserver } from "./appPolling";
 import { mergeKnownModels, reconcileChatModel, modelInventoryKey } from "./modelCatalog";
 import { pickPreferences, savePreferences } from "./preferences";
-import { loadNavigation, saveNavigation, resolveActiveTab } from "./navigation";
+import { clearRefreshNavigation, rememberRefreshNavigation, saveNavigation, resolveActiveTab } from "./navigation";
 import { ChatWorkspaceProvider, useChatWorkspace } from "./ChatWorkspace";
 import { workspaceVisible } from "./chatPins";
 import ChatSideContent from "./components/ChatSideContent";
+import SecondChat from "./components/SecondChat";
+import ChatActivityNotice from "./components/ChatActivityNotice";
+import { DualChatProvider, ChatPaneProvider, useDualChat } from "./ChatPane";
+import { chatModelChoice } from "./chatModelChoices";
 
 import { ImageGenerationProvider } from "./ImageGenerationContext";
 import { AnalyzeIterateProvider } from "./AnalyzeIterateContext";
@@ -18,6 +22,7 @@ import ImageReview from "./components/ImageReview";
 import Sidebar from "./components/Sidebar";
 import AppLayout from "./components/AppLayout";
 import MediaManager from "./components/MediaManager";
+import ImageManager from "./components/ImageManager";
 import ImageEditor from "./components/ImageEditor";
 import { ImageDestinationsProvider } from "./ImageDestinations";
 import Header from "./components/Header";
@@ -31,7 +36,6 @@ import ImageWorkflows from "./components/ImageWorkflows";
 import FaceStudio from "./components/FaceStudio";
 import CharacterStudio from "./components/CharacterStudio";
 import Toast from "./components/Toast";
-import WebAccess from "./components/WebAccess";
 import Dashboard from "./components/Dashboard";
 import PromptQueue, { PromptQueueProvider } from "./components/PromptQueue";
 import KnowledgeVault from "./components/KnowledgeVault";
@@ -39,25 +43,39 @@ import Tools, { MarkdownViewer } from "./components/Tools";
 import ShortcutRegistry from "./components/ShortcutRegistry";
 import CodeViewer from "./components/CodeViewer";
 import ViewerBrowser from './components/ViewerBrowser';
+const ModelViewer = lazy(() => import('./components/ModelViewer'));
+const LocalFiles = lazy(() => import('./components/LocalFiles'));
+const DocumentEditor = lazy(() => import('./components/DocumentEditor'));
 import SpreadsheetViewer from "./components/SpreadsheetViewer";
 import CanvasWorkspace from "./components/CanvasWorkspace";
 import FileConverter from "./components/FileConverter";
 import FilePackager from "./components/FilePackager";
+import HashAuditor from "./components/HashAuditor";
+import FolderReview from "./components/FolderReview";
 import { GifMakerWorkspace } from "./components/GifMaker";
 import AudioWorkspace from "./components/AudioWorkspace";
 import CharacterCreator from './components/CharacterCreator';
 import {CharacterWorkspaceProvider} from './CharacterWorkspace';
-import ChatInfluences from './components/ChatInfluences';
 import { get as getWorkflow } from "./imageWorkflowApi";
+import { useAppPopupDismissal } from './useDismissiblePopup';
 
 function AppInner() {
+  useAppPopupDismissal();
   const state = useStore();
   const chatWorkspace = useChatWorkspace();
+  const chats = useDualChat();
+  const chatState = useRef(chats); chatState.current = chats;
+  const dualChat = chatWorkspace.pin?.kind === "chat";
+  const [secondChatUsed, setSecondChatUsed] = useState(dualChat);
+  useEffect(() => { if (dualChat) setSecondChatUsed(true); }, [dualChat]);
+  useEffect(() => { if (!dualChat) chats.setFocused("primary"); }, [dualChat, chats.setFocused]);
   const latestState = useRef(state);
   latestState.current = state;
   const dispatch = useDispatch();
+  const refs = useRefs();
   const sessionNavigation = useRef(0);
-  const [startupNavigation] = useState(loadNavigation);
+  const [startupNavigation] = useState(state.startupNavigation);
+  useEffect(() => { clearRefreshNavigation(); }, []);
   const [refreshing, setRefreshing] = useState(false);
   const [imageLibraryTarget, setImageLibraryTarget] = useState(null);
   const [queueDataset, setQueueDataset] = useState(null);
@@ -68,17 +86,18 @@ function AppInner() {
     dispatch({type:'SET_SIDEBAR_TAB',payload:`${source.kind}-viewer`});
   }
   useEffect(() => {
-    saveNavigation(state.activeSidebarTab, state.currentSessionId || startupNavigation.sessionId);
-  }, [state.activeSidebarTab, state.currentSessionId, startupNavigation]);
+    saveNavigation(state.activeSidebarTab, state.currentSessionId);
+  }, [state.activeSidebarTab, state.currentSessionId]);
 
   async function refreshCurrentView() {
     setRefreshing(true);
-    saveNavigation(state.activeSidebarTab, state.currentSessionId || startupNavigation.sessionId);
+    saveNavigation(state.activeSidebarTab, state.currentSessionId);
     try {
       if (state.activeSidebarTab === "media-manager" && window.workstationDesktop?.refreshMediaManager) {
         const result = await window.workstationDesktop.refreshMediaManager();
         if (result?.error) throw new Error(result.error);
       }
+      rememberRefreshNavigation(state.activeSidebarTab, state.currentSessionId);
       window.location.reload();
     } catch (error) {
       setRefreshing(false);
@@ -101,6 +120,8 @@ function AppInner() {
   useEffect(() => {
     savePreferences(pickPreferences(state));
   }, [
+    state.appearance,
+    state.startupBehavior,
     state.activeProfile,
     state.temperature,
     state.topP,
@@ -177,14 +198,14 @@ function AppInner() {
     }
 
     async function init() {
-        // Restore the selected chat without changing the active workspace. A new session is created only when the
-        // user explicitly chooses New Chat or sends/attaches content with none open.
+        // Populate the sidebar without opening or creating a conversation.
+        // A one-time explicit Refresh may reopen its selected session.
         const sessions = await api.listSessions();
         if (stopped) return;
         dispatch({ type: "SET_SESSIONS", payload: sessions });
-        if (sessions.length > 0 && sessionNavigation.current === 0) {
+        if (startupNavigation.sessionId && sessionNavigation.current === 0) {
           const savedSession = sessions.find(session => session.id === startupNavigation.sessionId);
-          await handleLoadSession((savedSession || sessions[0]).id);
+          if (savedSession) await handleLoadSession(savedSession.id);
         }
     }
 
@@ -221,7 +242,14 @@ function AppInner() {
   }, [state.activeSidebarTab]);
 
   // --- Session actions ---
-  const handleNewChat = useCallback(async () => {
+  const handleNewChat = useCallback(() => {
+    ++sessionNavigation.current;
+    refs.pendingChatCreation = null;
+    dispatch({ type: "START_NEW_CHAT" });
+  }, [dispatch, refs]);
+
+  // Used only by explicit submissions that need a persistent session.
+  const handleCreateChat = useCallback(async () => {
     const navigation = ++sessionNavigation.current;
     try {
       const session = await api.createSession();
@@ -248,10 +276,20 @@ function AppInner() {
 
   const handleLoadSession = useCallback(
       async (sessionId, targetMessageId = "") => {
+        if (sessionId === chatState.current.secondary.sessionId) {
+          chatWorkspace.setPin({ kind: "chat", sessionId });
+          dispatch({ type: "SET_SIDEBAR_TAB", payload: "chats" });
+          chats.setFocused("secondary");
+          if (targetMessageId) await chats.controller.current?.load(sessionId, targetMessageId);
+          return true;
+        }
         const navigation = ++sessionNavigation.current;
         try {
           const session = await api.loadSession(sessionId);
           if (navigation !== sessionNavigation.current) return;
+          if (sessionId === chatState.current.secondary.sessionId) {
+            chatWorkspace.setPin({ kind: "chat", sessionId }); chats.setFocused("secondary"); return true;
+          }
         dispatch({
           type: "SET_SESSION",
           payload: {
@@ -260,6 +298,7 @@ function AppInner() {
             title: session.title,
             memorySummary: session.memory_summary || "",
             summarizedMessageCount: session.summarized_message_count || 0,
+            selectedModel: chatModelChoice(session.id, session.model, latestState.current.selectedModel, latestState.current.models),
           },
         });
         const sessions = await api.listSessions();
@@ -274,7 +313,7 @@ function AppInner() {
       }
       return true;
     },
-    [dispatch]
+    [dispatch, chatWorkspace.setPin, chats.setFocused]
   );
 
   const handleSessionSaved = useCallback(async () => {
@@ -325,6 +364,7 @@ function AppInner() {
         previousSummary: state.memorySummary,
         messages,
         targetTokens: 700,
+        exclusiveModel: dualChat,
       });
       const memorySummary = result.summary || state.memorySummary;
       const saved = await api.updateSessionMetadata(state.currentSessionId, {
@@ -342,7 +382,7 @@ function AppInner() {
   // Keep chat mounted while dedicated workspaces occupy the main pane.
   const activeTab = resolveActiveTab(state.activeSidebarTab);
   const visible = tab => workspaceVisible(activeTab, chatWorkspace.pin, tab);
-  const pinnedTab = chatWorkspace.pin?.kind === "tool" ? chatWorkspace.pin.tab : chatWorkspace.pin ? "chat-attachment" : null;
+  const pinnedTab = dualChat ? "second-chat" : chatWorkspace.pin?.kind === "tool" ? chatWorkspace.pin.tab : chatWorkspace.pin ? "chat-attachment" : null;
 
   return (
     <ImageGenerationProvider onSessionSaved={handleSessionSaved}>
@@ -366,11 +406,15 @@ function AppInner() {
           studio's result and the transcript's scroll position.
         */}
           <div className="pane" data-capture-tab="media-manager" hidden={!visible("media-manager")}><MediaManager active={visible("media-manager")} /></div>
+          <div className="pane" data-capture-tab="image-manager" hidden={!visible("image-manager")}><ImageManager active={visible("image-manager")} /></div>
           <div className="pane" data-capture-tab="knowledge" hidden={!visible("knowledge")}><KnowledgeVault active={visible("knowledge")} /></div>
           <div className="pane" data-capture-tab="tools" hidden={!visible("tools")}><Tools /></div>
           <div className="pane" data-capture-tab="shortcuts" hidden={!visible("shortcuts")}><ShortcutRegistry /></div>
           <div className="pane" data-capture-tab="markdown" hidden={!visible("markdown")}><MarkdownViewer /></div>
           <div className="pane" data-capture-tab="browser" hidden={!visible("browser")}><ViewerBrowser active={visible("browser")} onOpenSource={openBrowserSource}/></div>
+          <div className="pane" data-capture-tab="3d-viewer" hidden={!visible("3d-viewer")}>{visible("3d-viewer") && <Suspense fallback={<p>Opening 3D Viewer & Editor…</p>}><ModelViewer /></Suspense>}</div>
+          <div className="pane" data-capture-tab="local-files" hidden={!visible("local-files")}><Suspense fallback={<p>Opening Local Files…</p>}><LocalFiles active={visible("local-files")}/></Suspense></div>
+          <div className="pane" data-capture-tab="document-editor" hidden={!visible("document-editor")}><Suspense fallback={<p>Opening Document Editor…</p>}><DocumentEditor active={visible("document-editor")}/></Suspense></div>
           <div className="pane" data-capture-tab="html-viewer" hidden={!visible("html-viewer")}><CodeViewer kind="html" incoming={viewerInputs.html}/></div>
           <div className="pane" data-capture-tab="css-viewer" hidden={!visible("css-viewer")}><CodeViewer kind="css" incoming={viewerInputs.css}/></div>
           <div className="pane" data-capture-tab="js-viewer" hidden={!visible("js-viewer")}><CodeViewer kind="js" incoming={viewerInputs.js}/></div>
@@ -378,6 +422,8 @@ function AppInner() {
           <div className="pane" data-capture-tab="canvas" hidden={!visible("canvas")}><CanvasWorkspace /></div>
           <div className="pane" data-capture-tab="converter" hidden={!visible("converter")}><FileConverter /></div>
           <div className="pane" data-capture-tab="packager" hidden={!visible("packager")}><FilePackager /></div>
+          <div className="pane" data-capture-tab="hash-auditor" hidden={!visible("hash-auditor")}><HashAuditor active={visible("hash-auditor")} /></div>
+          <div className="pane" data-capture-tab="folder-review" hidden={!visible("folder-review")}><FolderReview active={visible("folder-review")} models={state.models} defaultModel={state.summaryModel || state.selectedModel} /></div>
           <div className="pane" data-capture-tab="gif-maker" hidden={!visible("gif-maker")}><GifMakerWorkspace active={visible("gif-maker")}/></div>
           <div className="pane" data-capture-tab="audio" hidden={!visible("audio")}><AudioWorkspace active={visible("audio")}/></div>
           <div className="pane" data-capture-tab="image-editor" hidden={!visible("image-editor")}><ImageEditor /></div>
@@ -390,22 +436,30 @@ function AppInner() {
             <Dashboard active={visible("dashboard")} />
           </div>
           <div className="pane chat-pane" data-capture-tab="chats" hidden={!visible("chats")}>
+            <ChatPaneProvider id="primary" dual={dualChat}>
+            {dualChat && <div className="primary-chat-heading"><strong>Chat A · Main conversation</strong><small>Separate history · shared request queue</small></div>}
             <Header
               onSessionRenamed={handleSessionRenamed}
               onCompactMemory={handleCompactMemory}
             />
             <SettingsPanel />
-            <ChatInfluences />
             <MessageList
-              onNewChat={handleNewChat}
+              onNewChat={handleCreateChat}
               onSessionSaved={handleSessionSaved}
             />
-            <WebAccess onOpenSession={handleLoadSession} />
             <InputBar
               active={visible("chats")}
-              onNewChat={handleNewChat}
+              onNewChat={handleCreateChat}
               onSessionSaved={handleSessionSaved}
+              onOpenSession={handleLoadSession}
             />
+            </ChatPaneProvider>
+          </div>
+          <div className="pane second-chat-pane" data-capture-tab="second-chat" hidden={activeTab !== "chats" || !dualChat}>
+            {(dualChat || secondChatUsed) && <SecondChat active={activeTab === "chats" && dualChat} dual={dualChat} primarySessionId={state.currentSessionId}
+              targetSessionId={dualChat ? chatWorkspace.pin.sessionId : null}
+              onSelection={sessionId => { if (dualChat) chatWorkspace.setPin({ kind: "chat", sessionId }); }}
+              onSessionSaved={handleSessionSaved} />}
           </div>
 
           <div className="pane" data-capture-tab="library" hidden={!visible("library")}>
@@ -435,10 +489,11 @@ function AppInner() {
           <div className="pane" data-capture-tab="character-parts" hidden={!visible("character-parts")}>
             <CharacterStudio active={visible("character-parts")} openDataset={queueDataset} />
           </div>
-          <div className="pane" data-capture-tab="chat-attachment" hidden={activeTab !== "chats" || !chatWorkspace.pin || chatWorkspace.pin.kind === "tool"}>
+          <div className="pane" data-capture-tab="chat-attachment" hidden={activeTab !== "chats" || !chatWorkspace.pin || ["tool", "chat"].includes(chatWorkspace.pin.kind)}>
             <ChatSideContent active={activeTab === "chats"} />
           </div>
       </AppLayout>
+      <ChatActivityNotice />
         <Toast />
         <EmojiPicker />
     </CharacterWorkspaceProvider>
@@ -463,7 +518,7 @@ export default function App() {
   if (reset) return <section className="dashboard"><h1>Updating app data</h1><p className="dashboard-note">Applying desktop settings and reopening the app…</p>{resetError && <><p role="alert">{resetError}</p><button onClick={() => { localStorage.setItem("app-reset-notice", resetError); window.location.reload(); }}>Return to Dashboard</button></>}</section>;
   return (
     <StoreProvider>
-        <PromptQueueProvider><ImagePrivacyProvider><ChatWorkspaceProvider><AppInner /></ChatWorkspaceProvider></ImagePrivacyProvider></PromptQueueProvider>
+        <PromptQueueProvider><ImagePrivacyProvider><ChatWorkspaceProvider><DualChatProvider><AppInner /></DualChatProvider></ChatWorkspaceProvider></ImagePrivacyProvider></PromptQueueProvider>
     </StoreProvider>
   );
 }

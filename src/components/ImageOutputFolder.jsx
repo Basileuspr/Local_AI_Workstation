@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { libraryExportFolder } from "../storageLibraries";
 
 export default function ImageOutputFolder({ value = "", onChange }) {
   const [busy, setBusy] = useState(false), [error, setError] = useState("");
@@ -19,6 +20,12 @@ export default function ImageOutputFolder({ value = "", onChange }) {
   return <div className="image-output-folder">
     <div className="image-output-folder-row">
       <button type="button" disabled={busy || !picker} onClick={choose} title={picker ? "Choose where new images are saved" : "Folder selection is available in the desktop app"}>{busy ? "Choosing…" : "Point output"}</button>
+      <button type="button" disabled={busy} title="Save export copies in the default storage library" onClick={async () => {
+        setBusy(true); setError("");
+        try { onChange((await libraryExportFolder("images")).folder); }
+        catch (failure) { setError(failure.message); }
+        finally { setBusy(false); }
+      }}>Use library</button>
       <span title={value || "Using the default output folder"}>{value ? value.replace(/[\\/]+$/, "").split(/[\\/]/).pop() || value : "Default folder"}</span>
       {value && <button type="button" disabled={busy} aria-label="Clear output folder" title="Use the default output folder" onClick={() => { onChange(""); setError(""); }}>Clear</button>}
     </div>

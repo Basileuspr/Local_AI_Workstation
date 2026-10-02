@@ -1,0 +1,18 @@
+.github-publisher { margin: 16px 0; display: flex; flex-direction: column; gap: 12px; }
+.github-publisher button { align-self: flex-start; padding: 8px 12px; cursor: pointer; }
+.github-publisher-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.github-publisher-header h2 { margin: 0; }
+.github-publisher-header button { align-self: center; }
+.github-publication-summary { margin: 0; color: var(--text-dim); overflow-wrap: anywhere; }
+.github-publication-details { display: flex; flex-direction: column; gap: 12px; }
+.github-publication-details[hidden] { display: none; }
+.github-selection-controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 12px 0; }
+.github-source-list { max-height: 280px; overflow: auto; border: 1px solid var(--border); border-radius: 6px; }
+.github-source-list label { display: flex; gap: 10px; align-items: center; padding: 7px 12px; }
+.github-source-list span { flex: 1; overflow-wrap: anywhere; }
+.github-source-list small { color: var(--text-dim); }
+.github-commit-message { display: flex; flex-direction: column; gap: 6px; margin: 12px 0; }
+.github-commit-message input { padding: 8px; background: var(--bg-input); color: var(--text); border: 1px solid var(--border); border-radius: 5px; }
+.github-publication-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 12px; padding-left: 24px; }
+.github-publication-steps li { padding: 12px; border: 1px solid var(--border); border-radius: 6px; overflow-wrap: anywhere; }
+.github-publication-steps p { margin: 8px 0; }

@@ -1,5 +1,37 @@
 # Local release records
 
+## 1.0.1-dev - document, 3D and workspace follow-up (2026-10-02)
+
+This source update follows public commit `8c01ac0`. It retains the development
+version and incorporates the completed editor work with the accumulated
+workspace changes. It is not a packaged stable release.
+
+- Document Editor provides a Word-style ribbon with Python DOCX import/export,
+  text formatting, lists, tables, pictures, page settings, find/replace, undo and
+  local draft recovery. Pagination is approximate. Tracked changes, comments,
+  citations, mail merge, macros and full Word document fidelity remain outside
+  this first phase; import notices explain conversion limits.
+- 3D Viewer & Editor adds selectable objects, transforms, undo/redo, geometry
+  operations, materials and textures, measurement, editable project files and
+  millimeter STL export. Existing Windows source-mesh repair remains available.
+- Local Files supports document inspection/editing, read-only database browsing
+  and timestamped video descriptions with an overall analysis summary.
+- Image Manager, review metadata, classification, thumbnails, storage libraries,
+  Hash Auditor and Folder Review extend local media and file workflows.
+- Functions sequences, Index-to-Knowledge links, startup preferences, environment
+  and context reporting, thinking traces and workspace controls are included.
+- Workspace Info panels explain controls individually. Face cards support inline
+  naming, and Hide tagged images is visible in the Image Manager toolbar.
+- The browser retains its isolated profile with explicit site permissions.
+  Desktop Exit and Exit & Restart wait for owned backend cleanup. Dashboard
+  separates GitHub validation, local commit and push into explicit actions.
+
+See [project status](PROJECT_STATUS.md) for the final snapshot's checks and
+limits. Real GPU inference, training and voice quality are not revalidated by
+this publication. Physical webcam capture for 3D textures needs a hardware test.
+Private runtime data, model weights, recordings, generated media, local reports
+and private development history remain excluded.
+
 ## 1.0.1-dev - reviewed GitHub source update (2026-10-02)
 
 This update publishes the completed source changes reviewed on October 2. The

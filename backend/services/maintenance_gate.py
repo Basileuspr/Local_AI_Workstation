@@ -44,6 +44,8 @@ def authorize(request):
 
 
 def workers_busy():
+    from services.hash_auditor import is_busy as hash_audit_busy
+    from services.folder_review import is_busy as folder_review_busy
     from services.request_queue import queue, TERMINAL
     from services.gpu_coordination import gpu_coordinator
     from services.lora_training import manager as training
@@ -51,7 +53,7 @@ def workers_busy():
     from routes.lora import active_analysis_tasks
     with queue._lock:
         queued = any(job.status not in TERMINAL for job in queue.jobs)
-    return queued or gpu_coordinator.current_owner() is not None or training.is_active() or bool(workflows.active) or bool(active_analysis_tasks)
+    return hash_audit_busy() or folder_review_busy() or queued or gpu_coordinator.current_owner() is not None or training.is_active() or bool(workflows.active) or bool(active_analysis_tasks)
 
 
 @router.post("/lock")

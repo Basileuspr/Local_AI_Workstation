@@ -40,5 +40,5 @@ it('keeps previous-image stage connections through edits/reorders while retainin
 });
 it('makes learning-rate strength and the guide visible',()=>{
  const html=renderToStaticMarkup(<LoraHelp learningRate={.00005}/>);
- expect(html).toContain('Settings guide');expect(html).toContain('0.5');expect(html).toContain('1e-4');expect(html).toContain('10× default');expect(html).toContain('Learning rate changes training');
+ expect(html).toContain('Learning rate · how large each training update is');expect(html).toContain('0.5');expect(html).toContain('1e-4');expect(html).toContain('10× default');expect(html).toContain('Learning rate changes training');
 });

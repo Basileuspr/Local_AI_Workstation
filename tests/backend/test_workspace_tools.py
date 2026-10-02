@@ -44,6 +44,47 @@ def test_conversion_download_is_image_and_not_sidecar(converted):
         assert client.get('/workspaces/converted/not-an-id').status_code == 404
 
 
+@pytest.mark.parametrize('dimensions,side', [((1200,600),256), ((30,8),24), ((8,6),16)])
+def test_ico_has_square_frames_and_transparent_padding_without_changing_source(converted, dimensions, side, tmp_path):
+    raw = io.BytesIO(); Image.new('RGBA', dimensions, (255,0,0,255)).save(raw,'PNG')
+    source = tmp_path / 'original.png'; source.write_bytes(raw.getvalue())
+    result = conversion.convert(source.read_bytes(), 'original.png', 'ico')
+    value, path = conversion.read(result['id'])
+    assert result['format'] == 'ico' and value['name'] == 'original.ico'
+    assert (value['width'],value['height']) == (side,side)
+    assert path.read_bytes().startswith(b'\x00\x00\x01\x00')
+    with Image.open(path) as output:
+        assert output.format == 'ICO' and output.size == (side,side)
+        assert output.ico.sizes() == {(size,size) for size in conversion.ICON_SIZES if size <= side}
+        for size in output.ico.sizes():
+            frame = output.ico.getimage(size).convert('RGBA')
+            assert frame.size == size
+            assert frame.getpixel((size[0]//2,size[1]//2))[0] > 240
+            assert frame.getpixel((0,0))[3] == 0
+    assert source.read_bytes() == raw.getvalue()
+
+
+def test_ico_download_and_preview_are_usable_images(converted):
+    raw=io.BytesIO();Image.new('RGBA',(512,256),(0,128,255,128)).save(raw,'PNG')
+    app=FastAPI();app.include_router(router)
+    with TestClient(app) as client:
+        response=client.post('/workspaces/convert',files={'file':('transparent.png',raw.getvalue(),'image/png')},data={'target':'ico'})
+        assert response.status_code == 200
+        url='/workspaces/converted/'+response.json()['id']
+        downloaded=client.get(url)
+        assert downloaded.status_code == 200
+        assert downloaded.headers['content-type'] == 'image/vnd.microsoft.icon'
+        assert 'transparent.ico' in downloaded.headers['content-disposition']
+        with Image.open(io.BytesIO(downloaded.content)) as icon:
+            assert icon.size == (256,256)
+            assert icon.convert('RGBA').getpixel((128,128))[3] == 128
+        preview=client.get(url+'?thumbnail=true')
+        assert preview.status_code == 200 and preview.headers['content-type'] == 'image/png'
+        with Image.open(io.BytesIO(preview.content)) as image: assert image.size == (256,256)
+    assert conversion.conversion_target('Convert this to .ico') == 'ico'
+    assert conversion.conversion_target('How do I convert to ICO?') is None
+
+
 def test_conversion_rejects_invalid_animated_and_future_locked_source(converted, monkeypatch):
     with pytest.raises(ValueError): conversion.convert(b'not an image', 'bad.png', 'png')
     animated=io.BytesIO();Image.new('RGB',(4,4),'red').save(animated,'GIF',save_all=True,append_images=[Image.new('RGB',(4,4),'blue')])

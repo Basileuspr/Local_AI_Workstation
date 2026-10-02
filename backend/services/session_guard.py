@@ -91,7 +91,10 @@ class SessionGuard:
         if scope.get("path") in PUBLIC_PATHS or scope.get("method") == "OPTIONS":
             return await self.app(scope, receive, send)
 
-        if not secrets.compare_digest(token_from(scope, headers), expected_token()):
+        bridge = os.environ.get('LAW_REVIEW_BRIDGE_TOKEN', '')
+        review_bridge = (bool(bridge) and not origin and scope.get('path', '').startswith('/visual-review/media/')
+                         and secrets.compare_digest(headers.get(b'x-law-review', b'').decode('latin-1'), bridge))
+        if not review_bridge and not secrets.compare_digest(token_from(scope, headers), expected_token()):
             return await self._deny(scope, receive, send,
                                     "This request needs the current app session credential. "
                                     "Open the Local AI Workstation window, or set LAW_SESSION_TOKEN "

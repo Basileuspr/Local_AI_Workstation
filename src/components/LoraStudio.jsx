@@ -1,3 +1,5 @@
+import {hasSelectionModifier,preventSelectionText} from '../fileSelection';
+import ImageThumbnail from "./ImageThumbnail";
 import FreshFileInput from "./FreshFileInput";
 import ProtectedImage from "../ImagePrivacy";
 import { useEffect, useRef, useState } from "react";
@@ -5,7 +7,7 @@ import { QueueRequestStatus } from "./PromptQueue";
 import { useDispatch, useStore } from "../useStore.jsx";
 import * as api from "../api";
 import LoraAnalysisProgress from "./LoraAnalysisProgress";
-import LoraHelp from "./LoraHelp";
+import { useLoraInfo } from "../workspaceInfoContext";
 import CharacterLinks from "./CharacterLinks";
 import CpuPerformance from "./CpuPerformance";
 import BulkActions, { SelectionCheckbox } from "./BulkActions";
@@ -162,7 +164,7 @@ export default function LoraStudio({ active = true }) {
         <p className="image-studio-eyebrow">New local adapter</p>
         <h2 id="lora-create-title">Create LoRA project</h2>
         <label>Project name<input autoFocus value={newProjectName} onChange={(event) => setNewProjectName(event.target.value)} placeholder="e.g. Rowan — continuous scenes" maxLength={120} /></label>
-        <p>The project starts as an editable workspace. You will choose its image base and vision-analysis models next.</p>
+
         <div className="lora-create-actions">
           <button className="lora-secondary-button" type="button" onClick={() => setCreatingProject(false)} disabled={loading}>Cancel</button>
           <button className="image-generate-btn" type="submit" disabled={loading || !newProjectName.trim()}>{loading ? "Creating…" : "Create project"}</button>
@@ -394,8 +396,10 @@ export default function LoraStudio({ active = true }) {
     }
   }
 
+  useLoraInfo(project?.settings?.learning_rate);
+
   if (!project) {
-    return <section id="lora-studio" className="lora-empty"><LoraHelp /><div><p className="image-studio-eyebrow">Local training</p><h1>LoRA Creation</h1><p>Create a project to prepare images and train a portable local adapter.</p><button className="image-generate-btn" type="button" onClick={openCreateProject} disabled={loading}>+ New LoRA Project</button></div>{createProjectDialog}</section>;
+    return <section id="lora-studio" className="lora-empty"><div><p className="image-studio-eyebrow">Local training</p><h1>LoRA Creation</h1><button className="image-generate-btn" type="button" onClick={openCreateProject} disabled={loading}>+ New LoRA Project</button></div>{createProjectDialog}</section>;
   }
 
   const training = project.training || { status: "draft", logs: [] };
@@ -410,7 +414,7 @@ export default function LoraStudio({ active = true }) {
     <section id="lora-studio">
       <header className="lora-header">
         <div><p className="image-studio-eyebrow">Local training</p><h1>LoRA Creation</h1></div>
-        <div className="lora-project-picker"><select aria-label="LoRA project" value={project.id} onChange={(event) => loadProject(event.target.value).catch(error => toast(error.message, "error"))} disabled={loading || trainingSubmitting || imageBatch.busy}>{projects.map((item) => <option key={item.id} value={item.id}>{item.name} ({item.image_count})</option>)}</select><button type="button" onClick={openCreateProject} disabled={loading || trainingSubmitting || imageBatch.busy}>+ New</button><LoraHelp learningRate={settings.learning_rate} /></div>
+        <div className="lora-project-picker"><select aria-label="LoRA project" value={project.id} onChange={(event) => loadProject(event.target.value).catch(error => toast(error.message, "error"))} disabled={loading || trainingSubmitting || imageBatch.busy}>{projects.map((item) => <option key={item.id} value={item.id}>{item.name} ({item.image_count})</option>)}</select><button type="button" onClick={openCreateProject} disabled={loading || trainingSubmitting || imageBatch.busy}>+ New</button></div>
       </header>
       <div className="lora-layout">
         <div className="lora-column">
@@ -425,21 +429,20 @@ export default function LoraStudio({ active = true }) {
               <label className="lora-span">Description<textarea value={project.description} disabled={workspaceBusy} onChange={(event) => editProject({ description: event.target.value })} placeholder="Optional" /></label>
               <label>Saved adapter name / folder<input value={project.output_location} disabled={workspaceBusy} onChange={(event) => editProject({ output_location: event.target.value })} /></label>
             </div>
-            <p className="lora-pipeline-note">{identityTraining ? "Identity mode trains a reusable character trigger from consistent features across varied angles, expressions, and actions. It requires a unique trigger token." : "Style mode learns recurring visual treatment rather than one character identity."}</p>
             <button type="button" className="lora-secondary-button" onClick={saveProject} disabled={loading || workspaceBusy}>Save project settings</button>
             <CharacterLinks kind="lora_project" targetId={project.id} label="LoRA project" disabled={workspaceBusy} />
           </section>
 
           <section className="lora-card lora-analysis-card">
             <div className="lora-card-title"><h2>Identity & scene analysis</h2><span>{analysis?.status === "ready" ? "Review ready" : analysis?.status || "Not analyzed"}</span></div>
-            <p className="lora-pipeline-note">Uses a local vision model to describe visible consistency, actions, and scenes. This assists dataset curation; it is not biometric identity verification.</p>
+
             {!visionModels.length && <p className="lora-warning">No compatible Ollama vision model is currently available.</p>}
             {analysis?.summary && <p className="lora-analysis-summary">{analysis.summary}</p>}
             {!analyzing && !busy && <CpuPerformance report={analysis?.cpu_assistance} timings={analysis?.timings} analysis />}
             {analysis?.stable_traits?.length > 0 && <div className="lora-traits">{analysis.stable_traits.map((trait) => <span key={trait}>{trait}</span>)}</div>}
             {analysis?.warnings?.map((warning) => <p className="lora-warning" key={warning}>{warning}</p>)}
             {analysis?.status === "stale" && <p className="lora-warning">The dataset or identity inputs changed. Analyze again before applying these suggestions.</p>}
-            <p className="lora-pipeline-note">Analysis processes all images in small batches and combines suggestions for review. Batches shrink automatically if the model's context is full.</p>
+
             {(analyzing || (busy && training.workflow === "analyze_train" && training.stage === "analysis")) && <LoraAnalysisProgress key={project.id} projectId={project.id} requestId={analysisControllerRef.current.get(project.id)?.requestId || training.queue_id || training.run_id} total={project.images?.length || 0} />}
             <div className="lora-analysis-actions">
               {analyzing ? <button className="lora-danger-button" type="button" onClick={stopAnalysis}>Stop analysis</button> : <button className="lora-secondary-button" type="button" onClick={analyzeDataset} disabled={workspaceBusy || loading || !project.vision_model || !project.images?.length}>Analyze current dataset</button>}
@@ -455,7 +458,7 @@ export default function LoraStudio({ active = true }) {
             <div className="lora-dataset-actions"><button type="button" onClick={() => fileRef.current?.click()} disabled={!selectedModel || workspaceBusy}>Browse images</button>{project.images?.length > 0 && <button type="button" onClick={clearImages} disabled={workspaceBusy}>Clear copied images</button>}</div>
             <BulkActions selection={imageSelection} items={project.images || []} label="training images" batch={imageBatch} disabled={workspaceBusy || loading}
               actions={[{label:"Remove selected training images", danger:true, onClick:removeSelectedImages}]} />
-            <div className="lora-image-grid">{project.images?.map((image) => <article className="lora-image-card" key={image.id}><SelectionCheckbox selection={imageSelection} item={image} label={`training image ${image.original_filename}`} disabled={workspaceBusy || loading} /><ProtectedImage src={api.getLoraImageUrl(project.id, image.id)} alt={image.original_filename} /><div><span>{image.original_filename}</span><small>{image.width} x {image.height}</small><textarea defaultValue={image.caption} key={`${image.id}-${image.caption}`} onBlur={(event) => saveCaption(image.id, event.target.value)} placeholder="Caption / trigger words" disabled={workspaceBusy} />{image.caption_suggestion && <div className="lora-caption-suggestion"><small>Suggested caption</small><p>{image.caption_suggestion}</p><button className="lora-use-suggestion" type="button" onClick={() => saveCaption(image.id, image.caption_suggestion)} disabled={workspaceBusy}>Use suggestion</button></div>}<button type="button" onClick={() => removeImage(image.id)} disabled={workspaceBusy}>Remove</button></div></article>)}</div>
+            <div className="lora-image-grid">{project.images?.map((image) => <article className={`lora-image-card ${imageSelection.has(image) ? "is-selected" : ""}`} key={image.id} onMouseDown={event => {if (!event.target.closest("input,textarea,button,select,a")) preventSelectionText(event);}} onClick={event => {if (!workspaceBusy && !loading && !event.target.closest("input,textarea,button,select,a") && hasSelectionModifier(event)) imageSelection.activate(image,event);}}><SelectionCheckbox selection={imageSelection} item={image} label={`training image ${image.original_filename}`} disabled={workspaceBusy || loading} /><ImageThumbnail src={api.getLoraImageUrl(project.id, image.id)} alt={image.original_filename} /><div><span>{image.original_filename}</span><small>{image.width} x {image.height}</small><textarea defaultValue={image.caption} key={`${image.id}-${image.caption}`} onBlur={(event) => saveCaption(image.id, event.target.value)} placeholder="Caption / trigger words" disabled={workspaceBusy} />{image.caption_suggestion && <div className="lora-caption-suggestion"><small>Suggested caption</small><p>{image.caption_suggestion}</p><button className="lora-use-suggestion" type="button" onClick={() => saveCaption(image.id, image.caption_suggestion)} disabled={workspaceBusy}>Use suggestion</button></div>}<button type="button" onClick={() => removeImage(image.id)} disabled={workspaceBusy}>Remove</button></div></article>)}</div>
           </section>
         </div>
 
@@ -468,7 +471,7 @@ export default function LoraStudio({ active = true }) {
               </select></label>
               <label>Preloading RAM budget (MiB)<input type="number" min="32" max="2048" step="32" value={settings.preload_ram_mb ?? 256} disabled={workspaceBusy} onChange={(event) => editSettings({ preload_ram_mb: Number(event.target.value) })} /></label>
             </div>
-            <p className="lora-pipeline-note">Applies to dataset analysis and training preparation. Auto uses up to 256 MiB; Light up to 64 MiB. All modes respect your budget and reduce preloading when free RAM is low. This budgets extra preparation, not model memory. Timings below measure where each run spends time.</p>
+
             <div className="lora-form-grid">{fields.map(([key, label, type, min, max, step]) => <label key={key}>{label}<input type={type} min={min} max={max} step={step} value={settings[key] ?? ""} disabled={workspaceBusy} onChange={(event) => editSettings({ [key]: Number(event.target.value) })} /><small>{key==='learning_rate'?`${Number(settings[key]||0).toExponential()} · ${Number((Number(settings[key]||0)/.0001).toFixed(3))}× app default (0.0001). See Settings guide above for comparisons.`:({resolution:'Larger inputs use more memory. 1024² has 4× the pixels of 512².',epochs:'Passes through your dataset. More can learn more, or overfit.',batch_size:'Images processed together. Effective full update = batch × accumulation.',rank:'Adapter capacity. Default 8; higher uses more memory and storage.',alpha:'Contribution scale relative to rank. Default alpha/rank = 1.'})[key]}</small></label>)}<label>Precision<select value={settings.precision} disabled={workspaceBusy} onChange={(event) => editSettings({ precision: event.target.value })}><option value="fp16">FP16</option><option value="bf16">BF16</option><option value="fp32">FP32</option></select></label><label>Aspect handling<select value={settings.aspect_mode} disabled={workspaceBusy} onChange={(event) => editSettings({ aspect_mode: event.target.value })}><option value="crop">Center crop</option><option value="pad">Pad to fit</option></select></label></div>
             <details className="lora-advanced"><summary>Advanced settings</summary><div className="lora-form-grid"><label>Max steps (0 = epochs)<input type="number" min="0" value={settings.max_steps} disabled={workspaceBusy} onChange={(event) => editSettings({ max_steps: Number(event.target.value) })} /></label><label>Gradient accumulation<input type="number" min="1" max="64" value={settings.gradient_accumulation_steps} disabled={workspaceBusy} onChange={(event) => editSettings({ gradient_accumulation_steps: Number(event.target.value) })} /></label><label>Save interval<input type="number" min="1" value={settings.save_interval} disabled={workspaceBusy} onChange={(event) => editSettings({ save_interval: Number(event.target.value) })} /></label><label>Seed<input type="number" min="0" value={settings.seed} disabled={workspaceBusy} onChange={(event) => editSettings({ seed: Number(event.target.value) })} /></label><label className="lora-span">Caption prefix<input value={settings.caption_prefix || ""} disabled={workspaceBusy} onChange={(event) => editSettings({ caption_prefix: event.target.value })} placeholder="Optional text prepended to new captions" /></label></div></details>
           </section>
@@ -486,7 +489,7 @@ export default function LoraStudio({ active = true }) {
               <button className="image-generate-btn" type="button" onClick={() => train(true)} disabled={loading || workspaceBusy || !project.vision_model || !project.images?.length || !hardware?.cuda_available || hardware?.training_ready === false || state.serviceStatus?.capabilities?.features?.training?.available === false}>Analyze &amp; Train</button>
               <button className="lora-secondary-button" type="button" onClick={() => train()} disabled={loading || workspaceBusy || !hardware?.cuda_available || hardware?.training_ready === false || state.serviceStatus?.capabilities?.features?.training?.available === false}>Start local training</button>
             </>}</div>
-            <p className="lora-pipeline-note">Analyze &amp; Train queues both stages as one job. It fills blank or automatically created captions, keeps edited captions, then trains locally. Cancel stops the remaining workflow. Use Analyze current dataset to review suggestions first.</p>
+
             {training.error && <p className="lora-error">{training.error}</p>}
             <pre className="lora-log">{(training.logs || []).slice(-8).join("\n") || "No training logs yet."}</pre>
             {project.adapter && <div className="lora-output lora-complete-output"><strong>Complete LoRA ready</strong><span>{project.adapter.filename} is selectable in Generate for its matching base model.</span>{project.adapter.complete_path && <><code>{project.adapter.complete_path}</code><small>model/ · weights/ · training-images/ · captions/ · manifests</small></>}</div>}

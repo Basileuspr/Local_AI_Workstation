@@ -55,7 +55,7 @@ P1 = prioritize correctness, recovery or growing-library impact. P2 = measure or
 
 **Evidence:** Coordinated development version and shared captured build identity implemented; automated API/desktop parity, source-drift and scratch-build checks passed.
 
-package.json is still 1.0.0, while HEAD is 30bdd98 from September 25 and 254 worktree entries were already changed/untracked before this audit. FastAPI is constructed without an explicit application version. PROJECT_STATUS describes September 28 additions. Git cannot establish the original creation times of those uncommitted additions.
+package.json is still 1.0.0, while the recorded local baseline is from September 25 and 254 worktree entries were already changed/untracked before this audit. FastAPI is constructed without an explicit application version. PROJECT_STATUS describes September 28 additions. Git cannot establish the original creation times of those uncommitted additions.
 
 **Proposed next step:** Use the saved source snapshots and dated feature ledger now. For the next reviewed release, establish a coordinated version/build identifier for package.json, desktop software specs and the backend, plus a readable release entry. Keep commit date, reported feature date and first-observed date distinct.
 

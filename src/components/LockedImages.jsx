@@ -1,3 +1,4 @@
+import {preventSelectionText} from '../fileSelection';
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiUrl } from "../api";
 import * as api from "../imageLibraryApi";
@@ -38,7 +39,6 @@ export default function LockedImages({ active, pending = [], onImported, searchQ
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState(null);
   const [page, setPage] = useState(0);
-  const selection = useSelection(images);
   const batch = useBatchAction();
   useEffect(() => {
     if (!pendingOnly || !active) return;
@@ -106,17 +106,18 @@ export default function LockedImages({ active, pending = [], onImported, searchQ
   const filtered = images.filter(image => image.name.toLowerCase().includes(searchQuery.trim().toLowerCase()));
   useEffect(() => { setPage(0); }, [searchQuery]);
   const pages = Math.max(1, Math.ceil(filtered.length / 12)), current = Math.min(page, pages - 1);
+  const selection = useSelection(images, image => image.id, "", filtered.slice(current * 12, (current + 1) * 12));
   const content = <section className="locked-images" aria-label="Locked Images">
     {!pendingOnly && <h3>🔒 Locked Images</h3>}
-    <p>Locked images and identical copies are hidden throughout the app until restored. Unlocking this folder does not expose them in other views.</p>
+
     {!token ? <form onSubmit={unlock}>
       <h4>{configured === null ? "Checking lock settings…" : configured ? "Enter your PIN" : "Set up a PIN"}</h4>
       <label>PIN<input aria-label="Locked Images PIN" type="password" inputMode="numeric" autoComplete="off" minLength={4} maxLength={12} pattern="[0-9]{4,12}" value={pin} onChange={event => setPin(event.target.value)} required /></label>
       {configured === false && <><label>Confirm PIN<input aria-label="Confirm Locked Images PIN" type="password" inputMode="numeric" autoComplete="off" minLength={4} maxLength={12} value={confirm} onChange={event => setConfirm(event.target.value)} required /></label>
-        <p>Use 4–12 digits and keep your PIN safe; there is no PIN bypass. Private copies are encrypted. Existing source files and backups on disk are not encrypted by this feature.</p></>}
+        </>}
       <button disabled={busy || configured === null}>{configured ? "Unlock images" : "Set PIN"}</button>
     </form> : <>
-      {!pendingOnly && <><button type="button" onClick={lock}>Lock now</button><small>Locks when you leave this folder, hide the app, or after 15 minutes.</small>
+      {!pendingOnly && <><button type="button" onClick={lock}>Lock now</button>
       <button type="button" disabled={busy || batch.busy} onClick={() => { setChangingPin(value => !value); setPin(""); setNewPin(""); setConfirm(""); }}>Change PIN</button>
       {changingPin && <form onSubmit={changePin}>
         <label>Current PIN<input aria-label="Current PIN" type="password" inputMode="numeric" autoComplete="off" minLength={4} maxLength={12} pattern="[0-9]{4,12}" required value={pin} onChange={event => setPin(event.target.value)} /></label>
@@ -128,7 +129,7 @@ export default function LockedImages({ active, pending = [], onImported, searchQ
       {!pendingOnly && <><BulkActions selection={selection} items={filtered} label="locked images" batch={batch} actions={[{ label: "Restore selected images", onClick: items => batch.run({ items, selection, action: image => api.request(`/vault/images/${image.id}/restore`, "POST", null, token), verb: "Restored:", confirm: `Restore ${items.length} image(s) to their original collections and allow their originals to appear throughout the app again? Review uploads stay out of General Images.`, after: async () => { api.changed(); await refresh(token); } }) }]} />
       <CollectionPager label="locked images" page={current} pages={pages} onChange={setPage} />
       <div className="image-gallery image-gallery-compact">{filtered.slice(current * 12, (current + 1) * 12).map(image => <div className="gallery-item-row" key={image.id}><SelectionCheckbox selection={selection} item={image} label={`locked image ${image.name}`} disabled={batch.busy} />
-        <button className={`gallery-item ${selection.has(image) ? "is-selected" : ""}`} disabled={batch.busy} aria-pressed={selection.enabled ? selection.has(image) : undefined} onClick={() => selection.enabled ? selection.toggle(image) : setView(image.id)}><span className="gallery-thumbnail"><VaultImage image={image} token={token} onExpired={clear} /></span><span className="gallery-name">{image.name}</span></button>
+        <button className={`gallery-item ${selection.has(image) ? "is-selected" : ""}`} disabled={batch.busy} aria-pressed={selection.enabled ? selection.has(image) : undefined} onMouseDown={preventSelectionText} onClick={event => selection.activate(image,event,()=>setView(image.id))}><span className="gallery-thumbnail"><VaultImage image={image} token={token} onExpired={clear} /></span><span className="gallery-name">{image.name}</span></button>
       </div>)}</div>
       {!images.length && <p>No locked images yet. Select images in another folder and choose Lock selected images.</p>}
       {images.length > 0 && !filtered.length && <p>No matching locked images.</p>}
@@ -148,7 +149,7 @@ export default function LockedImages({ active, pending = [], onImported, searchQ
       if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) cancel();
     }}>
     <header><h2>Lock {pending.length} image{pending.length === 1 ? "" : "s"}</h2><button type="button" autoFocus disabled={batch.busy} onClick={cancel}>Cancel</button></header>
-    <p className="image-lock-hint">You can cancel or press Esc to return. Images are only locked when you confirm below.</p>
+
     {content}
   </dialog>;
 }

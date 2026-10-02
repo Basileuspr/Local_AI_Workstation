@@ -18,7 +18,7 @@ export default function CodeViewer({ kind, incoming }) {
     } catch (failure) { setError(failure.message); }
   }
   return <section className="tools-workspace" onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); void read(event.dataTransfer.files[0]); }}>
-    <header className="tools-heading"><h1>{styling ? "CSS / Styling Viewer" : `${label} Viewer`}</h1><p>{javascript?'Read, edit, copy, or save JavaScript source.':'Paste source or drop a file, then preview the result.'}</p>{origin && <p>From {origin.url}{origin.truncated?' · Partial source (inspection size limit)':''}</p>}</header>
+    <header className="tools-heading"><h1>{styling ? "CSS / Styling Viewer" : `${label} Viewer`}</h1>{origin && <p>From {origin.url}{origin.truncated?' · Partial source (inspection size limit)':''}</p>}</header>
     <div className="tools-toolbar">
       <button onClick={() => input.current.click()}>Open {label} file</button>
       <input ref={input} type="file" hidden accept={javascript?'.js,.mjs,.cjs,text/javascript':styling ? ".css,text/css" : ".html,.htm,text/html"} onChange={event => { void read(event.target.files[0]); event.target.value = ""; }} />
@@ -32,6 +32,6 @@ export default function CodeViewer({ kind, incoming }) {
     <textarea className="tools-editor" hidden={preview !== null} aria-label={`${label} source`} value={source} onChange={event => setSource(event.target.value)} spellCheck={false} />
     {styling && preview === null && <details><summary>HTML to style</summary><textarea className="tools-editor" aria-label="HTML to style" value={html} onChange={event => setHTML(event.target.value)} spellCheck={false} /></details>}
     {preview !== null && <iframe className="tools-preview code-preview" sandbox="" referrerPolicy="no-referrer" title={styling ? "CSS preview" : "HTML preview"} srcDoc={preview} />}
-    <p className="tools-note">{javascript?'JavaScript is displayed as text and is not executed.':'Preview uses local HTML and CSS. Scripts and external resources are disabled.'} Source stays here while switching tabs.</p>
+
   </section>;
 }

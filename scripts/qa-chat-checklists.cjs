@@ -112,10 +112,21 @@ app.whenReady().then(async () => {
   assert((await saved()).messages[0].content.includes('- Ordinary bullet'));
   assert((await saved()).messages[0].content.includes('- [ ] Code example'));
   assert(!(await saved()).messages[0].content.includes('Check fridge'));
+  const editedHistory = (await saved()).messages[0].checklist_history;
+  const editedEntry = editedHistory.at(-1);
+  assert.equal(editedEntry.action, 'edit');
+  assert.deepEqual(editedEntry.changes.map(change => change.kind), ['removed', 'edited', 'added']);
+  assert(editedEntry.before.some(item => item.text === 'Check fridge'));
+  assert(editedEntry.after.some(item => item.text === 'Call Sam'));
+  await until(() => js('document.querySelector(".checklist-history summary")?.textContent === '+JSON.stringify(`List history (${editedHistory.length})`)), 'manual edit history visible');
+  await js('document.querySelector(".checklist-history").open=true;document.querySelector(".checklist-history-entries > li:first-child > details").open=true');
+  assert(await js('document.querySelector(".checklist-history-changes").textContent.includes("Removed: Check fridge")'));
+  assert(await js('document.querySelector(".checklist-history-changes").textContent.includes("Added: Call Sam")'));
   await click('[data-capture-tab=chats]', 'Edit list');
   await textInput('[aria-label="Checklist item 1"]', 'Cancel this draft');
   await click('.chat-checklist-editor', 'Cancel');
   assert(!(await saved()).messages[0].content.includes('Cancel this'));
+  assert.deepEqual((await saved()).messages[0].checklist_history, editedHistory);
   // Failed edit preserves the draft for retry.
   await click('[data-capture-tab=chats]', 'Edit list');
   await textInput('[aria-label="Checklist item 1"]', 'Buy bread and milk');
@@ -123,8 +134,38 @@ app.whenReady().then(async () => {
   await click('.chat-checklist-editor', 'Save list');
   await until(() => js("document.querySelector('.checklist-status[role=alert]')?.textContent.includes('Simulated')"), 'edit failure');
   assert.equal(await js("document.querySelector('[aria-label=\"Checklist item 1\"]').value"), 'Buy bread and milk');
+  assert.deepEqual((await saved()).messages[0].checklist_history, editedHistory);
   await click('.chat-checklist-editor', 'Save list');
   await until(() => js('!document.querySelector(".chat-checklist-editor")'), 'edit retry');
+  const retriedHistory = (await saved()).messages[0].checklist_history;
+  assert.equal(retriedHistory.length, editedHistory.length + 1);
+  await win.loadURL(`${fixture.url}/?apiBase=${encodeURIComponent(fixture.url)}&chat=${fixture.chat}`);
+  await until(idle, 'history chat reopened');
+  await until(() => js('document.querySelector(".checklist-history summary")?.textContent === '+JSON.stringify(`List history (${retriedHistory.length})`)), 'history retained after reopen');
+  assert.deepEqual((await saved()).messages[0].checklist_history, retriedHistory);
+  if (process.env.LAW_QA_CHECKLIST_HISTORY_ONLY === '1') {
+    await click('[data-capture-tab=chats]', 'Pin list beside chat');
+    await until(() => js('document.querySelectorAll(".checklist-history").length === 2'), 'history in both list views');
+    assert.deepEqual(await js('[...document.querySelectorAll(".checklist-history > summary")].map(e=>e.textContent)'), Array(2).fill(`List history (${retriedHistory.length})`));
+    await click('[data-capture-tab=chat-attachment]', 'Edit list');
+    await click('[data-capture-tab=chat-attachment] .chat-checklist-editor', 'Add item');
+    await textInput('[data-capture-tab=chat-attachment] [aria-label="Checklist item 4"]', 'From pinned list');
+    await click('[data-capture-tab=chat-attachment] .chat-checklist-editor', 'Save list');
+    await until(async () => (await saved()).messages[0].content.includes('From pinned list'), 'pinned list edit saved');
+    await until(() => js('[...document.querySelectorAll(".checklist-history > summary")].every(e=>e.textContent === '+JSON.stringify(`List history (${retriedHistory.length + 1})`)+')'), 'history synchronized after pinned edit');
+    await js(`window.checklistQA.load(${JSON.stringify(fixture.other)})`);
+    await until(() => js('!document.querySelector(".checklist-history")'), 'other chat has no list history');
+    await js(`window.checklistQA.load(${JSON.stringify(fixture.chat)})`);
+    await until(() => js('document.querySelectorAll(".checklist-history").length === 2'), 'history and pinned view restored');
+    const retained = (await saved()).messages[0].checklist_history;
+    assert.deepEqual(retained.slice(0, -1), retriedHistory);
+    await js('document.querySelector(".checklist-history").open=true;document.querySelector(".checklist-history-entries > li:first-child > details").open=true');
+    await sleep(400);
+    fs.writeFileSync(path.join(output, 'checklist-history.png'), (await win.webContents.capturePage(undefined, { stayHidden:true, stayAwake:true })).toPNG());
+    const report = { passed:true, checks:['toggle history', 'manual text edits', 'added and removed tasks', 'before/after snapshots', 'cancel adds no history', 'failed save adds no history', 'retry creates one entry', 'reopen retains history', 'pinned and chat histories synchronized', 'history isolated per chat'], realSessionRoutes:true, output };
+    fs.writeFileSync(path.join(output, 'report.json'), JSON.stringify(report, null, 2));
+    console.log(JSON.stringify(report)); finish(); return;
+  }
   // Pin tools while the real chat composer retains its draft and DOM node.
   await textInput('#chat-input', 'Keep this unsent chat draft');
   await js('window.qaComposer = document.querySelector("#chat-input")');

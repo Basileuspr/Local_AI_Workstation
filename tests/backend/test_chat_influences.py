@@ -45,6 +45,8 @@ def chat_client(monkeypatch):
     monkeypatch.setattr(knowledge_base, 'query_knowledge_base', kb)
     captured = []
     async def handler(request):
+        if request.url.path == '/api/show':
+            return httpx.Response(200, json={'capabilities': ['completion']})
         captured.append(json.loads(request.content))
         return httpx.Response(200, text='{"message":{"content":"Hello"},"done":true}\n')
     client_type = httpx.AsyncClient

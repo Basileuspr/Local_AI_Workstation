@@ -20,6 +20,7 @@ from urllib.parse import parse_qs, urlsplit
 from . import custom_folders, manifest, mover, scan, media_actions, frames, image_tools, catalog, folder_browser, captures
 from .progress import JobProgress
 from .thumbnails import ThumbnailCache, ThumbnailUnavailable
+from . import review
 
 WEB_ROOT = Path(__file__).resolve().parent.parent / "frontend"
 
@@ -119,11 +120,13 @@ class UIState:
             row['ScannedFilename'] = row['OriginalFilename']
             row['OriginalFilename'] = Path(current).name
             latest = history[-1] if history else {}
+            row['PermanentlyDeleted'] = latest.get('media_action') == 'purge'
+            if row['PermanentlyDeleted']: row['CurrentPath'] = latest['source']
             row['Trashed'] = latest.get('media_action') == 'delete' and current == latest.get('final_destination')
             row['RestorePath'] = latest.get('source', '') if row['Trashed'] else ''
             row['TagIds'] = metadata['assignments'].get(row.get('SHA256'), [])
             row['Tags'] = [tag['name'] for tag in metadata['tags'] if tag['id'] in row['TagIds']]
-            row["Available"] = os.path.isfile(row["CurrentPath"])
+            row["Available"] = not row['PermanentlyDeleted'] and os.path.isfile(row["CurrentPath"])
             row['CustomFolderId'] = folder_paths.get(Path(current).resolve().parent, '') if row['Available'] else ''
         data["uiRunId"] = run_id
         data['customFolders'] = saved_folders
@@ -183,7 +186,7 @@ class UIState:
             if self.job["status"] == "running":
                 raise ValueError("An operation is already running. Wait for it to finish.")
             if kind in ('move', 'custom-move') and payload.get("confirmation") != "MOVE":
-                raise ValueError("Type MOVE to confirm moving the reviewed files.")
+                raise ValueError("Confirm moving the reviewed files from the review dialog.")
             if kind == "scan":
                 if not payload.get("source", "").strip() or not payload.get("destination", "").strip():
                     raise ValueError("Choose both a source and a destination folder.")
@@ -203,7 +206,8 @@ class UIState:
             elif kind in ('image-inspect', 'image-process'):
                 pass
             elif kind in ('file-action', 'frame-info', 'frame-extract', 'frame-timeline', 'snapshot', 'clip'):
-                media_actions.current_row(self, payload)
+                if kind == 'file-action' and 'items' in payload: media_actions.validate_batch(self, payload)
+                else: media_actions.current_row(self, payload)
             else:
                 raise ValueError("Unknown operation.")
             self.job = {"status": "running", "kind": kind, "message": {"image-inspect":"Reading image folder…", "image-process":"Processing image copies…", "scan":"Scanning files…", "frame-info":"Counting video frames…", "frame-timeline":"Reading frame timing…", "snapshot":"Saving snapshot…", "clip":"Creating video clip…", "frame-extract":"Parsing video frames…", "file-action":"Updating the selected file…"}.get(kind, "Moving reviewed files…"),
@@ -224,7 +228,7 @@ class UIState:
                     elif kind == 'image-process':
                         result = image_tools.execute(self, payload, self.progress.update, self.cancel_event)
                     elif kind == 'file-action':
-                        result = media_actions.execute(self, payload, self.progress.update)
+                        result = media_actions.execute_batch(self, payload, self.progress.update) if 'items' in payload else media_actions.execute(self, payload, self.progress.update)
                     elif kind in ('snapshot', 'clip'):
                         result = captures.execute(self, payload, self.progress.update, self.cancel_event, kind)
                     elif kind == 'frame-timeline':
@@ -307,6 +311,11 @@ class UIHandler(BaseHTTPRequestHandler):
                 path = captures.media_path(self.state, query.get('id', [''])[0])
                 if path.suffix == '.mp4': return self.stream_media(path)
                 raw = path.read_bytes(); self.send_headers(200, 'image/png', len(raw)); self.wfile.write(raw); return
+            if route.path == '/api/review-face':
+                identifier=query.get('id',[''])[0]
+                if not re.fullmatch('[a-f0-9]{32}',identifier): raise ValueError('Invalid face preview.')
+                raw=review.request('faces/'+identifier,binary=True)
+                self.send_headers(200,'image/jpeg',len(raw)); self.wfile.write(raw); return
             if route.path == '/api/browse-folders':
                 return self.json(folder_browser.browse(self.state.reports, query.get('path', [''])[0]))
             if route.path == "/api/library":
@@ -322,15 +331,29 @@ class UIHandler(BaseHTTPRequestHandler):
             if route.path == "/api/thumbnail":
                 path = self.state.media_path(query.get("runId", [""])[0], query.get("recordId", [""])[0])
                 try:
-                    raw = self.state.thumbnails.get(path, query.get("size", ["small"])[0])
+                    raw = self.state.thumbnails.get(path, query.get("size", ["small"])[0], retry=bool(query.get('preview_retry')))
                 except ThumbnailUnavailable as exc:
                     return self.json({"error": str(exc)}, 404)
                 self.send_headers(200, "image/jpeg", len(raw))
                 self.wfile.write(raw)
                 return
+            if route.path == '/api/image-thumbnail':
+                batch_id = query.get('batchId', [''])[0]
+                index = int(query.get('index', ['-1'])[0])
+                path = image_tools.thumbnail_source(self.state, batch_id, index)
+                try:
+                    raw = self.state.thumbnails.get(path, 'small', retry=bool(query.get('preview_retry')))
+                except ThumbnailUnavailable as exc:
+                    return self.json({'error': str(exc)}, 404)
+                image_tools.thumbnail_source(self.state, batch_id, index)
+                self.send_headers(200, 'image/jpeg', len(raw))
+                self.wfile.write(raw)
+                return
             assets = {"/": ("index.html", "text/html"), "/organizer.js": ("organizer.js", "text/javascript"),
                       "/organizer.css": ("organizer.css", "text/css"), "/adapter.js": ("adapter.js", "text/javascript"),
                       "/library.js": ("library.js", "text/javascript"), "/actions.js": ("actions.js", "text/javascript"), "/image-tools.js": ("image-tools.js", "text/javascript"), "/playback.js": ("playback.js", "text/javascript"), "/folder-picker.js": ("folder-picker.js", "text/javascript"), "/captures.js": ("captures.js", "text/javascript")}
+            if route.path not in assets:
+                if route.path in ('/review.js','/selection.js','/popup-dismissal.js'): assets[route.path]=(route.path[1:],'text/javascript')
             if route.path not in assets:
                 return self.json({"error": "Not found"}, 404)
             filename, mime = assets[route.path]
@@ -387,6 +410,8 @@ class UIHandler(BaseHTTPRequestHandler):
             if not isinstance(data, dict):
                 raise ValueError("Expected a JSON object.")
             route = urlsplit(self.path).path
+            if route == '/api/review':
+                return self.json(review.action(self.state,data))
             if route == '/api/rotate':
                 return self.json(self.state.rotate(data.get('runId'), data.get('recordId'), data.get('direction')))
             if route == '/api/tags':

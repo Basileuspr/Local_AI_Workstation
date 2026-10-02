@@ -24,6 +24,6 @@ export default function ImageSettingsControls({ settings, onChange, resolutionLi
       <NumberControl name="Guidance" value={settings.guidanceScale} min={1} max={MAX_IMAGE_GUIDANCE} step={0.1} increments={[0.1, 0.5, 1, 2]} presets={[3, 5.5, 7, 10, 15, 20, 25, MAX_IMAGE_GUIDANCE]} onChange={guidanceScale => onChange({ guidanceScale })} />
       <NumberControl name="Seed" value={settings.seed} min={0} max={seedMax} increments={[1, 10, 100, 1000]} random onChange={seed => onChange({ seed })} />
     </div>
-    <small>Adjustments stop at each setting's limits. Random seed chooses a new seed per image; seed jumps change the starting noise, not image strength.</small>
+
   </>;
 }

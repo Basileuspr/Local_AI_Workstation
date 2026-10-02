@@ -89,7 +89,7 @@ def delete_many(requests, token=None):
             if "folder_ids" in image: image["folder_ids"] = [value for value in image["folder_ids"] if value not in removed_folders]
 
         updates = []
-        for path in store.ROOT.glob("*/workflow.json"):
+        for path in store.storage.glob_paths(store.ROOT, "*/workflow.json", strict=True):
             if path.parent.name in ids: continue
             record = store.get(path.parent.name, allow_deleting=True).model_dump()
             if detach_workflow(record, ids):

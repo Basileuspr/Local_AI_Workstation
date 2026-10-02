@@ -5,6 +5,7 @@ import ShortcutRegistry from "../../src/components/ShortcutRegistry";
 import { appTabs, loadNavigation, saveNavigation, resolveActiveTab } from "../../src/navigation";
 import { pinnableTabs, workspaceVisible } from "../../src/chatPins";
 import { functionTargets } from "../../src/functionButtons";
+import { REGISTRY_ICONS_KEY, ICON_FILE_LIMIT, automaticApplicationIcon, loadRegistryIcons, saveRegistryIcons, applicationIconMime, readApplicationIcon } from "../../src/registryApplicationIcons";
 
 const personal = { id: "custom-1", application: "My editor", platform: "Windows", type: "Shortcut", category: "Editing", title: "My command", keys: "Ctrl + K", description: "Opens my command menu.", notes: "My own binding." };
 function storage() {
@@ -88,6 +89,44 @@ describe("Shortcut Registry", () => {
     expect(html).toContain('aria-expanded="false"');
     expect(html).toContain("Microsoft Word");
     expect(html).not.toContain('<article');
+    expect(html).toContain('class="registry-application-icon"');
+    expect(html).not.toContain('registry-application-initials');
+  });
+  it("recognizes common product names and leaves unrelated applications distinct", () => {
+    expect(automaticApplicationIcon(" Microsoft Word ")).toBe(automaticApplicationIcon("WORD"));
+    expect(automaticApplicationIcon("Microsoft Office Word 2021")).toBe(automaticApplicationIcon("Word"));
+    expect(automaticApplicationIcon("Microsoft 365 Excel")).toBe(automaticApplicationIcon("Excel"));
+    expect(automaticApplicationIcon("Excel")).not.toBe(automaticApplicationIcon("Word"));
+    expect(automaticApplicationIcon("WordPress")).toBeNull();
+    expect(automaticApplicationIcon("My editor")).toBeNull();
+  });
+  it("saves custom icons without changing entries or folders, and restores the default", () => {
+    const values = storage(); savePersonalEntries([personal]); saveRegistryFolders(["My editor"]);
+    const source = "data:image/png;base64,iVBORw0KGgo=";
+    saveRegistryIcons({ "My editor": source });
+    expect(loadRegistryIcons()["my editor"]).toBe(source);
+    expect(renderToStaticMarkup(<ShortcutRegistry />)).toContain(`src="${source}"`);
+    expect(values.get(SHORTCUT_REGISTRY_KEY)).toContain(personal.id);
+    expect(loadRegistryFolders()).toEqual(["My editor"]);
+    saveRegistryIcons({});
+    expect(loadRegistryIcons()).toEqual({});
+    expect(renderToStaticMarkup(<ShortcutRegistry />)).toContain('registry-application-initials');
+  });
+  it("preserves unreadable icons and refuses remote or active image formats", () => {
+    const values = storage(); values.set(REGISTRY_ICONS_KEY, "broken-json");
+    expect(renderToStaticMarkup(<ShortcutRegistry />)).toContain("Stored icon data has been preserved");
+    expect(values.get(REGISTRY_ICONS_KEY)).toBe("broken-json");
+    for (const source of ["https://example.com/icon.png", "data:image/svg+xml;base64,PHN2Zz4=", "data:image/png;base64," + "A".repeat(ICON_FILE_LIMIT * 2)])
+      expect(() => saveRegistryIcons({ word: source })).toThrow("Invalid");
+    expect(values.get(REGISTRY_ICONS_KEY)).toBe("broken-json");
+  });
+  it("checks image bytes before saving and rejects oversized files", async () => {
+    expect(applicationIconMime(Uint8Array.from([137,80,78,71,13,10,26,10]))).toBe("image/png");
+    expect(applicationIconMime(Uint8Array.from([255,216,255]))).toBe("image/jpeg");
+    expect(applicationIconMime(Uint8Array.from([82,73,70,70,0,0,0,0,87,69,66,80]))).toBe("image/webp");
+    expect(applicationIconMime(Uint8Array.from([0,0,1,0,1,0]))).toBe("image/x-icon");
+    expect(() => applicationIconMime(new TextEncoder().encode('<svg onload="alert(1)"/>'))).toThrow("Choose");
+    await expect(readApplicationIcon({ size: ICON_FILE_LIMIT + 1 })).rejects.toThrow("128 KB");
   });
   it("groups Word and Excel separately even when their keys match", () => {
     const excel = { ...personal, application: "Microsoft Excel", keys: "Ctrl + S", title: "Save workbook" };

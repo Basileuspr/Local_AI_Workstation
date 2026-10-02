@@ -1,4 +1,5 @@
 import ProtectedImage from "../ImagePrivacy";
+import ImageThumbnail from "./ImageThumbnail";
 import * as api from "../imageWorkflowApi";
 import { runIsActive } from "../imageWorkflow";
 import WorkflowExportControls from "./WorkflowExportControls";
@@ -22,11 +23,11 @@ export default function WorkflowRunPanel({ record, busy, onStop, onKeep, onUseTe
     {active && <button type="button" disabled={record.status === "cancelling"} onClick={onStop}>{record.status === "cancelling" ? "Stopping safely…" : "Stop workflow"}</button>}
     {!active && (record.outputs.length > 0 || record.stage_results.length > 0) && <>
       <WorkflowExportControls key={`${record.workflow_id}:${record.id}`} record={record} busy={busy} onKeepStitched={onKeepStitched} />
-      <p>Review these results. Keep an image as a reference before using it in a later scene.</p>
+
       {removal.toolbar}
       {outputs.length < record.outputs.length && <button onClick={() => setRemoved([])}>Restore removed results</button>}
       {outputs.map(output => <figure key={output.id}>
-        <a href={api.outputUrl(record.workflow_id, record.id, output.id)} target="_blank" rel="noreferrer"><ProtectedImage alt={`Workflow result, ${output.width} by ${output.height}`} src={api.outputUrl(record.workflow_id, record.id, output.id)} /></a>
+        <a href={api.outputUrl(record.workflow_id, record.id, output.id)} target="_blank" rel="noreferrer"><ImageThumbnail alt={`Workflow result, ${output.width} by ${output.height}`} src={api.outputUrl(record.workflow_id, record.id, output.id)} /></a>
         <figcaption>{output.width} × {output.height}</figcaption>
         {removal.controls(output, `workflow result ${output.id}`)}
         <button type="button" disabled={busy || record.accepted_output_ids.includes(output.id)} onClick={() => onKeep(output)}>{record.accepted_output_ids.includes(output.id) ? "Kept as reference" : "Keep as reference"}</button>

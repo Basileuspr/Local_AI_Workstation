@@ -68,7 +68,7 @@ try {
   assert.equal(await page.locator('video').evaluate(video => video.videoWidth), 320);
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Review move' }).click();
-  assert.equal(await page.locator('#mo-execute').isEnabled(), false);
+  assert.equal(await page.locator('#mo-execute').isEnabled(), true);
   await page.getByRole('button', { name: 'Go back' }).click();
   await page.getByLabel('Destination folder', { exact: true }).fill(fixture.destination + '-changed');
   assert.equal(await page.getByRole('button', { name: 'Review move' }).isEnabled(), false);
@@ -76,7 +76,7 @@ try {
   await page.locator('#mo-history').selectOption(savedRun);
   await page.waitForFunction(() => document.querySelector('#mo-move').disabled === false);
   await page.getByRole('button', { name: 'Review move' }).click();
-  await page.getByLabel('Type MOVE to confirm').fill('MOVE');
+  assert.equal(await page.locator('#mo-confirm-word').count(), 0);
   await page.locator('#mo-execute').click();
   await page.waitForFunction(() => document.querySelectorAll('.mo-success').length === 3, { timeout: 30000 });
   await page.locator('[data-detail]').first().click();

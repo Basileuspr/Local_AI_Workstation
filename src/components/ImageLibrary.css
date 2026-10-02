@@ -1,4 +1,4 @@
-.image-library-navigation, .image-library-workspace { --text-primary: var(--text); --text-secondary: #9bacbc; --bg-secondary: var(--bg-card); --bg-hover: var(--bg-surface); }
+.image-library-navigation, .image-library-workspace { --text-primary: var(--text); --text-secondary: var(--text-dim); --bg-secondary: var(--bg-card); --bg-hover: var(--bg-surface); }
 .image-library-navigation { display: flex; flex-direction: column; gap: 3px; padding: 6px 0 16px; }
 .image-library-nav-label { margin: 10px 10px 7px; color: var(--text-dim); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
 .image-library-navigation > button { padding: 9px 11px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: var(--text-secondary); text-align: left; font: inherit; font-size: 13px; overflow-wrap: anywhere; }

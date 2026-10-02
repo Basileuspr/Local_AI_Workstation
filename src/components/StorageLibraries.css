@@ -1,0 +1,21 @@
+.storage-libraries { margin: 18px 0; }
+.storage-libraries > summary { cursor: pointer; color: var(--text); font-size: 14px; }
+.storage-libraries > summary span { margin-left: 15px; color: var(--text-dim); font-size: 12px; }
+.storage-libraries .dashboard-note { margin: 12px 0; }
+.storage-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
+.storage-libraries button, .storage-libraries input, .storage-libraries select { font: inherit; font-size: 12px; padding: 8px 10px; background: var(--bg-surface); border: 1px solid var(--border); color: var(--text); border-radius: 5px; }
+.storage-libraries button { cursor: pointer; }
+.storage-libraries button:disabled { opacity: .5; cursor: default; }
+.storage-libraries :focus-visible { outline: 2px solid var(--border-active); outline-offset: 2px; }
+.storage-add { max-width: 650px; padding: 14px; margin: 12px 0; border: 1px solid var(--border); border-radius: 6px; }
+.storage-add label { display: flex; flex-direction: column; gap: 7px; margin: 10px 0; font-size: 12px; }
+.storage-library-list article { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 14px 0; border-bottom: 1px solid var(--border); }
+.storage-library-list article > div:first-child { min-width: 0; }
+.storage-library-list strong { font-size: 13px; font-weight: 500; }
+.storage-library-list code { display: block; margin: 8px 0; font: 11px/1.6 var(--font-mono); overflow-wrap: anywhere; user-select: text; }
+.storage-libraries small, .storage-badge { color: var(--text-dim); font-size: 11px; }
+.storage-badge { margin-left: 12px; }
+.storage-error { color: var(--red); font-size: 12px; overflow-wrap: anywhere; margin: 12px 0; }
+.storage-help { margin-top: 16px; }
+.storage-help summary { cursor: pointer; font-size: 12px; color: var(--text-dim); }
+@media (max-width: 700px) { .storage-library-list article { align-items: flex-start; flex-direction: column; gap: 0; } .storage-libraries > summary span { display: block; margin: 8px 0; } }

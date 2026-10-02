@@ -31,7 +31,7 @@ export default function GenerateReference({ reference, onChange, strength, onStr
     <input ref={input} hidden type="file" accept="image/png,image/jpeg,image/webp" aria-label="Upload image to Generate"
       onChange={event => { void choose(event.target.files[0]); event.target.value = ''; }} />
     <button type="button" onClick={() => input.current.click()}>{reading ? 'Reading image…' : reference ? 'Replace image' : 'Upload image'}</button>
-    {!reference && <small>Drop or paste here, or upload a PNG, JPEG, or WebP (up to 20 MiB).</small>}
+
     {reference && <>
       <button type="button" className="generate-reference-preview" aria-label="Enlarge reference image"
         title="Click to enlarge reference image" onClick={() => setPreviewId(reference.url)}>
@@ -45,18 +45,18 @@ export default function GenerateReference({ reference, onChange, strength, onStr
         {REFERENCE_PRESETS.map(preset => <button type="button" key={preset.id} onClick={() => {
           onStrength(preset.strength); onFit('edge'); onSettings({steps: preset.steps, guidanceScale: preset.guidanceScale});
         }}>{preset.label}</button>)}
-        <small>Sets change amount, steps and guidance. Keep appearance runs 20 denoising steps at 25% change. Reinterpret style allows more shape and identity changes.</small>
+
       </div>}
       <label>Change amount · {Math.round(strength * 100)}%
         <input aria-label="Change amount" type="range" min="0.05" max="1" step="0.05" value={strength} onChange={event => onStrength(Number(event.target.value))} />
       </label>
-      <small>Lower keeps more of the original. Higher allows larger changes. This does not lock character identity.</small>
+
       <label>Fit reference to output<select value={fit} onChange={event => onFit(event.target.value)}>
         <option value="contain">Fit whole image (white padding)</option><option value="edge">Fit whole image (extend edges)</option><option value="crop">Crop to fill (center crop)</option>
       </select></label>
       <small>{Math.floor(Number(steps) * strength)} denoising steps at the current settings. The original file stays unchanged.</small>
       {onSettings && Math.floor(Number(steps) * strength) < 20 && <button type="button" onClick={() => onSettings({steps: refinementSteps(strength)})}>Increase refinement steps</button>}
-      <small>The reference is saved locally when you Generate. Removing it here only changes future requests.</small>
+
       {onPrompt && <ReferenceAnalysis key={reference.url} reference={reference} prompt={prompt} onPrompt={onPrompt} onBusyChange={onBusyChange}/>}
     </>}
     {error && <p role="alert">{error}</p>}

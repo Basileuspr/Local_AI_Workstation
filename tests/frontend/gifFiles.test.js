@@ -17,6 +17,18 @@ async function setup(result = null) {
   return {directory, target, showSaveDialog, showOpenDialog, showItemInFolder, service:createGifFiles({showSaveDialog, showOpenDialog, showItemInFolder, downloads:()=>directory})};
 }
 describe('desktop GIF file location', () => {
+  it('uses a registered library folder and preserves earlier exports', async () => {
+    const {service,directory,target,showSaveDialog,showOpenDialog} = await setup();
+    await fs.writeFile(target, 'existing export');
+    const choice = await service.useLibrary(directory);
+    const saved = await service.save({bytes:data,name:'animation.gif',folderId:choice.id});
+    expect(path.dirname(saved.path)).toBe(directory);
+    expect(await fs.readFile(saved.path)).toEqual(data);
+    expect(await fs.readFile(target,'utf8')).toBe('existing export');
+    expect(showSaveDialog).not.toHaveBeenCalled();
+    expect(showOpenDialog).not.toHaveBeenCalled();
+    await expect(service.useLibrary(path.join(directory,'missing'))).rejects.toThrow();
+  });
   it('saves exact bytes and reveals only the confirmed saved file', async () => {
     const {service,target,directory,showItemInFolder} = await setup();
     await fs.writeFile(target, 'old file');

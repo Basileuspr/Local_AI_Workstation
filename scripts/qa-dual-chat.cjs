@@ -1,0 +1,206 @@
+"use strict";
+const { app, BrowserWindow } = require("electron");
+const { spawn } = require("node:child_process");
+const { createInterface } = require("node:readline");
+const assert = require("node:assert/strict");
+const fs = require("node:fs"), path = require("node:path"), os = require("node:os");
+const root = path.resolve(__dirname, ".."), output = fs.mkdtempSync(path.join(os.tmpdir(), "law-dual-chat-ui-"));
+app.setPath("userData", path.join(output, "profile"));
+let child, win;
+const timeout = setTimeout(() => finish(Error("Dual chat QA timed out")), 90000);
+function finish(error) { clearTimeout(timeout); child?.stdin.end("stop\n"); win?.destroy(); if (error) console.error(error); app.exit(error ? 1 : 0); }
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+app.whenReady().then(async () => {
+  await new Promise((resolve, reject) => {
+    const build = spawn(process.execPath, [path.join(root, "node_modules/esbuild/bin/esbuild"),
+      "tests/fixtures/dualChat.jsx", "tests/fixtures/dualChatFull.jsx", "--bundle", "--format=esm", "--jsx=automatic", "--loader:.svg=dataurl",
+      "--define:import.meta.env={}", `--outdir=${output}`],
+      { cwd: root, env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" }, windowsHide: true, stdio: "pipe" });
+    let stderr = ""; build.stderr.on("data", value => stderr += value);
+    build.on("error", reject); build.on("exit", code => code ? reject(Error(stderr)) : resolve(code));
+  });
+  for (const [file, entry] of [["index.html", "dualChat"], ["full.html", "dualChatFull"]])
+    fs.writeFileSync(path.join(output, file), `<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="${entry}.css"></head><body><div id="root"></div><script type="module" src="${entry}.js"></script></body></html>`);
+  child = spawn(path.join(root, "venv/Scripts/python.exe"), ["-B", "scripts/qa_dual_chat.py", output],
+    { cwd: root, windowsHide: true, stdio: ["pipe", "pipe", "inherit"] });
+  const fixture = await new Promise((resolve, reject) => {
+    createInterface({ input: child.stdout }).once("line", line => resolve(JSON.parse(line)));
+    child.on("error", reject); child.once("exit", code => reject(Error(`Fixture exited: ${code}`)));
+  });
+  const api = async (endpoint, options) => { const response = await fetch(fixture.url + endpoint, options); assert(response.ok); return response.json(); };
+  const release = prompt => api(`/qa/release/${encodeURIComponent(prompt)}`, { method: "POST" });
+  win = new BrowserWindow({ show: false, width: 1550, height: 1050, webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, offscreen: true, backgroundThrottling: false } });
+  const failures = [];
+  win.webContents.on("console-message", event => { if (event.level === "error" && /Error|Unhandled/.test(event.message)) failures.push(event.message); });
+  const js = source => win.webContents.executeJavaScript(source, true);
+  const until = async (fn, label) => { for (let i = 0; i < 160; i++) { if (await fn()) return; await sleep(50); } console.error(await js("document.body.innerText")); throw Error("Timed out: " + label); };
+  const select = (selector, value) => js(`(()=>{const e=document.querySelector(${JSON.stringify(selector)}); if(!e)throw Error('No select'); e.value=${JSON.stringify(value)};e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  const text = (selector, value) => js(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});e.focus();e.dispatchEvent(new FocusEvent('focusin',{bubbles:true}));Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(e,${JSON.stringify(value)});e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+  const send = async (id, prompt) => { await text(`#chat-input${id === "b" ? "-secondary" : ""}`, prompt); await js(`document.querySelector('#send-btn${id === "b" ? "-secondary" : ""}').click()`); };
+  await win.loadURL(`${fixture.url}/?apiBase=${encodeURIComponent(fixture.url)}&chat=${fixture.chat}`);
+  await until(() => js("window.dualChatQA?.state.conversationHistory.length === 1"), "primary loaded");
+  await js("document.querySelector('[aria-label=\"Workspace options\"]').click()");
+  await select('[aria-label="Pin tool beside chat"]', "chat");
+  await js("document.querySelector('[aria-label=\"Workspace options\"]').click()");
+  await until(() => js("!document.querySelector('[data-capture-tab=second-chat]').hidden"), "second pane open");
+  await until(() => js(`!!document.querySelector('[aria-label="Conversation in Chat B"] option[value="${fixture.other}"]')`), "secondary session option available");
+  await select('[aria-label="Conversation in Chat B"]', fixture.other);
+  await until(() => js(`window.dualChatQA.chats.secondary.sessionId === ${JSON.stringify(fixture.other)}`), "secondary loaded");
+  assert.equal(await js("document.querySelector('#model-select-secondary').value"), "beta:latest");
+  assert.equal(await js("document.querySelector('#model-select').value"), "alpha:latest");
+  assert(await js("document.querySelector('[data-chat-pane=primary]').innerText.includes(\"Only A's history\")"));
+  assert(!(await js("document.querySelector('[data-chat-pane=primary]').innerText.includes(\"Only B's history\")")));
+  assert.deepEqual(await js("(()=>{const ids=[...document.querySelectorAll('[id]')].map(e=>e.id);return ids.filter((id,i)=>ids.indexOf(id)!==i)})()"), []);
+  await text("#chat-input", "A draft"); await text("#chat-input-secondary", "B draft");
+  await js("document.querySelector('[aria-label=\"Close side pane\"]').click()");
+  assert.equal(await js("document.querySelector('#chat-input-secondary').value"), "B draft");
+  await js("window.dualChatQA.workspace.setPin({kind:'chat',sessionId:window.dualChatQA.chats.secondary.sessionId})");
+  await until(() => js("!document.querySelector('[data-capture-tab=second-chat]').hidden"), "second pane reopened");
+  assert.equal(await js("document.querySelector('#chat-input').value"), "A draft");
+  await send("a", "A first");
+  await until(async () => (await api("/qa/state")).requests.length === 1, "A admitted");
+  await send("b", "B first"); await send("a", "A followup");
+  await until(() => js("window.dualChatQA.queue.getSnapshot().length === 3"), "both panes queued");
+  assert.equal(await js("document.querySelector('[data-chat-pane=primary] .chat-pending-requests').innerText.includes('B first')"), false);
+  assert.equal(await js("document.querySelector('[data-chat-pane=secondary] .chat-pending-requests').innerText.includes('A followup')"), false);
+  assert((await js("document.querySelector('.chat-activity-notice').innerText")).includes("Chat B · Queued"));
+  await js("document.querySelector('[aria-label=\"Dismiss request status\"]').click()");
+  assert.equal(await js("!!document.querySelector('.chat-activity-notice')"), false);
+  assert.equal((await api("/qa/state")).requests.length, 1);
+  await js("window.dualChatQA.dispatch({type:'SET_SIDEBAR_TAB',payload:'tools'})");
+  await until(() => js("window.dualChatQA.state.activeSidebarTab === 'tools'"), "leave dual-chat view during requests");
+  assert.equal(await js("!!document.querySelector('.chat-activity-notice, .chat-activity-reopen')"), false);
+  await js("window.dualChatQA.dispatch({type:'SET_SIDEBAR_TAB',payload:'chats'})");
+  await until(() => js("!!document.querySelector('[aria-label=\"Show request status\"]')"), "dismissal preserved when returning to dual chat");
+  await js("document.querySelector('[aria-label=\"Show request status\"]').click()");
+  await text("#chat-input-secondary", "B unsent draft");
+  await js("window.focusHistory=[];document.addEventListener('focusin',e=>window.focusHistory.push({id:e.target.id,label:e.target.getAttribute('aria-label'),pane:window.dualChatQA.chats.focused}));");
+  assert.equal(await js("document.activeElement.id"), "chat-input-secondary");
+  await release("A first");
+  await until(async () => (await api("/qa/state")).operations.some(op => op.action === "unload"), "model switch started");
+  await until(() => js("document.querySelector('#status-text-secondary').textContent === 'Switching Models'"), "header switching status");
+  await until(() => js("document.querySelector('.runtime-indicator').textContent.includes('Switching Models')"), "live health switching status");
+  assert((await js("document.querySelector('.runtime-indicator').title")).includes("Unloading alpha:latest"));
+  assert((await js("document.querySelector('.chat-activity-notice').innerText")).includes("Switching Models"));
+  fs.writeFileSync(path.join(output, "switching-models.png"), (await win.webContents.capturePage()).toPNG());
+  await release("unload");
+  await until(() => js("document.querySelector('#status-text-secondary').textContent === 'Loading Model'"), "loading status");
+  assert.deepEqual((await api("/qa/state")).loaded, []);
+  await release("load");
+  await until(async () => (await api("/qa/state")).requests.length === 2, "B admitted");
+  assert.deepEqual((await api("/qa/state")).loaded, ["beta:latest"]);
+  assert.equal(await js("document.activeElement.id"), "chat-input-secondary", JSON.stringify(await js("({events:window.focusHistory,pane:window.dualChatQA.chats.focused})")));
+  await js("document.querySelector('[aria-label=\"Close side pane\"]').click()");
+  await until(() => js("!document.querySelector('.chat-activity-notice, .chat-activity-reopen')"), "unpin hides notice while requests continue");
+  await release("B first");
+  await until(async () => (await api("/qa/state")).requests.length === 3, "A followup admitted");
+  await release("A followup");
+  await until(() => js("window.dualChatQA.queue.getSnapshot().length === 0"), "all requests saved");
+  assert.equal(await js("!!document.querySelector('.chat-activity-notice')"), false);
+  const first = await api("/sessions/" + fixture.chat), second = await api("/sessions/" + fixture.other), state = await api("/qa/state");
+  assert.equal(state.maximum, 1);
+  assert.deepEqual(state.requests.map(item => [item.prompt, item.model]), [["A first", "alpha:latest"], ["B first", "beta:latest"], ["A followup", "alpha:latest"]]);
+  assert(state.requests[2].messages.some(item => item.content.includes("Reply to A first")));
+  assert(!state.requests[1].messages.some(item => item.content.includes("Only A's history")));
+  assert(!state.requests[2].messages.some(item => item.content.includes("Only B's history")));
+  assert(first.messages.some(item => item.content.includes("Reply to A followup")));
+  assert(!first.messages.some(item => item.content.includes("B first")));
+  assert(second.messages.some(item => item.content.includes("Reply to B first")));
+  await js("window.dualChatQA.workspace.setPin({kind:'chat',sessionId:window.dualChatQA.chats.secondary.sessionId})");
+  await until(() => js("!document.querySelector('[data-capture-tab=second-chat]').hidden"), "background reply reopened");
+  assert.equal(await js("document.querySelector('#chat-input-secondary').value"), "B unsent draft");
+  assert((await js("document.querySelector('[data-chat-pane=secondary]').innerText")).includes("Reply to B first"));
+  assert.equal(await js("document.querySelector('#model-select').value"), "alpha:latest");
+  assert.equal(await js("document.querySelector('#model-select-secondary').value"), "beta:latest");
+  assert.equal((await js(`window.dualChatQA.load(${JSON.stringify(fixture.other)}).then(()=>window.dualChatQA.state.currentSessionId)`)), fixture.chat);
+  assert.deepEqual(failures, []);
+
+  // Exercise App.jsx itself, including its mounted tool/attachment panes.
+  await win.loadURL(`${fixture.url}/full.html?apiBase=${encodeURIComponent(fixture.url)}`);
+  await until(() => js("document.querySelector('#model-select')?.options.length === 2"), "complete application models");
+  // Sidebar cards do not expose a session ID; select by their unique title.
+  const clickTitle = title => js(`(()=>{const node=[...document.querySelectorAll('.session-item')].find(e=>e.textContent.includes(${JSON.stringify(title)}));if(!node)throw Error('Chat not in sidebar');node.click();})()`);
+  await clickTitle("First conversation");
+  await until(() => js("document.querySelector('#session-title').textContent === 'First conversation'"), "complete app primary chat");
+  // The preceding fixture remembered a second-chat pin for this same session.
+  await js("document.querySelector('[aria-label=\"Workspace options\"]').click()");
+  await select('[aria-label="Pin tool beside chat"]', "");
+  await js("document.querySelector('[aria-label=\"Workspace options\"]').click()");
+  await until(() => js("document.querySelector('[data-capture-tab=second-chat]').hidden"), "normal chat has no remembered second pin");
+  // Ordinary requests keep inline status without the floating dual-chat notice.
+  await send("a", "App normal chat");
+  await until(async () => (await api("/qa/state")).requests.some(item => item.prompt === "App normal chat"), "normal chat request running");
+  assert.equal(await js("!!document.querySelector('.chat-activity-notice, .chat-activity-reopen')"), false);
+  await until(() => js("document.querySelector('#status-dot').classList.contains('busy') && document.querySelector('#status-text').textContent !== 'ready'"), "normal chat retains inline request status");
+  await js("document.querySelector('[aria-label=\"Workspace options\"]').click()");
+  await select('[aria-label="Pin tool beside chat"]', "markdown");
+  await js("document.querySelector('[aria-label=\"Workspace options\"]').click()");
+  await until(() => js("!document.querySelector('[data-capture-tab=markdown]').hidden"), "tool pinned during normal request");
+  assert.equal(await js("!!document.querySelector('.chat-activity-notice, .chat-activity-reopen')"), false);
+  await js("document.querySelector('[aria-label=\"Close side pane\"]').click()");
+  await release("App normal chat");
+  await until(async () => (await api("/sessions/" + fixture.chat)).messages.some(item => item.content.includes("Reply to App normal chat")), "normal reply saved without popup");
+  await js("document.querySelector('[aria-label=\"Workspace options\"]').click()");
+  await select('[aria-label="Pin tool beside chat"]', "chat");
+  await js("document.querySelector('[aria-label=\"Workspace options\"]').click()");
+  await until(() => js(`!!document.querySelector('[aria-label="Conversation in Chat B"] option[value="${fixture.other}"]')`), "complete app secondary option");
+  await select('[aria-label="Conversation in Chat B"]', fixture.other);
+  await until(() => js("document.querySelector('#session-title-secondary').textContent === 'Second conversation'"), "complete app second chat");
+  assert.deepEqual(await js("[...document.querySelectorAll('.workspace-panes > [data-capture-tab]:not([hidden])')].map(e=>e.dataset.captureTab)"), ["chats", "second-chat"]);
+  await clickTitle("Second conversation");
+  assert.equal(await js("document.querySelector('#session-title').textContent"), "First conversation");
+  assert.equal(await js("document.querySelector('#model-select-secondary').value"), "beta:latest");
+  await send("a", "App A final"); await send("b", "App B final");
+  await until(() => js("!!document.querySelector('.chat-activity-notice')"), "second pinned chat request notice");
+  await release("App A final"); await release("App B final");
+  await until(async () => (await api("/sessions/" + fixture.other)).messages.some(item => item.content.includes("Reply to App B final")), "complete app replies saved");
+  await until(() => js("!document.querySelector('.chat-activity-notice')"), "complete app request notice finished");
+  assert((await js("document.querySelector('[data-chat-pane=primary]').innerText")).includes("Reply to App A final"));
+  assert(!(await js("document.querySelector('[data-chat-pane=primary]').innerText")).includes("Reply to App B final"));
+  assert((await js("document.querySelector('[data-chat-pane=secondary]').innerText")).includes("Reply to App B final"));
+  fs.writeFileSync(path.join(output, "full-app-two-chats.png"), (await win.webContents.capturePage()).toPNG());
+  // Cancel a waiting request without touching the running chat.
+  await send("a", "App cancellation hold");
+  await until(async () => (await api("/qa/state")).requests.some(item => item.prompt === "App cancellation hold"), "cancellation test running request");
+  await send("b", "App never start");
+  await until(() => js("!!document.querySelector('[data-chat-pane=secondary] .chat-pending-requests button')"), "waiting B request");
+  await js("document.querySelector('[data-chat-pane=secondary] .chat-pending-requests button').click()");
+  await release("App cancellation hold");
+  await until(() => js("!document.querySelector('.chat-activity-notice')"), "waiting cancellation finished");
+  assert(!(await api("/qa/state")).requests.some(item => item.prompt === "App never start"));
+  // Stop an actual in-flight switch; it must never submit B's inference.
+  await api("/qa/hold-switch", { method: "POST" });
+  await send("b", "App cancel switch");
+  await until(() => js("document.querySelector('#status-text-secondary').textContent === 'Switching Models'"), "cancellable switching phase");
+  await js("document.querySelector('#stop-btn-secondary').click()");
+  await until(() => js("!document.querySelector('.chat-activity-notice')"), "switch cancellation finished");
+  await release("unload");
+  assert(!(await api("/qa/state")).requests.some(item => item.prompt === "App cancel switch"));
+  assert((await api("/qa/state")).queue.jobs.some(job => job.status === "cancelled"));
+  // Two blank panes create different persistent sessions on explicit Send.
+  await js("document.querySelector('#new-chat-btn').click()");
+  await js("document.querySelector('[aria-label=\"Workspace options\"]').click()");
+  await select('[aria-label="Pin tool beside chat"]', "chat");
+  await js("document.querySelector('[aria-label=\"Workspace options\"]').click()");
+  await js("[...document.querySelectorAll('.second-chat-picker button')].find(e=>e.textContent==='New Chat B').click()");
+  await select("#model-select", "alpha:latest"); await select("#model-select-secondary", "beta:latest");
+  await send("a", "Blank A request"); await send("b", "Blank B request");
+  await release("Blank A request"); await release("Blank B request");
+  await until(() => js("!document.querySelector('.chat-activity-notice') && document.querySelector('#session-title-secondary').textContent === 'Blank B request'"), "two new chats saved");
+  const allSessions = await api("/sessions/list");
+  const newA = allSessions.sessions.find(item => item.title === "Blank A request");
+  const newB = allSessions.sessions.find(item => item.title === "Blank B request");
+  assert(newA && newB && newA.id !== newB.id && newA.id !== fixture.chat && newB.id !== fixture.other);
+  assert((await api("/sessions/" + newA.id)).messages.every(item => !item.content.includes("Blank B request")));
+  assert((await api("/sessions/" + newB.id)).messages.every(item => !item.content.includes("Blank A request")));
+  win.setSize(780, 1050);
+  await until(() => js("document.querySelector('.workspace-panes').classList.contains('split-stacked')"), "stacked second chat layout");
+  assert(await js("document.querySelector('#chat-input').getBoundingClientRect().width > 100 && document.querySelector('#chat-input-secondary').getBoundingClientRect().width > 100"));
+  fs.writeFileSync(path.join(output, "full-app-stacked-chats.png"), (await win.webContents.capturePage()).toPNG());
+  assert(!failures.some(message => /TypeError|ReferenceError|Cannot read properties/.test(message)), JSON.stringify(failures));
+  const finalState = await api("/qa/state");
+  console.log(JSON.stringify({ result: "passed", output, data: fixture.data, requests: state.requests.length,
+    fullApplicationRequests: finalState.requests.length - state.requests.length,
+    maximumConcurrentProviderRequests: finalState.maximum, operations: finalState.operations, checks: ["independent histories/models/drafts", "FIFO A/B/A", "safe model unload/load", "switching/loading health", "dismiss/reopen notice", "background persistence", "followup context", "unique DOM IDs", "complete application integration", "normal and tool-pinned chats have no popup", "second pinned chat retains popup", "waiting and switch cancellation", "two blank chat creation", "stacked layout"] }));
+  finish();
+}).catch(finish);

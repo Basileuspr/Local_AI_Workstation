@@ -4,12 +4,22 @@ import "./AppLayout.css";
 import { ChatPinControls } from "../ChatWorkspace";
 import { useStore } from "../useStore";
 import ResizableDivider from "./ResizableDivider";
+import { AppearanceDialog } from "./AppearanceSettings";
+import DisclosurePanel from "./DisclosurePanel";
+import WorkspaceInfo from "./WorkspaceInfo";
+import { WorkspaceInfoContext } from "../workspaceInfoContext";
+import { appTabLabels } from "../navigation";
+import { ThumbnailRetryButton } from "./ImageThumbnail";
 import { clampLayoutValue, DIVIDER_SIZE, loadWorkspaceLayout, saveWorkspaceLayout, SIDEBAR_DEFAULT, SIDEBAR_MIN, SIDEBAR_MAX, SPLIT_DEFAULTS, splitLimits } from "../workspaceLayout";
 import "./ChatWorkspace.css";
+import { WINDOW_LAYOUT_EVENT } from '../windowRendering';
+import WorkstationTime from './WorkstationTime';
+import { FloatingToolBoundsContext } from '../floatingToolBounds';
+import { useDismissiblePopup } from '../useDismissiblePopup';
 
 const compactLayout = "(max-width: 900px)";
 export const NavigationOpenContext = createContext(false);
-const titles = { shortcuts: "Shortcut Registry", audio: "Audio", spreadsheets: "Spreadsheets", canvas: "Canvas", converter: "File Converter", packager: "Packager", "gif-maker": "GIF Maker", browser: "Browser", "js-viewer": "JavaScript Viewer", markdown: "Markdown Viewer", "html-viewer": "HTML Viewer", "css-viewer": "CSS / Styling", "image-editor": "Image Editor", "media-manager": "Media Manager", dashboard: "Dashboard", queue: "Prompt Queue", review: "Image Review", workflows: "Image Workflows", lora: "LoRA", faces: "Faces", characters: "Character Creator", "character-parts": "Character Parts", chats: "Chats", images: "Image Gallery", generate: "Generate Images", library: "Prompt Index", knowledge: "Knowledge", tools: "Functions" };
+const titles = { ...appTabLabels, chats: "Chats", generate: "Generate Images" };
 
 export default function AppLayout({ activeTab, sidebar, children, onRefresh, refreshing = false, pinnedTab = null, pinnedTitle, onUnpin, pinNotice }) {
   const sessionId = useStore()?.currentSessionId || "draft";
@@ -17,8 +27,11 @@ export default function AppLayout({ activeTab, sidebar, children, onRefresh, ref
   const [compact, setCompact] = useState(() => window.matchMedia(compactLayout).matches);
   const [open, setOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  const [appearanceOpen, setAppearanceOpen] = useState(false);
+  const [loraLearningRate, setLoraLearningRate] = useState(undefined);
   const [resizing, setResizing] = useState(false);
   const [paneSize, setPaneSize] = useState({ width: 0, height: 0 });
+  const [floatingToolBounds, setFloatingToolBounds] = useState(null);
   const panes = useRef(null);
   const previousSession = useRef(sessionId);
   const menuButton = useRef(null);
@@ -26,11 +39,13 @@ export default function AppLayout({ activeTab, sidebar, children, onRefresh, ref
   const closeButton = useRef(null);
   const wasOpen = useRef(false);
   const drawerOpen = compact && open;
+  useDismissiblePopup({ open: drawerOpen, container: navigation, onDismiss: () => setOpen(false), returnFocus: menuButton });
   const navigationHidden = compact ? !open : layout.sidebarCollapsed;
   const split = activeTab === "chats" && !!pinnedTab;
   const stacked = paneSize.width > 0 && paneSize.width <= 820;
   const axis = stacked ? "vertical" : "horizontal";
-  const limits = splitLimits(stacked ? paneSize.height : paneSize.width, axis);
+  const secondChat = pinnedTab === "second-chat";
+  const limits = splitLimits(stacked ? paneSize.height : paneSize.width, axis, secondChat);
   const ratio = clampLayoutValue(layout.splits[sessionId]?.[axis] ?? SPLIT_DEFAULTS[axis], limits.min, limits.max);
 
   useEffect(() => saveWorkspaceLayout(layout), [layout]);
@@ -48,7 +63,8 @@ export default function AppLayout({ activeTab, sidebar, children, onRefresh, ref
     };
     const observer = new ResizeObserver(update);
     observer.observe(panes.current); update();
-    return () => observer.disconnect();
+    window.addEventListener(WINDOW_LAYOUT_EVENT, update);
+    return () => { observer.disconnect(); window.removeEventListener(WINDOW_LAYOUT_EVENT, update); };
   }, []);
 
   function changeRatio(next) {
@@ -61,10 +77,10 @@ export default function AppLayout({ activeTab, sidebar, children, onRefresh, ref
   }
 
   useEffect(() => {
-    // Native Browser/Media Manager surfaces must not cover a dialog opened in chat.
-    const update = () => setModalOpen(!!document.querySelector("dialog[open]"));
+    // Native Browser/Media Manager surfaces must not cover dialogs or tool menus.
+    const update = () => setModalOpen([...document.querySelectorAll("dialog[open], .disclosure-panel:not([hidden])")].some(node => node.getClientRects().length > 0));
     const observer = new MutationObserver(update);
-    observer.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ["open"] });
+    observer.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ["open", "hidden"] });
     update();
     return () => observer.disconnect();
   }, []);
@@ -123,10 +139,7 @@ export default function AppLayout({ activeTab, sidebar, children, onRefresh, ref
 
   function handleNavigationKey(event) {
     if (!drawerOpen) return;
-    if (event.key === "Escape") {
-      event.preventDefault();
-      closeNavigation();
-    } else if (event.key === "Tab") {
+    if (event.key === "Tab") {
       const controls = [...navigation.current.querySelectorAll("button, a[href], input, select, textarea, summary, [tabindex]")]
         .filter(element => !element.disabled && element.tabIndex >= 0 && element.getClientRects().length);
       const first = controls[0], last = controls.at(-1);
@@ -135,7 +148,7 @@ export default function AppLayout({ activeTab, sidebar, children, onRefresh, ref
     }
   }
 
-  return <DesktopCapabilitiesProvider><div id="app"
+  return <DesktopCapabilitiesProvider><WorkspaceInfoContext.Provider value={setLoraLearningRate}><div id="app"
     className={`${drawerOpen ? "navigation-open " : ""}${!compact && layout.sidebarCollapsed ? "sidebar-collapsed " : ""}${resizing ? "layout-resizing" : ""}`.trim()}
     style={{ "--sidebar-width": `${layout.sidebarWidth}px` }}>
     <div id="app-navigation" className="sidebar-shell" ref={navigation} inert={navigationHidden} aria-hidden={navigationHidden || undefined}
@@ -156,35 +169,47 @@ export default function AppLayout({ activeTab, sidebar, children, onRefresh, ref
           aria-label={navigationHidden ? "Show navigation" : "Hide navigation"} title={navigationHidden ? "Show navigation" : "Hide navigation"}
           onClick={toggleNavigation}>☰</button>
         <span>{titles[activeTab] || "Local AI Workstation"}</span>
-        <ChatPinControls activeTab={activeTab} />
-        <button className="workspace-refresh" type="button" onClick={onRefresh} disabled={refreshing}
-          title="Reload the app and stay in this workspace" aria-label={`Refresh ${titles[activeTab] || "workspace"}`}>
-          {refreshing ? "Refreshing…" : "↻ Refresh"}
-        </button>
+        <WorkstationTime onOverlayChange={setFloatingToolBounds} inert={drawerOpen} />
+        <DisclosurePanel label="Workspace options" className="workspace-options" title="Side pane, appearance, and refresh">
+          {close => <>
+            <ChatPinControls activeTab={activeTab} />
+            <button className="workspace-appearance" type="button" onClick={() => { close(); setAppearanceOpen(true); }} aria-haspopup="dialog" title="Change application fonts and colors">Appearance</button>
+            <ThumbnailRetryButton />
+            {globalThis.window?.workstationDesktop?.repaintWindow && <button className="workspace-redraw" type="button" title="Redraw the window without reloading or losing drafts" onClick={() => { close(); window.workstationDesktop.repaintWindow(); }}>Redraw window</button>}
+            <button className="workspace-refresh" type="button" onClick={onRefresh} disabled={refreshing}
+              title="Reload the app and stay in this workspace" aria-label={`Refresh ${titles[activeTab] || "workspace"}`}>
+              {refreshing ? "Refreshing…" : "↻ Refresh"}
+            </button>
+          </>}
+        </DisclosurePanel>
+        <WorkspaceInfo tab={activeTab} learningRate={loraLearningRate} />
       </div>
       <StartupNotice />
       {pinNotice && <p className="chat-pin-notice" role="status">{pinNotice}</p>}
-      <NavigationOpenContext.Provider value={drawerOpen || modalOpen || resizing}><div ref={panes}
+      <FloatingToolBoundsContext.Provider value={floatingToolBounds}><NavigationOpenContext.Provider value={drawerOpen || modalOpen || resizing}><div ref={panes}
         id="app-workspace-panes" className={`workspace-panes${split ? " split-chat" : ""}${split && stacked ? " split-stacked" : ""}`}
-        style={{ "--chat-share": `${ratio}fr`, "--pinned-share": `${100 - ratio}fr` }}>
+        style={{ "--chat-share": `${ratio}fr`, "--pinned-share": `${100 - ratio}fr`,
+          "--chat-min-height": secondChat ? "320px" : "280px", "--pinned-min-height": secondChat ? "400px" : "200px" }}>
         {Children.map(children, child => {
           if (!isValidElement(child) || !child.props["data-capture-tab"]) return child;
           const pinned = activeTab === "chats" && child.props["data-capture-tab"] === pinnedTab;
           // Keep each pane in the same DOM/React position, preserving drafts and native surfaces.
           return cloneElement(child, { className: `${child.props.className || ""}${pinned ? " pinned-workspace" : ""}` },
             pinned && <div className="pinned-pane-heading" key="pin-heading"><strong>{pinnedTitle}</strong>
-              <button type="button" onClick={() => { onUnpin?.(); requestAnimationFrame(() => document.querySelector('[aria-label="Pin tool beside chat"]')?.focus()); }} aria-label="Close side pane">Unpin ×</button></div>,
+              <WorkspaceInfo tab={pinnedTab === "second-chat" ? "chats" : pinnedTab} learningRate={loraLearningRate} />
+              <button type="button" onClick={() => { onUnpin?.(); requestAnimationFrame(() => document.querySelector('[aria-label="Workspace options"]')?.focus()); }} aria-label="Close side pane">{pinnedTab === "second-chat" ? "Close ×" : "Unpin ×"}</button></div>,
             child.props.children && <WorkspaceBoundary key="workspace-content">{child.props.children}</WorkspaceBoundary>);
         })}
-        <ResizableDivider label="Resize chat and pinned pane" className="chat-pane-divider" controls="app-workspace-panes"
+        <ResizableDivider label={secondChat ? "Resize Chat A and Chat B" : "Resize chat and pinned pane"} className="chat-pane-divider" controls="app-workspace-panes"
           hidden={!split} orientation={stacked ? "horizontal" : "vertical"} value={ratio} min={limits.min} max={limits.max}
-          defaultValue={SPLIT_DEFAULTS[axis]} valueText={`Chat ${Math.round(ratio)} percent, pinned pane ${Math.round(100 - ratio)} percent`}
+          defaultValue={SPLIT_DEFAULTS[axis]} valueText={secondChat ? `Chat A ${Math.round(ratio)} percent, Chat B ${Math.round(100 - ratio)} percent` : `Chat ${Math.round(ratio)} percent, pinned pane ${Math.round(100 - ratio)} percent`}
           onChange={changeRatio} onDragging={setResizing}
           pointerValue={event => {
             const rect = panes.current.getBoundingClientRect();
             return ((stacked ? event.clientY - rect.top : event.clientX - rect.left) - DIVIDER_SIZE / 2) / limits.available * 100;
           }} />
-      </div></NavigationOpenContext.Provider>
+      </div></NavigationOpenContext.Provider></FloatingToolBoundsContext.Provider>
     </div>
-  </div></DesktopCapabilitiesProvider>;
+    {appearanceOpen && <AppearanceDialog onClose={() => setAppearanceOpen(false)} />}
+  </div></WorkspaceInfoContext.Provider></DesktopCapabilitiesProvider>;
 }

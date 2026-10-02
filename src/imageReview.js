@@ -13,3 +13,13 @@ export function reviewImages(images, folder, selectedIds = [], query = "") {
 export function isReviewUpload(image) {
   return image.review_only || ["upload", "review"].includes(image.origin?.kind);
 }
+
+export function reviewFileMessage(image) {
+  return ({missing: 'Image file is missing. Restore its storage, then refresh REVIEW.',
+    unavailable: 'Image storage is unavailable. Reconnect its storage, then refresh REVIEW.',
+    changed: 'Image changed since scanning. Scan the folder again before using it.'})[image?.file_state] || '';
+}
+
+export function canReadReviewImage(image) {
+  return !reviewFileMessage(image);
+}

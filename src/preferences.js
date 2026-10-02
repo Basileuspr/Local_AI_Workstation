@@ -1,4 +1,5 @@
 import { defaultRoleplayConfig, mergeRoleplayConfig } from "./roleplayPrompt";
+import { defaultAppearance, normalizeAppearance } from "./appearance";
 
 export const PREFERENCES_STORAGE_KEY = "local-ai-workstation-preferences-v1";
 export const LEGACY_ROLEPLAY_STORAGE_KEY = "local-ai-workstation-roleplay";
@@ -39,6 +40,8 @@ export const defaultImageSettings = {
 };
 
 const DEFAULT_PREFERENCES = {
+  startupBehavior: "new",
+  appearance: defaultAppearance,
   activeProfile: "balanced",
   temperature: 0.7,
   topP: 0.9,
@@ -47,7 +50,7 @@ const DEFAULT_PREFERENCES = {
   numPredict: 1024,
   responseLength: 1024,
   systemPrompt: "",
-  responseStyle: "structured",
+  responseStyle: "default",
   selectedModel: "",
   modelOrder: [],
   knowledgeScopes: {},
@@ -75,6 +78,7 @@ export function loadPreferences() {
       return {
         ...DEFAULT_PREFERENCES,
         ...saved,
+        appearance: normalizeAppearance(saved.appearance),
         roleplay: mergeRoleplayConfig(saved.roleplay),
         imageSettings: { ...defaultImageSettings, ...(saved.imageSettings || {}) },
         voiceOutput: normalizeVoiceOutput(saved.voiceOutput),
@@ -103,6 +107,8 @@ export function loadPreferences() {
 
 export function pickPreferences(state) {
   return {
+    startupBehavior: state.startupBehavior === "resume" ? "resume" : "new",
+    appearance: normalizeAppearance(state.appearance),
     activeProfile: state.activeProfile,
     temperature: state.temperature,
     topP: state.topP,

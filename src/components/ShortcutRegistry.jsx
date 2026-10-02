@@ -1,6 +1,8 @@
 import { useRef, useState } from "react";
 import { builtInEntries, entryTypes, filterRegistry, loadPersonalEntries, savePersonalEntries, registryMarkdown, WORD_SCOPE, loadRegistryFolders, saveRegistryFolders, registryFolders } from "../shortcutRegistry";
 import { downloadBlob } from "../downloadBlob";
+import { applicationIconKey, loadRegistryIcons, saveRegistryIcons, readApplicationIcon } from "../registryApplicationIcons";
+import RegistryApplicationIcon from "./RegistryApplicationIcon";
 import "./Tools.css";
 import "./ShortcutRegistry.css";
 
@@ -11,6 +13,10 @@ export default function ShortcutRegistry() {
   const [loadedFolders] = useState(() => { try { return { names: loadRegistryFolders(), error: "" }; } catch (failure) { return { names: [], error: `Application folders could not be loaded: ${failure.message} Stored folder data has been preserved.` }; } });
   const [folderNames, setFolderNames] = useState(loadedFolders.names);
   const [folderError, setFolderError] = useState(loadedFolders.error);
+  const [loadedIcons] = useState(() => { try { return { icons: loadRegistryIcons(), error: "" }; } catch (failure) { return { icons: {}, error: `Application icons could not be loaded: ${failure.message} Stored icon data has been preserved.` }; } });
+  const [customIcons, setCustomIcons] = useState(loadedIcons.icons), [iconError, setIconError] = useState(loadedIcons.error);
+  const [iconApplication, setIconApplication] = useState(null), [iconBusy, setIconBusy] = useState(false);
+  const iconInput = useRef(null), iconButton = useRef(null);
   const [newFolder, setNewFolder] = useState(null), [expandedFolders, setExpandedFolders] = useState({});
   const folderInput = useRef(null);
   const [error, setError] = useState(loaded.error), [notice, setNotice] = useState("");
@@ -37,6 +43,22 @@ export default function ShortcutRegistry() {
   }
   function addToFolder(application) {
     openEditor({ ...emptyDraft, application, platform: application === "Microsoft Word" ? WORD_SCOPE : "" });
+  }
+  function closeIconEditor() { setIconApplication(null); requestAnimationFrame(() => iconButton.current?.focus()); }
+  function persistIcon(application, source) {
+    if (loadedIcons.error) return;
+    const next = { ...customIcons }, key = applicationIconKey(application);
+    if (source) next[key] = source; else delete next[key];
+    setCustomIcons(saveRegistryIcons(next)); setIconError("");
+    setNotice(source ? `Icon saved locally for ${application}.` : `Automatic icon restored for ${application}.`);
+  }
+  async function chooseIcon(event) {
+    const file = event.target.files?.[0]; event.target.value = "";
+    if (!file) return;
+    setIconBusy(true); setIconError("");
+    try { persistIcon(iconApplication, await readApplicationIcon(file)); }
+    catch (failure) { setIconError(`Could not save application icon: ${failure.message}`); }
+    finally { setIconBusy(false); }
   }
   function persist(next) {
     if (loaded.error) { setError("Stored personal entries could not be read. Saving is disabled to preserve them."); return false; }
@@ -70,17 +92,27 @@ export default function ShortcutRegistry() {
     : <input ref={name === "title" ? titleInput : undefined} list={name === "application" ? "registry-applications" : undefined} maxLength={name === "description" ? 8000 : 300} required={required} value={draft[name]} onChange={event => setDraft({ ...draft, [name]: event.target.value })} />}</label>;
   return <section className="tools-workspace shortcut-registry" aria-labelledby="shortcut-registry-title">
     <header className="tools-heading"><p className="tools-eyebrow">Reference library</p><h1 id="shortcut-registry-title">Shortcut Registry</h1>
-      <p>Look up keys, what they do, and how to use a function. Add your own references for any application.</p></header>
+      </header>
     <div className="tools-toolbar">
       <button type="button" disabled={!!loadedFolders.error} onClick={() => { setNewFolder(""); requestAnimationFrame(() => folderInput.current?.focus()); }}>New application folder</button>
       <button type="button" ref={addButton} disabled={!!loaded.error} onClick={() => openEditor()}>Add personal entry</button>
       <button type="button" disabled={!visible.length} onClick={() => { try { downloadBlob(new Blob([registryMarkdown(visible)], { type: "text/markdown;charset=utf-8" }), "shortcut-reference.md"); } catch (failure) { setError(failure.message); } }}>Save reference (.md)</button>
       <button type="button" disabled={!visible.length} onClick={async () => { try { await navigator.clipboard.writeText(registryMarkdown(visible)); setNotice("Matching reference copied, including entries in collapsed folders."); } catch (failure) { setError(`Could not copy: ${failure.message}`); } }}>Copy reference</button>
     </div>
-    <details className="registry-help"><summary>How to use this reference</summary><p>Open an application folder to read its entries. Folders start collapsed; adding an entry for a new application creates its folder automatically. New application folder creates an empty folder, such as Microsoft Excel. These folders organize references inside this app.</p><p>Search across folders by keys, action, or behavior, then narrow by application, category, or type. Matching folders open while filtering. Save and Copy include all matching entries, including entries in collapsed folders. Pin Shortcut Registry beside Chat from the workspace pin menu.</p><p>The Word starter reference covers Windows desktop with an English / US keyboard. Word for the web, Mac, localized keyboards, and custom bindings may differ. Press combinations joined by + together. These are reference entries; use the keys in Word itself.</p><p>Personal entries and application folders are saved in this app’s local browser storage. Built-in entries include source links and a checked date. Your entries are labeled Personal.</p></details>
+
     {error && <p className="functions-error" role="alert">{error}</p>}
     {folderError && <p className="functions-error" role="alert">{folderError}</p>}
+    {iconError && <p className="functions-error" role="alert">{iconError}</p>}
     {notice && <p role="status">{notice} {removed && <button type="button" onClick={() => { if (persist([...personal, removed])) { setRemoved(null); setNotice("Removal undone."); } }}>Undo removal</button>}</p>}
+    {iconApplication && <section className="registry-icon-editor" aria-label="Application icon"
+      onKeyDown={event => { if (event.key === "Escape" && !iconBusy) { event.preventDefault(); closeIconEditor(); } }}>
+      <header><RegistryApplicationIcon application={iconApplication} customIcon={customIcons[applicationIconKey(iconApplication)]} /><strong>{iconApplication} icon</strong></header>
+      <label>Choose icon image<input ref={iconInput} type="file" accept=".png,.jpg,.jpeg,.webp,.ico,image/png,image/jpeg,image/webp,image/x-icon,image/vnd.microsoft.icon" disabled={iconBusy} onChange={chooseIcon} /></label>
+
+      <div className="tools-toolbar"><button type="button" disabled={iconBusy || !customIcons[applicationIconKey(iconApplication)]}
+        onClick={() => { try { persistIcon(iconApplication, null); } catch (failure) { setIconError(`Could not restore application icon: ${failure.message}`); } }}>Use automatic icon</button>
+        <button type="button" disabled={iconBusy} onClick={closeIconEditor}>{iconBusy ? "Saving icon…" : "Close icon settings"}</button></div>
+    </section>}
     {newFolder !== null && <form className="registry-folder-editor" onSubmit={createFolder} onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); setNewFolder(null); } }}>
       <label>Application folder name<input ref={folderInput} required maxLength={300} placeholder="Microsoft Excel" value={newFolder} onChange={event => setNewFolder(event.target.value)} /></label>
       <button type="submit">Create folder</button><button type="button" onClick={() => setNewFolder(null)}>Cancel folder</button>
@@ -92,7 +124,7 @@ export default function ShortcutRegistry() {
         {field("category", "Category")}{field("keys", "Keys (for shortcuts)", draft.type === "Shortcut")}
         {field("description", "What happens", true, true)}{field("steps", "Menu / steps", false, true)}{field("notes", "Notes / examples", false, true)}</div>
       <datalist id="registry-applications">{applications.map(application => <option key={application} value={application} />)}</datalist>
-      <p className="tools-note">Application determines the folder. Choose an existing name or enter a new one.</p>
+
       <div className="tools-toolbar"><button type="submit">Save entry</button><button type="button" onClick={closeEditor}>Cancel</button></div>
     </form>}
     <div className="registry-filters">
@@ -108,8 +140,10 @@ export default function ShortcutRegistry() {
       const open = Object.hasOwn(expandedFolders, folder.application) ? expandedFolders[folder.application] : filtering;
       return <section className="registry-folder" key={folder.application}>
         <div className="registry-folder-heading"><h2><button type="button" className="registry-folder-toggle" aria-expanded={open} aria-controls={`registry-folder-${index}`} onClick={() => setExpandedFolders(previous => ({ ...previous, [folder.application]: !open }))}>
-          <span aria-hidden="true">{open ? "▾" : "▸"} ▣</span><span>{folder.application}</span><small>{filtering ? `${folder.entries.length} matching / ` : ""}{folder.total} entries</small></button></h2>
-          <button type="button" disabled={!!loaded.error} aria-label={`Add entry to ${folder.application}`} onClick={() => addToFolder(folder.application)}>Add entry</button></div>
+          <span aria-hidden="true">{open ? "▾" : "▸"}</span><RegistryApplicationIcon application={folder.application} customIcon={customIcons[applicationIconKey(folder.application)]} /><span className="registry-folder-name">{folder.application}</span><small>{filtering ? `${folder.entries.length} matching / ` : ""}{folder.total} {folder.total === 1 ? "entry" : "entries"}</small></button></h2>
+          <div className="registry-folder-actions"><button type="button" disabled={!!loadedIcons.error} aria-label={`Change icon for ${folder.application}`}
+            onClick={event => { iconButton.current = event.currentTarget; setIconApplication(folder.application); setIconError(""); requestAnimationFrame(() => iconInput.current?.focus()); }}>Icon</button>
+          <button type="button" disabled={!!loaded.error} aria-label={`Add entry to ${folder.application}`} onClick={() => addToFolder(folder.application)}>Add entry</button></div></div>
         <div id={`registry-folder-${index}`} hidden={!open} className="registry-folder-content">{open && <>
           {!folder.entries.length && <p className="tools-empty">This folder is empty. Add an entry for {folder.application}.</p>}
           <div className="registry-entries">{folder.entries.map(entry => <article key={entry.id} className="registry-entry">

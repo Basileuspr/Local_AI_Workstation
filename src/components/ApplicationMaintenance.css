@@ -1,0 +1,11 @@
+.application-maintenance p { margin: 10px 0; font-size: 13px; line-height: 1.5; }
+.application-maintenance button, .application-maintenance select { padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-input); color: var(--accent); cursor: pointer; }
+.application-maintenance button:disabled, .application-maintenance select:disabled { opacity: .5; cursor: default; }
+.application-maintenance button:focus-visible, .application-maintenance select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.maintenance-dependencies { overflow-x: auto; margin: 14px 0; }
+.maintenance-dependencies table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.maintenance-dependencies td, .maintenance-dependencies th { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.maintenance-dependencies th { color: var(--text-dim); font-weight: 500; }
+.maintenance-dependencies small { display: block; margin-top: 5px; color: var(--text-dim); }
+.dependency-proposal { margin-top: 16px; padding: 16px; border: 1px solid var(--accent); border-radius: 8px; }
+.dependency-proposal button { margin-right: 8px; margin-top: 6px; }

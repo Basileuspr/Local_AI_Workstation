@@ -1,10 +1,12 @@
 import { useDispatch, useStore } from "../useStore";
+import { useChatPane } from "../ChatPane";
 import { useImageGeneration } from "../ImageGenerationContext";
 import ImageRequests from "./ImageRequests";
 import ImageGenerationSizing from "./ImageGenerationSizing";
 import "./ChatImageControls.css";
 
 export default function ChatImageControls({ active = true, onGenerate, open, onToggle }) {
+  const pane = useChatPane();
   const { imageSettings: settings } = useStore();
   const dispatch = useDispatch();
   const { models, loras, runtime, catalogError, loraError, refreshModels, isGenerating, stop } = useImageGeneration();
@@ -15,8 +17,8 @@ export default function ChatImageControls({ active = true, onGenerate, open, onT
   const missingLora = settings.loraId && !compatible.some((adapter) => adapter.id === settings.loraId);
   return <div className="chat-image-controls">
     <details className="chat-image-disclosure" open={open}>
-    <summary className="chat-tool-button" role="button" aria-label="Image generation" aria-expanded={open} aria-controls="chat-image-panel" title="Image generation settings and requests" onClick={onToggle ? event => { event.preventDefault(); onToggle(); } : undefined}>Images{isGenerating && <span role="status" aria-label="Images running or queued"> · Running</span>}</summary>
-    <div id="chat-image-panel" className="chat-image-expanded chat-tool-panel" hidden={open === false} role="region" aria-label="Image generation settings">
+    <summary className="chat-tool-button" role="button" aria-label="Image generation" aria-expanded={open} aria-controls={pane.domId("chat-image-panel")} title="Image generation settings and requests" onClick={onToggle ? event => { event.preventDefault(); onToggle(); } : undefined}>Images{isGenerating && <span role="status" aria-label="Images running or queued"> · Running</span>}</summary>
+    <div id={pane.domId("chat-image-panel")} className="chat-image-expanded chat-tool-panel" hidden={open === false} role="region" aria-label="Image generation settings">
     {onToggle && <header><strong>Image generation</strong><button type="button" className="chat-tool-button" onClick={onToggle}>Close</button></header>}
     <div className="chat-image-toolbar">
       <label>Image model
@@ -46,7 +48,7 @@ export default function ChatImageControls({ active = true, onGenerate, open, onT
         disabled={!settings.modelId || missingModel || missingLora || !runtime?.ready || !!catalogError}
         title="Generate an image from the text in the message box">{isGenerating ? "Queue image" : "Generate image"}</button>
     </div>
-    <p className="chat-image-hint">Generate image uses your message text and Generate settings. LoRAs are optional; None uses the base image model. Send / Enter sends a text chat.</p>
+
     <ImageGenerationSizing width={settings.width} height={settings.height} allowLongWait={settings.allowLongWait} limits={runtime?.resolution_limits} onChange={change} prefix="Chat image " />
     {catalogError && <p className="chat-image-error" role="alert">{catalogError}</p>}
     {loraError && <p className="chat-image-hint" role="status">{loraError}</p>}

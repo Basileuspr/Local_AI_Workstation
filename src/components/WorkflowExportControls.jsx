@@ -35,7 +35,7 @@ export default function WorkflowExportControls({ record, busy = false, onKeepSti
         setComposite(result); onCreated?.(); setNotice("Stitched image saved in Workflow Images. Preview it below or save the PNG.");
       })}>Stitch images</button>
     </div>
-    <small>Stage order is preserved. Images fit without cropping; large composites are scaled to fit reference-image limits. ZIP keeps the originals.</small>
+
     {working && <p role="status">Preparing images…</p>}
     {error && <p className="workflow-error" role="alert">{error}</p>}
     {notice && <p role="status">{notice}</p>}

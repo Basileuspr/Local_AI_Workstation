@@ -42,7 +42,7 @@ try {
   await page.locator('#mo-select-matching').click();await page.locator('#mo-new-with-selected').click();
   await page.locator('#mo-custom-name').fill('All 2019');await page.locator('#mo-custom-save').click();
   await page.locator('#mo-custom-preview').click();await page.getByRole('heading',{name:'Review 5 selected moves',exact:true}).waitFor();assert.equal(await page.locator('.mo-custom-preview-item').count(),5);
-  await page.locator('#mo-custom-confirm').fill('MOVE');await page.locator('#mo-custom-execute').click();
+  assert.equal(await page.locator('#mo-custom-confirm').count(), 0);await page.locator('#mo-custom-execute').click();
   await page.waitForFunction(()=>document.querySelector('media-organizer').data?.records.filter(r=>r.CustomFolderId).length===5);
   const current=await page.evaluate(id=>document.querySelector('media-organizer').data.records.find(r=>r.RecordId===id),row.RecordId);
   assert.deepEqual(await readFile(current.CurrentPath),before);assert.equal(await page.locator('.mo-media-card').count(),5);

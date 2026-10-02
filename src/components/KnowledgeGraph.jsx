@@ -109,7 +109,7 @@ export default function KnowledgeGraph({ nodes, edges, selectedId, onSelect, onP
       <div className="vault-depth-buttons"><button disabled={!selected || nodeOptions(selected).locked} onClick={() => moveNode(selectedId, 0, 35, true)}>Deeper</button><button disabled={!selected || nodeOptions(selected).locked} onClick={() => moveNode(selectedId, 0, -35, true)}>Closer</button></div>
     </div>
     <svg ref={svg} viewBox="0 0 1200 800" tabIndex={0} role="group" aria-label="Knowledge document graph" aria-roledescription="Rotatable 3D graph"
-      data-yaw={camera.yaw} data-pitch={camera.pitch} data-distance={camera.distance} aria-describedby="vault-3d-help"
+      data-yaw={camera.yaw} data-pitch={camera.pitch} data-distance={camera.distance}
       onPointerDown={start} onPointerMove={move} onPointerUp={finish} onPointerCancel={finish} onDragStart={event => event.preventDefault()} onContextMenu={event => event.preventDefault()} onKeyDown={cameraKey}>
       <g aria-hidden="true" pointerEvents="none">{grid}</g>
       <g>
@@ -147,6 +147,6 @@ export default function KnowledgeGraph({ nodes, edges, selectedId, onSelect, onP
       </g>
     </svg>
     {!nodes.length && <div className="vault-empty"><h2>Your knowledge, connected</h2><p>Add documents to start your vault. Each document becomes a node in 3D space.</p></div>}
-    <div className="vault-legend"><span>● Manual link</span><span>┄ [[Document link]]</span><small id="vault-3d-help">Drag background to rotate · Shift/right-drag to pan · scroll to zoom<br />Drag unlocked nodes to arrange · Alt-drag or Deeper/Closer to change depth<br />Keyboard: graph arrows rotate · node arrows move · Page Up/Down change depth</small></div>
+    <div className="vault-legend"><span>● Manual link</span><span>┄ [[Document link]]</span></div>
   </div>;
 }

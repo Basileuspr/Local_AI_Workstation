@@ -50,7 +50,7 @@ export default function CanvasWorkspace() {
     }catch(failure){setError(failure.message);}
   }
   return <section className="tools-workspace">
-    <header className="tools-heading"><h1>Canvas</h1><p>Draw here or ask chat to create and edit a diagram on the canvas.</p></header>
+    <header className="tools-heading"><h1>Canvas</h1></header>
     <div className="tools-toolbar">{["select","text","rect","ellipse","line","arrow","pen"].map(item=><button key={item} aria-pressed={tool===item} onClick={()=>setTool(item)}>{({rect:"Rectangle",pen:"Draw"})[item]||item[0].toUpperCase()+item.slice(1)}</button>)}
       <label>Color <input type="color" value={color} onChange={e=>setColor(e.target.value)} /></label><input aria-label="Canvas text" value={text} onChange={e=>setText(e.target.value)} maxLength={3000} />
       <button onClick={()=>guard(undoCanvas)}>Undo</button><button onClick={()=>guard(redoCanvas)}>Redo</button><button onClick={copy}>Copy Canvas</button>
@@ -60,6 +60,6 @@ export default function CanvasWorkspace() {
     {chosen.length===1 && chosen[0].type!=="pen" && <div className="tools-toolbar">{["x","y","width","height"].map(key=><label key={key}>{key} <input type="number" style={{width:85}} min="-2400" max="2400" value={chosen[0][key]} onChange={e=>guard(()=>commitCanvas(value.objects.map(item=>item.id===chosen[0].id?{...item,[key]:Number(e.target.value)}:item)))} /></label>)}</div>}
     {error&&<p role="alert">{error}</p>}<p role="status">{notice}</p>
     <div className="canvas-scroll"><canvas ref={canvas} width="1200" height="800" aria-label="Whiteboard canvas" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={()=>{gesture.current=null;drawCanvas(canvas.current.getContext("2d"),value.objects,value.selectedIds);}} /></div>
-    <p className="tools-note">Saved on this device. Shift-click selects multiple objects; drag to move. Chat uses selected objects, or the whole canvas when none are selected. Copy Canvas includes only the 1200 × 800 artwork.</p>
+
   </section>;
 }

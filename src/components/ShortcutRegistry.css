@@ -22,10 +22,17 @@
 .registry-editor textarea { resize: vertical; }
 .registry-folders { display: flex; flex-direction: column; gap: 12px; }
 .registry-folder { border: 1px solid var(--border); border-radius: 8px; min-width: 0; overflow: hidden; }
-.registry-folder-heading { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--bg-card); }
-.registry-folder-heading h2 { flex: 1; min-width: 0; font-size: 16px; }
+.registry-folder-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 12px; background: var(--bg-card); }
+.registry-folder-heading h2 { flex: 1 1 280px; min-width: 0; font-size: 16px; }
 .shortcut-registry .registry-folder-toggle { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; width: 100%; border: 0; background: transparent; text-align: left; }
-.registry-folder-toggle span:nth-child(2) { overflow-wrap: anywhere; }
+.registry-folder-name { overflow-wrap: anywhere; }
+.registry-application-icon { width: 30px; height: 30px; object-fit: contain; flex: 0 0 30px; }
+.registry-application-initials { display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border-active); border-radius: 6px; color: var(--accent); background: var(--accent-dim); font: 600 11px var(--font-body); }
+.registry-folder-actions { display: flex; flex-wrap: wrap; gap: 6px; flex-shrink: 0; margin-left: auto; }
+.registry-icon-editor { display: flex; flex-direction: column; gap: 12px; padding: 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card); }
+.registry-icon-editor header { display: flex; align-items: center; gap: 10px; }
+.registry-icon-editor label { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 13px; }
+.registry-icon-editor input { max-width: 100%; }
 .registry-folder-toggle small { margin-left: auto; color: var(--text-dim); font-weight: normal; white-space: nowrap; }
 .registry-folder-heading > button { flex-shrink: 0; }
 .registry-folder-content { padding: 14px; }
@@ -34,3 +41,8 @@
 .registry-folder-tools p { flex: 1; }
 .registry-folder-editor { padding: 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card); }
 .registry-folder-editor label { display: flex; flex-direction: column; gap: 6px; flex: 1; color: var(--text-dim); font-size: 13px; min-width: min(240px, 100%); }
+@media (max-width: 600px) {
+  .registry-folder-heading { flex-wrap: wrap; }
+  .registry-folder-heading h2 { flex-basis: 100%; }
+  .registry-folder-actions { margin-left: auto; }
+}

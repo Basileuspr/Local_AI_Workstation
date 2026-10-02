@@ -39,11 +39,11 @@ try {
   await page.getByRole('button', { name: 'Preview selected move', exact: true }).click();
   await page.getByRole('heading', { name: 'Review 2 selected moves' }).waitFor();
   assert.equal(await page.locator('.mo-custom-preview-item').count(), 2);
-  assert.equal(await page.getByRole('button', { name: 'Move selected clips', exact: true }).isEnabled(), false);
+  assert.equal(await page.getByRole('button', { name: 'Move selected clips', exact: true }).isEnabled(), true);
   for (const row of before) await access(row.path); // Preview has moved nothing.
   await mkdir('test-work/ui-qa', { recursive: true });
   await page.screenshot({ path: 'test-work/ui-qa/custom-folder-preview.png' });
-  await page.getByLabel('Type MOVE to confirm', { exact: true }).fill('MOVE');
+  assert.equal(await page.locator('#mo-custom-confirm, #mo-confirm-word').count(), 0);
   await page.getByRole('button', { name: 'Move selected clips', exact: true }).click();
   await page.waitForFunction(() => document.querySelector('#mo-library-title').textContent.startsWith('Favorites') && document.querySelectorAll('.mo-media-card').length === 2);
   assert.equal(await page.locator('#mo-selection-count').innerText(), '0 selected');
@@ -65,7 +65,7 @@ try {
   await page.getByRole('button', { name: 'Preview selected move', exact: true }).click();
   await page.getByRole('heading', { name: 'Review 1 selected moves' }).waitFor();
   assert.match(await page.locator('.mo-custom-preview-item').innerText(), /Favorites/i);
-  await page.getByLabel('Type MOVE to confirm', { exact: true }).fill('MOVE');
+  assert.equal(await page.locator('#mo-custom-confirm, #mo-confirm-word').count(), 0);
   await page.getByRole('button', { name: 'Move selected clips', exact: true }).click();
   await page.waitForFunction(() => document.querySelector('#mo-library-title').textContent.startsWith('Travel') && document.querySelectorAll('.mo-media-card').length === 1);
   await page.locator('[data-custom-filter=""]').click();

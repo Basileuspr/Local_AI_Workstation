@@ -26,6 +26,7 @@ import re
 from pathlib import Path
 
 from config import settings
+from services import storage_libraries as storage
 from services.app_logging import get_logger
 
 logger = get_logger("backend.image_store")
@@ -95,10 +96,10 @@ def put_bytes(data: bytes) -> str:
     ensure_dir()
     digest = hashlib.sha256(data).hexdigest()
     _, suffix = _sniff(data)
-    target = BLOBS_DIR / f"{digest}{suffix}"
+    target = storage.resolve(BLOBS_DIR / f"{digest}{suffix}", create=True)
 
     if not target.exists():
-        temporary = BLOBS_DIR / f"{digest}.partial"
+        temporary = target.with_suffix(".partial")
         temporary.write_bytes(data)
         temporary.replace(target)
 
@@ -119,7 +120,7 @@ def _path_for(reference: str) -> Path | None:
         return None
     digest = match.group(1)
     ensure_dir()
-    for candidate in BLOBS_DIR.glob(f"{digest}.*"):
+    for candidate in storage.glob_paths(BLOBS_DIR, f"{digest}.*"):
         if candidate.suffix != ".partial" and candidate.is_file():
             return candidate
     return None

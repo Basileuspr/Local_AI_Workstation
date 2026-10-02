@@ -22,14 +22,14 @@ function SavePromptPairDialog({ snapshot, onClose, onSaved }) {
     setSaving(true); setError("");
     try {
       // Always create a new entry. Saving a small variation never replaces
-      // another entry or writes to Prompt Index's separate editor draft.
+      // another entry or writes to Index's separate editor draft.
       await createPromptIndexEntry(imagePromptIndexEntry(snapshot, title));
     } catch (failure) {
       setError(failure.message || "Could not save prompts. Please retry.");
       inFlight.current = false; setSaving(false);
       return;
     }
-    dispatch({type:"SHOW_TOAST",payload:{message:"Prompt pair saved as a new Prompt Index entry",type:"success"}});
+    dispatch({type:"SHOW_TOAST",payload:{message:"Prompt pair saved as a new Index entry",type:"success"}});
     onClose();
     onSaved?.();
   }
@@ -37,7 +37,6 @@ function SavePromptPairDialog({ snapshot, onClose, onSaved }) {
     onCancel={event => { event.preventDefault(); if (!inFlight.current) onClose(); }}>
     <form onSubmit={save}>
       <h2 id="save-image-prompts-title">Save prompts to Index</h2>
-      <p>Save this prompt pair as a separate entry. Give each variation a name you’ll recognize.</p>
       <label>Entry name<input autoFocus value={title} maxLength={120} disabled={saving} onChange={event => setTitle(event.target.value)} /></label>
       <label>Positive prompt<textarea readOnly value={snapshot.prompt || ""} /></label>
       <label>Negative prompt<textarea readOnly value={snapshot.negativePrompt || ""} placeholder="No negative prompt" /></label>
@@ -55,7 +54,7 @@ export default function SaveImagePrompts({ label = "Save prompts to Index", onSa
   const [snapshot, setSnapshot] = useState(null);
   return <>
     <button type="button" className="save-image-prompts-button" disabled={!imageSettings.prompt.trim() && !imageSettings.negativePrompt.trim()}
-      title="Save the current positive and negative prompts as a new Prompt Index entry"
+      title="Save the current positive and negative prompts as a new Index entry"
       onClick={() => setSnapshot({prompt:imageSettings.prompt,negativePrompt:imageSettings.negativePrompt})}>{label}</button>
     {snapshot && <SavePromptPairDialog snapshot={snapshot} onClose={() => setSnapshot(null)} onSaved={onSaved} />}
   </>;

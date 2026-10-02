@@ -8,6 +8,7 @@ MAX_MESSAGES = 500
 
 
 def receipt(payload, *, mode="chat", context=None):
+    from services.context_awareness import payload_usage
     context = context or {}
     remaining = MAX_TEXT
     records = []
@@ -38,6 +39,7 @@ def receipt(payload, *, mode="chat", context=None):
             "structured_output": bool(payload.get("format")), "messages": records,
             "message_count": len(messages), "omitted_messages": max(0, len(messages) - MAX_MESSAGES),
             "image_count": sum(len(item.get("images") or []) for item in messages),
+            "context_usage": payload_usage(payload),
             **context}
 
 

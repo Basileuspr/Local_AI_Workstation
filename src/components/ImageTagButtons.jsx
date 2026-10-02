@@ -21,7 +21,6 @@ export default function ImageTagButtons({ tags, selected = [], onToggle, onChang
   }
   return <section className="prompt-phrases image-tags" aria-label={filtering ? "Image tag filters" : "Image tags"}>
     <div className="prompt-phrases-heading"><strong>{filtering ? "Filter by image tags" : "Tag this image"}</strong><button type="button" disabled={disabled || busy || !!draft} onClick={() => setDraft({ name: "" })}>+ Add</button></div>
-    <p className="prompt-phrases-hint">{filtering ? "Match every selected tag. Images may have additional tags." : "Click a tag to apply or remove it. New tags are applied to this image automatically."}</p>
     {draft && <form className="prompt-phrase-editor" onSubmit={event => { event.preventDefault(); run(async () => {
       const saved = await api.tag(draft.name, draft.id);
       const creating = !draft.id; setDraft(null); await onChanged();

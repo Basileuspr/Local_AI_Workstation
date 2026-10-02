@@ -42,6 +42,6 @@ export default function CharacterSilhouette({ part, side, onSelect, catalog }) {
       <text x="16" y="61">{back ? "L" : "R"}</text><text x="176" y="61">{back ? "R" : "L"}</text>
     </svg>
     <div className="character-map-shortcuts">{["body", "back", "buttocks", "custom", "finger", "toe"].map(value => <button key={value} type="button" aria-pressed={part === value} onClick={() => onSelect(value, "")}>{catalog.parts[value]}</button>)}</div>
-    <small>Left and right refer to the character. Select finer regions in the region list.</small>
+
   </aside>;
 }

@@ -1,6 +1,10 @@
+import {useRangeSelection} from '../useRangeSelection';
+import {preventSelectionText,hasSelectionModifier} from '../fileSelection';
+import ImageThumbnail, { ThumbnailRetryButton } from "./ImageThumbnail";
 import {useImageRemoval} from "./ImageRemovalControls";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { apiUrl, listSessionImages } from "../api";
+import { listSessionImages } from "../api";
+import { imageSourceUrl as apiUrl } from "../imageSources";
 import * as api from "../characterPartsApi";
 import * as libraryApi from "../imageLibraryApi";
 import { browserFaceSource, desktopFaceSource } from "../faceImport";
@@ -25,17 +29,19 @@ function CaptionEditor({ source, onSave, busy }) {
   </details>;
 }
 
-function LibraryPicker({ images, onImport, onClose, busy }) {
+export function LibraryPicker({ images, onImport, onClose, busy }) {
   const dialog = useRef(null), [chosen, setChosen] = useState(new Set()), [query, setQuery] = useState(""), [page, setPage] = useState(0);
   useEffect(() => { dialog.current.showModal(); }, []);
   const visible = images.filter(item => `${item.name} ${item.session_title || ""}`.toLowerCase().includes(query.toLowerCase()));
+  const sourceRange = useRangeSelection(visible.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map(item => item.key),chosen,setChosen,{limit:100});
   return <dialog ref={dialog} className="character-dialog" aria-label="Choose training source images" onCancel={event => { event.preventDefault(); if (!busy) onClose(); }}>
-    <header><div><h2>Choose source images</h2><p>General and saved library images. Hidden and locked images are excluded.</p></div><button disabled={busy} onClick={onClose}>Close</button></header>
+    <header><div><h2>Choose source images</h2></div><button disabled={busy} onClick={onClose}>Close</button></header>
     <label>Search images<input value={query} onChange={event => { setQuery(event.target.value); setPage(0); }} /></label>
+    <ThumbnailRetryButton />
     <div className="character-source-grid">{visible.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map((item, index) => {
       const key = item.key;
-      return <button key={key} type="button" aria-pressed={chosen.has(key)} aria-label={`Select ${item.name}`} disabled={busy || (!chosen.has(key) && chosen.size >= 100)} onClick={() => setChosen(current => { const next = new Set(current); next.has(key) ? next.delete(key) : next.add(key); return next; })}>
-        <ProtectedImage src={item.url} alt="" loading="lazy" /><span>{item.name || `Image ${index + 1}`}</span>
+      return <button key={key} type="button" aria-pressed={chosen.has(key)} aria-label={`Select ${item.name}`} disabled={busy || (!chosen.has(key) && chosen.size >= 100)} onMouseDown={preventSelectionText} onClick={event => sourceRange.toggle(key,event)}>
+        <ImageThumbnail src={item.url} alt="" loading="lazy" /><span>{item.name || `Image ${index + 1}`}</span>
       </button>;
     })}</div>
     {!visible.length && <p>No matching library images. You can also import files or a folder.</p>}
@@ -65,7 +71,7 @@ export default function CharacterStudio({ active, openDataset }) {
     if(items.some(item=>item.id===sourceId))setSourceId('');
     if(items.some(item=>item.id===focus?.source_id))clearFocus();
     setSelected(new Set());
-  },{label:'character source images',scope:datasetId,disabled:disabled||running});
+  },{label:'character source images',scope:datasetId,disabled:disabled||running,rangeItems:workingSources.slice(sourcePage * PAGE_SIZE, (sourcePage + 1) * PAGE_SIZE)});
   function removeSelections(ids){
     setRemovedSelections(current=>[...current,...ids.map(id=>`${datasetId}:${id}`)]);
     setSelected(current=>new Set([...current].filter(id=>!ids.includes(id))));
@@ -118,6 +124,7 @@ export default function CharacterStudio({ active, openDataset }) {
   const source = workingSources.find(item => item.id === sourceId);
   const focus = dataset?.selections.find(item => item.id === focusId);
   const visible = filterSelections(dataset?.selections || [], { ...filters, sourceId: onlySource ? sourceId : "" }).filter(item=>!removedSelections.includes(`${datasetId}:${item.id}`) && !removedSources.includes(`${datasetId}:${item.source_id}`));
+  const regionRange = useRangeSelection(visible.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map(item => item.id),selected,setSelected,{scope:datasetId});
   const counts = useMemo(() => coverage(dataset?.selections || []), [dataset]);
   const acceptedCount = dataset?.selections.filter(item => item.state === "accepted").length || 0;
   const rejectedCount = dataset?.selections.filter(item => item.state === "rejected").length || 0;
@@ -171,18 +178,18 @@ export default function CharacterStudio({ active, openDataset }) {
   function drawFocus() { setEditor(newSelection(source.id, filters.part || "custom", filters.side || "unspecified")); }
 
   return <div className="character-studio">
-    <header className="character-header"><div><span className="character-eyebrow">Training image curation</span><h1>Character Parts</h1><p>Select any area, compare it with a reference, and curate the examples you want.</p></div></header>
+    <header className="character-header"><div><span className="character-eyebrow">Training image curation</span><h1>Character Parts</h1></div></header>
     {dataset && <section className="character-exports" aria-label="Export character media"><div className="character-actions">
       <button disabled={disabled || !selected.size} onClick={() => exportMedia("selected")}>Export Selected Media ({selected.size})</button>
       <button disabled={disabled || !acceptedCount} onClick={() => exportMedia("approved")}>Export Approved Media ({acceptedCount})</button>
       <button disabled={disabled || !rejectedCount} onClick={() => exportMedia("rejected")}>Export Reject Media ({rejectedCount})</button>
-    </div><p className="character-help">ZIP copies with captions and a manifest. Selected uses checked items; approved and reject include the entire dataset, across filters. Each item keeps its Full image / Crop export choice.</p></section>}
+    </div></section>}
     {error && <p className="character-error" role="alert">{error}</p>}{notice && <p className="character-notice" role="status">{notice}</p>}
     <div className="character-datasets"><label>Character dataset<select value={datasetId} disabled={disabled || running} onChange={event => setDatasetId(event.target.value)}><option value="">Choose a dataset</option>{datasets.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
       <form onSubmit={event => { event.preventDefault(); guard(async () => { const data = await api.create(newName); await refreshList(); setDatasetId(data.id); setNewName(""); }); }}><label>New dataset name<input value={newName} maxLength={120} disabled={disabled || running} onChange={event => setNewName(event.target.value)} placeholder="Character name or training set" /></label><button disabled={disabled || running || !newName.trim()}>Create dataset</button></form>
     </div>
     {dataset && <CharacterLinks kind="parts" targetId={dataset.id} label="parts dataset" disabled={disabled || running} />}
-    {!dataset ? <div className="character-empty"><h2>Build a complete character training set</h2><p>Create a dataset, import source images, then review suggested regions or draw your own crops.</p><p>Full images and crops can be accepted separately for export. Rejected selections remain recoverable.</p></div> : <>
+    {!dataset ? <div className="character-empty"><h2>Build a complete character training set</h2></div> : <>
       <div className="character-actions">
         {desktop?.chooseFaceInputs ? <><button disabled={disabled} onClick={() => pickDesktop(false)}>Import files</button><button disabled={disabled} onClick={() => pickDesktop(true)}>Import folder</button></> : <label className="character-file-button">Import images<FreshFileInput type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple disabled={disabled} onChange={event => { const files = Array.from(event.target.files || []); event.target.value = ""; if (files.length) importImages(() => browserFaceSource(files)); }} /></label>}
         <button disabled={disabled} onClick={openLibrary}>Choose from library</button>
@@ -192,8 +199,8 @@ export default function CharacterStudio({ active, openDataset }) {
       <div className="character-workspace">{catalog && <CharacterSilhouette part={filters.part} side={filters.side} onSelect={chooseRegion} catalog={catalog} />}
         <main className="character-content">
           {catalog && <CharacterFocus dataset={dataset} reference={focus} catalog={catalog} description={focusNotes} onDescription={setFocusNotes} onEdit={() => setEditor(focus)} onClear={clearFocus} onDraw={drawFocus} disabled={disabled || !source || running} />}
-          <section className="character-source-section"><h2>Source images</h2><p className="character-help">Remove hides items from this working view. Saved datasets and exports remain unchanged.</p>{sourceRemoval.toolbar}{!!(removedSources.length || removedSelections.length) && <button onClick={()=>{setRemovedSources([]);setRemovedSelections([]);}}>Restore removed images</button>}
-            <div className="character-source-strip">{workingSources.slice(sourcePage * PAGE_SIZE, (sourcePage + 1) * PAGE_SIZE).map(item => <div key={item.id}><button type="button" aria-pressed={sourceId === item.id} aria-label={`Use source ${item.name}`} onClick={() => setSourceId(item.id)}><ProtectedImage src={api.sourceUrl(datasetId, item.id, true)} alt="" loading="lazy" /><span>{item.name}</span><small>{item.analysis ? "Analyzed" : "Not analyzed"}</small></button>{sourceRemoval.controls(item,item.name)}</div>)}</div>
+          <section className="character-source-section"><h2>Source images</h2>{sourceRemoval.toolbar}{!!(removedSources.length || removedSelections.length) && <button onClick={()=>{setRemovedSources([]);setRemovedSelections([]);}}>Restore removed images</button>}
+            <div className="character-source-strip">{workingSources.slice(sourcePage * PAGE_SIZE, (sourcePage + 1) * PAGE_SIZE).map(item => <div key={item.id}><button type="button" aria-pressed={sourceId === item.id} aria-label={`Use source ${item.name}`} onClick={() => setSourceId(item.id)}><ImageThumbnail src={api.sourceUrl(datasetId, item.id, true)} alt="" loading="lazy" /><span>{item.name}</span><small>{item.analysis ? "Analyzed" : "Not analyzed"}</small></button>{sourceRemoval.controls(item,item.name)}</div>)}</div>
             {!dataset.sources.length && <p className="character-help">Import images to begin. Originals are kept for later adjustments.</p>}
             {workingSources.length > PAGE_SIZE && <div className="character-actions"><button disabled={!sourcePage} onClick={() => setSourcePage(value => value - 1)}>Previous sources</button><span>{sourcePage + 1} / {Math.ceil(workingSources.length / PAGE_SIZE)}</span><button disabled={(sourcePage + 1) * PAGE_SIZE >= workingSources.length} onClick={() => setSourcePage(value => value + 1)}>Next sources</button></div>}
             {source && <><div className="character-actions"><strong>{source.name}</strong><button disabled={disabled || !catalog} onClick={drawFocus}>Draw a selection</button><button disabled={disabled || !catalog} onClick={() => setEditor(newSelection(source.id, "custom"))}>Select any area</button></div><CaptionEditor key={source.id} source={source} busy={disabled} onSave={caption => guard(async () => accept(await api.saveCaption(current.current, source.id, caption)))} />{source.analysis?.warnings?.length > 0 && <p className="character-flags">{source.analysis.warnings.join(" · ")}</p>}</>}
@@ -201,11 +208,11 @@ export default function CharacterStudio({ active, openDataset }) {
           <details className="character-analysis" open><summary>Suggest regions and viewing angles</summary>
             <fieldset disabled={disabled || running}><div className="character-analysis-fields"><label>Local vision model<select value={model} onChange={event => setModel(event.target.value)}><option value="">Choose a vision model</option>{catalog?.models.map(item => <option key={item.id} value={item.id}>{item.name || item.id}</option>)}</select></label><label>Character to focus on (optional)<input value={subjectHint} maxLength={500} onChange={event => setSubjectHint(event.target.value)} placeholder="e.g. person in blue on the left" /></label></div>
               {focus ? <p className="character-help">Suggesting {catalog.parts[focus.part]} using your reference crop and focus description.</p> : <details><summary>Regions to suggest ({parts.length})</summary><div className="character-part-checks">{catalog && Object.entries(catalog.parts).filter(([id]) => id !== "custom").map(([id, name]) => <label key={id}><input type="checkbox" checked={parts.includes(id)} onChange={event => setParts(current => event.target.checked ? [...current, id] : current.filter(value => value !== id))} />{name}</label>)}</div></details>}
-              {!focus && parts.includes("custom") && <p className="character-help">Draw and name an area, then choose Use as focus to suggest that area in other images.</p>}
+
               <div className="character-actions"><button className="character-primary" disabled={!source || !model || !parts.length || (!focus && parts.includes("custom"))} onClick={() => startAnalysis([source.id])}>{focus ? "Suggest focused area in this image" : source?.analysis ? "Analyze this image again" : "Analyze this image"}</button>{focus ? <button disabled={!model || !workingSources.some(item => item.id !== focus.source_id)} onClick={() => startAnalysis(workingSources.filter(item => item.id !== focus.source_id).slice(0, 500).map(item => item.id))}>Find this region in other images</button> : <button disabled={!model || !parts.length || parts.includes("custom") || !workingSources.some(item => !item.analysis)} onClick={() => startAnalysis(workingSources.filter(item => !item.analysis).slice(0, 500).map(item => item.id))}>Analyze remaining images</button>}</div>
             </fieldset>
             {catalog && !catalog.models.length && <p className="character-help">No local vision model is available. You can still draw and label selections manually.</p>}
-            <p className="character-help">Suggestions are approximate. Check small fingers and toes, occluded regions, and left/right labels before accepting.</p>
+
             {run && <div className="character-run" role="status"><strong>{run.message}</strong><span>{run.processed} / {run.total} images</span>{running && <><progress max={run.total} value={run.processed} /><button disabled={run.status === "cancelling"} onClick={() => guard(async () => { setRun((await api.stop(datasetId, run.id)).run); await refresh(); })}>{run.status === "cancelling" ? "Stopping…" : "Stop analysis"}</button></>}{run.errors.length > 0 && <details><summary>{run.errors.length} image errors</summary>{run.errors.map((item, i) => <p key={i}>{dataset.sources.find(source => source.id === item.source_id)?.name}: {item.message}</p>)}</details>}</div>}
           </details>
           {catalog && <section className="character-selections"><h2>Review selections</h2><div className="character-filters">
@@ -216,8 +223,8 @@ export default function CharacterStudio({ active, openDataset }) {
           </div><label className="character-inline-check"><input type="checkbox" checked={onlySource} onChange={event => setOnlySource(event.target.checked)} />Current source image only</label>
             <div className="character-actions"><button disabled={!visible.length} onClick={() => setSelected(new Set(visible.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map(item => item.id)))}>Select this page</button><button disabled={!selected.size} onClick={() => setSelected(new Set())}>Clear selection</button><button disabled={disabled || running || !selected.size} onClick={()=>removeSelections([...selected])}>Remove selected from view</button><span>{selected.size} selected · {visible.length} matching</span>{["accepted", "rejected", "pending"].map(state => <button key={state} disabled={disabled || !selected.size} onClick={() => decide(state)}>{state === "accepted" ? "Accept" : state === "rejected" ? "Reject" : "Review later"}</button>)}</div>
             <div className="character-selection-grid">{visible.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map(item => <article key={item.id} className={`character-tile ${item.state} ${item.id === focusId ? "focus-reference" : ""}`}>
-              <label className="character-tile-select"><input type="checkbox" aria-label={`Select ${catalog.parts[item.part]} ${item.detail}`} checked={selected.has(item.id)} onChange={() => setSelected(current => { const next = new Set(current); next.has(item.id) ? next.delete(item.id) : next.add(item.id); return next; })} /><span>{item.state === "pending" ? "Unreviewed" : item.state}</span></label>
-              <button className="character-tile-image" type="button" onClick={() => setEditor(item)} aria-label={`Review ${catalog.parts[item.part]} ${item.detail}`}><ProtectedImage src={api.cropUrl(datasetId, item.id, dataset.revision)} alt={`${catalog.parts[item.part]} crop`} loading="lazy" /></button>
+              <label className="character-tile-select"><input type="checkbox" aria-label={`Select ${catalog.parts[item.part]} ${item.detail}`} checked={selected.has(item.id)} onMouseDown={preventSelectionText} onClick={event => regionRange.toggle(item.id,event)} onChange={() => {}} /><span>{item.state === "pending" ? "Unreviewed" : item.state}</span></label>
+              <button className="character-tile-image" type="button" onMouseDown={preventSelectionText} onClick={event => hasSelectionModifier(event) ? regionRange.toggle(item.id,event) : setEditor(item)} aria-label={`Review ${catalog.parts[item.part]} ${item.detail}`}><ImageThumbnail src={api.cropUrl(datasetId, item.id, dataset.revision)} alt={`${catalog.parts[item.part]} crop`} loading="lazy" /></button>
               {selected.has(item.id) && <MediaCardActions image={{ id: item.id, name: `${catalog.parts[item.part]} ${item.detail} crop`, url: api.cropUrl(datasetId, item.id, dataset.revision) }} />}
               <button disabled={disabled || running} onClick={()=>removeSelections([item.id])}>Remove from view</button><div className="character-tile-info"><strong>{catalog.parts[item.part]}{item.detail ? ` · ${item.detail}` : ""}</strong><span>{catalog.sides[item.side]} · {catalog.views[item.view]}</span><small>{dataset.sources.find(source => source.id === item.source_id)?.name}</small><small>{item.export_mode === "both" ? "Full image + crop" : item.export_mode === "full" ? "Full image only" : "Crop only"}</small>{item.flags.length > 0 && <small className="character-flags">{item.flags.join(" · ")}</small>}{item.notes && <details><summary>{item.focus ? "Reference comparison" : "Review notes"}</summary>{earlierFocus(item, focus) && <small>Analysis used an earlier reference.</small>}<p>{item.notes}</p></details>}<button type="button" disabled={disabled || running || item.id === focusId} onClick={() => useFocus(item)}>{item.id === focusId ? "Current focus" : "Use as focus"}</button></div>
             </article>)}</div>

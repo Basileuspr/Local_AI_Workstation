@@ -1,0 +1,47 @@
+.workspace-info { flex: 0 0 auto; }
+.workspace-navigation:has(> .workspace-info) { flex-wrap: nowrap; }
+.workspace-navigation > span { min-width: 0; }
+.workspace-navigation .workspace-info-button,
+.pinned-pane-heading .workspace-info-button {
+  display: grid; place-items: center; width: 34px; height: 34px; padding: 0;
+  border: 1px solid var(--border); border-radius: 50%;
+  background: var(--bg-surface); color: var(--accent); cursor: pointer;
+}
+.workspace-info-button:hover { border-color: var(--accent); background: var(--bg-card); }
+.workspace-info-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.workspace-info-dialog {
+  width: min(800px, calc(100vw - 32px)); max-height: calc(100dvh - 40px); box-sizing: border-box;
+  margin: auto; padding: 0; overflow-y: auto; border: 1px solid var(--border); border-radius: 14px;
+  background: var(--bg-surface); color: var(--text); box-shadow: 0 20px 80px #0006;
+}
+.workspace-info-dialog::backdrop { background: #0008; }
+.workspace-info-heading {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  position: sticky; top: 0; z-index: 1; padding: 16px 22px;
+  background: var(--bg-surface); border-bottom: 1px solid var(--border);
+}
+.workspace-info-heading h2 { margin: 0; font-size: 18px; }
+.workspace-info-heading button { padding: 7px 12px; flex: 0 0 auto; }
+.workspace-info-content { padding: 4px 22px 22px; line-height: 1.6; font-size: 14px; }
+.workspace-info-content p { color: var(--text-dim); margin: 12px 0; }
+.workspace-info-content .workspace-info-purpose { color: var(--text); }
+.workspace-info-purpose { margin:16px 0; }
+.workspace-control-help > div { padding:10px 0; border-bottom:1px solid var(--border); }
+.workspace-control-help > div:last-child { border-bottom:0; }
+.workspace-info-content .workspace-control-help { margin:0; }
+.workspace-info-content .workspace-control-help > div { margin:0; }
+.workspace-info-content section { margin: 20px 0; }
+.workspace-info-content h3 { font-size: 15px; color: var(--text); margin: 0 0 8px; }
+.workspace-info-content h4 { font-size: 14px; margin: 12px 0; }
+.workspace-info-content dl > div { margin: 12px 0; }
+.workspace-info-content dt { font-weight: 600; }
+.workspace-info-content dd { margin: 3px 0 0; color: var(--text-dim); }
+.workspace-info-content a { color: var(--accent); }
+.workspace-info-content .image-help-scale { width: 100%; font-size: 13px; }
+.pinned-pane-heading > .workspace-info { margin-left: auto; }
+@media (max-width: 600px) {
+  .workspace-info-heading { padding: 12px 14px; }
+  .workspace-info-heading h2 { font-size: 16px; }
+  .workspace-info-content { padding: 4px 14px 14px; }
+  .workspace-info-content .image-help-scale { font-size: 12px; overflow-wrap: anywhere; }
+}

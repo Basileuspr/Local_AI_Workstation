@@ -1,5 +1,5 @@
 import GeneratedImagePreview from "./GeneratedImagePreview";
-import { apiUrl } from "../api";
+import { imageSourceUrl as apiUrl } from "../imageSources";
 import ImageSeedControls from "./ImageSeedControls";
 import {usePromptQueue} from './PromptQueue';
 import {useImageRemoval} from './ImageRemovalControls';

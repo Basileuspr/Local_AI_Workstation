@@ -1,0 +1,36 @@
+.workstation-time { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; margin-left: auto; }
+.workstation-clock { color: var(--text-dim); font: 12px var(--font-body); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.workspace-navigation .workstation-timer-trigger { padding: 7px 10px; font-variant-numeric: tabular-nums; color: var(--text); }
+.workspace-navigation .workspace-options { margin-left: 0; }
+.floating-timer { position: fixed; right: 24px; bottom: 96px; width: min(300px, calc(100vw - 16px)); max-height: calc(100dvh - 16px); overflow: auto; z-index: 500; border: 1px solid var(--border-active); border-radius: 12px; background: var(--bg-surface); color: var(--text); box-shadow: 0 8px 30px #0008; font: 13px var(--font-body); }
+.floating-timer header { display: flex; align-items: center; gap: 8px; padding: 8px; border-bottom: 1px solid var(--border); }
+.floating-timer header strong { flex: 1; }
+.floating-timer button { border: 1px solid var(--border); border-radius: 6px; background: var(--bg-input); color: var(--text); font: inherit; padding: 6px 10px; cursor: pointer; }
+.floating-timer button:hover { color: var(--accent); border-color: var(--border-active); }
+.floating-timer :is(button,input):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.floating-timer .timer-move { cursor: move; touch-action: none; user-select: none; padding: 4px 7px; font-size: 18px; border-color: transparent; background: transparent; }
+.floating-timer .timer-hide { font-size: 18px; padding: 2px 8px; }
+.floating-timer form { padding: 16px; }
+.timer-countdown { display: block; text-align: center; font: 36px var(--font-body); font-variant-numeric: tabular-nums; }
+.timer-status { text-align: center; margin: 4px 0 16px; color: var(--text-dim); }
+.timer-duration { display: flex; gap: 8px; margin-bottom: 16px; }
+.timer-duration label { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 0; color: var(--text-dim); font-size: 11px; }
+.timer-duration input { min-width: 0; width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-input); color: var(--text); font: 14px var(--font-body); }
+.timer-actions { display: flex; gap: 8px; }
+.timer-actions button { flex: 1; }
+.timer-actions button:first-child { border-color: var(--accent); color: var(--accent); }
+.timer-sound { display: flex; align-items: center; gap: 8px; margin-top: 14px; color: var(--text-dim); font-size: 12px; }
+.timer-error { color: var(--red); font-size: 12px; }
+.floating-timer.timer-compact { width: auto; min-width: 160px; }
+.timer-compact header { border: none; }
+.floating-timer .timer-expand { flex: 1; border-color: transparent; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.timer-finished { border-color: var(--accent); }
+.timer-finished .timer-countdown, .workspace-navigation .workstation-timer-trigger.timer-finished { color: var(--accent); }
+.timer-announcement { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+@media (max-width: 600px) {
+  .workspace-navigation { flex-wrap: wrap; gap: 8px; }
+  .workspace-navigation > span { flex: 1; }
+  .workstation-time { margin-left: 0; }
+  .workspace-navigation .workspace-options { margin-left: auto; }
+  .floating-timer { right: 8px; bottom: 84px; }
+}

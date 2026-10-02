@@ -111,8 +111,11 @@ async def convert_image(file: UploadFile = File(...), target: str = Form(...), q
 
 
 @router.get("/converted/{ident}")
-def download_conversion(ident: str):
+def download_conversion(ident: str, thumbnail: bool = False):
     try:
         value, file = image_conversion.read(ident)
+        if thumbnail:
+            from services.image_thumbnails import path_response
+            return path_response(file)
         return FileResponse(file, filename=value["name"], media_type=image_conversion.FORMATS[value["format"]][1], headers={"Cache-Control": "no-store"})
     except FileNotFoundError as exc: raise HTTPException(404, str(exc)) from exc

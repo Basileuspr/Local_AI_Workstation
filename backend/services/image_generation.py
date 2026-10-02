@@ -15,6 +15,7 @@ from PIL.PngImagePlugin import PngInfo
 
 
 from config import settings
+from services import storage_libraries as storage
 from services.gpu_coordination import gpu_coordinator
 
 MODELS_DIR = settings.diffusers_dir
@@ -627,7 +628,7 @@ class ImageGenerationManager:
             OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
             output_id = uuid.uuid4().hex
             filename = f"{datetime.now().strftime('%Y%m%d-%H%M%S')}-{output_id[:8]}.png"
-            output_path = OUTPUT_DIR / filename
+            output_path = storage.resolve(OUTPUT_DIR / filename, create=True)
             metadata = PngInfo()
             metadata.add_text("local_ai_seed", str(seed))
             recipe = dict(schema_version=1, model_id=model_id, prompt=prompt, negative_prompt=negative_prompt,

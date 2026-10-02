@@ -7,10 +7,10 @@
 Git author and commit dates are recorded metadata, not proof of deployment or original implementation time. A first-observed snapshot establishes that source was present by that timestamp. File modification times are not used as introduction dates. Commit subjects describe intent; changed paths provide supporting scope. No historical user data is copied into this record.
 
 First source observation: **2026-10-02T10:40:26.579945-06:00** (America/Denver).
-Latest source observation: **2026-10-02T10:42:23.544937-06:00**.
-App version: **1.0.1-dev**. Branch: `codex/github-update-2026-10-02`. HEAD: `de4dd463c150fee0c8bbd750fe7ca3b4ebd00e2f`.
+Latest source observation: **2026-10-02T17:56:28.177725-06:00**.
+App version: **1.0.1-dev**. Branch: `codex/sessions-release-2026-10-02`. HEAD: `8c01ac0bf765027851eb4b9d48f082b712e1466e`.
 
-Latest captured build: `1.0.1-dev+20261002T164223-544937Z.de4dd463.be28a8fecf49.dirty`. Dirty at capture: True.
+Latest captured build: `1.0.1-dev+20261002T235628-177725Z.8c01ac0b.cf731d05a91a.dirty`. Dirty at capture: True.
 
 ## Uncommitted feature observations
 
@@ -119,6 +119,14 @@ Source version 1.0.1-dev; HEAD `de4dd46`. Compared with previous observation: 0 
 Snapshot: [metadata JSON](snapshots/2026-10-02T164223-544937Z.json). Hashes prove source differences, not feature correctness or measured speed improvements.
 
 Build identifier: `1.0.1-dev+20261002T164223-544937Z.de4dd463.be28a8fecf49.dirty`. Dirty at capture: True. Capture UTC: 2026-10-02T16:42:23.544937+00:00.
+
+### 2026-10-02T17:56:28.177725-06:00 · Production build source capture
+
+Source version 1.0.1-dev; HEAD `8c01ac0`. Compared with previous observation: 315 added, 239 changed, 0 removed source/document files.
+
+Snapshot: [metadata JSON](snapshots/2026-10-02T235628-177725Z.json). Hashes prove source differences, not feature correctness or measured speed improvements.
+
+Build identifier: `1.0.1-dev+20261002T235628-177725Z.8c01ac0b.cf731d05a91a.dirty`. Dirty at capture: True. Capture UTC: 2026-10-02T23:56:28.177725+00:00.
 
 ## Committed local source history
 
@@ -1237,5 +1245,221 @@ Author date: 2026-09-28T22:51:26-06:00. Commit date: 2026-09-28T22:51:26-06:00. 
 - `tests/frontend/taskProgress.test.jsx`
 - `tests/frontend/viewerBrowser.test.jsx`
 - `tests/frontend/webAccess.test.js`
+
+</details>
+
+### 2026-10-02T10:43:47-06:00 · 8c01ac0 · Improve chat reliability, Knowledge editing, and workspace tools
+
+Author date: 2026-10-02T10:43:47-06:00. Commit date: 2026-10-02T10:43:47-06:00. 207 in-scope changed paths.
+
+<details><summary>Changed source/document paths</summary>
+
+- `.gitignore`
+- `AUDIO.md`
+- `CHARACTERS.md`
+- `CHAT_IMAGE_GENERATION.md`
+- `KNOWLEDGE_VAULT.md`
+- `PROJECT_STATUS.md`
+- `README.md`
+- `RELEASES.md`
+- `TOOL_REGISTRY.md`
+- `backend/main.py`
+- `backend/routes/bridge.py`
+- `backend/routes/faces.py`
+- `backend/routes/files.py`
+- `backend/routes/image_generation.py`
+- `backend/routes/request_queue.py`
+- `backend/routes/sessions.py`
+- `backend/routes/system_stats.py`
+- `backend/routes/tool_registry.py`
+- `backend/routes/voice_cloning.py`
+- `backend/services/build_info.py`
+- `backend/services/character_resources.py`
+- `backend/services/chat_checklists.py`
+- `backend/services/conditional_status.py`
+- `backend/services/ernie_image.py`
+- `backend/services/generation_reference.py`
+- `backend/services/image_generation.py`
+- `backend/services/image_tasks.py`
+- `backend/services/image_workflows/adapters.py`
+- `backend/services/image_workflows/contracts.py`
+- `backend/services/image_workflows/reference_analysis.py`
+- `backend/services/knowledge_graph.py`
+- `backend/services/knowledge_node_options.py`
+- `backend/services/knowledge_notes.py`
+- `backend/services/lora_store.py`
+- `backend/services/lora_worker.py`
+- `backend/services/session_store.py`
+- `backend/services/software_specs.py`
+- `backend/services/tool_catalog.py`
+- `backend/services/tool_registry.py`
+- `backend/services/voice_cloning.py`
+- `docs/application-review/README.md`
+- `docs/application-review/benchmarks/session-metadata.json`
+- `docs/application-review/changes/R01-build-identity.md`
+- `docs/application-review/changes/R02-session-metadata.md`
+- `docs/application-review/changes/R03-session-revisions.md`
+- `docs/application-review/reader-template.html`
+- `docs/application-review/review.json`
+- `electron/buildInfo.js`
+- `electron/captureSnapshot.js`
+- `electron/main.js`
+- `electron/tabCapture.js`
+- `package-lock.json`
+- `package.json`
+- `requirements-ernie.txt`
+- `scripts/benchmark-session-metadata.py`
+- `scripts/capture-app-review.py`
+- `scripts/prepare-build.cjs`
+- `scripts/qa-chat-checklists.cjs`
+- `scripts/qa-chat-speech.cjs`
+- `scripts/qa-generate-reference.cjs`
+- `scripts/qa-generate-reference.py`
+- `scripts/qa-knowledge-vault.cjs`
+- `scripts/qa_chat_checklists.py`
+- `scripts/qa_chat_speech.py`
+- `scripts/qa_knowledge_vault.py`
+- `src/App.jsx`
+- `src/CharacterWorkspace.jsx`
+- `src/ChatWorkspace.jsx`
+- `src/ImageDestinations.jsx`
+- `src/ImageGenerationContext.jsx`
+- `src/api.js`
+- `src/appPolling.js`
+- `src/audioSpeech.js`
+- `src/buildIdentity.js`
+- `src/characterResources.js`
+- `src/chatImageGeneration.js`
+- `src/chatPins.js`
+- `src/chatSpeech.js`
+- `src/components/AppLayout.css`
+- `src/components/AppLayout.jsx`
+- `src/components/AudioWorkspace.css`
+- `src/components/CharacterLinks.css`
+- `src/components/CharacterLinks.jsx`
+- `src/components/CharacterStudio.jsx`
+- `src/components/ChatChecklistEditor.jsx`
+- `src/components/ChatImageControls.jsx`
+- `src/components/ChatMessageMarkdown.jsx`
+- `src/components/ChatSideContent.jsx`
+- `src/components/ChatSpeak.jsx`
+- `src/components/ChatWorkspace.css`
+- `src/components/Dashboard.css`
+- `src/components/Dashboard.jsx`
+- `src/components/DocumentViewer.jsx`
+- `src/components/FaceStudio.jsx`
+- `src/components/GenerateReference.jsx`
+- `src/components/GeneratedImagePreview.jsx`
+- `src/components/Header.jsx`
+- `src/components/ImageBatchOutput.jsx`
+- `src/components/ImageGenerationHelp.jsx`
+- `src/components/ImageGenerationProgress.jsx`
+- `src/components/ImageItemActions.jsx`
+- `src/components/ImageRequestEditor.jsx`
+- `src/components/ImageSettingsControls.jsx`
+- `src/components/ImageStudio.css`
+- `src/components/ImageStudio.jsx`
+- `src/components/ImageViewer.jsx`
+- `src/components/InputBar.jsx`
+- `src/components/KnowledgeGraph.jsx`
+- `src/components/KnowledgeNodeComposer.jsx`
+- `src/components/KnowledgeNodeEditor.jsx`
+- `src/components/KnowledgeNodeSymbol.jsx`
+- `src/components/KnowledgeVault.css`
+- `src/components/KnowledgeVault.jsx`
+- `src/components/LoraStudio.jsx`
+- `src/components/MarkdownMessage.jsx`
+- `src/components/MessageList.jsx`
+- `src/components/PCBridge.jsx`
+- `src/components/PromptQueue.jsx`
+- `src/components/ReferenceAnalysis.jsx`
+- `src/components/ResizableDivider.jsx`
+- `src/components/SettingsPanel.jsx`
+- `src/components/ShortcutRegistry.css`
+- `src/components/ShortcutRegistry.jsx`
+- `src/components/Sidebar.jsx`
+- `src/components/SidebarNavigation.jsx`
+- `src/components/SoftwareSpecs.jsx`
+- `src/components/ToolRegistry.css`
+- `src/components/ToolRegistry.jsx`
+- `src/components/VoiceCloningPanel.jsx`
+- `src/components/VoiceOutputSettings.jsx`
+- `src/components/WorkflowRunPanel.jsx`
+- `src/functionButtons.js`
+- `src/generationHistory.js`
+- `src/generationReference.js`
+- `src/knowledgeGraph3D.js`
+- `src/knowledgeNodeOptions.js`
+- `src/knowledgeNodes.js`
+- `src/markdownTasks.js`
+- `src/navigation.js`
+- `src/polling.js`
+- `src/pollingPolicies.js`
+- `src/preferences.js`
+- `src/sessionPersistence.js`
+- `src/shortcutRegistry.js`
+- `src/softwareSpecs.js`
+- `src/styles.css`
+- `src/toolRegistry.js`
+- `src/useChatUploads.js`
+- `src/useStore.jsx`
+- `src/useTaskProgress.js`
+- `src/voiceCloning.js`
+- `src/webAccess.js`
+- `src/workspaceContext.js`
+- `src/workspaceLayout.js`
+- `tests/backend/test_api_smoke.py`
+- `tests/backend/test_bridge.py`
+- `tests/backend/test_build_identity.py`
+- `tests/backend/test_bulk_deletion_safety.py`
+- `tests/backend/test_character_links.py`
+- `tests/backend/test_chat_checklists.py`
+- `tests/backend/test_chat_influences.py`
+- `tests/backend/test_ernie_image_generation.py`
+- `tests/backend/test_generation_reference.py`
+- `tests/backend/test_image_collections.py`
+- `tests/backend/test_image_store.py`
+- `tests/backend/test_image_workflow_adapters.py`
+- `tests/backend/test_knowledge_graph.py`
+- `tests/backend/test_knowledge_notes.py`
+- `tests/backend/test_queue_session_results.py`
+- `tests/backend/test_session_metadata.py`
+- `tests/backend/test_session_revisions.py`
+- `tests/backend/test_session_store.py`
+- `tests/backend/test_tool_registry.py`
+- `tests/backend/test_voice_cloning.py`
+- `tests/backend/test_web_images.py`
+- `tests/fixtures/chatChecklist.jsx`
+- `tests/fixtures/generatePreview.jsx`
+- `tests/fixtures/generateReference.config.mjs`
+- `tests/fixtures/generateReference.html`
+- `tests/fixtures/generateReference.jsx`
+- `tests/fixtures/shortcutRegistry.config.mjs`
+- `tests/fixtures/shortcutRegistry.html`
+- `tests/fixtures/shortcutRegistry.jsx`
+- `tests/fixtures/shortcutRegistryFull.html`
+- `tests/fixtures/shortcutRegistryFull.jsx`
+- `tests/fixtures/toolRegistry.config.mjs`
+- `tests/fixtures/toolRegistry.html`
+- `tests/fixtures/toolRegistry.jsx`
+- `tests/frontend/buildIdentity.test.js`
+- `tests/frontend/characterLinks.test.jsx`
+- `tests/frontend/chatChecklists.test.jsx`
+- `tests/frontend/chatPins.test.jsx`
+- `tests/frontend/chatSpeech.test.js`
+- `tests/frontend/ernieImageGeneration.test.js`
+- `tests/frontend/generationHistory.test.js`
+- `tests/frontend/generationReference.test.jsx`
+- `tests/frontend/imageBatchOutput.test.jsx`
+- `tests/frontend/knowledgeGraph.test.jsx`
+- `tests/frontend/knowledgeGraph3D.test.js`
+- `tests/frontend/knowledgeNodes.test.jsx`
+- `tests/frontend/sessionImageInventory.test.js`
+- `tests/frontend/sessionRevisions.test.jsx`
+- `tests/frontend/shortcutRegistry.test.jsx`
+- `tests/frontend/toolRegistry.test.jsx`
+- `tests/frontend/webAccess.test.js`
+- `tests/frontend/workspaceLayout.test.jsx`
+- `vite.config.mjs`
 
 </details>

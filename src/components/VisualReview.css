@@ -1,0 +1,63 @@
+.visual-review { border: 1px solid var(--border); border-radius: 7px; padding: 12px; margin: 12px 0; }
+.visual-review summary { cursor: pointer; font-size: 13px; }
+.visual-review summary span { color: var(--text-dim); margin-left: 12px; font-size: 11px; }
+.visual-review p,.visual-review-dialog p { font-size: 12px; line-height: 1.6; color: var(--text-dim); }
+.vr-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+.vr-tags { border-top:1px solid var(--border); margin-top:16px; padding-top:8px; }
+.vr-tags .vr-actions { align-items:flex-end; }
+.vr-tags .vr-actions label { margin:0; min-width:180px; flex:1; }
+.vr-tags small { display:block; color:var(--text-dim); line-height:1.6; }
+.visual-review button,.visual-review input,.visual-review select,.visual-review-dialog button,.visual-review-dialog input,.visual-review-dialog textarea,.visual-review-dialog select { color:var(--text); background:var(--bg-surface); border:1px solid var(--border); border-radius:5px; padding:7px; font:inherit; font-size:12px; }
+.visual-review button,.visual-review-dialog button { cursor:pointer; }
+.visual-review button:disabled,.visual-review-dialog button:disabled { opacity:.45; cursor:default; }
+.visual-review [role=alert],.visual-review-dialog [role=alert] { color:var(--red); }
+.vr-people,.vr-faces { display:flex; flex-wrap:wrap; gap:12px; margin:12px 0; }
+.vr-people button,.vr-faces button { display:flex; flex-direction:column; align-items:center; gap:6px; width:112px; overflow-wrap:anywhere; text-align:center; }
+.vr-people img,.vr-faces img { width:64px; height:64px; object-fit:cover; border-radius:6px; }
+.vr-results { display:grid; grid-template-columns:repeat(auto-fill,minmax(125px,1fr)); gap:10px; }
+.vr-results button { display:flex; flex-direction:column; gap:6px; min-width:0; text-align:left; }
+.vr-results img { width:100%; height:110px; object-fit:contain; }
+.vr-results span { overflow-wrap:anywhere; }.vr-results small { color:var(--text-dim); }
+.visual-review-dialog { background:var(--bg-primary); color:var(--text); border:1px solid var(--border); border-radius:10px; width:min(960px,94vw); max-height:92vh; padding:20px; margin:auto; }
+.visual-review-dialog::backdrop { background:#000b; }
+.visual-review-dialog header { display:flex; align-items:center; justify-content:space-between; gap:16px; position:sticky; top:-20px; padding:12px 0; background:var(--bg-primary); z-index:1; }
+.visual-review-dialog header h2 { overflow-wrap:anywhere; min-width:0; }
+.visual-review-dialog header button { flex-shrink:0; }
+.visual-review-dialog h2 { font-size:16px; }.visual-review-dialog h2 small { font-size:11px; font-weight:400; }
+.visual-review-dialog label { display:flex; flex-direction:column; gap:5px; font-size:12px; margin:10px 0; }
+.visual-review-dialog .vr-image { width:100%; max-height:48vh; object-fit:contain; margin:12px 0; }
+.vr-people small,.visual-review small { color:var(--text-dim); }
+.vr-people img { border-radius:50%; }
+.vr-people button[aria-pressed=true],.vr-faces button[aria-pressed=true] { border-color:var(--text-dim); background:var(--bg-primary); box-shadow:inset 0 0 0 1px var(--text-dim); }
+.visual-review button:focus-visible,.visual-review-dialog button:focus-visible { outline:2px solid var(--text-dim); outline-offset:3px; }
+.vr-section-heading { display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
+.vr-section-heading h3,.vr-face-section h3 { margin:0; font-size:14px; overflow-wrap:anywhere; }
+.vr-people-browser,.vr-face-section { border-top:1px solid var(--border); padding-top:16px; margin-top:16px; }
+.vr-group-heading { border-left:2px solid var(--border); padding:8px 14px; margin:16px 0; }
+.visual-review label { font-size:12px; }
+.vr-group-heading label,.vr-correction label { display:flex; flex-direction:column; gap:6px; }
+.vr-correction { padding:12px; border:1px solid var(--border); border-radius:6px; max-width:620px; }
+.vr-face-editor { max-width:620px; }
+.vr-face-editor .vr-actions { align-items:flex-end; }
+.vr-face-editor label { margin:0; flex:1; }
+.vr-face-editor p { margin:6px 0; }
+.vr-face-editor input,.vr-correction select,.vr-correction input { width:100%; box-sizing:border-box; min-width:0; }
+.vr-merge-preview { display:flex; align-items:center; flex-wrap:wrap; gap:12px; margin-top:12px; }
+.vr-merge-preview img { width:56px; height:56px; object-fit:cover; border-radius:50%; }
+.vr-merge-preview p { flex:1; min-width:180px; }
+.vr-undo { display:flex; align-items:center; flex-wrap:wrap; gap:10px; font-size:12px; padding:10px 0; }
+.vr-results .vr-result-faces { display:flex; gap:5px; }
+.vr-results .vr-result-faces img { width:36px; height:36px; border-radius:50%; object-fit:cover; }
+.vr-results[aria-busy=true] { opacity:.55; }
+.vr-inspect { display:grid; grid-template-columns:minmax(0,1fr) minmax(260px,340px); align-items:start; gap:20px; }
+.vr-inspect .vr-face-section { margin-top:12px; padding-top:0; border:0; }
+.vr-inspect .vr-faces { gap:8px; }
+.vr-inspect .vr-faces button { width:96px; }
+.vr-person-card { width:164px; min-width:0; padding:8px; border:1px solid var(--border); border-radius:7px; }
+.vr-person-card > button { width:100%; }
+.vr-person-name { display:flex; flex-direction:column; gap:6px; margin-top:8px; }
+.visual-review .vr-person-name label,.visual-review-dialog .vr-person-name label { display:flex; flex-direction:column; gap:4px; margin:0; font-size:11px; }
+.vr-person-name input { box-sizing:border-box; width:100%; min-width:0; }
+.vr-person-name button,.vr-inspect .vr-person-card > button,.vr-inspect .vr-person-name button { width:100%; }
+.vr-inspect .vr-person-card { flex:1 1 130px; }
+@media (max-width:720px) { .vr-inspect { grid-template-columns:1fr; gap:0; } .visual-review-dialog .vr-image { max-height:30vh; } }

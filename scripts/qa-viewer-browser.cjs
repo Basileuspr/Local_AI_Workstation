@@ -18,7 +18,7 @@ async function until(fn,label){for(let i=0;i<160;i++){if(await fn())return;await
 app.whenReady().then(async()=>{
   console.log('QA: Electron ready');
   const {preview}=await import('vite');
-  vite=await preview({configFile:false,root:path.resolve(__dirname,'..'),build:{outDir:'tmp/viewer-browser-qa'},preview:{host:'127.0.0.1',port:0}});
+  vite=await preview({configFile:false,root:path.resolve(__dirname,'..'),build:{outDir:'tmp/viewer-hardening-qa'},preview:{host:'127.0.0.1',port:0}});
   const host=`http://127.0.0.1:${vite.httpServer.address().port}`;
   console.log('QA: Vite listening');
   let hits=0,secretHits=0;
@@ -36,11 +36,12 @@ app.whenReady().then(async()=>{
   win.webContents.on('console-message',event=>console.log('Renderer:',event.message));
   win.webContents.on('did-fail-load',(_event,code,message)=>console.log('Load failed',code,message));
   win.webContents.on('dom-ready',()=>console.log('QA: DOM ready'));
-  browser=createViewerBrowser({WebContentsView:TestView,session,getWindow:()=>win,allowRequest:url=>{try{return new URL(url).origin===site;}catch{return false;}}});
+  const testDialog={showMessageBox:async()=>({response:1})};
+  browser=createViewerBrowser({WebContentsView:TestView,session,dialog:testDialog,getWindow:()=>win,allowRequest:url=>{try{return new URL(url).origin===site;}catch{return false;}}});
   const trusted=event=>!win.isDestroyed() && event.sender===win.webContents && event.senderFrame===win.webContents.mainFrame && event.senderFrame.url.startsWith(host+'/');
   ipcMain.on('app:connection',(event)=>{console.log('QA: preload connection');event.returnValue=trusted(event)?{}:null;});
   ipcMain.handle('app:capabilities',()=>({features:{}}));ipcMain.handle('app:startup-status',()=>({state:'ready'}));
-  for(const action of ['start','state','place','navigate','inspect','source','command'])ipcMain.handle(`viewer-browser:${action}`,async(event,value)=>{
+  for(const action of ['start','state','place','navigate','inspect','source','command','clearData'])ipcMain.handle(`viewer-browser:${action}`,async(event,value)=>{
     if(!trusted(event))return {error:'Desktop access required.'};
     try{return await browser[action](value);}catch(error){return {error:error.message};}
   });
@@ -83,10 +84,19 @@ app.whenReady().then(async()=>{
   await assert.rejects(browser.source(prior),/Inspect the current page/);
   const count=hits;await assert.rejects(browser.navigate(`http://127.0.0.1:${server.address().port}/secret`),/public HTTP/);assert.equal(hits,count);
   checks.push('Back navigation works; old-page source IDs and private navigation are rejected');
+  assert.equal(remote.debugger.isAttached(),false);
+  await remote.executeJavaScript("localStorage.setItem('qa-persistent','yes');document.cookie='qa=yes; max-age=3600; path=/'");
+  const oldSession=remote.session;
   await browser.command('close');assert.equal(browser.state().ready,false);await browser.start();assert.equal(browser.state().url,'about:blank');
-  checks.push('Close page discards the browser session and reopening starts blank');
+  assert.equal(remote.session,oldSession);await browser.navigate(site);await until(()=>!browser.state().loading,'reopened page');
+  assert.equal(await remote.executeJavaScript("localStorage.getItem('qa-persistent')"),'yes');
+  assert((await remote.executeJavaScript('document.cookie')).includes('qa=yes'));
+  await browser.clearData('all');await browser.navigate(site);await until(()=>!browser.state().loading,'cleared page');
+  assert.equal(await remote.executeJavaScript("localStorage.getItem('qa-persistent')"),null);
+  assert.equal(await remote.executeJavaScript('document.cookie'),'');
+  checks.push('Close/reopen preserves profile; explicit clear removes cookies and site storage; inspection debugger detaches');
   if(process.env.LAW_BROWSER_PUBLIC_QA==='1'){
-    browser.dispose();browser=createViewerBrowser({WebContentsView:TestView,session,getWindow:()=>win});
+    await browser.dispose();browser=createViewerBrowser({WebContentsView:TestView,session,dialog:testDialog,getWindow:()=>win});
     await browser.navigate('https://example.com');
     await until(()=>!browser.state().loading && browser.state().title==='Example Domain','public page under production policy');
     assert((await browser.inspect()).items.some(item=>item.kind==='html'));
@@ -95,5 +105,5 @@ app.whenReady().then(async()=>{
   console.log(JSON.stringify({ok:true,checks,screenshots:work},null,2));
 }).catch(error=>{console.error(error);process.exitCode=1;}).finally(async()=>{
   clearTimeout(timeout);
-  browser?.dispose();win?.destroy();vite?.httpServer.close();await new Promise(resolve=>server?server.close(resolve):resolve());app.exit(process.exitCode||0);
+  await browser?.dispose();win?.destroy();vite?.httpServer.close();await new Promise(resolve=>server?server.close(resolve):resolve());app.exit(process.exitCode||0);
 });

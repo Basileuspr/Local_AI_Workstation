@@ -58,6 +58,17 @@ class ThumbnailTests(unittest.TestCase):
             with self.assertRaisesRegex(ThumbnailUnavailable, 'FFmpeg is unavailable'):
                 ThumbnailCache().get(self.path)
 
+    def test_explicit_retry_recovers_a_cached_decode_failure(self):
+        cache = ThumbnailCache()
+        with patch('media_organizer.thumbnails.subprocess.run', side_effect=subprocess.TimeoutExpired('ffmpeg', 12)):
+            with self.assertRaises(ThumbnailUnavailable): cache.get(self.path)
+        with patch('media_organizer.thumbnails.subprocess.run', return_value=subprocess.CompletedProcess([], 0, b'\xff\xd8recovered', b'')) as run:
+            with self.assertRaises(ThumbnailUnavailable): cache.get(self.path)
+            run.assert_not_called()
+            self.assertEqual(cache.get(self.path, retry=True), b'\xff\xd8recovered')
+            self.assertEqual(cache.get(self.path), b'\xff\xd8recovered')
+            self.assertEqual(run.call_count, 1)
+
     def test_large_previews_have_separate_cache_keys_and_bounded_dimensions(self):
         with patch('media_organizer.thumbnails.subprocess.run', return_value=subprocess.CompletedProcess([], 0, b'\xff\xd8frame', b'')) as run:
             cache = ThumbnailCache()

@@ -2,6 +2,78 @@
 
 Functions opens from its standalone sidebar button.
 
+## Function sequences
+
+**Create Function** builds a saved, ordered sequence with **THEN** steps. Templates
+cover Codex inspection, folder environment audit, Task Manager screenshot, Phone
+Link and Sound settings. Saving never executes a function. Run explicitly starts
+it; the desktop process owns progress while you switch tabs. Edit, duplicate,
+reorder and remove steps. Existing single-action buttons keep their storage and
+behavior. User-created functions are alphabetized.
+
+Available steps:
+
+- Open Codex, Task Manager, Phone Link, Settings, System/Display or Sound; or
+  choose an `.exe` / `.lnk` using the existing program picker. Codex uses its
+  registered Start-menu application; use a chosen shortcut if it is not found.
+- Wait for one matching application window, for up to 15 seconds.
+- Screenshot the selected window's current visible view. It brings that window
+  forward, restores it if minimized, and requires foreground ownership. Keep
+  overlays clear; obscured/offscreen portions may not be captured correctly.
+- Fill an empty accessible text field, or press an explicitly selected button.
+  **Find open windows** and **Pick accessible control** provide the target picker.
+  Matching uses process name, optional exact window title, accessible control
+  name, automation ID and type. Ambiguous/missing controls fail and prevent later
+  steps. Existing field drafts are preserved by refusing to overwrite them.
+- Point at a text field or button: click the picker, then move the cursor over
+  the target within five seconds and keep it there. The saved position is relative
+  to that window, so moving the window is supported. Resizing it causes the step
+  to fail. Keep the target application's page/layout identical and point again
+  after changes. Pointed paste clicks then inserts clipboard text without
+  clearing an existing draft; use an empty field for a fresh request. Pointed
+  click can press Send. These steps verify window identity, size, foreground and
+  that no other window covers the point; they cannot verify the app accepted the
+  text/click. The clipboard is restored after paste if it is still unchanged.
+- Inspect/audit a chosen folder, with configurable subfolder depth 0–8. This
+  produces a metadata inventory: visited file/folder counts, sizes, extension
+  counts, environment marker filenames, largest files and skipped paths. It
+  reads no file contents, skips links and NVIDIA paths, and is bounded to 20,000
+  entries / 30 seconds. Totals represent visited entries; this is not a code,
+  security or dependency analysis. A request to an AI can discuss the report.
+- Prepare request text, inserting previous text/audit output with `{{report}}`.
+- Copy the latest screenshot to the clipboard, or text if no screenshot exists.
+- Save outputs to a chosen folder as Markdown, audit JSON and/or PNG. Unique
+  filenames avoid overwrites. Audit/output folder paths are registered in the
+  desktop process; saved steps contain opaque folder IDs.
+
+Results appear with per-step status, image/text preview and saved paths. **Add
+result to chat** stages removable attachments in the Workstation composer.
+Review and press Send to upload/discuss them. **Copy screenshot** / **Copy text**
+can be pasted into another application's chat.
+
+For Codex, open the intended empty chat once and point at its text field and Send
+button in the template. Selecting a Send button means Run will click it after
+paste. Prefer accessible field/button steps when available; those can verify the
+field value and refuse existing drafts. Accessibility support varies by app,
+version and elevation; pointer steps provide a fallback with the layout limits
+described above. Clipboard handoff is also available. This is a fixed click/paste
+sequence builder, not an unrestricted command or keyboard macro facility.
+Settings destinations use Microsoft's documented fixed URIs, including
+[`ms-settings:sound`](https://learn.microsoft.com/en-us/windows/apps/develop/launch/launch-settings).
+Control targeting uses [Windows UI Automation](https://learn.microsoft.com/en-us/dotnet/framework/ui-automation/add-content-to-a-text-box-using-ui-automation).
+
+**Stop function** cancels the active helper/scan and prevents subsequent steps.
+An in-flight pointed paste is allowed to finish restoring the clipboard, within
+the helper's 20-second timeout, before stopping.
+It does not undo completed launches, presses or saved files. Failure stops the
+sequence without retrying a Send action. One sequence can run at a time; current
+run results survive tab changes but not a desktop restart. This feature requires
+Windows for window/control steps and a fully restarted desktop bridge.
+
+The helper receives encoded JSON data via a fixed script; user text never becomes
+PowerShell source. Main-frame trusted IPC and shared step validation restrict
+actions. Opening the Functions page never launches, captures, audits or sends.
+
 ## Functions
 
 - **Markdown Viewer** has its own tab in Viewers. It accepts large pasted
@@ -90,3 +162,13 @@ temporary reports instead of the synthetic embedded fixture.
 
 After rebuilding, fully quit the running app from its system tray and relaunch
 to load both renderer changes and the new desktop bridge.
+
+`tests/frontend/functionWorkflows.test.js` covers ordered execution, input
+validation, failure/cancellation, persistence, bounded folder inventories and
+unique saved reports. `scripts/qa-function-window.cjs` opens only a disposable WPF
+fixture to check actual Windows field filling, draft preservation, buttons,
+pointer recording/paste and PNG capture. `scripts/qa-function-sequences.cjs`
+checks the built UI in hidden Electron with isolated data, real folder reports
+and synthetic external window actions; it verifies pending attachments in the
+real composer without submission. It does not validate a real Codex request,
+Task Manager, Phone Link or Settings launch.

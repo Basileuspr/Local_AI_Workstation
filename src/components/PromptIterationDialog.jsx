@@ -40,14 +40,14 @@ export default function PromptIterationDialog({ onClose, preferences = {}, onPre
   }
   const stale = !promptsMatch(state.imageSettings, original);
   return <dialog ref={dialog} className="iterate-dialog" aria-label="Analyze and iterate prompts" onCancel={event => { event.preventDefault(); close(); }}>
-    <header><div><h2>Analyze &amp; Iterate</h2><p>Refine your prompts for the next image.</p></div><button type="button" onClick={close} aria-label="Close prompt iteration">Close ×</button></header>
+    <header><div><h2>Analyze &amp; Iterate</h2></div><button type="button" onClick={close} aria-label="Close prompt iteration">Close ×</button></header>
     <div className="iterate-body">
       <details><summary>Current prompts</summary><p className="iterate-text">{original.prompt}</p><p className="iterate-text">Negative: {original.negativePrompt || "None"}</p></details>
       <label>Analysis model<select value={model} disabled={busy} onChange={event => setModel(event.target.value)}><option value="">Choose a local model</option>{state.models.map(item => <option key={item.name} value={item.name}>{item.name}</option>)}</select></label>
       {!state.models.length && <p role="status">No local chat models are available. Check the model connection and reopen this dialog.</p>}
       <label>What should change?<textarea rows={3} maxLength={2000} value={goal} disabled={busy} onChange={event => setGoal(event.target.value)} placeholder="For example: another training image of the same character, with a side view and different lighting." /></label>
       <label>Keep exactly (optional)<input maxLength={1000} value={keep} disabled={busy} onChange={event => setKeep(event.target.value)} placeholder="Character name, LoRA trigger words, key appearance details" /></label>
-      <p className="iterate-help">Review the suggestions before applying them. Your model, LoRA, seed and generation settings stay as selected.</p>
+
       {error && <p role="alert" className="workflow-error">{error}</p>}{busy && <p role="status">{phase}</p>}
       <div className="iterate-actions"><button type="button" disabled={busy || !original.prompt.trim() || !state.models.some(item => item.name === model)} onClick={analyze}>{proposal ? "Analyze again" : "Analyze prompts"}</button>{busy && <button type="button" onClick={stop}>Stop analysis</button>}</div>
       {proposal && <section className="iterate-proposal"><h3>Suggested revision</h3><p className="iterate-text">{proposal.analysis}</p>

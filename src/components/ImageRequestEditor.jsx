@@ -24,7 +24,7 @@ export default function ImageRequestEditor({ settings, models, loras, runtime, l
   return <dialog ref={dialog} className="image-request-editor" aria-labelledby="request-editor-title" onCancel={event => { event.preventDefault(); onClose(); }}>
     <form onSubmit={send}>
       <h2 id="request-editor-title">Edit Image Request Before Send</h2>
-      <p>Review this request. Nothing is submitted until you select Send Request.</p>
+
       {referenceSummary && <p role="status">Close variation: {referenceSummary.name} · Change amount {Math.round(referenceSummary.strength * 100)}% · {referenceSummary.fit === 'crop' ? 'Crop to fill' : referenceSummary.fit === 'edge' ? 'Fit whole image (extend edges)' : 'Fit whole image (white padding)'}. Uses the reference selected in Generate.</p>}
       <label>Image model<select value={draft.modelId} onChange={event => change({ modelId: event.target.value, loraId: "" })}>
         <option value="">Select an image model</option>{models.map(model => <option key={model.id} value={model.id}>{model.name}</option>)}

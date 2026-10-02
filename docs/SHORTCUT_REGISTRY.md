@@ -4,6 +4,8 @@ Open **Viewers > Shortcut Registry** directly, or pin it beside Chat. References
 
 Search by action or keys across folders, then filter by application, category, or type. Matching folders expand while filtering. **Collapse all folders** condenses the page again. Save reference and Copy reference include all matching entries, including entries in collapsed folders. Personal entries and folder names live in app browser storage; clearing that storage removes them. Built-in entries remain read-only.
 
+Application folders show locally bundled icons for Word, Excel, PowerPoint, Outlook, OneNote, Teams, OneDrive, and Access. Short names such as **Word** or **Excel** also work. For another application, click its **Icon** button and choose a PNG, JPG, WebP, or ICO image up to 128 KB. The image is saved locally and remains available after restarting. **Use automatic icon** removes the custom image and restores the matching built-in icon, or the application's initials when no match exists. Icons do not change or appear in exported reference text.
+
 The following is the bundled Microsoft Word starter reference.
 
 # Shortcut Registry

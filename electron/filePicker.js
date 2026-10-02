@@ -49,4 +49,14 @@ async function pickFiles({ accept, multiple, directory }, { showDialog, home, re
     return { canceled: false, files };
 }
 
-module.exports = { extensionsFor, pickFiles };
+// Path grants use the same dialog abstraction, without buffering large videos/DBs.
+async function pickLocalPath(extensions, { showDialog, home }) {
+    const result = await showDialog({ title: 'Open local file', defaultPath: home,
+        filters: [{ name: 'Local files', extensions }], properties: ['openFile', 'dontAddToRecent'] });
+    if (result.canceled || !result.filePaths?.length) return null;
+    const selected = result.filePaths[0];
+    if (!extensions.includes(path.extname(selected).slice(1).toLowerCase())) throw new Error('Unsupported file extension.');
+    return selected;
+}
+
+module.exports = { extensionsFor, pickFiles, pickLocalPath };

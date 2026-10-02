@@ -35,7 +35,7 @@ export default function CharacterLinks({kind,targetId,label,disabled=false}) {
   const chosen = untied.find(item => item.id === current), locked = disabled || busy;
   return <section className="character-links" aria-label={`Characters tied to this ${label}`}>
     <h3>Characters</h3>
-    <p className="character-links-note">Optional. Tying this {label} to a character lists it in that profile’s reference library. Nothing is copied, moved or trained.</p>
+
     {loaded && (links.length ? <ul className="character-links-list">{links.map(link => <li key={link.link_id}>
       <span><strong>{link.name}</strong>{link.note && <small>{link.note}</small>}</span>
       {workspace && <button type="button" disabled={locked} onClick={() => workspace.openCreator(link.character_id,{refresh:true})}>Open character</button>}

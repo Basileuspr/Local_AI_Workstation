@@ -5,6 +5,7 @@ import { scenePrompt, DENOISE_PRESETS } from "../../src/sceneState";
 import { workflowUpdate, newStage } from "../../src/imageWorkflow";
 import * as api from "../../src/imageWorkflowApi";
 import SceneStudio from "../../src/components/SceneStudio";
+import {WorkspaceHelpContent} from '../../src/components/WorkspaceInfo';
 
 afterEach(() => vi.unstubAllGlobals());
 it("constructs the full visible scene without exposing internal profile or object IDs", () => {
@@ -30,5 +31,5 @@ it("keeps scene state in saves and uses revision-bound frame and patch actions",
 it("offers iterative scenes separately without requiring a model to start editing", () => {
   const html = renderToStaticMarkup(<SceneStudio active={false} />);
   expect(html).toContain("New iterative scene");
-  expect(html).toContain("Generate the first frame from text or attach a starting image");
+  expect(renderToStaticMarkup(<WorkspaceHelpContent tab="workflows"/>)).toContain("Generate the first frame from text or attach an image");
 });

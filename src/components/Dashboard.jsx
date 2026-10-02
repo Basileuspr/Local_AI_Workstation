@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 import DashboardReset from "./DashboardReset";
 import SoftwareSpecs from "./SoftwareSpecs";
 import ToolRegistry from "./ToolRegistry";
+import GitHubPublisher from "./GitHubPublisher";
 import DriveFolderSizes from "./DriveFolderSizes";
+import StorageLibraries from "./StorageLibraries";
 import { CapabilityReadings } from "./Compatibility";
 import PCBridge from "./PCBridge";
 import { apiUrl } from "../api";
@@ -64,8 +66,8 @@ export function DashboardReadings({ stats }) {
           <Reading label="Physical cores">{formatNumber(cpu.physical_cores)}</Reading>
           <Reading label="Logical processors">{formatNumber(cpu.logical_cores)}</Reading>
         </dl>
-        {temperatures.length ? <details><summary>CPU temperature sensors</summary><dl className="dashboard-readings">{temperatures.map((sensor, index) => <Reading key={`${sensor.name}-${index}`} label={sensor.name}>{formatNumber(sensor.temperature_c, " °C", 1)}</Reading>)}</dl></details> : <p className="dashboard-note">CPU temperature is not exposed. On Windows, readings can appear when Libre Hardware Monitor or Open Hardware Monitor is running with its WMI sensors available.</p>}
-        {cpu.clock_kind === "reported nominal" && <p className="dashboard-note">Windows reports the nominal CPU frequency here, rather than a live boost clock.</p>}
+        {temperatures.length ? <details><summary>CPU temperature sensors</summary><dl className="dashboard-readings">{temperatures.map((sensor, index) => <Reading key={`${sensor.name}-${index}`} label={sensor.name}>{formatNumber(sensor.temperature_c, " °C", 1)}</Reading>)}</dl></details> : <p className="dashboard-note">CPU temperature is not exposed.</p>}
+
       </section>
       <section className="dashboard-card">
         <h2>RAM</h2><p className="dashboard-device">System memory</p>
@@ -77,7 +79,7 @@ export function DashboardReadings({ stats }) {
           <Reading label="Total usable">{formatBytes(ram.total_bytes)}</Reading>
           <Reading label="Configured memory speed">{(ram.modules || []).length ? [...new Set(ram.modules.map((module) => formatNumber(module.speed_mts, " MT/s")))].join(" / ") : "Unavailable"}</Reading>
         </dl>
-        <p className="dashboard-note">Available includes memory Windows can reclaim. Used is total minus available. Memory speed is a configured transfer rate.</p>
+
       </section>
       {gpus.map((gpu) => <section className="dashboard-card dashboard-wide" key={gpu.id}>
         <h2>GPU {gpu.id}</h2><p className="dashboard-device">{gpu.name}</p>
@@ -97,7 +99,7 @@ export function DashboardReadings({ stats }) {
       {!gpus.length && <section className="dashboard-card dashboard-wide"><h2>GPU / VRAM</h2><p className="dashboard-note">Live GPU usage, temperature, clock speeds and VRAM are unavailable. NVIDIA monitoring is supported in this version.</p></section>}
     </div>
     <section className="dashboard-storage">
-      <h2>Drive space</h2><p className="dashboard-note">Each mounted volume is listed separately. Multiple volumes may share one physical disk. Capacities use GiB / TiB.</p>
+      <h2>Drive space</h2>
       <div className="dashboard-grid">
         {drives.map((drive) => <section className="dashboard-card dashboard-drive-card" key={drive.mountpoint}>
           <h3>{drive.mountpoint}</h3><p className="dashboard-device">{drive.filesystem || "Filesystem unavailable"}</p>
@@ -111,7 +113,7 @@ export function DashboardReadings({ stats }) {
       </div>
       {!drives.length && <p className="dashboard-note">No mounted drive readings are available.</p>}
     </section>
-    <p className="dashboard-note">CPU temperature sensors and memory configuration are cached for about 15 seconds. Other statistics refresh about every 5 seconds while Dashboard is visible. Returning here refreshes the readings. All readings stay on this PC.</p>
+
   </>;
 }
 
@@ -191,7 +193,9 @@ export default function Dashboard({ active = true }) {
       </div>
     </header>
     {error && <p className="dashboard-notice" role="alert">{error}{stats ? " Showing the last successful sample; these readings are stale." : ""}</p>}
+    <StorageLibraries active={active} drives={stats?.drives || []} />
     <DashboardReset />
+    <GitHubPublisher />
     <ToolRegistry active={active} />
     <CapabilityReadings />
     <PCBridge active={active} />

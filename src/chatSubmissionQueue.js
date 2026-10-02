@@ -10,8 +10,8 @@ export class ChatSubmissionQueue {
     this.snapshot = this.jobs.map(({ run, onError, controller, ...job }) => job);
     this.listeners.forEach(listener => listener());
   }
-  enqueue({ id, label, session_id = null, run, onError = console.error }) {
-    this.jobs.push({ id, label, session_id, run, onError, controller: new AbortController(), status: "waiting", created_at: new Date().toISOString() });
+  enqueue({ id, label, session_id = null, session_title = "New Chat", model = "", pane_id = "primary", pane_label = "Chat A", run, onError = console.error }) {
+    this.jobs.push({ id, label, session_id, session_title, model, pane_id, pane_label, run, onError, controller: new AbortController(), status: "waiting", stage: "queued", created_at: new Date().toISOString() });
     this.publish();
     void this.advance();
   }
@@ -22,6 +22,13 @@ export class ChatSubmissionQueue {
   setSession(id, sessionId) {
     const job = this.jobs.find(item => item.id === id);
     if (job) { job.session_id = sessionId; this.publish(); }
+  }
+  update(id, changes) {
+    const job = this.jobs.find(item => item.id === id);
+    if (job) {
+      for (const key of ["stage", "stage_detail", "request_id", "session_title"]) if (key in changes) job[key] = changes[key];
+      this.publish();
+    }
   }
   clearWaiting() {
     this.jobs = this.jobs.filter(job => job.status === "running");
@@ -36,6 +43,7 @@ export class ChatSubmissionQueue {
     const next = this.jobs[0];
     if (!next) return;
     next.status = "running";
+    next.stage = "preparing";
     this.publish();
     try { await next.run(next.controller.signal); }
     catch (error) { next.onError(error); }

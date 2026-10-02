@@ -3,6 +3,7 @@ import {renderToStaticMarkup} from 'react-dom/server';
 import {afterEach, expect, it, vi} from 'vitest';
 import {RESOURCE_KINDS, linkedCharacters} from '../../src/characterResources';
 import CharacterLinks from '../../src/components/CharacterLinks';
+import {WorkspaceHelpContent} from '../../src/components/WorkspaceInfo';
 afterEach(() => vi.unstubAllGlobals());
 
 it('offers face datasets alongside parts datasets and LoRAs in the reference library', () => {
@@ -18,7 +19,8 @@ it('looks up the characters tied to one workspace item', async () => {
 it('describes the tie as optional and non-destructive before anything loads', () => {
   const html = renderToStaticMarkup(<CharacterLinks kind="parts" targetId="d" label="parts dataset"/>);
   expect(html).toContain('Characters tied to this parts dataset');
-  expect(html).toContain('Optional.');
-  expect(html).toContain('Nothing is copied, moved or trained.');
+  const help=renderToStaticMarkup(<WorkspaceHelpContent tab="character-parts"/>);
+  expect(help).toContain('Optionally links');
+  expect(help).toContain('without copying, moving or training');
   expect(html).not.toContain('Tie to character');
 });

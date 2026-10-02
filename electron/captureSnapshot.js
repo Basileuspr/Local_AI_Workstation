@@ -32,6 +32,7 @@ async function snapshotDocument({ tab, label, embedded = false }) {
       image.className = source.className; image.setAttribute("style", source.getAttribute("style") || "");
       try {
         let canvas = source;
+        if(source.hasAttribute('data-model-viewer-canvas'))source.dispatchEvent(new Event('workstation-capture'));
         if (tag === "video") { canvas = document.createElement("canvas"); canvas.width = source.videoWidth; canvas.height = source.videoHeight; canvas.getContext("2d").drawImage(source, 0, 0); }
         image.src = canvas.toDataURL("image/png"); image.width = source.width || canvas.width; image.height = source.height || canvas.height;
       } catch { image.alt = "Preview unavailable"; warnings.push("A canvas or video preview could not be captured."); }

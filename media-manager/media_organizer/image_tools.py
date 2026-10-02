@@ -12,6 +12,23 @@ MAX_PIXELS = 64_000_000
 MAX_IMAGES = 1000
 
 
+def thumbnail_source(state, batch_id, index):
+    """Resolve only an unchanged image from a previously inspected batch."""
+    with state.lock:
+        info = state.image_batches.get(batch_id)
+    if not info or type(index) is not int or not 0 <= index < len(info['records']):
+        raise ValueError('Image selection expired. Read the image folder again.')
+    record = info['records'][index]
+    root = Path(info['source']).resolve()
+    path = Path(record['path'])
+    if not path.resolve().is_relative_to(root) or path.suffix.lower() not in EXTENSIONS:
+        raise PermissionError('The image is outside the inspected folder.')
+    stat = path.stat()
+    if (stat.st_size, stat.st_mtime_ns) != (record['size'], record['mtime']):
+        raise ValueError('The image changed. Read the image folder again.')
+    return path
+
+
 def inspect(state, payload, progress, cancel):
     root = Path(str(payload.get('source', ''))).expanduser()
     if not root.is_absolute() or not root.is_dir():

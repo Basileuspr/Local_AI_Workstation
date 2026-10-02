@@ -93,7 +93,7 @@ export default function PromptPhraseButtons() {
           <button type="button" onClick={() => setDraft(null)}>Cancel</button>
         </div>
       </form>}
-      <p className="prompt-phrases-hint">Click to copy, then Ctrl+V in your prompt.</p>
+
       {phrases.length > 0 && <div className="collection-toolbar">
         <input type="search" aria-label="Search phrase buttons" placeholder="Find a button or phrase…"
           value={query} onChange={(event) => { setQuery(event.target.value); setPage(0); }} />

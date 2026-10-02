@@ -1,4 +1,5 @@
 import { apiUrl } from "./api";
+import { imageSourceUrl } from "./imageSources";
 
 export function changed() {
   window.dispatchEvent(new Event("image-library-changed"));
@@ -6,9 +7,9 @@ export function changed() {
   localStorage.setItem("image-library-revision", String(Date.now()));
 }
 
-export async function request(path = "", method = "GET", body, token) {
+export async function request(path = "", method = "GET", body, token, { signal } = {}) {
   const response = await fetch(apiUrl(`/image-library${path}`), {
-    method, cache: "no-store", headers: {
+    method, signal, cache: "no-store", headers: {
       ...(body && !(body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     }, ...(body ? { body: body instanceof FormData ? body : JSON.stringify(body) } : {}),
@@ -31,7 +32,7 @@ export function upload(files) {
   Array.from(files || []).forEach(file => body.append("files", file));
   return request("/upload", "POST", body);
 }
-export const imageUrl = image => ({ ...image, url: apiUrl(image.url) });
+export const imageUrl = image => ({ ...image, url: imageSourceUrl(image.url) });
 export function sourceFor(image) {
   if (image.library) return { kind: "library", id: image.id };
   if (image.session_id) return { kind: "session", session_id: image.session_id, message_id: image.message_id, image_id: image.image_id, name: image.name };

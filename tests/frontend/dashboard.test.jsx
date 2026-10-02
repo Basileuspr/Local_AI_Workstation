@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { DashboardReadings, formatBytes, formatNumber } from "../../src/components/Dashboard";
 import DashboardReset from "../../src/components/DashboardReset";
+import {WorkspaceHelpContent} from '../../src/components/WorkspaceInfo';
 
 describe("hardware Dashboard", () => {
   it("offers four independent data actions with explicit privacy and recovery boundaries", () => {
     const html = renderToStaticMarkup(<DashboardReset />);
-    for (const text of ["SAVE METADATA", "RESET APP DATA &amp; SANITIZE APPLICATION", "EXPORT BACK-UP", "IMPORT BACK-UP", "It cannot restore app data", "It includes locked images", "separate recovery folder"]) expect(html).toContain(text);
+    for (const text of ["SAVE METADATA", "RESET APP DATA &amp; SANITIZE APPLICATION", "EXPORT BACK-UP", "IMPORT BACK-UP"]) expect(html).toContain(text);
+    const help=renderToStaticMarkup(<WorkspaceHelpContent tab="dashboard"/>);
+    for (const text of ['cannot restore app data','including locked images','retaining current data and preferences in recovery storage']) expect(help).toContain(text);
     expect(html).not.toContain("Save metadata ZIP &amp; review reset");
   });
   it("distinguishes unavailable sensors from real zero readings", () => {

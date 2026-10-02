@@ -16,6 +16,7 @@ from pathlib import Path
 import numpy as np
 
 from config import settings
+from services import storage_libraries as storage
 from services.faces.crops import DEFAULT_MODE, MODES, SIZES
 from services.image_library import atomic, identity
 
@@ -41,8 +42,8 @@ def now():
     return datetime.now(timezone.utc).isoformat()
 
 
-def dataset_dir(dataset_id):
-    return ROOT / identity(dataset_id)
+def dataset_dir(dataset_id, *, create=False):
+    return storage.resolve(ROOT / identity(dataset_id), create=create)
 
 
 def _read(dataset_id):
@@ -86,10 +87,8 @@ def _write_vectors(dataset_id, matrix):
 
 def list_datasets():
     with LOCK:
-        if not ROOT.is_dir():
-            return []
         found = []
-        for path in ROOT.glob("*/dataset.json"):
+        for path in storage.glob_paths(ROOT, "*/dataset.json"):
             try:
                 data = _read(path.parent.name)
             except (ValueError, OSError):
@@ -144,7 +143,7 @@ def create_dataset(name):
     with LOCK:
         data = {"version": 1, "id": uuid.uuid4().hex, "name": name, "created_at": now(),
                 "settings": dict(DEFAULT_SETTINGS), "faces": [], "sources": []}
-        (dataset_dir(data["id"]) / "crops").mkdir(parents=True, exist_ok=True)
+        (dataset_dir(data["id"], create=True) / "crops").mkdir(parents=True, exist_ok=True)
         return _write(data)
 
 

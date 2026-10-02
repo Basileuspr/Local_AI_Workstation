@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, File, Form, Header, HTTPException, UploadFile, Path
 from fastapi.responses import FileResponse, StreamingResponse
+from services.image_thumbnails import path_response
 from starlette.concurrency import run_in_threadpool
 from starlette.background import BackgroundTask
 
@@ -127,9 +128,9 @@ def source(workflow_id: str, request: ImportSourceRequest):
 
 
 @router.get("/{workflow_id}/assets/{asset_id}")
-def asset(workflow_id: str, asset_id: str):
+def asset(workflow_id: str, asset_id: str, thumbnail: bool = False):
     path, metadata = call(store.asset_path, workflow_id, asset_id)
-    return FileResponse(path, media_type=metadata.media_type, headers={"X-Content-Type-Options": "nosniff"})
+    return path_response(path) if thumbnail else FileResponse(path, media_type=metadata.media_type, headers={"X-Content-Type-Options": "nosniff"})
 
 
 @router.post("/{workflow_id}/preflight")
@@ -181,9 +182,9 @@ async def stop(workflow_id: str, job_id: str):
 
 
 @router.get("/{workflow_id}/jobs/{job_id}/outputs/{output_id}")
-def output(workflow_id: str, job_id: str, output_id: str):
+def output(workflow_id: str, job_id: str, output_id: str, thumbnail: bool = False):
     path, _ = call(runner.output_path, workflow_id, job_id, output_id)
-    return FileResponse(path, media_type="image/png", headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
+    return path_response(path) if thumbnail else FileResponse(path, media_type="image/png", headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
 
 
 @router.post("/{workflow_id}/jobs/{job_id}/accept")
@@ -211,8 +212,10 @@ def stitch(workflow_id: str, job_id: str, layout: str):
 
 
 @router.get("/{workflow_id}/jobs/{job_id}/stitched/{layout}")
-def stitched(workflow_id: str, job_id: str, layout: str, download: bool = False):
+def stitched(workflow_id: str, job_id: str, layout: str, download: bool = False, thumbnail: bool = False):
     path, metadata = call(exports.stitched_path, workflow_id, job_id, layout)
+    if thumbnail and not download:
+        return path_response(path)
     return FileResponse(path, media_type="image/png", filename=metadata["name"] if download else None,
                         headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
                                  "Access-Control-Expose-Headers": "Content-Disposition"})

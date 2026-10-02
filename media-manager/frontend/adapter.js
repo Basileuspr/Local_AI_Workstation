@@ -12,6 +12,8 @@ export function createLocalAdapter(base = '', token = document.querySelector('me
     return data;
   }
   return {
+    review: payload => request('review',payload),
+    reviewFaceUrl: id => `${base}/api/review-face?${new URLSearchParams({id,token})}`,
     captures: kind => request('captures', {kind}),
     revealCapture: captureId => request('open-folder', {captureId}),
     captureUrl: id => `${base}/api/capture-media?${new URLSearchParams({id,token})}`,
@@ -32,5 +34,6 @@ export function createLocalAdapter(base = '', token = document.querySelector('me
     customMove: (runId, planId, confirmation) => request('custom-move', { runId, planId, confirmation }),
     mediaUrl: (runId, recordId) => `${base}/api/media?${new URLSearchParams({ runId, recordId, token })}`,
     thumbnailUrl: (runId, recordId, size = 'small') => `${base}/api/thumbnail?${new URLSearchParams({ runId, recordId, size, token })}`,
+    imageThumbnailUrl: (batchId, index) => `${base}/api/image-thumbnail?${new URLSearchParams({ batchId, index, token })}`,
   };
 }

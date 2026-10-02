@@ -45,6 +45,8 @@ class Job:
     requires_gpu: bool = True
     timing_profile: str | None = None
     cpu_lane: str | None = None
+    model: str | None = None
+    stage_detail: str | None = None
 
 
 class RequestQueue:
@@ -56,7 +58,7 @@ class RequestQueue:
         self.paused = False
 
     def enqueue(self, kind, label, request_id=None, *, owner=None, project_id=None, session_id=None, cancel=None,
-                requires_gpu=True, timing_profile=None, cpu_lane=None):
+                requires_gpu=True, timing_profile=None, cpu_lane=None, model=None):
         request_id = request_id or uuid.uuid4().hex
         with self._lock:
             if any(job.kind == kind and job.request_id == request_id and job.status not in TERMINAL for job in self.jobs):
@@ -66,6 +68,7 @@ class RequestQueue:
             job.requires_gpu = requires_gpu
             job.timing_profile = timing_profile
             job.cpu_lane = cpu_lane if not requires_gpu else None
+            job.model = model
             finished = [entry for entry in self.jobs if entry.status in TERMINAL]
             remove = {entry.id for entry in finished[:-99]}
             self.jobs = [entry for entry in self.jobs if entry.id not in remove]
@@ -161,6 +164,12 @@ class RequestQueue:
             job.requires_gpu = False
             job.stage = "saving"
 
+    def set_stage(self, job, stage, detail=None):
+        with self._lock:
+            if job.status not in TERMINAL:
+                job.stage = stage
+                job.stage_detail = detail
+
     def finish(self, job, error=None):
         with self._lock:
             job.status = "cancelled" if job.cancel_event.is_set() else "failed" if error else "completed"
@@ -182,7 +191,7 @@ class RequestQueue:
                     positions[lane] = positions.get(lane, 0) + 1
                 entries.append({key: getattr(job, key) for key in (
                     "id", "kind", "label", "request_id", "project_id", "session_id",
-                    "status", "created_at", "started_at", "finished_at", "error", "stage", "requires_gpu", "timing_profile", "cpu_lane")})
+                    "status", "created_at", "started_at", "finished_at", "error", "stage", "stage_detail", "model", "requires_gpu", "timing_profile", "cpu_lane")})
                 entries[-1]["position"] = positions[lane] if job.status == "queued" else None
             return {"jobs": entries, "paused": self.paused, "gpu_owner": self.coordinator.current_owner(), "reported_at": now()}
 

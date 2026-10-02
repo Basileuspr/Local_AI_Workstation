@@ -1,0 +1,108 @@
+// Actual React controls and real persistent routes, isolated from user data/builds.
+const { app, BrowserWindow } = require('electron');
+const { spawn } = require('node:child_process');
+const { createInterface } = require('node:readline');
+const fs = require('node:fs'), path = require('node:path'), os = require('node:os'), assert = require('node:assert/strict');
+const root = path.resolve(__dirname, '..'), output = fs.mkdtempSync(path.join(os.tmpdir(), 'law-index-knowledge-ui-'));
+app.setPath('userData', path.join(output, 'profile'));
+let child, win;
+const timeout = setTimeout(() => finish(Error('Index/Knowledge QA timed out')), 90000);
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+function finish(error) { clearTimeout(timeout); child?.stdin.end('stop\n'); win?.destroy(); if (error) console.error(error); app.exit(error ? 1 : 0); }
+app.whenReady().then(async () => {
+  await new Promise((resolve, reject) => {
+    const build = spawn(process.execPath, [path.join(root, 'node_modules/esbuild/bin/esbuild'), 'tests/fixtures/indexKnowledge.jsx', '--bundle', '--format=iife', '--jsx=automatic', '--define:import.meta.env={}', `--outfile=${path.join(output, 'fixture.js')}`],
+      { cwd: root, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, windowsHide: true, stdio: 'pipe' });
+    let error = ''; build.stderr.on('data', chunk => error += chunk); build.on('error', reject); build.once('exit', code => code ? reject(Error(error)) : resolve());
+  });
+  fs.writeFileSync(path.join(output, 'index.html'), '<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="fixture.css"></head><body><div id="root"></div><script src="fixture.js"></script></body></html>');
+  child = spawn(path.join(root, 'venv/Scripts/python.exe'), ['-B', 'scripts/qa_index_knowledge.py', output], { cwd: root, windowsHide: true, stdio: ['pipe', 'pipe', 'inherit'] });
+  const fixture = await new Promise((resolve, reject) => { createInterface({ input: child.stdout }).once('line', line => resolve(JSON.parse(line))); child.on('error', reject); child.once('exit', code => reject(Error(`Fixture exited: ${code}`))); });
+  const api = async (endpoint, options) => { const response = await fetch(fixture.url + endpoint, options); assert(response.ok); return response.json(); };
+  win = new BrowserWindow({ show: false, width: 1400, height: 950, webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, offscreen: true, backgroundThrottling: false } });
+  win.webContents.on('console-message', event => { if (event.level === 'error') console.error(event.message); });
+  const js = async source => {
+    try { return await win.webContents.executeJavaScript(source, true); }
+    catch (error) { console.error('Failed QA action:', source); console.error(await win.webContents.executeJavaScript('document.body.innerText')); throw error; }
+  };
+  const until = async (fn, label) => { for (let i = 0; i < 120; i++) { if (await fn()) return; await sleep(40); } console.error(await js('document.body.innerText')); throw Error('Timed out: ' + label); };
+  const card = `#index-entry-${fixture.entry}`, otherCard = `#index-entry-${fixture.other_entry}`;
+  const click = (scope, text) => js(`(()=>{const b=[...document.querySelectorAll(${JSON.stringify(scope + ' button')})].find(e=>e.textContent.trim()===${JSON.stringify(text)}&&e.getClientRects().length);if(!b || b.disabled)throw Error('Missing button '+${JSON.stringify(text)});b.click();})()`);
+  const input = (selector, value) => js(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});const p=e.tagName==='SELECT'?HTMLSelectElement.prototype:e.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(p,'value').set.call(e,${JSON.stringify(value)});e.dispatchEvent(new Event(e.tagName==='SELECT'?'change':'input',{bubbles:true}));})()`);
+  const selectNode = id => input(card + ' .index-knowledge-links select', id);
+  const entryLinks = async () => (await api('/prompt-index/knowledge-links?entry_id=' + fixture.entry)).links;
+  const screenshot = async name => { await js('document.getAnimations().forEach(a=>a.finish());new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))'); win.webContents.invalidate(); await sleep(150); fs.writeFileSync(path.join(output, name), (await win.webContents.capturePage(undefined, { stayHidden: true, stayAwake: true })).toPNG()); };
+  const load = () => win.loadURL(`${fixture.url}/?apiBase=${encodeURIComponent(fixture.url)}`);
+  await load();
+  await until(() => js(`!!document.querySelector(${JSON.stringify(card + ' .index-knowledge-links select')})`), 'Index and Knowledge choices');
+  assert.equal(await js('document.querySelector("[data-sidebar-route=library]").textContent'), 'Index');
+  assert.equal(await js('document.querySelector("#prompt-index h1").textContent'), 'Index');
+  const before = await api('/files/knowledge-base/graph');
+  await js(`document.querySelector(${JSON.stringify(card + ' details')}).open=true`);
+  await selectNode(fixture.node);
+  await api('/qa/fail-link', { method: 'POST' });
+  await click(card + ' .index-knowledge-links', 'Connect');
+  await until(() => js('document.querySelector(".index-link-status[role=alert]")?.textContent.includes("Simulated")'), 'link failure');
+  assert.equal((await entryLinks()).length, 0);
+  assert.equal(await js(`document.querySelector(${JSON.stringify(card + ' select')}).value`), fixture.node);
+  await click(card + ' .index-knowledge-links', 'Connect');
+  await until(async () => (await entryLinks()).length === 1, 'link retry');
+  await until(() => js(`document.querySelector(${JSON.stringify(card + ' summary')}).textContent.includes('1')`), 'linked card');
+  await selectNode(fixture.other_node); await click(card + ' .index-knowledge-links', 'Connect');
+  await until(async () => (await entryLinks()).length === 2, 'multiple connections');
+  await screenshot('index-connections.png');
+  // An unfinished editor stays intact when following a backlink from Knowledge.
+  await click(otherCard, 'Edit');
+  await input('.prompt-index-editor textarea', 'Unfinished camera notes');
+  await input('[aria-label="Search Index"]', 'not a matching entry');
+  await js(`window.indexKnowledgeQA.dispatch({type:'OPEN_KNOWLEDGE_NODE',payload:${JSON.stringify(fixture.node)}})`);
+  await until(() => js("document.querySelector('[aria-label=\"Connected Index entries\"]')?.textContent.includes('Travel reference')"), 'Knowledge backlink');
+  assert.equal(await js('document.querySelector(".vault-inspector-heading h2").textContent'), 'Project hub');
+  await screenshot('knowledge-index-links.png');
+  await click('[aria-label="Connected Index entries"]', 'Travel reference');
+  await until(() => js(`document.activeElement?.id===${JSON.stringify('index-entry-' + fixture.entry)}`), 'Index card focused');
+  assert.equal(await js('document.querySelector(".prompt-index-editor textarea").value'), 'Unfinished camera notes');
+  assert.equal(await js("document.querySelector('[aria-label=\"Search Index\"]').value"), '');
+  await until(async () => (await api('/prompt-index/state')).draft.form?.content === 'Unfinished camera notes', 'editor draft autosaved');
+  await load();
+  await until(() => js(`document.querySelector(${JSON.stringify(card + ' summary')})?.textContent.includes('2')`), 'saved links reloaded');
+  assert.equal(await js('document.querySelector(".prompt-index-editor textarea").value'), 'Unfinished camera notes');
+  await js(`document.querySelector(${JSON.stringify(card + ' details')}).open=true`);
+  await click(card + ' .index-knowledge-links', 'Project hub');
+  await until(() => js("!!document.querySelector('[aria-label=\"Connected Index entries\"] button')"), 'open linked node');
+  await click('[aria-label="Connected Index entries"]', 'Unlink');
+  await until(async () => (await entryLinks()).length === 1, 'unlink from Knowledge');
+  assert.deepEqual((await api('/files/knowledge-base/graph')).nodes, before.nodes);
+  assert.equal((await api('/prompt-index')).entries.find(e => e.id === fixture.entry).content, 'A reusable itinerary and source notes.');
+  await click('[aria-label="Connected Index entries"]', 'Open Index');
+  await until(() => js(`document.querySelector(${JSON.stringify(card + ' summary')})?.textContent.includes('1')`), 'Index reflects unlink');
+  await click('.prompt-index-editor', 'Cancel');
+  await click(card, 'Edit');
+  await input('.prompt-index-editor input', 'Updated travel reference');
+  await click('.prompt-index-editor', 'Save entry');
+  await until(() => js('!document.querySelector(".prompt-index-editor")'), 'entry renamed');
+  assert.equal((await entryLinks())[0].entry_title, 'Updated travel reference');
+  await js(`document.querySelector(${JSON.stringify(card + ' details')}).open=true`);
+  await selectNode(fixture.node); await click(card + ' .index-knowledge-links', 'Connect');
+  await until(async () => (await entryLinks()).length === 2, 'reconnect');
+  await until(() => js(`document.querySelector(${JSON.stringify(card + ' summary')})?.textContent.includes('2')`), 'reconnected card updated');
+  await js('void (window.confirm=()=>true)');
+  await click(card + ' .index-knowledge-links', 'Project hub');
+  await until(() => js('document.querySelector(".vault-inspector-heading h2")?.textContent==="Project hub"'), 'node selected for removal');
+  await click('.vault-inspector', 'Remove from Knowledge');
+  await until(async () => (await entryLinks()).length === 1, 'Knowledge removal detaches links');
+  await js('document.querySelector("[data-sidebar-route=library]").click()');
+  await until(() => js(`!document.querySelector('[data-capture-tab=library]').hidden && !!document.querySelector(${JSON.stringify(card)})`), 'return to Index');
+  assert.equal((await api('/prompt-index')).entries.length, 2);
+  win.setSize(420, 780);
+  await sleep(200);
+  await js(`document.querySelector(${JSON.stringify(card + ' details')}).open=true`);
+  assert(await js('document.documentElement.scrollWidth <= innerWidth'), 'Narrow layout overflow');
+  await screenshot('index-narrow.png');
+  await click(card, 'Delete');
+  await until(async () => (await api('/prompt-index')).entries.length === 1, 'Index removal');
+  assert.equal((await entryLinks()).length, 0);
+  assert.equal((await api('/files/knowledge-base/graph')).nodes.length, 1);
+  fs.writeFileSync(path.join(output, 'report.json'), JSON.stringify({ passed: true, checks: ['Index labels', 'explicit multiple links', 'save failure and retry', 'bidirectional navigation', 'editor preservation', 'restart persistence', 'unlink preserves sources', 'renames follow IDs', 'deletion cleans references', 'narrow layout'], realStorageRoutes: true, modelInference: false }, null, 2));
+  console.log(output); finish();
+}).catch(finish);

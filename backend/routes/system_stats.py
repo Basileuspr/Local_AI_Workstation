@@ -8,6 +8,49 @@ from services.system_stats import sampler
 router = APIRouter(prefix="/system", tags=["system"])
 
 
+@router.get("/environment")
+async def environment(refresh: bool = False, live: bool = False, resources: bool = False):
+    from services.environment_awareness import static_snapshot, live_services
+    result = {"schema_version": 1, "static": await run_in_threadpool(static_snapshot, refresh)}
+    if live:
+        result["services"] = await live_services()
+    if resources:
+        result["resources"] = await run_in_threadpool(sampler.snapshot)
+    return result
+
+
+@router.get("/updates")
+async def updates():
+    from services.app_updates import check_updates
+    return await check_updates()
+
+
+@router.get("/dependencies")
+async def dependencies(profile: str = "requirements.txt"):
+    from services.dependency_management import check_compatibility
+    from fastapi import HTTPException
+    try:
+        return await run_in_threadpool(check_compatibility, profile=profile)
+    except ValueError as error:
+        raise HTTPException(400, str(error))
+
+
+from pydantic import BaseModel, Field
+
+
+class ContextQuery(BaseModel):
+    model: str = Field(min_length=1, max_length=200)
+    messages: list[dict] = Field(default_factory=list, max_length=10000)
+    output_tokens: int = Field(default=1024, ge=-1, le=1000000)
+
+
+@router.post("/context")
+async def context(query: ContextQuery):
+    from services.context_awareness import model_limit, payload_usage
+    return payload_usage({"model": query.model, "messages": query.messages,
+                          "options": {"num_ctx": await model_limit(query.model), "num_predict": query.output_tokens}})
+
+
 @router.get("/stats")
 def system_stats():
     return sampler.snapshot()

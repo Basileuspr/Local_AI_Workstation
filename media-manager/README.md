@@ -11,6 +11,21 @@ duplicate comparison, metadata filters, tags, per-item viewing rotation,
 custom folders, verified moves and undo logs, rename, recoverable Trash/restore,
 snapshots, clips, frame stepping and extraction, and image tools.
 
+## Delete unwanted media
+
+**Delete** is visible on library cards and enlarged duplicate previews. Select
+multiple clips and use **Delete selected** to review the exact copies, including
+selections hidden by filters. Confirming moves only those copies into recoverable
+Trash on the same drive; other copies remain in place. Opening/scanning never
+deletes anything. File hashes are checked before the first batch move and again
+when each file moves.
+
+**View Trash** opens deleted clips. Restore a clip or use **Restore selected**;
+occupied original filenames are never overwritten. Trash retains the bytes.
+To reclaim space, use **Delete permanently** inside Trash, then confirm the
+separate review. Permanent deletion checks hashes again and cannot be undone.
+Batch actions accept up to 1,000 files and keep per-file operation logs.
+
 ## Private storage
 
 Desktop launch passes an explicit reports directory. Existing users retain

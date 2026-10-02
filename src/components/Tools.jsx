@@ -5,6 +5,7 @@ import { createMessageId } from "../messageIds";
 import { functionTargets, desktopActions, captureActions, loadFunctionButtons, saveFunctionButtons } from "../functionButtons";
 import "./Tools.css";
 import { useDesktopCapabilities } from "./Compatibility";
+import FunctionBuilder from './FunctionBuilder';
 
 export default memo(function Tools() {
   const dispatch = useDispatch();
@@ -69,8 +70,9 @@ export default memo(function Tools() {
     <section className="tools-workspace functions-workspace" aria-labelledby="functions-heading">
       <header className="tools-heading">
         <h1 id="functions-heading">Functions</h1>
-        <p>Open a tool, or add your own shortcut button.</p>
+
       </header>
+      <FunctionBuilder legacyBusy={!!actionBusy} />
       <div className="tools-toolbar">
         <button type="button" disabled={!!loaded.error || !!draft} onClick={() => setDraft({ id: createMessageId(), name: "", target: "system:snipping-tool" })}>+ Add Button</button>
         {buttons.length > 0 && <button type="button" disabled={!!draft} aria-pressed={managing} onClick={() => setManaging(!managing)}>{managing ? "Done editing" : "Edit buttons"}</button>}
@@ -114,11 +116,11 @@ export default memo(function Tools() {
           </div>}
         </div>)}
       </div>
-      <p className="tools-note">Custom buttons are saved on this device and sorted alphabetically.</p>
+
       <h2>System actions</h2>
       <div className="functions-buttons">{desktopActions.map(action => <button key={action.id} type="button" className="function-launcher" disabled={!!actionBusy || actionCapability(action.id)?.available === false} onClick={() => open(action.id)}><strong>{action.name}</strong><span>{actionCapability(action.id)?.available === false ? actionCapability(action.id).detail : action.description}</span></button>)}</div>
       <h2>Capture a tab</h2>
-      <p className="tools-note">Copy the tab's current content at maximized window size while staying here. Captures keep its current selections and scroll position.</p>
+
       <div className="functions-buttons">{captureActions.map(action => <button key={action.id} type="button" className="function-launcher" disabled={!!actionBusy || actionCapability(action.id)?.available === false} onClick={() => open(action.id)}><strong>{action.name}</strong><span>{actionCapability(action.id)?.available === false ? actionCapability(action.id).detail : action.description}</span></button>)}</div>
     </section>
   </>;
@@ -138,20 +140,20 @@ export const MarkdownViewer = memo(function MarkdownViewer() {
   return <section className="tools-workspace" aria-labelledby="tools-heading">
     <header className="tools-heading">
       <h1 id="tools-heading">Markdown Viewer</h1>
-      <p id="markdown-help">Paste Markdown text below, then select Show Markdown to read the formatted version.</p>
+
     </header>
     <div className="tools-toolbar" role="group" aria-label="Markdown view">
       <button type="button" aria-pressed={!preview} aria-controls="markdown-source" onClick={() => setPreview(false)}>Plain Text</button>
       <button type="button" aria-pressed={preview} aria-controls="markdown-preview" onClick={showMarkdown}>Show Markdown</button>
     </div>
     <textarea ref={editor} id="markdown-source" className="tools-editor" hidden={preview}
-      aria-label="Markdown source text" aria-describedby="markdown-help" spellCheck={false}
+      aria-label="Markdown source text" spellCheck={false}
       placeholder={"# Paste your Markdown here\n\nHeadings, **bold**, *italic*, lists, quotes, and code blocks."} />
     <div id="markdown-preview" className="tools-preview" hidden={!preview} role="region" aria-label="Formatted Markdown" tabIndex={0}>
       {preview && (markdown.trim()
         ? <MarkdownMessage>{markdown}</MarkdownMessage>
         : <p className="tools-empty">Select Plain Text and paste some Markdown to preview it here.</p>)}
     </div>
-    <p className="tools-note">Text stays here while you switch tabs. Refreshing or closing the app clears it.</p>
+
   </section>;
 });

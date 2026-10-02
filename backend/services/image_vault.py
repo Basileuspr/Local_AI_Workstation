@@ -73,7 +73,7 @@ def guard_path(path):
 
 
 def derive(pin, salt):
-    if not re.fullmatch(r"[0-9]{4,12}", pin): raise PinError("Use a PIN of 4–12 digits")
+    if not re.fullmatch(r"[0-9]{4,12}", pin): raise PinError("Use a PIN of 4 to 12 digits")
     return Scrypt(salt=salt, length=32, n=32768, r=8, p=1).derive(pin.encode())
 
 
@@ -185,15 +185,14 @@ def add(token, data, name, origin=None):
         # Also conceal existing stitched derivatives containing this output.
         blocked = {item["sha256"]}
         from services.image_workflows import store, runner
-        if store.ROOT.exists():
-            for record_path in store.ROOT.glob("*/jobs/*/run.json"):
-                try:
-                    record = json.loads(record_path.read_bytes())
-                    if any(output.get("sha256") == item["sha256"] for output in record.get("outputs", [])):
-                        for image in (record_path.parent / "artifacts").glob("*.png"):
-                            blocked.add(hashlib.sha256(image.read_bytes()).hexdigest())
-                except (OSError, ValueError):
-                    raise ValueError("Could not check workflow derivatives; image was not locked")
+        for record_path in store.storage.glob_paths(store.ROOT, "*/jobs/*/run.json", strict=True):
+            try:
+                record = json.loads(record_path.read_bytes())
+                if any(output.get("sha256") == item["sha256"] for output in record.get("outputs", [])):
+                    for image in (record_path.parent / "artifacts").glob("*.png"):
+                        blocked.add(hashlib.sha256(image.read_bytes()).hexdigest())
+            except (OSError, ValueError):
+                raise ValueError("Could not check workflow derivatives; image was not locked")
         atomic(ROOT / (item["id"] + ".enc"), encrypt(key, data, item["id"]))
         save_private(key, [*current, item])
         value = config(); value["locks"][item["id"]] = sorted(blocked); save_config(value)

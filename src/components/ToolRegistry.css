@@ -12,13 +12,16 @@
 .tool-registry-browser { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
 .tool-registry-list { list-style: none; padding: 8px; margin: 0; overflow-y: auto; max-height: 390px; border-right: 1px solid var(--border); }
 .tool-registry-list li + li { margin-top: 4px; }
-.tool-registry-list button { width: 100%; text-align: left; background: transparent; border-color: transparent; }
+.tool-registry-list li { display: flex; align-items: center; gap: 6px; }
+.tool-registry-list .tool-registry-select { flex: 1; min-width: 0; text-align: left; background: transparent; border-color: transparent; }
+.tool-registry-list .tool-registry-copy { flex: none; padding: 7px 9px; }
 .tool-registry-list button[aria-pressed="true"] { background: var(--bg-input); border-color: var(--accent); }
 .tool-registry-list strong, .tool-registry-list span { display: block; overflow-wrap: anywhere; }
 .tool-registry-list span { margin-top: 5px; color: var(--text-dim); font-size: 10px; }
 .tool-registry-detail { min-width: 0; max-height: 390px; overflow: auto; padding: 18px; }
 .tool-registry-meta { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; color: var(--text-dim); font-size: 10px; margin-bottom: 12px; }
 .tool-registry-id { display: block; color: var(--text-dim); font-size: 11px; margin-top: 6px; }
+.tool-registry-item-download { margin-top: 10px; }
 .tool-registry-detail dl { font-size: 12px; line-height: 1.6; }
 .tool-registry-detail dt { color: var(--text-dim); margin-top: 12px; font-size: 10px; }
 .tool-registry-detail dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }

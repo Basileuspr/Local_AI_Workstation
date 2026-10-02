@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import MarkdownMessage from "../../src/components/MarkdownMessage";
+import ChatChecklistHistory from "../../src/components/ChatChecklistHistory";
 import { updateChecklistItem } from "../../src/api";
 import { reducer } from "../../src/useStore";
 
@@ -65,4 +66,27 @@ it("ignores navigation and stale message results and never advances an unmatched
   const advanced = reducer({ ...state, sessionRevision: "r3" }, action);
   expect(advanced.sessionRevision).toBe("r3");
   expect(advanced.conversationHistory[0].content).toBe("- [x] Task");
+});
+
+it("merges saved list history into the same message for chat and pinned views", () => {
+  const history = [{ id: 'edit-1', changes: [{ kind: 'added' }] }];
+  const saved = { ...action, payload: { ...action.payload, checklist_history: history, checklist_editable: true } };
+  const next = reducer(state, saved);
+  expect(next.conversationHistory[0].checklist_history).toBe(history);
+  expect(next.conversationHistory[1]).toBe(state.conversationHistory[1]);
+  expect(reducer({ ...state, currentSessionId: 'another' }, saved).conversationHistory[0].checklist_history).toBeUndefined();
+});
+
+it("shows dated changes and previous lists without interactive boxes or executing item text", () => {
+  const entry = { id: 'edit-1', at: '2026-10-02T12:00:00-06:00',
+    before: [{ text: 'Deleted task', checked: false }], after: [{ text: '<script>alert(1)</script>', checked: true }],
+    changes: [{ kind: 'removed', before: { text: 'Deleted task' } }, { kind: 'added', after: { text: '<script>alert(1)</script>' } }] };
+  const html = renderToStaticMarkup(<ChatChecklistHistory history={[entry]}/>);
+  expect(html).toContain('List history (1)');
+  expect(html).toContain('Removed:'); expect(html).toContain('Added:');
+  expect(html).toContain('List before this change'); expect(html).toContain('List after this change');
+  expect(html).toContain('dateTime="2026-10-02T12:00:00-06:00"');
+  expect(html).toContain('&lt;script&gt;'); expect(html).not.toContain('<script>');
+  expect(html).not.toContain('type="checkbox"');
+  expect(renderToStaticMarkup(<ChatChecklistHistory history={[]}/>)).toBe('');
 });

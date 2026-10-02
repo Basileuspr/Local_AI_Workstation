@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useDispatch } from "../useStore.jsx";
+import { useDispatch, useStore } from "../useStore.jsx";
 import * as api from "../api";
 import BulkActions, { SelectionCheckbox } from "./BulkActions";
 import SaveImagePrompts from "./SaveImagePrompts";
 import { useSelection, useBatchAction } from "../useSelection";
+import { announceIndexKnowledgeChange, useIndexKnowledgeLinks } from "../indexKnowledgeLinks";
+import { IndexEntryKnowledgeLinks } from "./IndexKnowledgeLinks";
 
 const EMPTY_ENTRY = { title: "", content: "", source: "", tags: "" };
 
@@ -39,6 +41,9 @@ async function copyText(text) {
 
 export default function PromptIndex({ active = true }) {
   const dispatch = useDispatch();
+  const entryTarget = useStore()?.indexEntryTarget;
+  const knowledgeLinks = useIndexKnowledgeLinks(active);
+  const [selectedEntry, setSelectedEntry] = useState("");
   const [entries, setEntries] = useState([]);
   const [search, setSearch] = useState("");
   const [editor, setEditor] = useState(null);
@@ -53,6 +58,7 @@ export default function PromptIndex({ active = true }) {
   const saveErrorShownRef = useRef(false);
   const draftRevisionRef = useRef(0);
   const loadRevisionRef = useRef(0);
+  const entriesLoadingRef = useRef(true);
   const draftWriteRef = useRef(Promise.resolve());
   const titleRef = useRef(null);
 
@@ -78,7 +84,7 @@ export default function PromptIndex({ active = true }) {
         writeDraft(draftRef.current).catch(() => {
           if (!saveErrorShownRef.current) {
             saveErrorShownRef.current = true;
-            showToast("Prompt Index draft could not be saved", "error");
+            showToast("Index draft could not be saved", "error");
           }
         });
       }, 500);
@@ -93,11 +99,12 @@ export default function PromptIndex({ active = true }) {
       draftWriteRef.current = clear;
       await clear;
     } catch {
-      showToast("Prompt Index draft could not be cleared", "error");
+      showToast("Index draft could not be cleared", "error");
     }
   }
 
   async function refreshEntries() {
+    entriesLoadingRef.current = true;
     const loadRevision = ++loadRevisionRef.current;
     const draftRevision = draftRevisionRef.current;
     try {
@@ -115,9 +122,9 @@ export default function PromptIndex({ active = true }) {
       }, false);
       initializedRef.current = true;
     } catch (error) {
-      showToast(error.message || "Could not load Prompt Index", "error");
+      showToast(error.message || "Could not load Index", "error");
     } finally {
-      if (loadRevision === loadRevisionRef.current) setLoading(false);
+      if (loadRevision === loadRevisionRef.current) { entriesLoadingRef.current = false; setLoading(false); }
     }
   }
 
@@ -137,6 +144,20 @@ export default function PromptIndex({ active = true }) {
   useEffect(() => {
     if (active && editor) titleRef.current?.focus();
   }, [active, editor]);
+
+  useEffect(() => {
+    if (!active || loading || entriesLoadingRef.current || !entryTarget || !initializedRef.current) return;
+    const entry = entries.find(item => item.id === entryTarget.id);
+    if (entry) {
+      // Reveal the saved card without replacing an unfinished editor draft.
+      updateSearch(""); setSelectedEntry(entry.id);
+      requestAnimationFrame(() => {
+        const card = document.getElementById(`index-entry-${entry.id}`);
+        card?.scrollIntoView({ block: "nearest" }); card?.focus({ preventScroll: true });
+      });
+    } else showToast("Index entry no longer exists", "error");
+    dispatch({ type: "CLEAR_INDEX_ENTRY_TARGET" });
+  }, [active, loading, entries, entryTarget]);
 
   const filteredEntries = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
@@ -187,7 +208,7 @@ export default function PromptIndex({ active = true }) {
       tags: parseTags(form.tags),
     };
     if (!entry.title || !entry.content) {
-      showToast("Title and reusable text are required", "error");
+      showToast("Title and content are required", "error");
       return;
     }
 
@@ -195,15 +216,15 @@ export default function PromptIndex({ active = true }) {
       setSaving(true);
       if (editor === "new") {
         await api.createPromptIndexEntry(entry);
-        showToast("Prompt Index entry saved", "success");
+        showToast("Index entry saved", "success");
       } else {
         await api.updatePromptIndexEntry(editor, entry);
-        showToast("Prompt Index entry updated", "success");
+        showToast("Index entry updated", "success");
       }
       await closeEditor();
       await refreshEntries();
     } catch (error) {
-      showToast(error.message || "Could not save Prompt Index entry", "error");
+      showToast(error.message || "Could not save Index entry", "error");
     } finally {
       setSaving(false);
     }
@@ -215,20 +236,21 @@ export default function PromptIndex({ active = true }) {
 
   function deleteEntries(items) {
     return batch.run({items, selection, verb:"Deleted",
-      confirm:`Delete ${items.length} selected Prompt Index entry/entries? This cannot be undone.`,
+      confirm:`Delete ${items.length} selected Index entry/entries? This cannot be undone.`,
       action:entry => api.deletePromptIndexEntry(entry.id), after:result => {
         const removed = new Set(result.succeeded.map(item => item.id));
         setEntries(current => current.filter(item => !removed.has(item.id)));
+        announceIndexKnowledgeChange();
         if (removed.has(draftRef.current.editor)) closeEditor();
       }});
   }
 
   return (
-    <section id="prompt-index" aria-label="Prompt Index">
+    <section id="prompt-index" aria-label="Index">
       <header className="prompt-index-header">
         <div>
           <div className="prompt-index-eyebrow">Reference Library</div>
-          <h1>Prompt Index</h1>
+          <h1>Index</h1>
         </div>
         <div className="save-image-prompts-actions">
           <SaveImagePrompts label="Import from Generate" onSaved={refreshEntries} />
@@ -237,18 +259,20 @@ export default function PromptIndex({ active = true }) {
       </header>
 
       <div className="prompt-index-toolbar">
-        <input aria-label="Search Prompt Index" value={search} onChange={(event) => updateSearch(event.target.value)} placeholder="Search entries" />
+        <input aria-label="Search Index" value={search} onChange={(event) => updateSearch(event.target.value)} placeholder="Search entries" />
         <span>{filteredEntries.length} entries</span>
       </div>
 
       <BulkActions selection={selection} items={filteredEntries} label="entries" batch={batch} disabled={saving || loading}
         actions={[{label:"Delete selected entries", danger:true, onClick:deleteEntries}]} />
+      {knowledgeLinks.error && <p className="index-link-status" role="alert">Knowledge connections: {knowledgeLinks.error} <button type="button" onClick={knowledgeLinks.refresh}>Retry connections</button></p>}
+      {knowledgeLinks.notice && <p className="index-link-status" role="status">{knowledgeLinks.notice}</p>}
       <div className={`prompt-index-layout ${editor ? "editing" : ""}`}>
         <div className="prompt-index-list">
           {loading ? <div className="prompt-index-empty">Loading entries...</div> : filteredEntries.length === 0 ? (
             <div className="prompt-index-empty">{search ? "No entries match this search." : "No saved entries yet."}</div>
           ) : filteredEntries.map((entry) => (
-            <article className="prompt-index-entry" key={entry.id}>
+            <article id={`index-entry-${entry.id}`} tabIndex={-1} className={`prompt-index-entry${selectedEntry === entry.id ? " index-entry-selected" : ""}`} key={entry.id}>
               <div className="prompt-index-entry-heading">
                 <SelectionCheckbox selection={selection} item={entry} label={`entry ${entry.title}`} disabled={batch.busy || saving} />
                 <div><h2>{entry.title}</h2><div className="prompt-index-date">Saved {formatDate(entry.created_at)}</div></div>
@@ -261,6 +285,7 @@ export default function PromptIndex({ active = true }) {
               {entry.source && <div className="prompt-index-source">{entry.source}</div>}
               <pre>{entry.content}</pre>
               {entry.tags?.length > 0 && <div className="prompt-index-tags">{entry.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>}
+              <IndexEntryKnowledgeLinks entry={entry} catalog={knowledgeLinks} disabled={batch.busy || saving} />
             </article>
           ))}
         </div>
@@ -270,8 +295,8 @@ export default function PromptIndex({ active = true }) {
             <div className="prompt-index-editor-header"><h2>{editor === "new" ? "New entry" : "Edit entry"}</h2><button type="button" title="Close editor" onClick={closeEditor}>&times;</button></div>
             <label><span>Title</span><input ref={titleRef} value={form.title} maxLength={120} onChange={(event) => updateForm({ title: event.target.value })} /></label>
             <label><span>Saved from / purpose</span><input value={form.source} maxLength={160} onChange={(event) => updateForm({ source: event.target.value })} /></label>
-            <label><span>Tags</span><input value={form.tags} onChange={(event) => updateForm({ tags: event.target.value })} placeholder="writing, image, analysis" /></label>
-            <label className="prompt-index-editor-content"><span>Reusable text</span><textarea value={form.content} onChange={(event) => updateForm({ content: event.target.value })} /></label>
+            <label><span>Tags</span><input value={form.tags} onChange={(event) => updateForm({ tags: event.target.value })} placeholder="notes, research, reference" /></label>
+            <label className="prompt-index-editor-content"><span>Content</span><textarea value={form.content} onChange={(event) => updateForm({ content: event.target.value })} /></label>
             <div className="prompt-index-editor-actions"><button type="button" onClick={closeEditor}>Cancel</button><button type="submit" disabled={saving || batch.busy}>{saving ? "Saving..." : "Save entry"}</button></div>
           </form>
         )}

@@ -50,7 +50,7 @@ function createMaintenance(deps) {
         },
         async importBackup({ ticket, confirmation } = {}) {
             if (busy) return { error: "Maintenance is already running." };
-            if (!pendingImport || pendingImport.ticket !== ticket || confirmation !== "IMPORT") return { error: "Select and review a backup, then type IMPORT to confirm." };
+            if (!pendingImport || pendingImport.ticket !== ticket || confirmation !== "IMPORT") return { error: "Select and review a backup, then confirm replacement." };
             busy = true;
             let stopped = false, frozen = false, locked = false, activated = false;
             let recoveryFolder;
@@ -145,7 +145,7 @@ function createMaintenance(deps) {
         },
         async reset({ ticket, confirmation } = {}) {
             if (busy) return { error: "Maintenance is already running." };
-            if (!pending || pending.ticket !== ticket || confirmation !== "RESET") return { error: "Review the reset, then type RESET to confirm." };
+            if (!pending || pending.ticket !== ticket || confirmation !== "RESET") return { error: "Review the reset, then confirm permanent reset." };
             busy = true;
             let stopped = false;
             let completed = false;

@@ -1,3 +1,4 @@
+import {preventSelectionText} from '../fileSelection';
 import { useEffect, useRef, useState } from "react";
 import * as api from "../api";
 import { useStore, useDispatch } from "../useStore";
@@ -13,6 +14,7 @@ import { useSelection, useBatchAction } from "../useSelection";
 import "./KnowledgeVault.css";
 import {KnowledgeCharacterStart,CharacterNodePointer} from './KnowledgeCharacters';
 import {useCharacterWorkspace} from '../CharacterWorkspace';
+import { KnowledgeIndexLinks } from "./IndexKnowledgeLinks";
 
 export default function KnowledgeVault({ active }) {
   const state = useStore(), dispatch = useDispatch();
@@ -29,7 +31,7 @@ export default function KnowledgeVault({ active }) {
   const [loading, setLoading] = useState(false), [busy, setBusy] = useState(false);
   const [nodeSaving, setNodeSaving] = useState(false), nodeSaveLock = useRef(false);
   const upload = useRef(null), request = useRef(0);
-  const selection = useSelection(graph.nodes, node => node.doc_id), batch = useBatchAction();
+  const batch = useBatchAction();
   useEffect(() => {
     try { localStorage.setItem("knowledge-vault-selected-v1", selectedId); } catch { /* Storage can be unavailable. */ }
   }, [selectedId]);
@@ -45,6 +47,12 @@ export default function KnowledgeVault({ active }) {
   useEffect(() => {
     if(characters?.documentTarget){setQuery('');setSelectedId(characters.documentTarget.id);setPage(0);}
   },[characters?.documentTarget]);
+  useEffect(() => {
+    if (active && state.knowledgeNodeTarget) {
+      setQuery(""); setSelectedId(state.knowledgeNodeTarget.id); setPage(0);
+      dispatch({ type: "CLEAR_KNOWLEDGE_NODE_TARGET" });
+    }
+  }, [active, state.knowledgeNodeTarget, dispatch]);
   useEffect(() => { setPage(0); setTarget(""); setNodePreview(null); }, [selectedId]);
   useEffect(() => {
     let cancelled = false; setDetail(null); setDetailError("");
@@ -77,6 +85,7 @@ export default function KnowledgeVault({ active }) {
   }
   const connections = graph.edges.filter(edge => edge.source === selectedId || edge.target === selectedId);
   const visibleNodes = graph.nodes.filter(node => nodeMatches(node, query));
+  const selection = useSelection(graph.nodes, node => node.doc_id, "", visibleNodes);
   const previewGraph = nodePreview?.id === selectedId ? { ...graph, nodes: graph.nodes.map(node => node.doc_id === selectedId ? { ...node, options: nodePreview.options } : node) } : graph;
   async function saveNodePresentation(action) {
     if (nodeSaveLock.current) throw new Error("Wait for the current node save to finish.");
@@ -127,7 +136,7 @@ export default function KnowledgeVault({ active }) {
         {loading && <p role="status">Loading vault…</p>}
         <BulkActions selection={selection} items={visibleNodes} label="documents" batch={batch} disabled={busy}
           actions={[{ label: "Remove selected", danger: true, onClick: removeDocuments }]} />
-        {visibleNodes.map(node => <div className="vault-file" key={node.doc_id}><SelectionCheckbox selection={selection} item={node} label={nodeLabel(node)} disabled={batch.busy} /><button aria-pressed={selectedId === node.doc_id} onClick={() => setSelectedId(node.doc_id)}><span>{nodeLabel(node)}</span><small>{node.authored ? `${node.node_kind} · ` : node.options?.label && `${node.filename} · `}{node.chunks} chunks{node.options?.locked ? " · Locked" : ""}</small>{!!node.options?.tags?.length && <small>{node.options.tags.join(" · ")}</small>}</button></div>)}
+        {visibleNodes.map(node => <div className="vault-file" key={node.doc_id}><SelectionCheckbox selection={selection} item={node} label={nodeLabel(node)} disabled={batch.busy} /><button aria-pressed={selectedId === node.doc_id} onMouseDown={preventSelectionText} onClick={event => selection.activate(node,event,()=>setSelectedId(node.doc_id))}><span>{nodeLabel(node)}</span><small>{node.authored ? `${node.node_kind} · ` : node.options?.label && `${node.filename} · `}{node.chunks} chunks{node.options?.locked ? " · Locked" : ""}</small>{!!node.options?.tags?.length && <small>{node.options.tags.join(" · ")}</small>}</button></div>)}
         {!loading && query && !visibleNodes.length && <p>No matching documents.</p>}
       </aside>
       <KnowledgeGraph {...previewGraph} selectedId={selectedId} query={query} onSelect={setSelectedId} onPosition={async (id, position) => {
@@ -135,12 +144,13 @@ export default function KnowledgeVault({ active }) {
         catch (failure) { setError(`Position not saved: ${failure.message}`); }
       }} />
       <aside className="vault-inspector" aria-label="Document details">
-        {!selected ? <div className="vault-inspector-empty"><h2>Select a document</h2><p>Explore its indexed text and connected documents.</p><p>Connect documents here, or import text containing <code>[[another document]]</code>.</p><p>Lines show explicit links, not inferred similarity. Disconnected documents still participate in RAG.</p></div> : <>
+        {!selected ? <div className="vault-inspector-empty"><h2>Select a document</h2></div> : <>
           <div className="vault-inspector-heading"><h2>{selected.authored ? nodeLabel(selected) : selected.filename}</h2><button onClick={() => setSelectedId("")} aria-label="Close document">×</button></div>
           <KnowledgeNodeSymbol key={`node-symbol:${selectedId}`} node={selected} disabled={busy || batch.busy || nodeSaving} onSave={icon => saveNodeSymbol(selectedId, icon)} />
           {selected.authored && <KnowledgeNodeContent key={`node-content:${selectedId}`} node={selected} active={active} disabled={busy || batch.busy} onSaved={selectIndexedDocument} />}
           <KnowledgeNodeEditor key={`node-options:${selectedId}`} node={selected} disabled={busy || batch.busy || nodeSaving} onPreview={options => setNodePreview(options ? { id: selectedId, options } : null)} onSave={options => saveNodeOptions(selectedId, options)} />
           <CharacterNodePointer key={selectedId} filename={selected.filename} onIndexed={selectIndexedDocument}/>
+          <KnowledgeIndexLinks key={`index-links:${selectedId}`} docId={selectedId} active={active} disabled={busy || batch.busy} />
           <p>{selected.chunks} indexed chunks</p><button className="vault-remove" disabled={batch.busy || busy} onClick={() => removeDocuments([selected])}>Remove from Knowledge</button><h3>Connections</h3>
           {!connections.length && <p>No connections yet.</p>}
           {connections.map(edge => {
@@ -155,7 +165,7 @@ export default function KnowledgeVault({ active }) {
             <button disabled={busy || !target}>Connect</button>
           </form>
           {!!selected.unresolved_links?.length && <p className="vault-unresolved">Unresolved or ambiguous links: {selected.unresolved_links.join(", ")}</p>}
-          <h3>Indexed text</h3><p className="vault-hint">Chunks may overlap. This is the text available to retrieval.</p>
+          <h3>Indexed text</h3>
           {detailError ? <p role="alert">{detailError}</p> : !detail ? <p role="status">Loading document…</p> : <>
             {detail.chunks.map(chunk => <article className="vault-chunk" key={chunk.index}><small>Chunk {chunk.index + 1}</small><p>{chunk.text}</p></article>)}
             <div className="vault-pages"><button disabled={page === 0} onClick={() => setPage(value => value - 1)}>Previous</button><span>{page + 1} / {Math.max(1, Math.ceil(detail.total / 30))}</span><button disabled={(page + 1) * 30 >= detail.total} onClick={() => setPage(value => value + 1)}>Next</button></div>

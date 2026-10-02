@@ -1,5 +1,5 @@
 /* Keep tools in one quiet row; expanded settings float above the composer. */
-#input-area { padding: 8px 20px 12px; }
+:is(#input-area, #input-area-secondary) { padding: 8px 20px 12px; }
 .chat-composer-tools {
   position: relative; display: flex; align-items: center; flex-wrap: wrap;
   gap: 4px; width: 100%; max-width: 720px; margin-bottom: 6px;
@@ -32,9 +32,13 @@
 .chat-edit-selection span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chat-edit-selection button { flex-shrink: 0; padding: 4px 8px; border: 1px solid var(--border); border-radius: 5px; background: var(--bg-input); color: var(--text-dim); cursor: pointer; }
 .chat-upload-status { margin-bottom: 6px; color: var(--text-dim); }
+.chat-web-import .web-access.embedded { margin: 0; padding: 0; border: 0; max-height: none; overflow: visible; }
+.chat-web-import .web-access [role="alert"] { color: var(--red); }
+.chat-import-progress { display: flex; align-items: center; gap: 8px; max-width: 720px; width: 100%; color: var(--text-dim); margin-bottom: 6px; font-size: 12px; }
+.chat-import-progress button { background: var(--bg-input); color: var(--accent); border: 1px solid var(--border); border-radius: 5px; padding: 3px 8px; font: inherit; cursor: pointer; }
 .composer-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 @media (max-width: 600px) {
-  #input-area { padding: 6px 10px 10px; }
+  :is(#input-area, #input-area-secondary) { padding: 6px 10px 10px; }
   .chat-composer-tools .chat-tool-button { padding-inline: 7px; }
   .chat-composer-tools .chat-tool-panel { padding: 10px; max-height: 45dvh; }
 }

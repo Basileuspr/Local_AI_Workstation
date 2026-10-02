@@ -14,6 +14,7 @@ from pathlib import Path
 from PIL import Image, ImageOps
 
 from config import settings
+from services import storage_libraries as storage
 from services.image_library import atomic, identity, inspect
 from services.image_vault import require_public
 from .contracts import SourceId, Selection
@@ -33,8 +34,8 @@ def now():
     return datetime.now(timezone.utc).isoformat()
 
 
-def directory(dataset_id):
-    return ROOT / "datasets" / identity(dataset_id)
+def directory(dataset_id, *, create=False):
+    return storage.resolve(ROOT / "datasets" / identity(dataset_id), create=create)
 
 
 def read(dataset_id):
@@ -51,7 +52,7 @@ def read(dataset_id):
 def write(data):
     data["updated_at"] = now()
     data["revision"] += 1
-    atomic(directory(data["id"]) / "dataset.json", json.dumps(data, ensure_ascii=False).encode())
+    atomic(directory(data["id"], create=True) / "dataset.json", json.dumps(data, ensure_ascii=False).encode())
     return data
 
 
@@ -72,7 +73,7 @@ def create(name):
 def list_datasets():
     with LOCK:
         items = []
-        for path in (ROOT / "datasets").glob("*/dataset.json"):
+        for path in storage.glob_paths(ROOT / "datasets", "*/dataset.json"):
             data = read(path.parent.name)
             items.append({key: data[key] for key in ("id", "name", "updated_at")}
                          | {"source_count": len(data["sources"]), "accepted": sum(s["state"] == "accepted" for s in data["selections"])})
@@ -90,7 +91,7 @@ def source(data, source_id):
 def source_bytes(data, source_id):
     source(data, source_id)
     require_public(source_id)
-    path = ROOT / "sources" / f"{source_id}.image"
+    path = storage.resolve(ROOT / "sources" / f"{source_id}.image")
     payload = path.read_bytes()
     if hashlib.sha256(payload).hexdigest() != source_id:
         raise ValueError("The source image changed on disk; import the original again")
@@ -110,7 +111,7 @@ def import_image(dataset_id, payload, name, origin):
             return False
         if len(data["sources"]) >= MAX_SOURCES:
             raise ValueError(f"A dataset holds at most {MAX_SOURCES} source images")
-        target = ROOT / "sources" / f"{digest}.image"
+        target = storage.resolve(ROOT / "sources" / f"{digest}.image", create=True)
         if not target.exists():
             atomic(target, payload)
         data["sources"].append({"id": digest, "name": Path(name.replace("\\", "/")).name[:240],
@@ -216,7 +217,7 @@ def _render(payload, box=None, thumbnail=False):
 
 @lru_cache(maxsize=128)
 def _thumbnail(root, source_id, size, modified, box):
-    payload = (Path(root) / "sources" / f"{source_id}.image").read_bytes()
+    payload = storage.resolve(Path(root) / "sources" / f"{source_id}.image").read_bytes()
     if hashlib.sha256(payload).hexdigest() != source_id:
         raise ValueError("The source image changed on disk; import the original again")
     return _render(payload, box, True)
@@ -226,7 +227,7 @@ def render(data, source_id, box=None, thumbnail=False):
     source(data, source_id)
     require_public(source_id)
     if thumbnail:
-        info = (ROOT / "sources" / f"{source_id}.image").stat()
+        info = storage.resolve(ROOT / "sources" / f"{source_id}.image").stat()
         return _thumbnail(str(ROOT), source_id, info.st_size, info.st_mtime_ns, tuple(box) if box else None)
     return _render(source_bytes(data, source_id), box)
 

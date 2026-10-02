@@ -1,8 +1,9 @@
 import { useSelection } from '../useSelection';
 import './ImageRemovalControls.css';
+import {preventSelectionText} from '../fileSelection';
 
-export function useImageRemoval(items, onRemove, {label = 'images', disabled = false, scope = '', key = item => item.id} = {}) {
-  const selection = useSelection(items, key, scope);
+export function useImageRemoval(items, onRemove, {label = 'images', disabled = false, scope = '', key = item => item.id, rangeItems = items} = {}) {
+  const selection = useSelection(items, key, scope, rangeItems);
   function remove(chosen) {
     if (disabled || !chosen.length) return;
     onRemove(chosen);
@@ -17,7 +18,7 @@ export function useImageRemoval(items, onRemove, {label = 'images', disabled = f
     </div>,
     controls: (item, name) => <div className="image-removal-controls">
       <label><input type="checkbox" disabled={disabled} checked={selection.has(item)}
-        onChange={() => selection.toggle(item)} aria-label={`Select ${name}`} />Select</label>
+        onMouseDown={preventSelectionText} onClick={event => {event.stopPropagation(); selection.toggle(item,event);}} onChange={() => {}} aria-label={`Select ${name}`} />Select</label>
       <button type="button" disabled={disabled} onClick={() => remove([item])} aria-label={`Remove ${name}`}>Remove</button>
     </div>,
   };

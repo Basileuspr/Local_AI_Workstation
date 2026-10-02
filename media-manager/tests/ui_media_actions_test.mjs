@@ -38,7 +38,7 @@ try {
   await page.getByRole('button', { name: 'Preview selected move', exact: true }).click();
   await page.getByRole('heading',{name:'Review 1 selected moves'}).waitFor();
   assert.equal(await page.locator('.mo-custom-preview-item').count(),1);
-  await page.getByLabel('Type MOVE to confirm', { exact: true }).fill('MOVE');
+  assert.equal(await page.locator('#mo-custom-confirm, #mo-confirm-word').count(), 0);
   await page.getByRole('button', { name: 'Move selected clips', exact: true }).click();
   await page.waitForFunction(() => document.querySelector('#mo-library-title').textContent.startsWith('One selected item'));
   const records = await page.evaluate(() => document.querySelector('media-organizer').data.records);

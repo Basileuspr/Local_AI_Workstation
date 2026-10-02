@@ -1,8 +1,8 @@
 import {useEffect,useRef,useState} from 'react';
-import {apiUrl} from '../api';
+import {imageSourceUrl as apiUrl} from '../imageSources';
 import {useCharacterWorkspace} from '../CharacterWorkspace';
 import {RESOURCE_KINDS,resourceCatalog,linkResource,editResource,unlinkResource,attachCharacterFile,characterFileUrl} from '../characterResources';
-import ProtectedImage from '../ImagePrivacy';
+import ImageThumbnail from './ImageThumbnail';
 import MediaCardActions from './MediaCardActions';
 
 function ResourceCard({item,active,disabled,onEdit,onUnlink}) {
@@ -16,7 +16,7 @@ function ResourceCard({item,active,disabled,onEdit,onUnlink}) {
     <strong>{resource?.name || 'Unavailable reference'}</strong>
     <small>{RESOURCE_KINDS[item.kind]}{resource?.category && ` · ${resource.category}`}</small>
     {!item.available && <p>Missing or unavailable in its workspace. The link is retained.</p>}
-    {url && resource?.category === 'image' && !previewError && <ProtectedImage src={url} alt={resource.name} loading="lazy" onError={()=>setPreviewError(true)}/>}
+    {url && resource?.category === 'image' && <ImageThumbnail src={url} alt={resource.name} />}
     {url && resource?.category === 'image' && <MediaCardActions image={{id:item.target_id,name:resource.name,url,library:item.kind==='image'}}/>}
     {url && resource?.category === 'audio' && <audio ref={player} controls preload="none" src={url} aria-label={`Preview ${resource.name}`} onError={()=>setPreviewError(true)}/>}
     {url && resource?.category === 'video' && <video ref={player} controls playsInline preload="metadata" src={url} aria-label={`Preview ${resource.name}`} onError={()=>setPreviewError(true)}/>}
@@ -51,7 +51,7 @@ export default function CharacterResources({character,active=true,onChange,disab
   }
   const locked=disabled||busy, visible=items.filter(item=>item.name.toLowerCase().includes(query.toLowerCase()));
   return <section className="character-resources" aria-label="Character reference library">
-    <h3>Reference library</h3><p className="face-note">Connect anything that defines this character. Existing app resources stay in their workspaces. Uploaded files get a saved app copy. Unlink keeps the source and saved copy.</p>
+    <h3>Reference library</h3>
     <div className="character-resource-picker">
       <label>Reference type<select aria-label="Character reference type" value={kind} disabled={locked} onChange={e=>{setKind(e.target.value);setQuery('');}}>{Object.entries(RESOURCE_KINDS).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
       <label>Find a reference<input value={query} disabled={locked} onChange={e=>setQuery(e.target.value)} placeholder="Filter by name"/></label>
@@ -61,7 +61,7 @@ export default function CharacterResources({character,active=true,onChange,disab
       <div className="face-row"><button type="button" disabled={locked||loading||!target} onClick={()=>run(async()=>{await linkResource(character.id,kind,target,note);setNote('');},'Reference linked.')}>Link reference</button>
       <button type="button" disabled={locked} onClick={()=>picker.current.click()}>Upload reference file</button></div>
       <input hidden ref={picker} type="file" aria-label="Upload character reference file" disabled={locked} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)run(async()=>{await attachCharacterFile(character.id,file,note);setNote('');},'File saved and linked.');}}/>
-      <small>Images, videos, audio, documents, model files, and other files up to 128 MiB. Images up to 24 megapixels. Video playback depends on the file’s codec; the original stays available to save. Use Saved file to link a previous upload again.</small>
+
     </div>
     {error&&<p role="alert" className="face-alert">{error}</p>}{notice&&<p role="status">{notice}</p>}{busy&&<p role="status">Saving references…</p>}
     <ul className="character-resource-grid">{(character.resources||[]).map(item=><ResourceCard key={item.id} item={item} active={active} disabled={locked}

@@ -1,4 +1,5 @@
 export function queueDestination(job) {
+  if (job.kind === 'local-file' || job.kind === 'video-vision') return {tab: 'local-files'};
   if (job.kind === "gif") return {tab: "gif-maker", requestId: job.request_id || job.id};
   if (["chat", "image", "compact"].includes(job.kind)) {
     return { tab: job.kind === "image" && !job.session_id ? "generate" : "chats", sessionId: job.session_id || null, requestId: job.request_id || job.id };

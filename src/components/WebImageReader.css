@@ -4,3 +4,7 @@
 .web-image-pages figure { margin: 0 0 12px; }
 .web-image-pages figcaption { font-size: 12px; opacity: .75; margin: 6px 0; overflow-wrap: anywhere; }
 .web-image-pages img { display: block; width: 100%; height: auto; object-fit: contain; }
+.web-image-thumbnails { display: flex; gap: 10px; overflow-x: auto; padding: 8px 0; }
+.web-image-thumbnails figure { flex: 0 0 140px; min-width: 0; }
+.web-image-thumbnails .image-thumbnail { height: 110px; }
+.web-image-thumbnails figcaption { color: var(--text-dim); font-size: 12px; overflow-wrap: anywhere; padding-top: 4px; }

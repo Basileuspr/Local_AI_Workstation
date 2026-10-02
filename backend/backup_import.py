@@ -181,7 +181,7 @@ def import_status(root=None):
 
 
 def import_backup(source, digest, confirmation, previous_storage, root=None):
-    if confirmation != "IMPORT": raise ValueError("Type IMPORT to replace current app data.")
+    if confirmation != "IMPORT": raise ValueError("Confirm replacement from the reviewed backup import dialog.")
     if not isinstance(digest, str) or not re.fullmatch("[a-f0-9]{64}", digest):
         raise ValueError("Select and review the backup before importing.")
     root = checked_root(root)

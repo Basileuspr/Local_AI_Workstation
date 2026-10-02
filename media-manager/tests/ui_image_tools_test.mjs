@@ -11,6 +11,12 @@ try {
   browser=await chromium.launch({headless:true,...(process.env.CHROMIUM_EXECUTABLE?{executablePath:process.env.CHROMIUM_EXECUTABLE}:{})});
   const page=await browser.newPage({viewport:{width:1440,height:1080}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto(fixture.url);
+  assert.equal(await page.getByRole('button',{name:'Image tools',exact:true}).count(),0);
+  await page.getByRole('button',{name:'Saved clips',exact:true}).click();
+  await page.getByRole('heading',{name:'Saved clips',exact:true}).waitFor();
+  assert.equal(await page.getByRole('button',{name:'Image tools',exact:true}).count(),0);
+  await page.getByRole('button',{name:'View snapshots',exact:true}).click();
+  await page.getByRole('heading',{name:'Snapshots',exact:true}).waitFor();
   await page.getByRole('button',{name:'Image tools',exact:true}).click();
   await page.getByLabel('Image source folder',{exact:true}).fill(fixture.imageSource);
   await page.getByRole('button',{name:'Read image folder',exact:true}).click();

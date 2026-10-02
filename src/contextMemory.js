@@ -1,5 +1,5 @@
 const DEFAULT_CONTEXT_WINDOW = 8192;
-const MIN_CONTEXT_WINDOW = 2048;
+const MIN_CONTEXT_WINDOW = 1;
 const DEFAULT_UNLIMITED_OUTPUT_RESERVE = 4096;
 const CONTEXT_SAFETY_RESERVE = 512;
 const DURABLE_MEMORY_RESERVE = 1200;
@@ -81,16 +81,19 @@ export function getContextUsage({
   responseLength,
   systemPrompt,
   useKnowledgeBase,
+  useDurableMemory = true,
+  model = "",
 }) {
   const windowTokens = normalizeContextWindow(contextWindow);
   const outputReserve = normalizeOutputReserve(responseLength, windowTokens);
   const fixedReserve =
     outputReserve +
     CONTEXT_SAFETY_RESERVE +
-    DURABLE_MEMORY_RESERVE +
+    (useDurableMemory ? DURABLE_MEMORY_RESERVE : 0) +
     (useKnowledgeBase ? KNOWLEDGE_BASE_RESERVE : 0);
-  const usableInputTokens = Math.max(512, windowTokens - fixedReserve);
-  const summaryTokens = textTokenEstimate(memorySummary);
+  const usableInputTokens = Math.max(0, windowTokens - fixedReserve);
+  const summaryMessage = memorySummary?.trim() ? buildContextMessages([], memorySummary, 0)[0] : null;
+  const summaryTokens = summaryMessage ? messageTokenEstimate(summaryMessage) : 0;
   const systemTokens = textTokenEstimate(systemPrompt);
   const unsummarizedMessages = messages.slice(summarizedMessageCount || 0);
   const unsummarizedTokens = unsummarizedMessages.reduce(
@@ -100,6 +103,17 @@ export function getContextUsage({
   const promptTokens = summaryTokens + systemTokens + unsummarizedTokens;
 
   return {
+    model,
+    countKind: "estimate",
+    estimationMethod: "Character, message and image heuristic; tokenizer varies by model",
+    configuredContextLimit: windowTokens,
+    contextLimitSource: contextWindow ? "model_catalog" : "fallback_model_limit_unknown",
+    remainingTokens: Math.max(0, windowTokens - promptTokens),
+    inputBudgetRemaining: Math.max(0, usableInputTokens - promptTokens),
+    summarizationOccurred: Boolean(memorySummary?.trim()) || (summarizedMessageCount || 0) > 0,
+    summarizedMessageCount: summarizedMessageCount || 0,
+    applicationTrimming: false,
+    providerTrimming: "unknown",
     windowTokens,
     outputReserve,
     fixedReserve,
@@ -108,7 +122,7 @@ export function getContextUsage({
     summaryTokens,
     systemTokens,
     unsummarizedTokens,
-    ratio: promptTokens / usableInputTokens,
+    ratio: promptTokens / Math.max(1, usableInputTokens),
   };
 }
 
@@ -133,6 +147,7 @@ export async function rotateContextMemory({
   responseLength,
   systemPrompt,
   useKnowledgeBase,
+  useDurableMemory = true,
   triggerRatio = COMPACTION_TRIGGER_RATIO,
   force = false,
   requestId,
@@ -149,6 +164,7 @@ export async function rotateContextMemory({
     responseLength,
     systemPrompt,
     useKnowledgeBase,
+    useDurableMemory,
   });
 
   const hasUnsummarizedHistory = messages.length - nextSummarizedCount > MIN_RECENT_MESSAGE_COUNT;
@@ -174,8 +190,11 @@ export async function rotateContextMemory({
         sessionId,
         signal,
       });
-      nextSummary = result.summary || nextSummary;
-      nextSummarizedCount = compactUntil;
+      // An empty summary cannot cover new turns; retain them for the next request.
+      if (result.summary?.trim()) {
+        nextSummary = result.summary;
+        nextSummarizedCount = compactUntil;
+      }
     }
   }
 
@@ -191,6 +210,7 @@ export async function rotateContextMemory({
       responseLength,
       systemPrompt,
       useKnowledgeBase,
+      useDurableMemory,
     }),
   };
 }

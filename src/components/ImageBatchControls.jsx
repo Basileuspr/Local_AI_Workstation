@@ -4,7 +4,7 @@ export default function ImageBatchControls({settings,onChange,onSubmit,disabled}
   const [count,setCount]=useState(4),[increments,setIncrements]=useState({seed:1}),[submitting,setSubmitting]=useState(false),[notice,setNotice]=useState('');
   let rows=[],error='';try{rows=buildImageBatch(settings,count,increments);}catch(e){error=e.message;}
   return <details className="image-batch"><summary>Batch requests · vary settings per image</summary>
-    <p>Start with the settings above, then add each enabled increment for the next image. All enabled settings advance together. A blank starting seed uses 1 when Seed is enabled.</p>
+
     <label>Images in batch<input aria-label="Images in batch" type="number" min="1" max="32" value={count} onChange={e=>setCount(e.target.value)}/></label>
     <div className="image-batch-fields">{BATCH_FIELDS.map(field=><div key={field.key}>
       <label className="image-ratio-lock"><input aria-label={`Vary ${field.label}`} type="checkbox" disabled={field.key==='loraScale'&&!settings.loraId&&increments[field.key]===undefined} checked={increments[field.key]!==undefined} onChange={e=>{const next={...increments};if(e.target.checked)next[field.key]=field.key==='seed'||field.key==='steps'?1:field.step;else delete next[field.key];setIncrements(next);}}/>{field.label}</label>

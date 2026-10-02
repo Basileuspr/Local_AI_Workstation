@@ -10,7 +10,7 @@ export default function ChatChecklistEditor({ content, initialItems, onItemsChan
   return <form className="chat-checklist-editor" aria-label="Edit checklist" onSubmit={event => {
     event.preventDefault(); if (!busy) onSave(items.map(({ key, ...item }) => item));
   }} onKeyDown={event => { if (event.key === "Escape" && !busy) { event.preventDefault(); event.stopPropagation(); onCancel(); } }}>
-    <p>Edit checklist items. Other text in the message stays as it is.</p>
+
     <div ref={list} className="checklist-edit-items">{items.map((item, index) => <div className="checklist-edit-row" key={item.key}>
       <input type="checkbox" aria-label={`Item ${index + 1} completed`} checked={item.checked} disabled={busy} onChange={event => update(item.key, { checked: event.target.checked })} />
       <input type="text" autoFocus={index === 0} aria-label={`Checklist item ${index + 1}`} value={item.text} maxLength={4000} disabled={busy}

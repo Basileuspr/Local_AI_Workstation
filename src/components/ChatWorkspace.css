@@ -3,7 +3,7 @@
 .workspace-panes.split-chat > .chat-pane { grid-column: 1; grid-row: 1; }
 .workspace-panes.split-chat > .pinned-workspace { grid-column: 3; grid-row: 1; background: var(--bg-primary); }
 .workspace-panes.split-chat > .chat-pane-divider { grid-column: 2; grid-row: 1; }
-.workspace-panes.split-chat.split-stacked { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(280px, var(--chat-share, 1fr)) 10px minmax(200px, var(--pinned-share, .8fr)); overflow-y: auto; }
+.workspace-panes.split-chat.split-stacked { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(var(--chat-min-height, 280px), var(--chat-share, 1fr)) 10px minmax(var(--pinned-min-height, 200px), var(--pinned-share, .8fr)); overflow-y: auto; }
 .workspace-panes.split-chat.split-stacked > .chat-pane-divider { grid-column: 1; grid-row: 2; }
 .workspace-panes.split-chat.split-stacked > .pinned-workspace { grid-column: 1; grid-row: 3; }
 .workspace-panes > .pane { background: var(--bg-primary); }
@@ -26,6 +26,13 @@
 .checklist-edit-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .chat-checklist-editor button { cursor: pointer; font-size: 12px; }
 .chat-checklist-editor button:disabled { opacity: .55; cursor: default; }
+.checklist-history { margin-top:10px; padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:12px; }
+.checklist-history summary { cursor:pointer; overflow-wrap:anywhere; }
+.checklist-history p { color:var(--text-dim); margin:8px 0; }
+.checklist-history-entries { max-height:360px; overflow:auto; padding-left:22px; margin:10px 0; }
+.checklist-history-entries > li { padding:8px 0; border-top:1px solid var(--border); }
+.checklist-history-changes, .checklist-history-snapshot { margin:8px 0; padding-left:20px; white-space:pre-wrap; overflow-wrap:anywhere; }
+.checklist-history-entries details > details { margin-top:8px; }
 .chat-side-content { min-height: 0; overflow: auto; padding: 16px; flex: 1; }
 .chat-side-content .document-page { width: 100%; min-height: 0; padding: 24px; }
 .chat-side-content .document-page h1 { font-size: 24px; }

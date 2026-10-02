@@ -37,7 +37,7 @@ export default function EmojiPicker() {
     import("../emojiCatalog.json").then(module => setData(module.default)).catch(() => setError("Could not load the emoji list."));
   }, [open]);
   const visibleTarget = target?.isConnected && !target.disabled && !target.readOnly && target.getClientRects().length > 0;
-  const chatSlot = target?.closest("#input-row")?.querySelector(".chat-emoji-slot");
+  const chatSlot = target?.closest(".chat-input-row")?.querySelector(".chat-emoji-slot");
   function launch() {
     selection.current = { start: target.selectionStart ?? target.value.length, end: target.selectionEnd ?? target.value.length };
     setError(""); setOpen(true);
@@ -60,7 +60,7 @@ export default function EmojiPicker() {
       }}>{item.emoji}</button>)}</div>
       {!matches.length && <p>No matching emoji.</p>}
       {matches.length > limit && <button type="button" onClick={() => setLimit(value => value + 120)}>Show more emoji</button>}
-      <small>Search includes skin-tone variants. Newer emoji depend on your system font.</small>
+
     </dialog>
   </>;
 }

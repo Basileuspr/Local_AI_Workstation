@@ -25,6 +25,7 @@ async function until(predicate, label, timeout = 15000) {
 }
 const checked = [];
 const resultFile = process.env.LAW_MEDIA_MANAGER_QA_RESULT || path.join(work, "result.json");
+const startupOnly = process.argv.includes("--startup-only");
 console.log(`Media Manager QA result: ${resultFile}`);
 app.whenReady().then(async () => {
     backend = http.createServer((_request, response) => {
@@ -58,7 +59,7 @@ app.whenReady().then(async () => {
     await win.loadURL("app://local/index.html");
     // Chromium does not load lazy images in hidden native views, even after
     // scrolling. Show the disposable window without taking keyboard focus.
-    win.showInactive();
+    if (!startupOnly) win.showInactive();
     const host = source => win.webContents.executeJavaScript(source);
     await until(() => host("!!document.querySelector('[data-media-manager-tab]')"), "React tab");
     assert.equal(win.contentView.children.length, 0, "Lazy launch");
@@ -76,6 +77,29 @@ app.whenReady().then(async () => {
         { bridge: "undefined", node: "undefined", hostStorage: null, title: "Media Manager" });
     assert.equal(await media(`fetch('http://127.0.0.1:${backend.address().port}/').then(()=>false,()=>true)`), true);
     checked.push("separate session, no host bridge or storage, host network blocked");
+    assert.equal(await media("document.querySelector('media-organizer')?.dataset.mediaManagerReady"), "true");
+    assert.ok(await media("!!document.querySelector('#mo-source') && !!document.querySelector('#mo-results')"));
+    checked.push("real Python server serves all module imports and the Media Manager page initializes");
+    if (startupOnly) {
+        const originalBounds = view.getBounds();
+        await host("document.querySelector('[aria-label=\"Open timer\"]').click()");
+        await until(() => view.getVisible() && view.getBounds().width * view.getBounds().height < originalBounds.width * originalBounds.height, "timer leaves visible native page space");
+        await host("document.querySelector('[aria-label=\"Close timer panel\"]').click()");
+        await until(() => view.getVisible() && view.getBounds().width === originalBounds.width && view.getBounds().height === originalBounds.height, "closing timer restores native page");
+        const contentsId = view.webContents.id;
+        await host("document.querySelector('[data-sidebar-route=dashboard]').click()");
+        await until(() => !view.getVisible(), "page hidden on another tab");
+        await host("document.querySelector('[data-media-manager-tab]').click()");
+        await until(() => view.getVisible(), "page restored on return");
+        assert.equal(win.contentView.children.length, 1);
+        assert.equal(view.webContents.id, contentsId);
+        checked.push("timer open/close and tab switching preserve the real native view and restore its bounds");
+        const url = view.webContents.getURL();
+        manager.dispose();
+        await until(async () => { try { await fetch(url); return false; } catch { return true; } }, "child server exits after smoke check");
+        fs.writeFileSync(resultFile, JSON.stringify({ ok: true, checked, reports: "temporary only" }, null, 2));
+        return;
+    }
     await host("[...document.querySelectorAll('button')].find(b=>b.textContent==='Enter Media Manager').click()");
     await until(()=>media("document.activeElement?.id==='mo-source'"), 'Enter Media Manager focuses source field');
     await until(()=>host("document.querySelector('.media-manager-access').textContent.includes('Media Manager focused')"), 'entry confirmation');

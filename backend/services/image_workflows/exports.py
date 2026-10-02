@@ -159,7 +159,7 @@ def accept_stitched(workflow_id, job_id, layout, revision):
 def gallery():
     """No migration or extra image copies: existing completed runs appear immediately."""
     runs, warnings = [], []
-    for path in store.ROOT.glob("*/jobs/*/run.json"):
+    for path in store.storage.glob_paths(store.ROOT, "*/jobs/*/run.json"):
         workflow_id, job_id = path.parents[2].name, path.parent.name
         try:
             if runner.read_run(workflow_id, job_id)["status"] in runner.ACTIVE:

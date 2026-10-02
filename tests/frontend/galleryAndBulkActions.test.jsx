@@ -5,6 +5,7 @@ import ImageGallery from "../../src/components/ImageGallery";
 import ImageViewer, { adjacentImageId } from "../../src/components/ImageViewer";
 import { workflowViewerImages } from "../../src/components/WorkflowImageLibrary";
 import BulkActions from "../../src/components/BulkActions";
+import {WorkspaceHelpContent} from '../../src/components/WorkspaceInfo';
 import { processBatch, batchFeedback, selectedItems, orderImageDeletions } from "../../src/bulkActions";
 import { removeFromKnowledgeBase, listDeletedSessions } from "../../src/api";
 import { reducer } from "../../src/useStore";
@@ -69,7 +70,7 @@ it("selection remains bounded to live items without losing selections outside a 
     actions={[{label:"Delete selected",onClick:()=>{}}]} />);
   expect(html).toContain("2 selected");
   expect(html).toContain("Select all (1)");
-  expect(html).toContain("across pages");
+  expect(renderToStaticMarkup(<WorkspaceHelpContent tab="images"/>)).toContain("Select all includes matches across pages");
 });
 
 it("removes indexed legacy image selections from the end of each message", async () => {

@@ -5,9 +5,9 @@ import ImageViewer from "./ImageViewer";
 import { useEffect, useState } from "react";
 import { useDispatch, useRefs, useStore, profiles } from "../useStore.jsx";
 import * as api from "../api";
+import { imageSourceUrl } from "../imageSources";
 import ImageGenerationStatus from "./ImageGenerationStatus";
 import ImageSettingsControls from "./ImageSettingsControls";
-import ImageGenerationHelp from "./ImageGenerationHelp";
 import CustomProfileControls from "./CustomProfileControls";
 import { useImageGeneration } from "../ImageGenerationContext";
 import { useAnalyzeIterate } from "../AnalyzeIterateContext";
@@ -43,7 +43,7 @@ export default function ImageStudio({ active = true }) {
   const submittingReference = isSubmitting || readingReference || openingEditor;
   const viewerImages = generationViewerImages(batch ? batch.slots.filter(slot => slot.image).map(slot => slot.image) : result ? [result] : [], api.apiUrl);
   const previewImage = result ? {
-    id: result.url, url: api.apiUrl(result.url), name: result.filename || "Generated image", seed: result.seed,
+    id: result.url, url: imageSourceUrl(result.url), name: result.filename || "Generated image", seed: result.seed,
   } : null;
   const size = imageSize?.url === result?.url ? imageSize : null;
   const settings = state.imageSettings;
@@ -154,7 +154,7 @@ export default function ImageStudio({ active = true }) {
           <span className={`image-runtime ${runtime?.ready ? "ready" : "not-ready"}`}>
             {runtime?.ready ? runtime.device : "CUDA unavailable"}
           </span>
-          <ImageGenerationHelp />
+
         </div>
       </header>
       {catalogError && <p role="alert">{catalogError}</p>}
@@ -171,7 +171,7 @@ export default function ImageStudio({ active = true }) {
             </select>
           </label>
           {selectedModel?.recommended_settings && <div className="image-model-hint">
-            <small>Verboa: start with 8 steps, guidance 2 and an empty negative prompt. Text-to-image only; dimensions must be multiples of 16. CPU offloading saves GPU memory but can be slow.</small>
+
             <button type="button" onClick={() => setImageSettings(selectedModel.recommended_settings)}>Use Verboa settings</button>
           </div>}
           <label>LoRA Adapter (optional)
@@ -181,7 +181,7 @@ export default function ImageStudio({ active = true }) {
               {compatibleLoras.map((adapter) => <option value={adapter.id} key={adapter.id}>{adapter.name} ({adapter.id.slice(0, 8)})</option>)}
             </select>
           </label>
-          <small>LoRAs are optional. Choose None to generate with the base image model.</small>
+
           {selectedLora?.trigger_word && <div className="reference-lora-hint">
             <small>{selectedLora.training_goal === 'character_identity' ? 'Character identity' : 'Style'} LoRA · Trigger: {selectedLora.trigger_word}</small>
             <button type="button" disabled={settings.prompt.includes(selectedLora.trigger_word)} onClick={() => setImageSettings({prompt: [selectedLora.trigger_word, settings.prompt].filter(Boolean).join(', ')})}>Add LoRA trigger to prompt</button>
@@ -220,7 +220,7 @@ export default function ImageStudio({ active = true }) {
           <ImageSettingsControls key={`settings-${clearVersion}`} settings={settings} onChange={setImageSettings} resolutionLimits={runtime?.resolution_limits} sourceSize={referenceImage}/>
           {referenceImage && <div className="reference-comparison">
             <button type="button" disabled={submittingReference || !settings.modelId || !settings.prompt.trim() || !runtime?.ready} onClick={compareReferences}>Compare change amounts</button>
-            <small>Queues up to three variations around the current amount, using the same seed and a matched refinement budget. Compare the results below before choosing a new reference.</small>
+
           </div>}
           <ImageBatchControls key={`batch-${clearVersion}`} settings={settings} onChange={setImageSettings} onSubmit={items => generateBatch(items, referenceOptions)} disabled={submittingReference || !settings.modelId || !settings.prompt.trim() || !runtime?.ready}/>
           <ImageOutputFolder key={`folder-${clearVersion}`} value={settings.outputDir} onChange={outputDir => setImageSettings({ outputDir })} />
@@ -254,7 +254,7 @@ export default function ImageStudio({ active = true }) {
             {editError && <p role="alert">{editError}</p>}
             {result.output_warning && <p role="alert">{result.output_warning}</p>}
             <p>{result.filename} {size ? `| ${size.width} × ${size.height} pixels` : ""} {result.generation_seconds != null ? `| generated in ${result.generation_seconds.toFixed(1)}s` : ""} {result.peak_vram_bytes ? `| peak ${(result.peak_vram_bytes / 1024 ** 3).toFixed(2)} GiB` : ""}</p>
-            <p>Click to enlarge.</p>
+
           </> : <p className="image-studio-empty">Generated images will appear here and in the Images gallery.</p>}
           {batch && editError && <p role="alert">{editError}</p>}
           </div>

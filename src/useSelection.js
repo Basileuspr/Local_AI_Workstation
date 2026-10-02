@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { batchFeedback, processBatch, selectedItems } from "./bulkActions";
+import {useRangeSelection} from './useRangeSelection';
+import {hasSelectionModifier} from './fileSelection';
 
 const byId = item => item.id;
 
-export function useSelection(items, key = byId, scope = "") {
+export function useSelection(items, key = byId, scope = "", rangeItems = items) {
   const [enabled, setEnabled] = useState(false);
   const [ids, setIds] = useState(new Set());
   const signature = JSON.stringify(items.map(key));
+  const range = useRangeSelection(rangeItems.map(key), ids, setIds, {scope});
   useEffect(() => {
     const valid = new Set(JSON.parse(signature));
     setIds(current => new Set([...current].filter(id => valid.has(id))));
@@ -15,15 +18,15 @@ export function useSelection(items, key = byId, scope = "") {
   return {
     enabled, ids, items: selectedItems(items, ids, key),
     start: () => setEnabled(true),
-    end: () => { setEnabled(false); setIds(new Set()); },
-    clear: () => setIds(new Set()),
-    toggle: item => setIds(current => {
-      const next = new Set(current), id = key(item);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    }),
+    end: () => { range.reset(); setEnabled(false); setIds(new Set()); },
+    clear: () => { range.reset(); setIds(new Set()); },
+    toggle: (item, event) => range.toggle(key(item), event),
+    activate: (item, event, open) => {
+      if (enabled || hasSelectionModifier(event) || !open) { setEnabled(true); range.toggle(key(item), event); }
+      else open();
+    },
     has: item => ids.has(key(item)),
-    selectAll: visible => setIds(current => new Set([...current, ...visible.map(key)])),
+    selectAll: visible => { range.reset(); setIds(current => new Set([...current, ...visible.map(key)])); },
     forget: removed => setIds(current => {
       const deleted = new Set(removed.map(key));
       return new Set([...current].filter(id => !deleted.has(id)));

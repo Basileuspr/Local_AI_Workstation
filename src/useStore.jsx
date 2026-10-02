@@ -1,7 +1,8 @@
-import { createContext, useContext, useReducer, useRef, useCallback } from "react";
+import { createContext, useContext, useReducer, useRef, useCallback, useLayoutEffect } from "react";
+import { applyAppearance, defaultAppearance, normalizeAppearance } from "./appearance";
 import { defaultRoleplayConfig, mergeRoleplayConfig,roleplayFromCharacter } from "./roleplayPrompt";
 import { defaultImageSettings, defaultVoiceOutput, normalizeVoiceOutput, loadPreferences } from "./preferences";
-import { loadNavigation } from "./navigation";
+import { loadStartupNavigation } from "./navigation";
 import { orderModels } from "./modelOrder";
 
 const StoreContext = createContext(null);
@@ -28,12 +29,15 @@ const initialState = {
   memorySummary: "",
   summarizedMessageCount: 0,
   scrollTargetMessageId: "",
+  chatDraftVersion: 0,
 
   // Sidebar
   activeSidebarTab: "chats",
   sessions: [],
   sessionImages: [],
   kbDocuments: [],
+  indexEntryTarget: null,
+  knowledgeNodeTarget: null,
 
   // Generation
   isGenerating: false,
@@ -44,6 +48,7 @@ const initialState = {
   knowledgeMode: "off",
 
   // Settings
+  appearance: defaultAppearance,
   settingsOpen: false,
   slidersOpen: false,
   activeProfile: "balanced",
@@ -54,7 +59,7 @@ const initialState = {
   numPredict: 1024,
   responseLength: 1024,
   systemPrompt: "",
-  responseStyle: "structured",
+  responseStyle: "default",
   roleplayOpen: false,
   roleplay: defaultRoleplayConfig,
   imageSettings: defaultImageSettings,
@@ -70,12 +75,13 @@ const initialState = {
 
 function createInitialState() {
   const preferences = loadPreferences();
-  const navigation = loadNavigation();
+  const navigation = loadStartupNavigation(preferences.startupBehavior);
   const scope = preferences.knowledgeScopes?.[navigation.sessionId] || preferences.knowledgeScopes?.draft || { mode: "off", ids: [] };
   return {
     ...initialState,
     ...preferences,
     activeSidebarTab: navigation.tab,
+    startupNavigation: navigation,
     useKnowledgeBase: scope.mode !== "off",
     knowledgeMode: scope.mode,
     knowledgeDocIds: scope.mode === "selected" ? scope.ids : null,
@@ -188,7 +194,17 @@ export function reducer(state, action) {
 
     case "SET_SELECTED_MODEL":
       return updateActiveCustomProfile({ ...state, selectedModel: action.payload });
+    case "SET_STARTUP_BEHAVIOR":
+      return { ...state, startupBehavior: action.payload === "resume" ? "resume" : "new" };
 
+    case "START_NEW_CHAT": {
+      const scope = state.knowledgeScopes?.draft || { mode: "off", ids: [] };
+      return { ...state, activeSidebarTab: "chats", currentSessionId: null, sessionRevision: null,
+        conversationHistory: [], sessionTitle: "New Chat", memorySummary: "", summarizedMessageCount: 0,
+        scrollTargetMessageId: "", chatDraftVersion: (state.chatDraftVersion || 0) + 1,
+        knowledgeMode: scope.mode, knowledgeDocIds: scope.mode === "selected" ? scope.ids : null,
+        useKnowledgeBase: scope.mode !== "off" };
+    }
     case "SET_SESSION": {
       const {
         id,
@@ -197,12 +213,14 @@ export function reducer(state, action) {
         memorySummary = "",
         summarizedMessageCount = 0,
         revision = null,
+        selectedModel = state.selectedModel,
       } = action.payload;
       const scopes = state.knowledgeScopes || {};
       const scope = scopes[id] || (!state.currentSessionId ? scopes.draft : null) || { mode: "off", ids: [] };
       return {
         ...state,
         currentSessionId: id,
+        selectedModel,
         sessionRevision: revision,
         conversationHistory: messages,
         sessionTitle: title,
@@ -248,6 +266,7 @@ export function reducer(state, action) {
       if (!message || message.content !== action.expectedContent) return state;
       const next = { ...state, conversationHistory: state.conversationHistory.map(item =>
         item.id === saved.message_id ? { ...item, content: saved.content,
+          ...(Array.isArray(saved.checklist_history) ? { checklist_history: saved.checklist_history } : {}),
           ...(saved.checklist_editable ? { checklist_editable: true } : {}) } : item) };
       // A narrow response cannot certify other history that arrived out of order.
       if (state.sessionRevision === saved.previous_revision) {
@@ -276,11 +295,26 @@ export function reducer(state, action) {
     case "SET_SIDEBAR_TAB":
       return { ...state, activeSidebarTab: action.payload };
 
+    case "OPEN_INDEX_ENTRY":
+      return { ...state, activeSidebarTab: "library", indexEntryTarget: { id: action.payload } };
+    case "CLEAR_INDEX_ENTRY_TARGET":
+      return { ...state, indexEntryTarget: null };
+    case "OPEN_KNOWLEDGE_NODE":
+      return { ...state, activeSidebarTab: "knowledge", knowledgeNodeTarget: { id: action.payload } };
+    case "CLEAR_KNOWLEDGE_NODE_TARGET":
+      return { ...state, knowledgeNodeTarget: null };
+
     case "SET_ACTIVE_LORA_PROJECT":
       return { ...state, activeLoraProjectId: action.payload || "" };
 
     case "SET_SESSIONS":
       return { ...state, sessions: action.payload };
+
+    case "SESSION_TITLE_UPDATED": {
+      const { id, title } = action.payload;
+      return { ...state, sessions: state.sessions.map(item => item.id === id ? { ...item, title } : item),
+        sessionImages: state.sessionImages.map(item => item.session_id === id ? { ...item, session_title: title } : item) };
+    }
 
     case "SET_SESSION_IMAGES":
       return { ...state, sessionImages: action.payload };
@@ -431,6 +465,12 @@ export function reducer(state, action) {
         roleplay: defaultRoleplayConfig,
       };
 
+    case "SET_APPEARANCE":
+      return { ...state, appearance: normalizeAppearance({ ...state.appearance, ...action.payload }) };
+
+    case "RESET_APPEARANCE":
+      return { ...state, appearance: { ...defaultAppearance } };
+
     case "RESET_PREFERENCES":
       return {
         ...state,
@@ -466,6 +506,7 @@ export function reducer(state, action) {
 
 export function StoreProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, undefined, createInitialState);
+  useLayoutEffect(() => { applyAppearance(state.appearance); }, [state.appearance]);
   // Refs for things that need to survive across renders without causing re-renders
   const refs = useRef({
     abortController: null,
@@ -485,6 +526,29 @@ export function StoreProvider({ children }) {
       </DispatchContext.Provider>
     </StoreContext.Provider>
   );
+}
+
+// A second chat owns its conversation, draft, request refs, and settings.
+// Connection/catalog data and application navigation remain shared.
+export function ChatStoreProvider({ children }) {
+  const parent = useStore(), parentDispatch = useDispatch();
+  const [local, localDispatch] = useReducer(reducer, null, () => ({ ...createInitialState(),
+    selectedModel: parent.selectedModel, activeSidebarTab: "chats", currentSessionId: null,
+    conversationHistory: [], sessionTitle: "New Chat", memorySummary: "", summarizedMessageCount: 0 }));
+  const dispatch = useCallback(action => {
+    if (["SHOW_TOAST", "SET_SESSIONS", "SESSION_TITLE_UPDATED", "SET_SESSION_IMAGES", "SET_KB_DOCUMENTS", "OPEN_INDEX_ENTRY", "OPEN_KNOWLEDGE_NODE",
+      "OPEN_IMAGE_WORKFLOW", "OPEN_ITERATIVE_SCENE", "SET_ACTIVE_LORA_PROJECT", "SET_APPEARANCE", "RESET_APPEARANCE", "SET_STARTUP_BEHAVIOR"].includes(action.type)
+      || action.type === "SET_SIDEBAR_TAB") parentDispatch(action);
+    else localDispatch(action);
+  }, [parentDispatch]);
+  const refs = useRef({ abortController: null, generationRequestId: null, stopRequested: false });
+  const state = { ...local, connected: parent.connected, serviceStatus: parent.serviceStatus,
+    modelsError: parent.modelsError, models: orderModels(parent.models, local.modelOrder),
+    sessions: parent.sessions, kbDocuments: parent.kbDocuments, sessionImages: parent.sessionImages,
+    appearance: parent.appearance, startupBehavior: parent.startupBehavior, activeSidebarTab: parent.activeSidebarTab };
+  return <StoreContext.Provider value={state}><DispatchContext.Provider value={dispatch}>
+    <RefsContext.Provider value={refs.current}>{children}</RefsContext.Provider>
+  </DispatchContext.Provider></StoreContext.Provider>;
 }
 
 export function useStore() {

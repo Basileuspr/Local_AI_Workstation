@@ -3,6 +3,7 @@ import { apiUrl } from "../api";
 import { downloadBlob } from "../downloadBlob";
 import { SOFTWARE_GROUPS, formatSoftwareSpecs } from "../softwareSpecs";
 import { rendererBuild, buildIdentityLines } from "../buildIdentity";
+import ApplicationMaintenance from './ApplicationMaintenance';
 
 export default function SoftwareSpecs() {
   const [snapshot, setSnapshot] = useState(null), [groups, setGroups] = useState(SOFTWARE_GROUPS.map(([id]) => id));
@@ -23,7 +24,7 @@ export default function SoftwareSpecs() {
     value.frontend.renderer_build = rendererBuild;
     setSnapshot(value); return value;
   }
-  return <section className="dashboard-card software-specs"><h2>App software specs</h2><p className="dashboard-note">Current source folders, installed versions, available app API calls, and model catalogs. Choose which sections to include.</p>
+  return <><ApplicationMaintenance /><section className="dashboard-card software-specs"><h2>App software specs</h2>
     <div className="software-spec-groups">{SOFTWARE_GROUPS.map(([id, label]) => <label key={id}><input type="checkbox" checked={groups.includes(id)} onChange={event => setGroups(value => event.target.checked ? [...value, id] : value.filter(item => item !== id))} />{label}</label>)}</div>
     <div className="software-spec-actions"><button disabled={busy} onClick={() => act(refresh)}>Refresh software specs</button>
       <button disabled={busy || !groups.length} onClick={() => act(async () => { const value = await refresh(); await navigator.clipboard.writeText(formatSoftwareSpecs(value, groups)); setNotice("Selected software specs copied."); })}>Copy app specs</button>
@@ -33,6 +34,6 @@ export default function SoftwareSpecs() {
     {snapshot && <><p className="dashboard-note">Version {snapshot.build?.package_version || snapshot.build?.app_version || "unavailable"} · Build {snapshot.build?.build_id || "unrecorded"}</p>
       {buildIdentityLines(snapshot).filter(line => line.includes("differ") || line.includes("rebuild") || line.includes("Rebuild")).map(line => <p role="status" key={line}>{line}</p>)}
       <details><summary>Preview selected specs · {new Date(snapshot.sampled_at).toLocaleString()}</summary><pre className="software-spec-preview">{formatSoftwareSpecs(snapshot, groups)}</pre></details></>}
-    <p className="dashboard-note">API calls describe registered app endpoints, not tools granted to a model. Log export includes recorded paths and errors; session credentials are redacted.</p>
-  </section>;
+
+  </section></>;
 }

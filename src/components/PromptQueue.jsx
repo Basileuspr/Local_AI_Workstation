@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { chatSubmissionQueue } from "../chatSubmissionQueue";
+import { chatStageLabel } from "../chatActivity";
 import { apiUrl } from "../api";
 import { queueObserver } from "../appPolling";
 import { invalidatePolling } from "../polling";
@@ -12,7 +13,7 @@ import "./PromptQueue.css";
 const QueueContext = createContext({ jobs: [], error: "", paused: false });
 const pending = (job) => ["queued", "running", "cancelling"].includes(job.status);
 export function usePromptQueue() { return useContext(QueueContext); }
-const names = { gif: "GIF Maker", chat: "Chat", image: "Image", training: "LoRA training", analysis: "LoRA analysis", compact: "Chat memory", workflow: "Image workflow", "character-parts": "Character regions" };
+const names = { 'local-file': 'Video processing', 'video-vision': 'Video vision', gif: "GIF Maker", chat: "Chat", image: "Image", training: "LoRA training", analysis: "LoRA analysis", compact: "Chat memory", workflow: "Image workflow", "character-parts": "Character regions" };
 
 export function PromptQueueProvider({ children }) {
   const [data, setData] = useState({ jobs: [], error: "", paused: false });
@@ -67,7 +68,7 @@ export function QueueJobTiming({jobId, requestId}) {
 
 export function QueueTimingReport({reports = [], persistent = true}) {
   return <details className="queue-timing-report"><summary>Queue timing report ({reports.length})</summary>
-    <p>Last 200 observed requests, saved locally in this UI. Wait is separate from run time; run time includes loading and saving. Only successful runs train the averages. First-observed estimates stay in the report for comparison; estimated wait includes time already spent queued. Estimates vary with settings, model loading, and hardware.</p>
+
     {!persistent && <p role="status">Local storage is unavailable. This report lasts for this window only.</p>}
     <button type="button" disabled={!reports.length} onClick={()=>downloadBlob(new Blob([JSON.stringify(reports,null,2)], {type:'application/json'}),'queue-timing-report.json')}>Save timing report</button>
     <div className="queue-timing-table"><table><thead><tr><th>Request</th><th>Status</th><th>Estimated wait / run</th><th>Actual wait / run</th><th>Estimate basis</th></tr></thead><tbody>
@@ -81,7 +82,7 @@ export function QueueRequestStatus({ requestId, projectId, kind }) {
   const dispatch = useDispatch();
   const job = [...jobs].reverse().find((entry) => (requestId ? entry.request_id === requestId : projectId ? entry.project_id === projectId : false) && (!kind || entry.kind === kind));
   if (!job || !pending(job)) return null;
-  return <div className="queue-request-status" role="status"><div><span>{job.status === "queued" ? `Queued · waiting position ${job.position}` : job.status === "cancelling" ? "Stopping safely…" : "Running"}</span><QueueJobTiming jobId={job.id}/></div><button type="button" onClick={() => dispatch({ type: "SET_SIDEBAR_TAB", payload: "queue" })}>View Prompt Queue</button></div>;
+  return <div className="queue-request-status" role="status"><div><span title={job.stage_detail}>{job.status === "queued" ? `Queued · waiting position ${job.position}` : job.status === "cancelling" ? "Stopping safely…" : job.stage ? chatStageLabel(job.stage) : "Running"}</span><QueueJobTiming jobId={job.id}/></div><button type="button" onClick={() => dispatch({ type: "SET_SIDEBAR_TAB", payload: "queue" })}>View Prompt Queue</button></div>;
 }
 
 export default function PromptQueue({ onOpenDestination }) {
@@ -128,7 +129,7 @@ export default function PromptQueue({ onOpenDestination }) {
     </article>;
   }
   return <section className="prompt-queue">
-    <header><p className="queue-eyebrow">Shared local workload</p><h1>Prompt Queue</h1><p>GPU requests run in submission order. GIF exports run one at a time in their own CPU queue, alongside GPU work. Submit normally from their tabs; busy requests wait here.</p></header>
+    <header><p className="queue-eyebrow">Shared local workload</p><h1>Prompt Queue</h1></header>
     {(error || actionError) && <p className="queue-error" role="alert">{actionError || error}{error && jobs.length > 0 ? " Last known queue state is shown." : ""}</p>}
     <div className="queue-summary" role="status">{paused ? "Queue paused for runtime reset" : active.length ? `${active.length} request${active.length === 1 ? "" : "s"} in progress or waiting` : "Ready for requests"}{gpuOwner && !active.some((job) => job.status === "running" || job.status === "cancelling") ? " · waiting for the current GPU task to finish" : ""}</div>
     <QueueTimeSummary images/>
@@ -136,11 +137,11 @@ export default function PromptQueue({ onOpenDestination }) {
     <h2>Running & waiting</h2>
     {active.length ? active.map(jobCard) : <p className="queue-empty">No pending requests. Start a chat, generate an image, create a GIF, or start LoRA training.</p>}
     {followUps.length > 0 && <section aria-label="Chat follow-ups"><h2>Waiting for earlier chat replies</h2>
-      <p>These prompts join the shared queue after earlier replies are saved, so they include the latest chat context.</p>
+
       {followUps.map(job => <article className="queue-job" key={job.id}><h3><button type="button" className="queue-open" onClick={() => open({ ...job, kind: "chat" })}>{job.label}</button></h3><button type="button" onClick={() => chatSubmissionQueue.cancel(job.id)}>Cancel waiting prompt</button></article>)}
     </section>}
     <h2>Recent requests</h2>
     {history.length ? history.map(jobCard) : <p className="queue-empty">Completed, cancelled and failed requests will appear here.</p>}
-    <p className="queue-footnote">This queue lasts for the current backend run. Keep the app open for pending work. Chat and image results return to the submitting chat; GIF results return to GIF Maker. Restarting clears pending work. Missing models and invalid inputs still need correction. Stopping a running job waits for its worker to exit before starting the next request in that lane.</p>
+
   </section>;
 }

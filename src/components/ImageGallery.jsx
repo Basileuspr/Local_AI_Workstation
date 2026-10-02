@@ -1,5 +1,8 @@
+import {preventSelectionText} from '../fileSelection';
+import ImageThumbnail from "./ImageThumbnail";
 import ProtectedImage from "../ImagePrivacy";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useDismissiblePopup } from '../useDismissiblePopup';
 import { createPortal } from "react-dom";
 import CollectionPager from "./CollectionPager";
 import WorkflowImageLibrary from "./WorkflowImageLibrary";
@@ -37,8 +40,10 @@ export default function ImageGallery({ images, onOpen, onRemove, onDelete, onIma
   const originalIds = new Set(images.map(image => image.id));
   const owned = library.images.filter(image => !isReviewUpload(image) && !!image.hidden === hidden && !(image.origin?.kind === "session" && originalIds.has(`${image.origin.session_id}:${image.origin.message_id}:${image.origin.image_id}`)) && image.origin?.kind !== "workflow");
   const shown = [...(hidden ? hiddenImages : images), ...owned];
-  const selection = useSelection(shown, item => item.id, folder);
   const selectedFolder = library.folders.find(item => `folder:${item.id}` === folder);
+  const folderMenu = useRef(null), [folderMenuOpen, setFolderMenuOpen] = useState(false);
+  useDismissiblePopup({ open: folderMenuOpen && active && !!selectedFolder, container: folderMenu,
+    onDismiss: () => setFolderMenuOpen(false), returnFocus: () => folderMenu.current?.querySelector('summary') });
   function lockImages(items, onCancel = null) { setLocking({ items, onCancel }); setSelectedImageId(null); }
   function cancelLocking() { setLocking(null); locking?.onCancel?.(); }
   useEffect(() => { if (!active) setLocking(null); }, [active]);
@@ -65,13 +70,14 @@ export default function ImageGallery({ images, onOpen, onRemove, onDelete, onIma
   const pageSize = compact ? 36 : 18;
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, pages - 1);
+  const selection = useSelection(shown, item => item.id, folder, filtered.slice(currentPage * pageSize, (currentPage + 1) * pageSize));
 
   const collections = [
     ["general", "General Images"], ["workflows", "Workflow Images"], ["saved", "Saved Images"],
     ["liked", "Liked Images"], ["disliked", "Disliked Images"], ["hidden", "Hidden Images"], ["locked", "Locked Images"],
   ];
   const title = selectedFolder?.name || collections.find(([id]) => id === folder)?.[1] || "Images";
-  function chooseFolder(value) { setFolder(value); setPage(0); setQuery(""); setSelectedImageId(null); onNavigate?.(); }
+  function chooseFolder(value) { setFolderMenuOpen(false); setFolder(value); setPage(0); setQuery(""); setSelectedImageId(null); onNavigate?.(); }
   const navigation = <nav className="image-library-navigation" aria-label="Image collections">
     <p className="image-library-nav-label">Collections</p>
     {collections.map(([id, name]) => <button type="button" key={id} aria-current={folder === id ? "page" : undefined}
@@ -85,7 +91,7 @@ export default function ImageGallery({ images, onOpen, onRemove, onDelete, onIma
 
   const workspace = <section className="image-library-workspace" aria-label="Image library" data-density={compact ? "compact" : "comfortable"}>
     <header className="image-library-header"><div><p className="image-library-eyebrow">Image library</p><h1>{title}</h1></div>
-      <span className="image-library-description">Browse, organize, and open your images.</span></header>
+      </header>
     <div className="image-library-toolbar">
       <button type="button" disabled={!destinations} onClick={() => destinations.openGifMaker()}>GIF Maker</button>
       <label className="image-library-mobile-collection">Collection<select aria-label="Image collection" value={folder} onChange={event => chooseFolder(event.target.value)}>
@@ -98,8 +104,8 @@ export default function ImageGallery({ images, onOpen, onRemove, onDelete, onIma
         <button type="button" aria-pressed={!compact} onClick={() => { setCompact(false); setPage(0); }}>Comfortable</button>
         <button type="button" aria-pressed={compact} onClick={() => { setCompact(true); setPage(0); }}>Compact</button>
       </div>
-      {selectedFolder && <details className="image-library-folder-menu"><summary>Folder options</summary><div>
-        <button type="button" onClick={() => setFolderEditor(selectedFolder)}>Rename folder</button><button type="button" onClick={async () => {
+      {selectedFolder && <details className="image-library-folder-menu" ref={folderMenu} open={folderMenuOpen} onToggle={event => setFolderMenuOpen(event.currentTarget.open)}><summary>Folder options</summary><div>
+        <button type="button" onClick={() => { setFolderMenuOpen(false); setFolderEditor(selectedFolder); }}>Rename folder</button><button type="button" onClick={async () => {
           if (!window.confirm(`Delete folder "${selectedFolder.name}"? Its images stay in Saved Images.`)) return;
           try { await libraryApi.deleteFolder(selectedFolder.id); chooseFolder("saved"); libraryApi.changed(); } catch (failure) { setError(failure.message); }
         }}>Delete folder</button>
@@ -138,8 +144,8 @@ export default function ImageGallery({ images, onOpen, onRemove, onDelete, onIma
         <div className="gallery-item-row" key={image.id}>
           <SelectionCheckbox selection={selection} item={image} label={`image ${image.name}`} disabled={batch.busy} />
           <button className={`gallery-item ${selection.has(image) ? "is-selected" : ""}`} type="button" title={`${selection.enabled ? "Select" : "Enlarge"} ${image.name}`}
-            aria-pressed={selection.enabled ? selection.has(image) : undefined} disabled={batch.busy} onClick={() => selection.enabled ? selection.toggle(image) : setSelectedImageId(image.id)}>
-            <span className="gallery-thumbnail"><ProtectedImage loading="lazy" src={image.url} alt={image.name} /></span>
+            aria-pressed={selection.enabled ? selection.has(image) : undefined} disabled={batch.busy} onMouseDown={preventSelectionText} onClick={event => selection.activate(image,event,()=>setSelectedImageId(image.id))}>
+            <span className="gallery-thumbnail"><ImageThumbnail loading="lazy" src={image.url} alt={image.name} /></span>
             <span className="gallery-details">
               <span className="gallery-name">{image.name}</span>
               <span className="gallery-meta">{image.session_title || image.source || "Saved image"}</span>

@@ -1,6 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import * as api from "../imageLibraryApi";
 import ImageTagButtons from "./ImageTagButtons";
+import ReviewRecordDetails from './ReviewRecordDetails';
 
 const ImageReviewMetadata = forwardRef(function ImageReviewMetadata({ image, tags, onSaved, onTagsChanged, disabled }, ref) {
   const initial = image.annotations?.caption || "";
@@ -40,6 +41,7 @@ const ImageReviewMetadata = forwardRef(function ImageReviewMetadata({ image, tag
     if (alive.current) onSavedRef.current({ id: updated.id, tag_ids: updated.tag_ids });
   }
   return <div className="review-metadata">
+    <ReviewRecordDetails image={image} />
     <label>Caption / identity notes<textarea className="review-caption" aria-label="Image caption" rows={2} maxLength={10000} value={caption} disabled={disabled} onChange={event => { draft.current = event.target.value; setCaption(event.target.value); }} placeholder="Add a caption or identity notes…" /></label>
     <div className="review-caption-status"><span role="status">{saving ? "Saving caption…" : caption === saved ? "Caption saved" : "Unsaved caption"}</span><button type="button" disabled={disabled || saving || caption === saved} onClick={() => saveCaption().catch(() => {})}>Save caption</button></div>
     {error && <p role="alert">{error}</p>}

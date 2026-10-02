@@ -6,6 +6,7 @@ Profiles refer to those copies or to IDs in the owning workspace.
 """
 from __future__ import annotations
 
+from services import storage_libraries as storage
 import hashlib
 import io
 import json
@@ -81,10 +82,10 @@ def legacy_media_type(path, modified, suffix, previous_type, previous_category):
             return previous_type, previous_category
 
 
-def asset_path(asset_id, suffix):
+def asset_path(asset_id, suffix, *, create=False):
     if not re.fullmatch(r"[a-f0-9]{64}", asset_id or ""):
         raise ValueError("Invalid saved file ID")
-    return bank.ROOT / "assets" / f"{asset_id}.{suffix}"
+    return storage.resolve(bank.ROOT / "assets" / f"{asset_id}.{suffix}", create=create)
 
 
 def asset(asset_id):
@@ -125,7 +126,7 @@ def catalog(kind):
         items = bank.list_characters()
     elif kind == "file":
         items = []
-        for path in (bank.ROOT / "assets").glob("*.json"):
+        for path in storage.glob_paths(bank.ROOT / "assets", "*.json"):
             try:
                 items.append(asset(path.stem))
             except (ValueError, OSError, KeyError):
@@ -244,8 +245,8 @@ def save_asset(filename, payload):
     mime, category = media_type(io.BytesIO(payload), suffix)
     with bank.LOCK:
         if not asset_path(digest, "json").is_file() or not asset_path(digest, "blob").is_file():
-            atomic(asset_path(digest, "blob"), payload)
-            atomic(asset_path(digest, "json"), json.dumps({"id": digest, "name": name, "size": len(payload),
+            atomic(asset_path(digest, "blob", create=True), payload)
+            atomic(asset_path(digest, "json", create=True), json.dumps({"id": digest, "name": name, "size": len(payload),
                    "media_type": mime, "category": category, "media_version": MEDIA_VERSION}, ensure_ascii=False).encode())
         return asset(digest)
 

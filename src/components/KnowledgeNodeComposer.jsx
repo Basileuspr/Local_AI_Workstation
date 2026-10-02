@@ -3,7 +3,6 @@ import { knowledgeGraphRequest } from "../api";
 import { KNOWLEDGE_NODE_KINDS, knowledgeNodeDraft } from "../knowledgeNodes";
 
 export function KnowledgeNodeForm({ draft, onChange, disabled, submitLabel, onSubmit, onCancel }) {
-  const kind = KNOWLEDGE_NODE_KINDS.find(item => item.value === draft.kind);
   return <form className="vault-compose-form" onSubmit={onSubmit}>
     <fieldset disabled={disabled}>
       <legend className="vault-compose-legend">{submitLabel}</legend>
@@ -11,9 +10,8 @@ export function KnowledgeNodeForm({ draft, onChange, disabled, submitLabel, onSu
         <label>Node title<input required maxLength={100} value={draft.title} onChange={event => onChange({ ...draft, title: event.target.value })} placeholder="Give this node a name…" /></label>
         <label>Node type<select value={draft.kind} onChange={event => onChange({ ...draft, kind: event.target.value })}>{KNOWLEDGE_NODE_KINDS.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
       </div>
-      <p>{kind?.hint}</p>
       <label>Node content<textarea rows={5} maxLength={100000} value={draft.text} onChange={event => onChange({ ...draft, text: event.target.value })} placeholder="Write here, paste text, or start with just a title. Use [[another node title]] to link nodes." /></label>
-      <p>Content is available to chat retrieval. Find nodes by name or tags, customize their appearance, and connect them in Knowledge.</p>
+
       <div className="vault-compose-actions"><button type="submit" disabled={!draft.title.trim()}>{submitLabel}</button>{onCancel && <button type="button" onClick={onCancel}>Close</button>}</div>
     </fieldset>
   </form>;

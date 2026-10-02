@@ -30,7 +30,7 @@ export function FolderSpaceResults({ report, status }) {
     {total > 0 && <div className="folder-space-bar" role="img" aria-label="Share of scanned file sizes by folder. Exact values are in the list below.">
       {segments.filter(item => item.bytes > 0).map((item, index) => <span key={index} style={{ width: `${item.bytes / total * 100}%`, background: item.color }} title={`${item.name}: ${folderBytes(item.bytes)} (${share(item.bytes)})`} />)}
     </div>}
-    <p className="dashboard-note">Largest to smallest · Percentages are shares of scanned file sizes, not total drive capacity.</p>
+
     <div className="folder-space-table-wrap">
       <table className="folder-space-table"><thead><tr><th scope="col">Top-level folder</th><th scope="col">File size</th><th scope="col">Share</th></tr></thead>
         <tbody>{folders.map((row, index) => <tr key={row.name}>
@@ -42,7 +42,7 @@ export function FolderSpaceResults({ report, status }) {
     </div>
     {!folders.length && status === "complete" && <p className="dashboard-note">No top-level folders were found.</p>}
     {(report.errors > 0 || report.skipped_links > 0 || status === "canceled") && <p className="dashboard-notice" role="status">Partial coverage: {report.errors.toLocaleString()} unreadable items; {report.skipped_links.toLocaleString()} links or placeholders skipped.{status === "canceled" ? " The scan was canceled; unfinished folders are incomplete." : ""}</p>}
-    <p className="dashboard-note">Shared hardlinks are counted once, under the first location scanned. Links, junctions, and cloud placeholders are skipped. File sizes can differ from space used on disk because of compression, sparse files, filesystem overhead, inaccessible files, and changes during the scan.</p>
+
     <p className="dashboard-note">{status === "complete" ? "Finished" : "Last update"}: {new Date(report.sampled_at).toLocaleString()}</p>
   </>;
 }

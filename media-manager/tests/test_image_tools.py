@@ -27,6 +27,17 @@ class ImageToolsTests(unittest.TestCase):
     def execute(self, **settings):
         return image_tools.execute(self.state,dict(batchId=self.info['id'],destination=str(self.root/'out'),**settings),lambda **_:None,self.cancel)['imageOutput']
 
+    def test_thumbnails_use_known_unchanged_images_without_editing_sources(self):
+        for index, record in enumerate(self.info['records']):
+            path = image_tools.thumbnail_source(self.state, self.info['id'], index)
+            self.assertEqual(str(path), record['path'])
+            self.assertTrue(self.state.thumbnails.get(path).startswith(b'\xff\xd8'))
+            self.assertEqual(path.read_bytes(), self.originals[path])
+        for batch_id, index in [('unknown', 0), (self.info['id'], -1), (self.info['id'], 1000), (self.info['id'], True)]:
+            with self.assertRaises(ValueError): image_tools.thumbnail_source(self.state, batch_id, index)
+        Path(self.info['records'][0]['path']).write_bytes(b'changed')
+        with self.assertRaisesRegex(ValueError, 'changed'): image_tools.thumbnail_source(self.state, self.info['id'], 0)
+
     def pixels(self,path):
         return subprocess.check_output([self.binary['ffmpeg'],'-v','error','-i',str(path),'-f','rawvideo','-pix_fmt','rgb24','pipe:1'],creationflags=frames.FLAGS)
 

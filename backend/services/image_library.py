@@ -13,6 +13,8 @@ from pathlib import Path
 
 from PIL import Image, UnidentifiedImageError
 from config import settings
+from services import storage_libraries as storage
+from services import review_metadata
 
 ROOT = settings.data_dir / "image_library"
 LOCK = threading.RLock()
@@ -96,9 +98,19 @@ def public_index():
 def decorate(item):
     # All old direct uploads came from Image Review. Apply that separation to
     # existing records too, without rewriting user files just to list them.
-    return {**item, "review_only": item.get("review_only", False) or item.get("origin", {}).get("kind") in {"upload", "review"},
+    manual = review_metadata.metadata(item)
+    record = media_record(item)
+    return {**item, **{key: manual[key] for key in ('schema_version', 'category', 'project', 'favorite', 'review_status')},
+            **{key: record[key] for key in ('media_id', 'media_type', 'path', 'file_state', 'metadata')}, "review_only": item.get("review_only", False) or item.get("origin", {}).get("kind") in {"upload", "review"},
             "tag_ids": item.get("tag_ids", []), "annotations": item.get("annotations", {}),
             "url": f"/image-library/images/{item['id']}/content"}
+
+
+def media_record(item):
+    logical = ROOT / 'images' / (identity(item['id']) + '.image')
+    location = review_metadata.location(lambda: storage.no_links(storage.resolve(logical)),previous_path=item.get('path'))
+    details = {key: item[key] for key in ('origin','annotations','sha256','seed','width','height','type','size','created_at') if key in item}
+    return review_metadata.media_record('library',item['id'],manual=item,details=details,**location)
 
 
 def import_image(data, name, origin=None, folder_id=None):
@@ -122,8 +134,11 @@ def import_image(data, name, origin=None, folder_id=None):
             if changed: save_index(index)
             return decorate(existing)
         item = {**metadata, "id": uuid.uuid4().hex, "folder_ids": [folder_id] if folder_id else [], "rating": None,
-                "origin": origin or {"kind": "upload"}, "annotations": {}}
-        atomic(ROOT / "images" / (item["id"] + ".image"), data)
+                "origin": origin or {"kind": "upload"}, "annotations": {},
+                "schema_version": 1, "category": "", "project": "", "favorite": False, "review_status": "unreviewed"}
+        destination = storage.resolve(ROOT / "images" / (item["id"] + ".image"), create=True)
+        atomic(destination, data)
+        item.update(media_id='library:'+item['id'],media_type='image',path=str(destination.absolute()),file_state='present')
         index["images"].append(item)
         save_index(index)
         return decorate(item)
@@ -135,21 +150,25 @@ def image_bytes(item_id):
         item = next((item for item in read_index()["images"] if item["id"] == identity(item_id)), None)
         if not item: raise ValueError("Image no longer exists")
         image_vault.require_public(item["sha256"])
-        data = (ROOT / "images" / (item_id + ".image")).read_bytes()
+        state = media_record(item)['file_state']
+        if state != 'present': raise ValueError('Image file is missing. Restore its storage and refresh REVIEW.' if state=='missing' else 'Image storage is unavailable. Reconnect its storage and refresh REVIEW.')
+        data = storage.resolve(ROOT / "images" / (item_id + ".image")).read_bytes()
         if hashlib.sha256(data).hexdigest() != item["sha256"]: raise ValueError("Stored image has changed")
         return data, item
 
 
-def edit_image(item_id, *, rating=None, folder_ids=None, set_rating=False, hidden=None, caption=None, tag_ids=None):
+def edit_image(item_id, *, rating=None, folder_ids=None, set_rating=False, hidden=None, caption=None, tag_ids=None, category=None, project=None, favorite=None, review_status=None):
     with LOCK:
         index = read_index()
         item = next((item for item in index["images"] if item["id"] == identity(item_id)), None)
         if not item: raise ValueError("Image no longer exists")
         from services import image_vault
         image_vault.require_public(item["sha256"])
-        if set_rating:
-            if rating not in (None, "liked", "disliked"): raise ValueError("Invalid image rating")
-            item["rating"] = rating
+        changes = {key: value for key, value in {'category': category, 'project': project,
+                   'favorite': favorite, 'review_status': review_status}.items() if value is not None}
+        if set_rating: changes['rating'] = rating
+        manual = review_metadata.patch(item, changes)
+        item.update({key: manual[key] for key in ('schema_version', 'rating', 'category', 'project', 'favorite', 'review_status')})
         if hidden is not None: item["hidden"] = hidden
         if caption is not None:
             if not isinstance(caption, str) or len(caption) > 10000: raise ValueError("Captions must be at most 10,000 characters")
@@ -162,6 +181,8 @@ def edit_image(item_id, *, rating=None, folder_ids=None, set_rating=False, hidde
             known = {folder["id"] for folder in index["folders"]}
             if any(value not in known for value in folder_ids): raise ValueError("Folder no longer exists")
             item["folder_ids"] = list(dict.fromkeys(folder_ids))
+        record = media_record(item)
+        item.update({key: record[key] for key in ('media_id','media_type','path','file_state')})
         save_index(index)
         return decorate(item)
 
@@ -221,7 +242,7 @@ def delete_image(item_id):
         index = read_index()
         index["images"] = [item for item in index["images"] if item["id"] != item_id]
         save_index(index)
-        (ROOT / "images" / (identity(item_id) + ".image")).unlink(missing_ok=True)
+        storage.resolve(ROOT / "images" / (identity(item_id) + ".image")).unlink(missing_ok=True)
 
 
 def source_bytes(source):

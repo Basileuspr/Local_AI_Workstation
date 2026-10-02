@@ -1,4 +1,3 @@
-import { useRef } from "react";
 
 const sections = [
   ["Project & models", [
@@ -44,21 +43,10 @@ const sections = [
   ]],
 ];
 
-export default function LoraHelp({learningRate=0.0001}) {
-  const dialogRef = useRef(null);
-  return (
-    <div className="lora-help">
-      <button className="lora-info-button" type="button" aria-label="LoRA help: functions and definitions" title="Functions and definitions" aria-haspopup="dialog" onClick={() => dialogRef.current?.showModal()}>
-        <span aria-hidden="true">ⓘ</span> Settings guide
-      </button>
-      <dialog ref={dialogRef} className="lora-help-dialog" aria-labelledby="lora-help-title">
-        <header className="lora-help-heading">
-          <h2 id="lora-help-title">LoRA settings · strength & functions</h2>
-          <button type="button" autoFocus onClick={() => dialogRef.current?.close()} aria-label="Close LoRA help">Close</button>
-        </header>
-        <p>Prepare images, review captions, choose training settings, then start local training. Help can stay available while a run is active.</p>
+export default function LoraHelp({learningRate}) {
+  return <div className="workspace-help-guide">
         <section><h3>Learning rate · how large each training update is</h3>
-          <p>App default: <strong>0.0001 = 1e-4</strong>. Your setting: <strong>{Number(learningRate).toExponential()} · {Number((Number(learningRate)/0.0001).toFixed(3))}× the default</strong>. This multiplier describes the configured learning rate, not a measured multiplier in image quality or training speed.</p>
+          <dl><div><dt>App default</dt><dd>0.0001 = 1e-4</dd></div>{Number.isFinite(Number(learningRate)) && learningRate != null && <div><dt>Your setting</dt><dd>{Number(learningRate).toExponential()} · {Number((Number(learningRate)/0.0001).toFixed(3))}× the default learning rate. This is not a measured change in quality or speed.</dd></div>}</dl>
           <table className="image-help-scale"><caption>Learning-rate comparison for this app's AdamW LoRA trainer</caption><thead><tr><th>Example value</th><th>Relative update scale</th><th>How to interpret it</th></tr></thead><tbody>
             <tr><th>0.00001 · 1e-5</th><td>0.1× default</td><td>Gentler updates; changes may need more training to become visible.</td></tr>
             <tr><th>0.00005 · 5e-5</th><td>0.5× default</td><td>A smaller step to compare if the default changes results too aggressively.</td></tr>
@@ -66,8 +54,13 @@ export default function LoraHelp({learningRate=0.0001}) {
             <tr><th>0.0002 · 2e-4</th><td>2× default</td><td>More aggressive updates; watch for instability, repeated poses or loss of flexibility.</td></tr>
             <tr><th>0.001 · 1e-3</th><td>10× default</td><td>A large experimental jump. A permitted value is not a quality recommendation.</td></tr>
           </tbody></table>
-          <p>Keep the dataset, captions, seed, rank and training length fixed when comparing learning rates. Compare saved checkpoints with the same generation prompt and seed. If the character barely appears, review captions and training length too; if results become rigid or distorted, compare an earlier checkpoint or a smaller learning rate. Lower training loss alone does not prove better images.</p>
-          <p>Learning rate changes training. Generate's LoRA strength changes how much a finished adapter influences an image. They are separate controls. Reference: <a href="https://huggingface.co/docs/diffusers/main/training/lora" target="_blank" rel="noreferrer">Diffusers LoRA training guide</a>.</p>
+          <dl className="workspace-control-help">
+            <div><dt>Compare learning rates</dt><dd>Keep the dataset, captions, seed, rank and training length fixed. Compare checkpoints with the same generation prompt and seed.</dd></div>
+            <div><dt>Weak likeness</dt><dd>Review captions and training length as well as learning rate. Lower loss alone does not prove better images.</dd></div>
+            <div><dt>Rigid or distorted results</dt><dd>Compare an earlier checkpoint or a smaller learning rate.</dd></div>
+            <div><dt>Learning rate versus LoRA strength</dt><dd>Learning rate changes training. Generate’s LoRA strength controls the finished adapter’s influence.</dd></div>
+            <div><dt>Reference</dt><dd><a href="https://huggingface.co/docs/diffusers/main/training/lora" target="_blank" rel="noreferrer">Diffusers LoRA training guide</a></dd></div>
+          </dl>
         </section>
         <section><h3>Other settings · what increasing them changes</h3><table className="image-help-scale"><thead><tr><th>Setting</th><th>App default / comparison</th><th>Increasing it</th></tr></thead><tbody>
           <tr><th>Epochs / max steps</th><td>10 epochs; max steps 0</td><td>More exposure to the dataset and longer training; may overfit. Nonzero max steps replaces the epoch count.</td></tr>
@@ -82,7 +75,5 @@ export default function LoraHelp({learningRate=0.0001}) {
             <dl>{entries.map(([term, definition]) => <div key={term}><dt>{term}</dt><dd>{definition}</dd></div>)}</dl>
           </section>
         ))}
-      </dialog>
-    </div>
-  );
+  </div>;
 }

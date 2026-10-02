@@ -23,6 +23,8 @@ try {
   await page.getByLabel('Source folder', { exact: true }).fill(fixture.source);
   await page.getByLabel('Destination folder', { exact: true }).fill(fixture.destination);
   await page.getByRole('button', { name: 'Scan & preview' }).click();
+  await page.waitForFunction(() => document.querySelectorAll('.mo-media-card').length === 3);
+  await page.getByRole('button', { name: 'Show duplicates', exact: true }).click();
   await page.waitForFunction(() => document.querySelectorAll('.mo-media-card').length === 5);
 
   const row = await page.evaluate(()=>document.querySelector('media-organizer').data.records.find(r=>r.DuplicatePrimary==='yes'));
@@ -56,13 +58,12 @@ try {
   await page.locator(`[data-detail="${id}"]`).click();
   await page.locator('#mo-detail .mo-item-more summary').click();
   await page.locator('#mo-detail [data-tool="delete"]').click();
-  await page.locator('#mo-delete-word').fill('DELETE');
+  assert.equal(await page.locator('#mo-delete-word').count(), 0);
   await page.getByRole('button',{name:'Delete this copy',exact:true}).click();
   await page.waitForFunction(id=>document.querySelector('media-organizer').data.records.find(r=>r.RecordId===id).Trashed,id);
   await page.locator('.mo-advanced-filters summary').click();
   await page.locator('#mo-library-status').selectOption('trash');
   assert.equal(await page.locator('.mo-media-card').count(),1);
-  await page.locator('.mo-media-card .mo-item-more summary').click();
   await page.locator('[data-tool="restore"]').click();
   await page.getByRole('button',{name:'Restore file',exact:true}).click();
   await page.waitForFunction(id=>!document.querySelector('media-organizer').data.records.find(r=>r.RecordId===id).Trashed,id);
@@ -109,7 +110,7 @@ try {
   await page.locator('#mo-custom-name').fill('Moved through Media Manager');
   await page.locator('#mo-custom-save').click();
   await page.locator('#mo-custom-preview').click();
-  await page.locator('#mo-custom-confirm').fill('MOVE');
+  assert.equal(await page.locator('#mo-custom-confirm').count(), 0);
   await page.locator('#mo-custom-execute').click();
   await page.waitForFunction(id=>document.querySelector('media-organizer').data.records.find(r=>r.RecordId===id).CurrentPath.includes('Moved through Media Manager'),id);
   await page.reload(); await page.waitForFunction(()=>!!document.querySelector('media-organizer').data);

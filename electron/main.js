@@ -31,22 +31,29 @@ const { migratePreferences } = require("./preferenceMigration");
 const { createMediaManager } = require("./mediaManager");
 const { installAudioPermissions } = require('./audioPermissions');
 const { createViewerBrowser } = require("./viewerBrowser");
+const { createMeshRepair, registerMeshRepairIpc } = require('./meshRepair');
 const { mediaManagerPaths } = require("./mediaManagerPaths");
 const { createTabCapture } = require("./tabCapture");
 const { runDesktopAction, writeClipboardImage } = require("./desktopFunctions");
 const { createProgramLaunchers } = require("./programLaunchers");
+const { createGitHubPublisher } = require("./githubPublisher");
+const { createFunctionWorkflows } = require('./functionWorkflows');
 const { backendFailure, pythonPreflight, desktopCapabilities } = require("./compatibility");
 const { readBuildInfo } = require("./buildInfo");
+const { configureRendering, attachWindowRendering } = require('./windowRendering');
+const { stopBackendProcess, createAppShutdown, applicationMenu } = require('./appShutdown');
 // Capture once for this process. A later source build must not relabel a running desktop.
 const desktopBuild = readBuildInfo(path.resolve(__dirname, ".."));
-if (process.env.LAW_DISABLE_GPU === "1" || process.argv.includes("--law-software-rendering")) app.disableHardwareAcceleration();
 if (process.env.LAW_USER_DATA_DIR) app.setPath("userData", path.resolve(process.env.LAW_USER_DATA_DIR));
+const rendering = configureRendering({ app, log: createLogger('rendering') });
 const maintenanceToken = randomUUID();
+const localFilesToken = randomUUID();
 const launchId = randomUUID();
 // Proves a request came from this launch of this app. Generated per run, shared
 // with the backend over its environment and with the renderer over guarded IPC, and
 // gone when the process exits. Never written to disk.
 const sessionToken = require("crypto").randomBytes(32).toString("hex");
+const reviewBridgeToken = require("crypto").randomBytes(32).toString("hex");
 
 // A packaged build used to load from file://, whose origin serializes as "null"
 // -- the same origin every sandboxed iframe on the web gets. Serving the built
@@ -63,6 +70,7 @@ const backendLog = createLogger("backend");
 
 // --- State ---
 let mainWindow = null;
+let windowRendering = null;
 let tray = null;
 let pythonProcess = null;
 let isQuitting = false;
@@ -122,6 +130,7 @@ const mediaManager = createMediaManager({
     python: mediaPython,
     directory: mediaDirectory,
     reports: mediaReports,
+    reviewConnection: () => ({ base: `http://127.0.0.1:${CONFIG.backendPort}`, token: reviewBridgeToken }),
 });
 
 function trustedDesktop(event) {
@@ -132,12 +141,21 @@ function trustedDesktop(event) {
     return trustedUrl(event.senderFrame.url, useViteDev ? CONFIG.viteDevUrl : null);
 }
 
-const viewerBrowser = createViewerBrowser({WebContentsView, session, getWindow:()=>mainWindow});
+const viewerBrowser = createViewerBrowser({WebContentsView, session, dialog, getWindow:()=>mainWindow});
+const meshRepair = createMeshRepair({dialog, getWindow: () => mainWindow,
+    onProgress: value => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('mesh-repair:progress', value); },
+});
+registerMeshRepairIpc({ipcMain, service: meshRepair, trustedDesktop});
+require('./modelEditor').registerModelEditorIpc({ipcMain, dialog, getWindow: () => mainWindow, trustedDesktop});
 const tabCapture = createTabCapture({ BrowserWindow, screen, clipboard, ClipboardItem, getWindow: () => mainWindow, mediaManager, viewerBrowser });
-for (const action of ['start','state','place','navigate','inspect','source','command']) {
+for (const action of ['start','state','place','navigate','inspect','source','command','clearData']) {
     ipcMain.handle(`viewer-browser:${action}`, async (event,value)=>{
         if(!trustedDesktop(event))return {error:'Desktop access required.'};
-        try {return await viewerBrowser[action](value);}
+        try {
+            const result = await viewerBrowser[action](value);
+            if (action === 'place') windowRendering?.repaint();
+            return result;
+        }
         catch(error){return {error:error.message};}
     });
 }
@@ -154,13 +172,34 @@ ipcMain.handle("functions:capture-tab", async (event, tab) => {
 });
 ipcMain.handle("functions:run-action", async (event, action) => {
     if (!trustedDesktop(event)) return { error: "Desktop access required." };
-    if (desktopActionBusy) return { error: "Another desktop action is starting." };
+    if (desktopActionBusy || functionWorkflows.busy) return { error: "Another desktop action or function is running." };
     desktopActionBusy = true;
     try { return await runDesktopAction(action); }
     catch (error) { return { error: error.message }; }
     finally { desktopActionBusy = false; }
 });
 const programLaunchers = createProgramLaunchers({ file: path.join(app.getPath("userData"), "program-launchers.json"), dialog, shell, getWindow: () => mainWindow });
+const functionWorkflows = createFunctionWorkflows({
+    file: path.join(app.getPath('userData'), 'function-folders.json'),
+    chooseDirectory: async purpose => {
+        const result = await dialog.showOpenDialog(mainWindow, { title: purpose === 'audit' ? 'Choose folder to inspect' : 'Choose function output folder',
+            properties: purpose === 'audit' ? ['openDirectory', 'dontAddToRecent'] : ['openDirectory', 'createDirectory', 'dontAddToRecent'] });
+        return result.canceled ? null : result.filePaths[0];
+    },
+    openProgram: id => programLaunchers.open(id),
+    copyImage: value => writeClipboardImage(value, { clipboard, nativeImage, ClipboardItem }),
+    copyText: async text => {
+        if (clipboard.writeText) await clipboard.writeText(text);
+        else await clipboard.write([new ClipboardItem({ 'text/plain': new Blob([text], { type: 'text/plain' }) })]);
+    },
+});
+for (const [channel, method] of Object.entries({ 'choose-folder': 'chooseFolder', inspect: 'inspect', start: 'start', state: 'state', stop: 'stop' })) {
+    ipcMain.handle(`function-workflows:${channel}`, async (event, value) => {
+        if (!trustedDesktop(event)) return { error: 'Desktop access required.' };
+        if (channel === 'start' && desktopActionBusy) return { error: 'Another desktop action is starting.' };
+        try { return await functionWorkflows[method](value); } catch (error) { return { error: error.message }; }
+    });
+}
 ipcMain.handle("functions:choose-program", async event => {
     if (!trustedDesktop(event)) return { error: "Desktop access required." };
     try { return await programLaunchers.choose(); } catch (error) { return { error: error.message }; }
@@ -169,7 +208,6 @@ ipcMain.handle("functions:open-program", async (event, id) => {
     if (!trustedDesktop(event)) return { error: "Desktop access required." };
     try { return await programLaunchers.open(id); } catch (error) { return { error: error.message }; }
 });
-app.on("before-quit", () => tabCapture.dispose());
 
 ipcMain.on("app:connection", event => {
     event.returnValue = trustedDesktop(event) ? { base: `http://127.0.0.1:${CONFIG.backendPort}`, token: sessionToken } : null;
@@ -184,9 +222,17 @@ ipcMain.handle("app:open-logs", async event => {
     catch { return { error: "Windows could not open the log folder." }; }
 });
 
+ipcMain.handle('app:rendering-status', event => trustedDesktop(event) ? { ...rendering.state(), ...windowRendering?.state() } : null);
+ipcMain.on('app:window-repaint', event => { if (trustedDesktop(event)) windowRendering?.repaint(); });
+ipcMain.handle('app:rendering-mode', (event, mode) => {
+    if (!trustedDesktop(event)) return null;
+    try { return rendering.save(mode); }
+    catch (error) { return { ...rendering.state(), error: error.message }; }
+});
+
 ipcMain.handle("media-manager:start", event => trustedDesktop(event) ? mediaManager.start() : { error: "Desktop access required." });
 ipcMain.handle("media-manager:status", event => trustedDesktop(event) ? mediaManager.status() : { error: "Desktop access required." });
-ipcMain.handle("media-manager:place", (event, value) => { if (trustedDesktop(event)) mediaManager.place(value); });
+ipcMain.handle("media-manager:place", (event, value) => { if (trustedDesktop(event)) { mediaManager.place(value); windowRendering?.repaint(); } });
 ipcMain.handle("media-manager:focus", event => { if (trustedDesktop(event)) return mediaManager.focus(); });
 ipcMain.handle("media-manager:refresh", event => trustedDesktop(event) ? mediaManager.refresh() : { error: "Desktop access required." });
 
@@ -195,6 +241,56 @@ ipcMain.handle("dashboard:open-drive-root", async (event, root) => {
     return openDriveRoot(root, (target) => shell.openPath(target));
 });
 ipcMain.handle("dashboard:scan-drive", (event, root) => trustedDesktop(event) ? driveSpace.start(root) : { error: "Desktop access required." });
+ipcMain.handle("hash-auditor:choose-folders", async event => {
+    if (!trustedDesktop(event)) return { error: "Desktop access required." };
+    try {
+        const result = await dialog.showOpenDialog(mainWindow, {
+            title: "Choose folders or drive roots for Hash Auditor",
+            properties: ["openDirectory", "multiSelections", "dontAddToRecent"],
+        });
+        return { paths: result.canceled ? [] : result.filePaths };
+    } catch (error) { return { error: error.message }; }
+});
+ipcMain.handle("storage-library:choose-parent", async event => {
+    if (!trustedDesktop(event)) return { error: "Desktop access required." };
+    try {
+        const result = await dialog.showOpenDialog(mainWindow, { title: "Choose a parent folder or drive for an app library", properties: ["openDirectory", "dontAddToRecent"] });
+        return { folder: result.canceled ? null : result.filePaths[0] };
+    } catch (error) { return { error: error.message }; }
+});
+ipcMain.handle("storage-library:open", async (event, id) => {
+    if (!trustedDesktop(event)) return { error: "Desktop access required." };
+    if (typeof id !== "string" || !/^(primary|[a-f0-9]{32})$/.test(id)) return { error: "Choose a registered library." };
+    try {
+        const response = await fetch(`http://127.0.0.1:${CONFIG.backendPort}/storage-libraries/${id}/location`, { headers: { "X-LAW-Session": sessionToken }, redirect: "error", signal: AbortSignal.timeout(10000) });
+        const result = await response.json();
+        if (!response.ok || !result.path) return { error: result.detail || "Library is unavailable." };
+        return { error: await shell.openPath(result.path) || null };
+    } catch (error) { return { error: error.message }; }
+});
+ipcMain.handle("folder-review:choose-folder", async event => {
+    if (!trustedDesktop(event)) return { error: "Desktop access required." };
+    try {
+        const result = await dialog.showOpenDialog(mainWindow, {
+            title: "Choose a folder for Folder Review", properties: ["openDirectory", "dontAddToRecent"],
+        });
+        return { path: result.canceled ? null : result.filePaths[0] };
+    } catch (error) { return { error: error.message }; }
+});
+ipcMain.handle("hash-auditor:export", async (event, scope, mode) => {
+    if (!trustedDesktop(event)) return { error: "Desktop access required." };
+    if (!["inventory", "matches"].includes(scope) || !["hash", "name_size", "size_modified", "name_size_modified"].includes(mode))
+        return { error: "Choose a supported inventory or match export." };
+    try {
+        // Stream large inventories to the native download manager without
+        // navigating the renderer or holding the entire CSV in its memory.
+        const query = new URLSearchParams({ scope, mode });
+        event.sender.downloadURL(`http://127.0.0.1:${CONFIG.backendPort}/hash-auditor/export?${query}`, {
+            headers: { "X-LAW-Session": sessionToken },
+        });
+        return { started: true };
+    } catch (error) { return { error: error.message }; }
+});
 ipcMain.handle("dashboard:drive-scan-status", (event, id) => trustedDesktop(event) ? driveSpace.status(id) : { error: "Desktop access required." });
 ipcMain.handle("dashboard:cancel-drive-scan", (event, id) => trustedDesktop(event) ? driveSpace.cancel(id) : { error: "Desktop access required." });
 
@@ -216,6 +312,20 @@ ipcMain.handle("dashboard:open-app-folder", async (event) => {
     }
 });
 
+const githubPublisher = createGitHubPublisher({ root: path.resolve(__dirname, '..'), storage: path.join(app.getPath('userData'), 'github-publications') });
+for (const [channel, method] of Object.entries({ prepare: 'prepare', validate: 'validate', commit: 'commit', push: 'push', state: 'state' })) {
+    ipcMain.handle(`github-publication:${channel}`, (event, request) => {
+        if (!trustedDesktop(event)) return { error: 'Desktop access required.' };
+        try { return githubPublisher[method](request); } catch (error) { return { error: error.message }; }
+    });
+}
+ipcMain.handle('github-publication:log', async event => {
+    if (!trustedDesktop(event)) return { error: 'Desktop access required.' };
+    const file = githubPublisher.log();
+    if (!file) return { error: 'No publication log is available yet.' };
+    return { error: (await shell.openPath(file)) || null };
+});
+
 const gifFiles = require('./gifFiles').createGifFiles({
     showSaveDialog: options => dialog.showSaveDialog(mainWindow, options),
     showOpenDialog: options => dialog.showOpenDialog(mainWindow, options),
@@ -224,9 +334,38 @@ const gifFiles = require('./gifFiles').createGifFiles({
 });
 ipcMain.handle('gif:save', (event, value) => trustedDesktop(event) ? gifFiles.save(value) : {error: 'Desktop access required.'});
 ipcMain.handle('gif:choose-output', event => trustedDesktop(event) ? gifFiles.chooseOutput() : {error:'Desktop access required.'});
+ipcMain.handle('gif:use-library', async event => {
+    if (!trustedDesktop(event)) return {error:'Desktop access required.'};
+    try {
+        const response = await fetch(`http://127.0.0.1:${CONFIG.backendPort}/storage-libraries/export-folder/gifs`, { method: 'POST', headers: {'X-LAW-Session':sessionToken}, redirect:'error', signal:AbortSignal.timeout(10000) });
+        const result = await response.json();
+        if (!response.ok || !result.folder) return {error:result.detail || 'Storage library is unavailable.'};
+        return await gifFiles.useLibrary(result.folder);
+    } catch (error) {return {error:error.message};}
+});
 ipcMain.handle('gif:reveal', (event, id) => trustedDesktop(event) ? gifFiles.reveal(id) : {error: 'Desktop access required.'});
 
 let pickerOpen = false;
+ipcMain.handle("image-manager:choose-folder", async (event, purpose) => {
+    if (!trustedDesktop(event) || !["source", "output"].includes(purpose)) return { error: "Choose an image folder in the desktop app." };
+    if (pickerOpen) return { canceled: true };
+    pickerOpen = true;
+    try {
+        const result = await dialog.showOpenDialog(mainWindow, { title: purpose === "source" ? "Choose a still-image folder" : "Choose an Image Manager output folder", defaultPath: app.getPath("pictures"), properties: purpose === "output" ? ["openDirectory", "createDirectory"] : ["openDirectory"] });
+        return result.canceled ? { canceled: true } : { path: result.filePaths[0] };
+    } catch (error) { return { error: error.message }; }
+    finally { pickerOpen = false; }
+});
+ipcMain.handle("image-manager:reveal", async (event, id) => {
+    if (!trustedDesktop(event) || typeof id !== "string" || !/^[a-f0-9]{32}$/.test(id)) return { error: "Choose a catalog image." };
+    try {
+        const response = await fetch(`http://127.0.0.1:${CONFIG.backendPort}/image-manager/images/${id}/location`, { headers: { "X-LAW-Session": sessionToken }, redirect: "error", signal: AbortSignal.timeout(10000) });
+        const value = await response.json();
+        if (!response.ok || typeof value.path !== "string" || !path.isAbsolute(value.path)) throw new Error(typeof value.detail === "string" ? value.detail : "Image unavailable. Scan again.");
+        shell.showItemInFolder(value.path);
+        return { ok: true };
+    } catch (error) { return { error: error.message }; }
+});
 ipcMain.handle("image-generation:choose-output", async event => {
     if (!trustedDesktop(event)) return { error: "Output folder selection requires the desktop app." };
     if (pickerOpen) return { canceled: true };
@@ -246,6 +385,34 @@ ipcMain.handle("uploads:choose", async (event, options) => {
     } catch (error) { return { error: error.message }; }
     finally { pickerOpen = false; }
 });
+
+const localFiles = require('./localFiles').createLocalFiles({
+    home: app.getPath('home'),
+    openDialog: options => dialog.showOpenDialog(mainWindow, options),
+    saveDialog: options => dialog.showSaveDialog(mainWindow, options),
+    confirm: async (message, detail) => (await dialog.showMessageBox(mainWindow, {
+        type: 'warning', message, detail, buttons: ['Cancel', 'Continue'], defaultId: 0, cancelId: 0,
+    })).response === 1,
+    request: async (route, body) => {
+        const response = await fetch(`http://127.0.0.1:${CONFIG.backendPort}/local-files${route}`, {
+            method: body ? 'POST' : 'GET', headers: { 'Content-Type': 'application/json', 'x-law-session': sessionToken, 'x-local-files': localFilesToken },
+            body: body ? JSON.stringify(body) : undefined,
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(typeof result.detail === 'string' ? result.detail : 'Local file operation failed.');
+        return result;
+    },
+});
+for (const action of ['open', 'save']) ipcMain.handle(`local-files:${action}`, async (event, value) => {
+    if (!trustedDesktop(event)) return { error: 'Local files require the trusted desktop window.' };
+    if (pickerOpen) return { canceled: true };
+    pickerOpen = true;
+    try { return await localFiles[action](value); }
+    catch (error) { return { error: error.message }; }
+    finally { pickerOpen = false; }
+});
+ipcMain.on('local-files:dirty', (event, value) => { if (trustedDesktop(event)) localFiles.setDirty(value); });
+ipcMain.on('local-files:forget', (event, value) => { if (trustedDesktop(event)) localFiles.forget(value); });
 
 const faceImports = createFaceImports();
 ipcMain.handle("faces:choose-inputs", async (event, options) => {
@@ -325,6 +492,40 @@ function maintenanceRequest(action) {
         request.end();
     });
 }
+
+const { createDependencyMaintenance } = require('./dependencyMaintenance');
+function runDependencyMaintenance(request) {
+    return new Promise((resolve, reject) => {
+        const child = spawn(CONFIG.pythonPath, ['-m', 'services.dependency_management'], {
+            cwd: path.join(__dirname, '..', 'backend'),
+            env: { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' },
+            windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'],
+        });
+        let output = '';
+        child.stdout.on('data', chunk => { output += chunk.toString(); });
+        child.stderr.resume();
+        child.on('error', () => reject(new Error('Dependency worker could not start.')));
+        child.on('close', code => {
+            try {
+                const result = JSON.parse(output);
+                if (code || result.error) reject(new Error(result.error || 'Dependency operation failed.'));
+                else resolve(result);
+            } catch { reject(new Error('Invalid dependency worker result.')); }
+        });
+        child.stdin.on('error', () => {});
+        child.stdin.end(JSON.stringify(request));
+    });
+}
+const dependencyMaintenance = createDependencyMaintenance({
+    run: runDependencyMaintenance, ownsBackend: () => Boolean(pythonProcess),
+    lockBackend: () => maintenanceRequest('lock'), unlockBackend: () => maintenanceRequest('unlock'),
+    stopBackend: stopBackendForReset,
+    startBackend: async () => { startPythonBackend(); await waitForBackend(); },
+    onRestartFailure: message => { backendState = { state: 'failed', detail: `Dependency maintenance finished but backend restart failed: ${message}` }; },
+});
+ipcMain.handle('dependencies:prepare', (event, value) => trustedDesktop(event) ? dependencyMaintenance.prepare(value?.name, value?.profile) : { error: 'Desktop access required.' });
+ipcMain.handle('dependencies:apply', (event, value) => trustedDesktop(event) ? dependencyMaintenance.apply(value?.ticket, value?.approved) : { error: 'Desktop access required.' });
+ipcMain.handle('dependencies:cancel', (event, ticket) => trustedDesktop(event) ? dependencyMaintenance.cancel(ticket) : { error: 'Desktop access required.' });
 
 async function stopBackendForReset() {
     const child = pythonProcess;
@@ -407,6 +608,7 @@ function findAvailablePort(host, preferred, attempts = 20) {
 // --- Python Backend Management ---
 
 function startPythonBackend() {
+    if (isQuitting) throw new Error("Application is shutting down.");
     pythonPreflight(CONFIG.pythonPath);
     lastHealthCheck = 0;
     unhealthyChecks = 0;
@@ -426,8 +628,13 @@ function startPythonBackend() {
             LAW_HOST: CONFIG.backendHost,
             LAW_PORT: String(CONFIG.backendPort),
             LAW_SESSION_TOKEN: sessionToken,
+            LAW_REVIEW_BRIDGE_TOKEN: reviewBridgeToken,
             LAW_LAUNCH_ID: launchId,
             LAW_DESKTOP_MAINTENANCE_TOKEN: maintenanceToken,
+            LAW_LOCAL_FILES_TOKEN: localFilesToken,
+            LAW_DESKTOP_CONTROL: "1",
+            LAW_DESKTOP_NODE_VERSION: process.versions?.node || '',
+            LAW_DESKTOP_ELECTRON_VERSION: process.versions?.electron || '',
         },
         windowsHide: true,
     });
@@ -459,18 +666,7 @@ function startPythonBackend() {
 }
 
 function stopPythonBackend() {
-    if (pythonProcess) {
-        log.info("Stopping Python backend");
-        if (process.platform === "win32") {
-            if (pythonProcess.pid) {
-                const killer = spawn("taskkill", ["/pid", String(pythonProcess.pid), "/f", "/t"], { windowsHide: true });
-                killer.on("error", err => log.warn("Could not stop backend:", err.message));
-            }
-        } else {
-            pythonProcess.kill("SIGTERM");
-        }
-        pythonProcess = null;
-    }
+    return stopBackendProcess(pythonProcess, { spawn, log });
 }
 
 function waitForBackend() {
@@ -660,6 +856,10 @@ async function createWindow() {
         show: false,
         webPreferences: { nodeIntegration: false, contextIsolation: true, spellcheck: true, preload: path.join(__dirname, "preload.js") },
     });
+    mainWindow.on("close", shutdown.closeWindow);
+    mainWindow.on("closed", () => { mainWindow = null; windowRendering = null; });
+
+    windowRendering = attachWindowRendering({ window: mainWindow, screen, log });
 
     guardNavigation(mainWindow.webContents);
     installAudioPermissions(mainWindow.webContents, useViteDev ? CONFIG.viteDevUrl : null);
@@ -672,11 +872,15 @@ async function createWindow() {
             message: "The desktop renderer stopped. Saved data is still on disk; unsaved edits may be lost.",
             detail: "Software rendering can help with incompatible Windows graphics drivers. A restart stops active backend work.",
             buttons: ["Restart with software rendering", "Quit"], defaultId: 1, cancelId: 1 });
-        if (result.response === 0) app.relaunch({ args: [...process.argv.slice(1).filter(arg => arg !== "--law-software-rendering"), "--law-software-rendering"] });
+        if (result.response === 0) {
+            try { rendering.save('software'); } catch (error) { log.warn('Could not save software rendering:', error.message); }
+            void shutdown.request({ restart: true, args: [...process.argv.slice(1).filter(arg => arg !== "--law-software-rendering"), "--law-software-rendering"] });
+            return;
+        }
         app.quit();
     });
     mainWindow.webContents.on("did-fail-load", (_event, code, _description, url, isMainFrame) => {
-        if (isMainFrame && code !== -3 && !url.includes("/recovery.html")) {
+        if (!isQuitting && mainWindow && isMainFrame && code !== -3 && !url.includes("/recovery.html")) {
             void mainWindow.loadURL(`${APP_ORIGIN}/recovery.html`).catch(err => log.error("Recovery view failed:", err.message));
         }
     });
@@ -685,6 +889,7 @@ async function createWindow() {
         try { await migratePreferences({ BrowserWindow, oldPath: CONFIG.frontendDistPath, appUrl: `${APP_ORIGIN}/index.html` }); }
         catch { log.warn("Preference migration was not completed; original preferences were preserved and migration will retry next launch."); }
     }
+    if (isQuitting || !mainWindow || mainWindow.isDestroyed()) return;
 
     if (useViteDev) {
         let viteReady = false;
@@ -717,15 +922,11 @@ async function createWindow() {
         }
     }
 
+    if (isQuitting || !mainWindow || mainWindow.isDestroyed()) return;
     mainWindow.webContents.on("context-menu", (event, params) => {
-        Menu.buildFromTemplate(buildContextMenu(params, mainWindow.webContents)).popup({ window: mainWindow });
+        Menu.buildFromTemplate(buildContextMenu(params, mainWindow.webContents)).popup({ window: mainWindow, callback: () => windowRendering?.refresh() });
     });
 
-    mainWindow.on("close", (event) => {
-        if (!isQuitting && tray) { event.preventDefault(); mainWindow.hide(); }
-        else if (!isQuitting) app.quit();
-    });
-    mainWindow.on("closed", () => { mainWindow = null; });
 }
 
 function createTray() {
@@ -735,7 +936,8 @@ function createTray() {
     tray.setContextMenu(Menu.buildFromTemplate([
         { label: "Open", click: () => { if (mainWindow) { mainWindow.show(); mainWindow.focus(); } } },
         { type: "separator" },
-        { label: "Quit", click: () => { isQuitting = true; app.quit(); } },
+        { label: "Exit && Restart", click: () => { void shutdown.request({ restart: true }); } },
+        { label: "Quit", click: () => { void shutdown.request(); } },
     ]));
     tray.on("click", () => { if (mainWindow) { mainWindow.show(); mainWindow.focus(); } });
 }
@@ -746,26 +948,59 @@ app.whenReady().then(async () => {
     if (!gotLock || isQuitting) return;
     log.info(`App starting in ${isDev ? "DEV" : "PROD"} mode`);
     log.info("Logging to", logFilePath() || "(console only)");
+    log.info('Window rendering:', rendering.state());
     registerAppProtocol();
+    Menu.setApplicationMenu(Menu.buildFromTemplate(applicationMenu(shutdown.request)));
     try { await selectBackendPort(); }
     catch (err) { backendState = { state: "failed", detail: err.message }; }
+    if (isQuitting) return;
     await createWindow();
+    if (isQuitting) return;
     try { createTray(); }
     catch (err) { log.warn("System tray unavailable:", err.message); tray = null; }
     if (!isQuitting && backendState.state !== "failed") {
         try { startPythonBackend(); await waitForBackend(); await resetThinkingTrace(); }
         catch (err) { backendState = { state: "failed", detail: err.message }; log.error("Backend did not become healthy:", err.message); }
     }
-}).catch(err => { dialog.showErrorBox("Local AI Workstation could not open", `${err.message}\nRun scripts/setup-windows.ps1 from a writable checkout under your user folder.`); app.quit(); });
+}).catch(err => {
+    if (isQuitting) return;
+    dialog.showErrorBox("Local AI Workstation could not open", `${err.message}\nRun scripts/setup-windows.ps1 from a writable checkout under your user folder.`);
+    app.quit();
+});
 
 app.on("activate", () => {
+    if (isQuitting) return;
     if (mainWindow === null) createWindow();
     else mainWindow.show();
 });
 
-app.on("before-quit", () => { isQuitting = true; driveSpace.dispose(); mediaManager.dispose(); viewerBrowser.dispose(); stopPythonBackend(); });
-app.on("will-quit", () => { stopPythonBackend(); });
+const shutdown = createAppShutdown({
+    canShutdown: () => localFiles.canLeave(),
+    app, log, stopBackend: stopPythonBackend,
+    onBegin: () => { isQuitting = true; },
+    dispose: [() => functionWorkflows.dispose(), () => tabCapture.dispose(), () => driveSpace.dispose(),
+        () => mediaManager.dispose(), () => viewerBrowser.dispose(), () => meshRepair.dispose(),
+        // Close the renderer before stopping the API so polling and live streams
+        // cannot keep submitting requests during Uvicorn's shutdown.
+        () => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.destroy(); }],
+    onFailure: error => {
+        isQuitting = false;
+        dialog.showErrorBox("Application could not exit", error.message);
+    },
+});
+app.on("before-quit", shutdown.beforeQuit);
+app.on("window-all-closed", () => { void shutdown.request(); });
+
+app.on('gpu-info-update', () => {
+    log.info('Window graphics features:', app.getGPUFeatureStatus());
+    windowRendering?.refresh();
+});
+app.on('child-process-gone', (_event, details) => {
+    if (details.type !== 'GPU' || isQuitting) return;
+    log.warn('Window graphics process stopped:', { reason: details.reason, exitCode: details.exitCode });
+    windowRendering?.refresh();
+});
 
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) { app.quit(); }
-else { app.on("second-instance", () => { if (mainWindow) { mainWindow.show(); mainWindow.focus(); } }); }
+else { app.on("second-instance", () => { if (!isQuitting && mainWindow) { mainWindow.show(); mainWindow.focus(); } }); }

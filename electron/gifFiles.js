@@ -8,6 +8,12 @@ function createGifFiles({showSaveDialog, showOpenDialog, showItemInFolder, downl
     let choosing = false;
     let saving = false;
     return {
+        async useLibrary(folder) {
+            if (!path.isAbsolute(folder) || !(await fs.stat(folder)).isDirectory()) throw new Error('Storage library is unavailable.');
+            const id = randomUUID(); folders.set(id, folder);
+            if (folders.size > 32) folders.delete(folders.keys().next().value);
+            return {id, folder};
+        },
         async chooseOutput() {
             if (choosing) return {canceled:true};
             choosing = true;

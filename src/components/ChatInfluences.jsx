@@ -5,7 +5,7 @@ import {chatInfluences} from '../chatInfluences';
 import {getCharacter} from '../faceApi';
 import './ChatInfluences.css';
 
-export default function ChatInfluences(){
+export default function ChatInfluences({onOpenSettings}){
   const state=useStore(),dispatch=useDispatch(),workspace=useCharacterWorkspace();
   const plan=chatInfluences(state),[busy,setBusy]=useState(false),[error,setError]=useState('');
   const roleplay=plan.summary.roleplay;
@@ -17,16 +17,16 @@ export default function ChatInfluences(){
   const setField=(key,value)=>dispatch({type:'SET_ROLEPLAY_FIELD',key,value});
   return <details className="chat-influences">
     <summary>Response influences · {roleplay?`Roleplay: ${roleplay.name}`:'Roleplay off'} · Knowledge {plan.summary.knowledge} · Saved memories {plan.useDurableMemory?'on':'off'}{plan.warnings.length>0?` · ${plan.warnings.length} potential overlap${plan.warnings.length===1?'':'s'}`:''}</summary>
-    <p><strong>Next submitted message.</strong> Prompt and roleplay settings apply across chats until changed. Each reply keeps its own request record below. Queued messages retain the settings selected when sent.</p>
+
     <dl><dt>Chat model</dt><dd>{state.selectedModel||'None selected'}</dd>
       <dt>Roleplay source</dt><dd>{roleplay?(roleplay.source?`Saved character: ${roleplay.source.name}${roleplay.source.edited?' · roleplay fields edited since loading':''} · loaded ${new Date(roleplay.source.loadedAt).toLocaleString()}`:'Manual roleplay fields / preset'):'Not included'}</dd>
       <dt>General system prompt</dt><dd>{plan.summary.generalPrompt?'Included':'Not included'}</dd>
       <dt>Response style</dt><dd>{plan.summary.responseStyle||'Not included'}</dd>
       <dt>Knowledge retrieval</dt><dd>{plan.summary.knowledge==='selected'?`${state.knowledgeDocIds?.length||0} selected documents`:plan.summary.knowledge}. Retrieved excerpts are confirmed per reply.</dd>
-      <dt>Conversation</dt><dd>Recent messages{state.memorySummary?' and the rolling chat summary':''} remain eligible, including earlier character dialogue and uploaded document text. Automatic compaction can replace older messages with a summary.</dd>
+      <dt>Conversation</dt><dd>Recent messages{state.memorySummary?' and rolling summary':''}</dd>
     </dl>
-    {workspace?.selected&&<p>Character Creator selection: <strong>{workspace.selected.name}</strong>. Browsing a profile alone does not load it into chat. <button type="button" disabled={busy} onClick={loadSelected}>Load {workspace.selected.name} into roleplay</button></p>}
-    <p>Loading a character replaces roleplay fields with its saved name, biography, and notes. Linked images, videos, audio, parts, and LoRAs are not automatically sent to the chat model. Voice playback settings do not change these text instructions.</p>
+    {workspace?.selected&&<div className="influence-controls"><span>Character Creator: <strong>{workspace.selected.name}</strong></span><button type="button" disabled={busy} onClick={loadSelected}>Load {workspace.selected.name} into roleplay</button></div>}
+
     {roleplay&&<div className="influence-controls">
       <label><input type="checkbox" checked={state.roleplay.includeGeneralPrompt!==false} onChange={e=>setField('includeGeneralPrompt',e.target.checked)}/>Include general system prompt</label>
       <label><input type="checkbox" checked={state.roleplay.includeResponseStyle!==false} onChange={e=>setField('includeResponseStyle',e.target.checked)}/>Include general response style</label>
@@ -34,10 +34,10 @@ export default function ChatInfluences(){
       <button type="button" onClick={()=>setField('enabled',false)}>Turn roleplay off</button>
     </div>}
     {plan.warnings.length>0&&<ul className="influence-warnings">{plan.warnings.map(value=><li key={value}>{value}</li>)}</ul>}
-    {roleplay&&state.conversationHistory.length>0&&<p>For a clean character change, start a new chat. Turning off roleplay or saved memories does not remove earlier dialogue or the rolling summary.</p>}
-    <div className="influence-controls"><button type="button" onClick={()=>dispatch({type:'SET_SETTINGS_OPEN',payload:true})}>Edit chat / roleplay settings</button>{state.useKnowledgeBase&&<button type="button" onClick={()=>dispatch({type:'SET_KNOWLEDGE_SCOPE',payload:{mode:'off',ids:[]}})}>Turn Knowledge off for this chat</button>}</div>
+
+    <div className="influence-controls"><button type="button" onClick={()=>{dispatch({type:'SET_SETTINGS_OPEN',payload:true});onOpenSettings?.();}}>Edit chat / roleplay settings</button>{state.useKnowledgeBase&&<button type="button" onClick={()=>dispatch({type:'SET_KNOWLEDGE_SCOPE',payload:{mode:'off',ids:[]}})}>Turn Knowledge off for this chat</button>}</div>
     <details><summary>Preview assembled chat instructions</summary>{plan.parts.map(part=><section key={part.name}><strong>{part.name}</strong><pre>{part.text}</pre></section>)}</details>
-    <p>These controls show app-supplied context. The model’s training and built-in template also affect its response; the app cannot measure how much each input influenced the wording.</p>
+
     {error&&<p role="alert">{error}</p>}
   </details>;
 }

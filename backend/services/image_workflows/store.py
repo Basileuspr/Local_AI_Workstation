@@ -21,6 +21,7 @@ from PIL import Image, UnidentifiedImageError
 from pydantic import ValidationError
 
 from config import settings
+from services import storage_libraries as storage
 from .contracts import Asset, Draft, Snapshot, UpdateRequest, Workflow
 from .planning import preflight
 
@@ -42,24 +43,15 @@ def _now():
     return datetime.now(timezone.utc).isoformat(timespec="microseconds")
 
 
-def _directory(workflow_id: str) -> Path:
+def _directory(workflow_id: str, *, create=False) -> Path:
     if not re.fullmatch(r"[0-9a-f]{32}", workflow_id):
         raise NotFound("Unknown workflow")
-    return confined(ROOT / workflow_id)
+    return confined(storage.resolve(ROOT / workflow_id, create=create))
 
 
 def confined(path: Path) -> Path:
     """Refuse escaped paths and existing symlinks/junctions before any I/O."""
-    root = ROOT.absolute()
-    path = path.absolute()
-    if not path.is_relative_to(root) or not path.resolve().is_relative_to(root.resolve()):
-        raise ValueError("Workflow path escapes its owned directory")
-    for part in [path, *path.parents]:
-        if part.is_symlink() or (hasattr(part, "is_junction") and part.is_junction()):
-            raise ValueError("Workflow paths cannot contain links or junctions")
-        if part == root:
-            break
-    return path
+    return storage.confined(path, ROOT)
 
 
 def _atomic_bytes(path: Path, content: bytes):
@@ -111,15 +103,14 @@ def _check_revision(workflow: Workflow, revision: int):
 
 def list_workflows():
     result, errors = [], []
-    if ROOT.exists():
-        paths = {path.parent / "workflow.json" for pattern in ("*/workflow.json", "*/deletion.json") for path in ROOT.glob(pattern)}
-        for path in paths:
-            try:
-                workflow = get(path.parent.name, allow_deleting=True)
-                result.append({"id": workflow.id, "name": workflow.name, "revision": workflow.revision, "updated_at": workflow.updated_at,
-                               "mode": workflow.mode, "deletion_pending": (path.parent / "deletion.json").exists()})
-            except (Conflict, NotFound) as exc:
-                errors.append(f"{path.parent.name}: {exc}")
+    paths = {path.parent / "workflow.json" for pattern in ("*/workflow.json", "*/deletion.json") for path in storage.glob_paths(ROOT, pattern)}
+    for path in paths:
+        try:
+            workflow = get(path.parent.name, allow_deleting=True)
+            result.append({"id": workflow.id, "name": workflow.name, "revision": workflow.revision, "updated_at": workflow.updated_at,
+                           "mode": workflow.mode, "deletion_pending": (path.parent / "deletion.json").exists()})
+        except (Conflict, NotFound) as exc:
+            errors.append(f"{path.parent.name}: {exc}")
     return {"workflows": sorted(result, key=lambda item: item["updated_at"], reverse=True), "warnings": errors}
 
 
@@ -132,7 +123,7 @@ def _create(draft: Draft, **extra) -> Workflow:
 def create(name: str, mode="stages") -> Workflow:
     with _lock:
         workflow = _create(Draft(name=name, mode=mode))
-        _write(_directory(workflow.id) / "workflow.json", workflow.model_dump())
+        _write(_directory(workflow.id, create=True) / "workflow.json", workflow.model_dump())
         return workflow
 
 

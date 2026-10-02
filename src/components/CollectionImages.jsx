@@ -1,3 +1,5 @@
+import {preventSelectionText} from '../fileSelection';
+import ImageThumbnail from "./ImageThumbnail";
 import { useEffect, useState } from "react";
 import ProtectedImage from "../ImagePrivacy";
 import ImageViewer from "./ImageViewer";
@@ -20,11 +22,11 @@ export default function CollectionImages({ images, folders = [], tags = [], titl
   const [page, setPage] = useState(0);
   const [view, setView] = useState(null);
   const [filing, setFiling] = useState(null);
-  const selection = useSelection(images, item => item.id, title);
   const batch = useBatchAction();
   const filtered = images.filter(image => `${image.name} ${image.origin?.title || ""}`.toLowerCase().includes(query.toLowerCase()));
   const size = workspace ? (compact ? 36 : 18) : (compact ? 12 : 6), pages = Math.max(1, Math.ceil(filtered.length / size)), current = Math.min(page, pages - 1);
   useEffect(() => { setPage(0); }, [query, compact]);
+  const selection = useSelection(images, item => item.id, title, filtered.slice(current * size, (current + 1) * size));
   const apply = (items, action, verb, confirm) => batch.run({ items, action, verb, confirm, selection, after: api.changed });
   return <section aria-label={title}>
     <div className={`collection-toolbar ${workspace ? "image-library-results" : ""}`}>
@@ -43,8 +45,8 @@ export default function CollectionImages({ images, folders = [], tags = [], titl
     {!filtered.length && <p className="gallery-empty">{query ? "No matching images. Try another name." : "No images here yet."}</p>}
     <div className={`image-gallery ${compact ? "image-gallery-compact" : ""}`}>{filtered.slice(current * size, (current + 1) * size).map(image => <div className="gallery-item-row" key={image.id}>
       <SelectionCheckbox selection={selection} item={image} label={`image ${image.name}`} disabled={batch.busy} />
-      <button className={`gallery-item ${selection.has(image) ? "is-selected" : ""}`} type="button" disabled={batch.busy} aria-pressed={selection.enabled ? selection.has(image) : undefined} onClick={() => selection.enabled ? selection.toggle(image) : setView(image.id)}>
-        <span className="gallery-thumbnail"><ProtectedImage src={image.url} alt={image.name} loading="lazy" /></span><span className="gallery-details"><span className="gallery-name">{image.name}</span></span>
+      <button className={`gallery-item ${selection.has(image) ? "is-selected" : ""}`} type="button" disabled={batch.busy} aria-pressed={selection.enabled ? selection.has(image) : undefined} onMouseDown={preventSelectionText} onClick={event => selection.activate(image,event,()=>setView(image.id))}>
+        <span className="gallery-thumbnail"><ImageThumbnail src={image.url} alt={image.name} loading="lazy" /></span><span className="gallery-details"><span className="gallery-name">{image.name}</span></span>
       </button>
       {selection.has(image) && <ImageItemActions image={image} />}
     </div>)}</div>

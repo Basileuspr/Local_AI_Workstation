@@ -1,3 +1,6 @@
+import {useRangeSelection} from '../useRangeSelection';
+import {preventSelectionText} from '../fileSelection';
+import ImageThumbnail, { ThumbnailRetryButton } from "./ImageThumbnail";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as faces from "../faceApi";
 import { list as listLibrary, imageUrl } from "../imageLibraryApi";
@@ -9,6 +12,7 @@ import CharacterNameDialog from "./CharacterNameDialog";
 import CharacterLinks from "./CharacterLinks";
 import { browserFaceSource, desktopFaceSource, scanFaceBatches } from "../faceImport";
 import "./FaceStudio.css";
+import { useDismissiblePopup } from '../useDismissiblePopup';
 
 const SORTS = [
   { id: "added", label: "Date added" },
@@ -51,6 +55,8 @@ export default function FaceStudio({ active }) {
   const [view, setView] = useState({ sort: "added", order: "desc", filter: "all", search: "" });
   const [revision, setRevision] = useState(0);
   const [library, setLibrary] = useState(null);
+  const libraryPanel = useRef(null);
+  useDismissiblePopup({ open: !!library && active, container: libraryPanel, onDismiss: () => setLibrary(null) });
   const [dragging, setDragging] = useState(false);
   const [characterDraft, setCharacterDraft] = useState(null);
   const [importProgress, setImportProgress] = useState(null);
@@ -289,13 +295,9 @@ export default function FaceStudio({ active }) {
     setLibrary({ images: (data.images || []).filter((item) => !item.hidden).map(imageUrl), chosen: new Set() });
   });
 
-  function toggle(id) {
-    setSelected((current) => {
-      const next = new Set(current);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  }
+  const faceRange = useRangeSelection(visible.map(face => face.id), selected, setSelected, {scope:datasetId});
+  function toggle(id,event) { faceRange.toggle(id,event); }
+  const libraryRange = useRangeSelection((library?.images || []).map(item => item.id), library?.chosen || new Set(), update => setLibrary(current => current ? {...current,chosen:update(current.chosen)} : current), {scope:!!library});
 
   function onDrop(event) {
     event.preventDefault();
@@ -318,7 +320,7 @@ export default function FaceStudio({ active }) {
       <div>
         <p className="face-eyebrow">Character datasets</p>
         <h1>Face Extractor</h1>
-        <p className="face-note">Import images, detect every face, crop and compare them, then export a dataset. Source images are never modified.</p>
+
       </div>
       {characters && <button type="button" onClick={() => characters.openCreator()}>Open Character Creator</button>}
       <div className="face-dataset-picker">
@@ -355,7 +357,7 @@ export default function FaceStudio({ active }) {
            onDrop={onDrop}>
         <h2>1 · Import images</h2>
         <label className="face-run-name">Run name<input value={runName} maxLength={120} disabled={running} onChange={event => setRunName(event.target.value)} placeholder="e.g. Alex · outdoor portraits" /></label>
-        <p className="face-note">Drop images here, choose files or folders, or pick from your image library. Every visible face is detected — not just the largest. Large file and folder selections are processed in batches automatically.</p>
+
         <div className="face-row">
           <FreshFileInput ref={fileRef} accept="image/png,image/jpeg,image/webp,image/gif" multiple
                           disabled={!ready || running}
@@ -378,21 +380,18 @@ export default function FaceStudio({ active }) {
       <details className="face-run-history"><summary>Named run history ({runHistory.length})</summary>{runHistory.map(item => <div className="face-row" key={item.id}><span><strong>{item.name}</strong> · {item.status} · {item.processed}/{item.total} images · {new Date(item.started_at).toLocaleString()}</span><button disabled={running || Boolean(busy)} onClick={() => setRenamingRun(item)}>Rename</button></div>)}</details>
       {renamingRun && <CharacterNameDialog initialName={renamingRun.name} fieldLabel="Run name" saveLabel="Save run name" title="Rename face run" onClose={() => setRenamingRun(null)} onSave={async name => { await faces.renameRun(datasetId, renamingRun.id, name); setRunHistory((await faces.listRuns(datasetId)).runs); setRenamingRun(null); }} />}
 
-      {library && <div className="face-library" role="dialog" aria-label="Choose library images">
+      {library && <div className="face-library" role="dialog" aria-label="Choose library images" ref={libraryPanel}>
         <div className="face-row face-library-head">
           <strong>Pick images to scan ({library.chosen.size} selected)</strong>
+          <ThumbnailRetryButton />
           <button type="button" onClick={() => scanLibrary([...library.chosen])} disabled={!library.chosen.size}>Scan selected</button>
           <button type="button" onClick={() => setLibrary(null)}>Cancel</button>
         </div>
         <div className="face-library-grid">
           {library.images.map((item) => <button type="button" key={item.id}
             className={library.chosen.has(item.id) ? "chosen" : ""}
-            onClick={() => setLibrary((current) => {
-              const chosen = new Set(current.chosen);
-              chosen.has(item.id) ? chosen.delete(item.id) : chosen.add(item.id);
-              return { ...current, chosen };
-            })}>
-            <img src={item.url} alt={item.name} loading="lazy" />
+            onMouseDown={preventSelectionText} onClick={event => libraryRange.toggle(item.id,event)}>
+            <ImageThumbnail src={item.url} alt={item.name} />
           </button>)}
           {!library.images.length && <p className="face-note">Your image library is empty.</p>}
         </div>
@@ -428,7 +427,7 @@ export default function FaceStudio({ active }) {
             {busy === "recrop" ? "Re-cropping…" : selected.size ? `Re-crop ${selected.size} selected` : "Re-crop all"}
           </button>
         </div>
-        <p className="face-note">Crops stay square and never read past the image edge. Output sizes pad rather than stretch. Re-crop reuses the stored detections; it does not scan again.</p>
+
       </div>
 
       <div className="face-browser">
@@ -482,9 +481,9 @@ export default function FaceStudio({ active }) {
           {visible.map((face) => {
             const score = scores?.[face.id];
             return <figure key={face.id} className={`face-card ${selected.has(face.id) ? "selected" : ""} ${face.id === reference ? "reference" : ""} state-${face.state}`}>
-              <button type="button" className="face-thumb" onClick={() => toggle(face.id)}
+              <button type="button" className="face-thumb" onMouseDown={preventSelectionText} onClick={event => toggle(face.id,event)}
                       aria-pressed={selected.has(face.id)} aria-label={`Face ${face.face_index + 1} from ${face.source_name}`}>
-                <ProtectedImage src={faces.cropUrl(dataset.id, face.id, revision)} alt="" loading="lazy" />
+                <ImageThumbnail src={faces.cropUrl(dataset.id, face.id, revision)} alt="" loading="lazy" />
               </button>
               <figcaption>
                 <span className="face-source" title={face.source_name}>{face.source_name}</span>

@@ -137,7 +137,7 @@ class Analyzer:
         return json.loads(path.read_bytes()) if path.is_file() else None
 
     def recover(self):
-        for path in (store.ROOT / "datasets").glob("*/run.json"):
+        for path in store.storage.glob_paths(store.ROOT / "datasets", "*/run.json"):
             run = json.loads(path.read_bytes())
             if run["status"] not in TERMINAL:
                 run.update(status="interrupted", message="Analysis was interrupted. Completed suggestions are available for review.")
@@ -158,7 +158,7 @@ class Analyzer:
         self.run = {"id": uuid.uuid4().hex, "dataset_id": dataset_id, "status": "queued",
             "total": len(source_ids), "processed": 0, "errors": [], "model": request.model,
             "message": "Waiting in Prompt Queue", "started_at": store.now(), "focus": focus}
-        self.job = queue.enqueue("character-parts", f"Character regions · {data['name']}", self.run["id"],
+        self.job = queue.enqueue("character-parts", f"Character regions \u00b7 {data['name']}", self.run["id"],
                                  project_id=dataset_id, cancel=self.stop)
         self.publish()
         self.task = asyncio.create_task(self.execute(data, source_ids, request))

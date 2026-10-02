@@ -19,7 +19,7 @@ class ThumbnailCache:
         self._workers = threading.BoundedSemaphore(2)
         self._tool = None
 
-    def get(self, path: Path, size="small") -> bytes:
+    def get(self, path: Path, size="small", *, retry=False) -> bytes:
         dimensions = {"small": (320, 180), "large": (960, 540), "full": (1920, 1080)}
         if size not in dimensions:
             raise ValueError("Unknown thumbnail size.")
@@ -34,7 +34,11 @@ class ThumbnailCache:
                     self._cache.move_to_end(key)
                     if image:
                         return image
-                    raise ThumbnailUnavailable("No video thumbnail is available for this file.")
+                    if not retry:
+                        raise ThumbnailUnavailable("No thumbnail is available for this file.")
+                    del self._cache[key]
+                if retry and self._tool and not self._tool.ok:
+                    self._tool = None
                 if self._tool is None:
                     self._tool = tools.find_tool("ffmpeg")
                 tool = self._tool

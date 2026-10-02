@@ -28,6 +28,8 @@ CATEGORIES = {
     "locked_images": "Locked images", "lora": "LoRAs / training", "backups": "Recovery backups",
     "trash": "Trash", "knowledge_base": "Knowledge base", "web": "Web data",
     "thinking": "Thinking history", "logs": "App logs",
+    "hash_auditor": "Hash Auditor inventory",
+    "folder_review": "Folder Review reports",
     "face_datasets": "Face datasets", "face_bank": "Face bank", "character_datasets": "Character parts",
 }
 
@@ -40,7 +42,7 @@ def is_link(path):
 def checked_root(root=None):
     candidate = Path(root if root is not None else settings.data_dir).absolute()
     resolved = candidate.resolve()
-    # Never treat a filesystem/home/project/model root or their parent as data.
+    # Never treat a filesystem root, home, project or model root or their parent as data.
     for protected in (Path.home().resolve(), PROJECT_ROOT.resolve(), settings.models_dir.resolve()):
         if resolved == protected or resolved in protected.parents:
             raise ValueError("Reset refused: the configured data folder overlaps a protected folder.")
@@ -91,6 +93,9 @@ def archive_path(value, root):
     resolved = path.resolve()
     if resolved.is_relative_to(root) or resolved == root:
         raise ValueError("Save the ZIP outside the app data folder.")
+    from services.storage_libraries import Libraries
+    if any(resolved.is_relative_to(Path(record['path']) / 'files') for record in Libraries(root).records()[0]):
+        raise ValueError('Save the ZIP outside managed library files.')
     if path.suffix.lower() != ".zip" or path.exists():
         raise ValueError("Choose a new ZIP filename; existing files are never overwritten.")
     if path != resolved:
@@ -143,6 +148,28 @@ def write_atomic(path, value):
     finally: temporary.unlink(missing_ok=True)
 
 
+def backup_sources(root):
+    """Flatten managed libraries into a portable data tree for existing restore."""
+    from services.storage_libraries import Libraries, DATABASE, owned_unit, no_links
+    store = Libraries(root)
+    registry = {DATABASE.as_posix() + suffix for suffix in ('', '-journal', '-wal', '-shm')}
+    result = {relative: root / relative for relative, _ in scan(root)
+              if relative.as_posix() not in registry | {'.backend.lock'}}
+    for record in store.records()[0]:
+        library = store.library_root(record) / 'files'  # Refuse incomplete offline backups.
+        for relative, _ in scan(library):
+            if owned_unit(relative) is None:
+                raise ValueError('A storage library contains unrecognized managed files. Back up that folder separately before proceeding.')
+            source = no_links(library / relative)
+            if relative in result:
+                # Duplicate logical names must not silently overwrite one another.
+                with source.open('rb') as left, result[relative].open('rb') as right:
+                    if hashlib.file_digest(left, 'sha256').digest() != hashlib.file_digest(right, 'sha256').digest():
+                        raise ValueError('Storage libraries contain conflicting file names; backup stopped without overwriting data.')
+            else: result[relative] = source
+    return dict(sorted(result.items()))
+
+
 def export_backup(destination, desktop_storage, root=None):
     """Stream a stopped backend's data into a verified, recoverable ZIP."""
     root = checked_root(root)
@@ -152,8 +179,9 @@ def export_backup(destination, desktop_storage, root=None):
         raise ValueError("Complete the interrupted reset before making a backup.")
     if not isinstance(desktop_storage, dict) or any(not isinstance(k, str) or not isinstance(v, str) for k, v in desktop_storage.items()):
         raise ValueError("Desktop preferences could not be captured.")
-    entries = [(relative, size) for relative, size in scan(root) if relative.as_posix() != ".backend.lock"]
-    signatures = {relative: ((root / relative).stat().st_size, (root / relative).stat().st_mtime_ns) for relative, _ in entries}
+    sources = backup_sources(root)
+    entries = [(relative, source.stat().st_size) for relative, source in sources.items()]
+    signatures = {relative: (sources[relative].stat().st_size, sources[relative].stat().st_mtime_ns) for relative, _ in entries}
     manifest = {
         "format": "local-workstation-backup-v1", "created_at": datetime.now(timezone.utc).isoformat(),
         "content_backup": True, "files": [],
@@ -165,11 +193,11 @@ def export_backup(destination, desktop_storage, root=None):
             created = True
             with zipfile.ZipFile(handle, "w", zipfile.ZIP_DEFLATED, allowZip64=True) as archive:
                 for relative, size in entries:
-                    source = root / relative
+                    source = sources[relative]
                     before = source.stat()
                     if (before.st_size, before.st_mtime_ns) != signatures[relative]:
                         raise ValueError("App data changed during backup. Close other writers and retry.")
-                    if is_link(source) or not source.resolve().is_relative_to(root):
+                    if is_link(source) or source.resolve() != source.absolute():
                         raise ValueError("Backup source changed. Try again after closing other writers.")
                     name = "data/" + relative.as_posix()
                     digest = hashlib.sha256()
@@ -185,12 +213,12 @@ def export_backup(destination, desktop_storage, root=None):
                 archive.writestr("desktop/local-storage.json", preferences)
                 manifest["files"].append({"path": "desktop/local-storage.json", "bytes": len(preferences), "sha256": hashlib.sha256(preferences).hexdigest()})
                 archive.writestr("manifest.json", json.dumps(manifest, indent=2))
-                archive.writestr("RESTORE.txt", "PRIVATE APPLICATION BACKUP - contains chats, prompts, media (including locked images), training data and preferences. Store privately.\n\nRecommended: Dashboard > IMPORT BACK-UP. Select this ZIP, review it, then type IMPORT. Current data and desktop preferences are retained in a separate recovery folder; the app restarts after restoration. Metadata-only ZIPs cannot be imported. Base models and external files are not restored.\n\nManual recovery into a compatible version of Local AI Workstation:\n1. Fully quit the desktop app from its tray and close all backends.\n2. Keep a separate copy of any current data before proceeding.\n3. Extract data/ into a NEW, empty application data directory. Set LAW_DATA_DIR to that directory before launching. Do not merge with existing data.\n4. Reinstall the required base models separately. External originals, exports and external logs are not included. External media references still need their original files.\n5. desktop/local-storage.json contains string key/value entries for the application's localStorage. Import these into the app's origin using Electron Developer Tools, then reload. Do not import into another website. For automatic recovery, use Dashboard > IMPORT BACK-UP and select this ZIP. The app verifies it and retains the previous data before replacing app data and desktop preferences.\n6. manifest.json lists SHA-256 and byte length for each data and preference file. Verify these before recovery.\nThis ZIP excludes application code/dependencies, base models, browser cache and unsaved in-memory edits.\n")
+                archive.writestr("RESTORE.txt", "PRIVATE APPLICATION BACKUP - contains chats, prompts, media (including locked images), training data and preferences. Store privately. Managed storage-library files are included and restored into the primary app-data folder. Library defaults are not restored. Registered external folders and exports are not deleted by reset or import.\n\nRecommended: Dashboard > IMPORT BACK-UP. Select this ZIP, review it, then click Import and replace app data. Current data and desktop preferences are retained in a separate recovery folder; the app restarts after restoration. Metadata-only ZIPs cannot be imported. Base models and external files are not restored.\n\nManual recovery into a compatible version of Local AI Workstation:\n1. Fully quit the desktop app from its tray and close all backends.\n2. Keep a separate copy of any current data before proceeding.\n3. Extract data/ into a NEW, empty application data directory. Set LAW_DATA_DIR to that directory before launching. Do not merge with existing data.\n4. Reinstall the required base models separately. External originals, exports and external logs are not included. External media references still need their original files.\n5. desktop/local-storage.json contains string key/value entries for the application's localStorage. Import these into the app's origin using Electron Developer Tools, then reload. Do not import into another website. For automatic recovery, use Dashboard > IMPORT BACK-UP and select this ZIP. The app verifies it and retains the previous data before replacing app data and desktop preferences.\n6. manifest.json lists SHA-256 and byte length for each data and preference file. Verify these before recovery.\nThis ZIP excludes application code/dependencies, base models, browser cache and unsaved in-memory edits.\n")
             handle.flush()
             os.fsync(handle.fileno())
-        if entries != [(relative, size) for relative, size in scan(root) if relative.as_posix() != ".backend.lock"]:
+        if sources != backup_sources(root):
             raise ValueError("App data changed during backup. Try again.")
-        if any(((root / relative).stat().st_size, (root / relative).stat().st_mtime_ns) != signature for relative, signature in signatures.items()):
+        if any((sources[relative].stat().st_size, sources[relative].stat().st_mtime_ns) != signature for relative, signature in signatures.items()):
             raise ValueError("App data changed during backup. Try again.")
         with zipfile.ZipFile(destination) as archive:
             for entry in manifest["files"]:
@@ -206,7 +234,7 @@ def export_backup(destination, desktop_storage, root=None):
 
 
 def reset_data(archive=None, sha256=None, confirmation=None, root=None, keep_marker=False):
-    if confirmation != "RESET": raise ValueError("Type RESET to confirm permanent deletion.")
+    if confirmation != "RESET": raise ValueError("Confirm permanent deletion from the reviewed reset dialog.")
     root = checked_root(root)
     if import_journal(root).exists(): raise ValueError("Recover the interrupted import before resetting.")
     if archive is not None: verify_archive(archive, sha256, root)

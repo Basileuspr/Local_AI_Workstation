@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from services import storage_libraries as storage
+
 import base64
 import asyncio
 import logging
@@ -154,7 +156,7 @@ async def generate_image(request: ImageGenerationRequest, client_request: Reques
         except ValueError as error:
             raise HTTPException(400, str(error)) from error
     request.request_id = request.request_id or uuid.uuid4().hex
-    job = queue.enqueue("image", f"{request.request_label} · {request.prompt}" if request.request_label else request.prompt, request.request_id,
+    job = queue.enqueue("image", f"{request.request_label} \u00b7 {request.prompt}" if request.request_label else request.prompt, request.request_id,
                         timing_profile=hashlib.sha256(json.dumps([
                             request.model_id, request.width, request.height, request.steps,
                             request.lora_id, request.long_prompt, request.allow_long_wait,
@@ -223,7 +225,7 @@ def _generate_image(request: ImageGenerationRequest, cancellation_event=None):
         result = manager.generate(**request.model_dump(exclude={"session_id", "output_dir", "request_label"}),
                                   cancellation_event=cancellation_event,
                                   on_gpu_complete=(lambda: queue.release_gpu_for_output(job)) if job else None)
-        output_path = OUTPUT_DIR / result["filename"]
+        output_path = storage.resolve(OUTPUT_DIR / result["filename"])
         data = output_path.read_bytes()
 
         # Registered in the blob store so the chat can reference it instead of
@@ -315,7 +317,7 @@ def get_prompt_tokens(request: PromptTokenRequest):
 @router.get("/outputs/{filename}")
 def get_generated_image(filename: str):
     safe_name = Path(filename).name
-    path = OUTPUT_DIR / safe_name
+    path = storage.resolve(OUTPUT_DIR / safe_name)
     if not path.is_file() or path.suffix.lower() != ".png":
         raise HTTPException(status_code=404, detail="Generated image not found")
     from services.image_vault import guard_path

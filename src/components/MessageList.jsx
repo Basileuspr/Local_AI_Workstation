@@ -8,9 +8,10 @@ import { useStore, useDispatch } from "../useStore.jsx";
 import MarkdownMessage from "./MarkdownMessage";
 import ChatMessageMarkdown from "./ChatMessageMarkdown";
 import { useChatWorkspace } from "../ChatWorkspace";
+import { useChatPane } from "../ChatPane";
 import { createMessageId } from "../messageIds";
 import { isImageFile, useChatUploads } from "../useChatUploads";
-import { SEVERITY, describeStatus } from "../serviceStatus";
+import { describeStatus } from "../serviceStatus";
 import * as api from "../api";
 import { isStoredReference } from "../imageRefs";
 import ImageViewer from "./ImageViewer";
@@ -45,6 +46,7 @@ function avatarFor(role) {
 
 export default function MessageList({ onNewChat, onSessionSaved }) {
   const state = useStore();
+  const pane = useChatPane();
   const dispatch = useDispatch();
   const chatWorkspace = useChatWorkspace();
   const fileInputRef = useRef(null);
@@ -61,8 +63,9 @@ export default function MessageList({ onNewChat, onSessionSaved }) {
   const problem = describeStatus(state.serviceStatus);
   const { currentSessionId } = state;
   useEffect(() => {
+    if (!pane.focused) return;
     chatSpeech.configure({sessionId:currentSessionId,active:state.activeSidebarTab === 'chats',preferences:state.voiceOutput});
-  },[currentSessionId,state.activeSidebarTab,state.voiceOutput]);
+  },[currentSessionId,state.activeSidebarTab,state.voiceOutput,pane.focused]);
   useEffect(() => () => chatSpeech.stop(),[]);
 
   /**
@@ -122,6 +125,10 @@ export default function MessageList({ onNewChat, onSessionSaved }) {
   // rather than as a toast, since the user's attention is on the message list.
   async function handleFiles(files) {
     setDragActive(false);
+    if (!currentSessionId) {
+      window.dispatchEvent(new CustomEvent('stage-chat-images', { detail: Array.from(files), cancelable: true }));
+      return;
+    }
     const images = Array.from(files).filter(file => file.type.startsWith('image/'));
     if (images.length) {
       const staged = new CustomEvent('stage-chat-images', {detail:images,cancelable:true});
@@ -171,7 +178,7 @@ export default function MessageList({ onNewChat, onSessionSaved }) {
 
   return (
     <div
-      id="messages"
+      id={pane.domId("messages")} className="chat-messages"
       onDragEnter={(e) => {
         e.preventDefault();
         setDragActive(true);
@@ -185,14 +192,14 @@ export default function MessageList({ onNewChat, onSessionSaved }) {
         handleFiles(e.dataTransfer.files);
       }}
     >
-      <div id="drop-overlay" className={dragActive ? "visible" : ""}>
+      <div id={pane.domId("drop-overlay")} className={dragActive ? "visible" : ""}>
         <div className="drop-icon">+</div>
         <div className="drop-text">Drop a file or image</div>
         <div className="drop-hint">txt, md, pdf, docx, png, jpg, webp</div>
       </div>
 
       {conversationHistory.length === 0 ? (
-        <div id="welcome">
+        <div id={pane.domId("welcome")}>
           <div className="icon">Local</div>
           <h2>Local AI Workstation</h2>
           {problem ? (
@@ -213,17 +220,12 @@ export default function MessageList({ onNewChat, onSessionSaved }) {
                   </button>
                 </div>
               )}
-              {problem.severity === SEVERITY.blocked && (
-                <p className="setup-hint">
-                  The app will pick this up automatically once it is running.
-                </p>
-              )}
             </div>
           ) : (
             <p>Choose a model, type a message, or drop a document into the chat.</p>
           )}
           <button
-            id="kb-upload-btn"
+            id={pane.domId("kb-upload-btn")}
             type="button"
             onClick={() => fileInputRef.current?.click()}
           >
@@ -234,7 +236,7 @@ export default function MessageList({ onNewChat, onSessionSaved }) {
         <>
           <div className="chat-upload-control">
             <button
-              id="kb-upload-btn"
+              id={pane.domId("kb-upload-btn")}
               type="button"
               onClick={() => fileInputRef.current?.click()}
             >

@@ -1,3 +1,6 @@
+import {preventSelectionText} from '../fileSelection';
+import ImageThumbnail from "./ImageThumbnail";
+import VisualReview from './VisualReview';
 import {useImageDestinations} from '../ImageDestinations';
 import {useDispatch} from '../useStore';
 import * as workflowApi from '../imageWorkflowApi';
@@ -6,7 +9,7 @@ import FreshFileInput from "./FreshFileInput";
 import { useEffect, useRef, useState } from "react";
 import useImageLibrary from "../useImageLibrary";
 import * as api from "../imageLibraryApi";
-import { reviewImages } from "../imageReview";
+import { reviewImages, canReadReviewImage, reviewFileMessage } from "../imageReview";
 import ProtectedImage from "../ImagePrivacy";
 import ImageItemActions from "./ImageItemActions";
 import BulkActions, { SelectionCheckbox } from "./BulkActions";
@@ -33,10 +36,10 @@ export default function ImageReview({ active }) {
   const upload = useRef(null), dialog = useRef(null), action = useRef(false), editor = useRef(null);
   const filtered = reviewImages(library.images, folder, filters, query);
   // Filtered-out images cannot remain selected for Start slideshow.
-  const selection = useSelection(filtered, image => image.id, folder);
   const batch = useBatchAction();
   const current = slides[position];
   const size = compact ? 12 : 6, pages = Math.max(1, Math.ceil(filtered.length / size)), currentPage = Math.min(page, pages - 1);
+  const selection = useSelection(filtered, image => image.id, folder, filtered.slice(currentPage * size, (currentPage + 1) * size));
   useEffect(() => {
     if (current && active) dialog.current?.showModal(); else dialog.current?.close();
   }, [!!current, active]);
@@ -77,8 +80,8 @@ export default function ImageReview({ active }) {
   function rate(rating) {
     if (!current) return;
     return perform(async () => {
-      await saveCaption(); await api.edit(current.id, { rating });
-      setSlides(items => items.map(item => item.id === current.id ? { ...item, rating } : item));
+      await saveCaption(); const updated = await api.edit(current.id, { rating });
+      setSlides(items => items.map(item => item.id === current.id ? { ...item, ...updated } : item));
       if (position + 1 < slides.length) setPosition(value => value + 1);
       else { setSlides([]); setNotice("Review complete. Your preferences are saved in Liked Images and Disliked Images."); }
       api.changed();
@@ -104,13 +107,14 @@ export default function ImageReview({ active }) {
   });}
   const exportLiked=reviewImages(library.images,'liked'),exportDisliked=reviewImages(library.images,'disliked');
   return <section className="image-review" aria-label="Image Review">
-    <header><p className="image-studio-eyebrow">IMAGE PREFERENCES</p><h1>Image Review</h1><p>Review and curate images, then edit them, start a workflow, organize a folder or export images with their captions and ratings.</p></header>
+    <header><p className="image-studio-eyebrow">IMAGE PREFERENCES</p><h1>Image Review</h1></header>
     <nav className="image-folders" aria-label="Review folders"><button type="button" aria-pressed={folder === "pending"} onClick={() => setFolder("pending")}>To review ({reviewImages(library.images, "pending").length})</button><button type="button" aria-pressed={folder === "liked"} onClick={() => setFolder("liked")}>👍 Liked Images</button><button type="button" aria-pressed={folder === "disliked"} onClick={() => setFolder("disliked")}>👎 Disliked Images</button></nav>
     {(error || library.error) && <p className="workflow-error" role="alert">{error || library.error}</p>}
+    <VisualReview source="library" active={active} ids={(selection.enabled ? selection.items : filtered.slice(currentPage*size,(currentPage+1)*size)).map(image=>image.id)} onChanged={()=>{api.changed();library.refresh();}} />
     {notice && <p role="status">{notice}</p>}
     <ImageTagButtons filtering tags={library.tags} selected={filters} onToggle={id => { setFilters(current => id === null ? [] : current.includes(id) ? current.filter(value => value !== id) : [...current, id]); setPage(0); }} onChanged={tagsChanged} disabled={busy} />
     <div className="review-controls"><button type="button" disabled={busy} onClick={() => upload.current.click()}>Upload images</button><button type="button" disabled={busy || !(selection.enabled ? selection.items.length : filtered.length)} onClick={() => start()}>Start slideshow ({selection.enabled ? selection.items.length : filtered.length})</button><button type="button" onClick={() => setCompact(value => !value)}>{compact ? "Larger thumbnails" : "Compact view"}</button></div>
-    <div className="review-destinations" aria-label="Review exports"><button type="button" disabled={busy||!exportLiked.length} onClick={()=>exportSet(exportLiked,'liked')}>Export liked ({exportLiked.length})</button><button type="button" disabled={busy||!exportDisliked.length} onClick={()=>exportSet(exportDisliked,'disliked')}>Export disliked ({exportDisliked.length})</button><small>ZIP exports include original image copies, caption text files, ratings and tags. These two exports include the whole rating group; Export selected follows your selection.</small></div>
+    <div className="review-destinations" aria-label="Review exports"><button type="button" disabled={busy||!exportLiked.length} onClick={()=>exportSet(exportLiked,'liked')}>Export liked ({exportLiked.length})</button><button type="button" disabled={busy||!exportDisliked.length} onClick={()=>exportSet(exportDisliked,'disliked')}>Export disliked ({exportDisliked.length})</button></div>
     <FreshFileInput type="file" hidden multiple ref={upload} accept="image/png,image/jpeg,image/webp,image/gif" onChange={event => { const files = Array.from(event.target.files || []); event.target.value = ""; addFiles(files); }} />
     <input type="search" aria-label="Search images to review" placeholder="Search names or captions…" value={query} onChange={event => { setQuery(event.target.value); setPage(0); }} />
     <p role="status">{filtered.length} matching image(s){filters.length ? " · matches all " + filters.length + " selected tag(s)" : ""}</p>
@@ -126,12 +130,9 @@ export default function ImageReview({ active }) {
     <CollectionPager label="review images" page={currentPage} pages={pages} onChange={setPage} />
     <div className={"image-gallery " + (compact ? "image-gallery-compact" : "")}>{filtered.slice(currentPage * size, (currentPage + 1) * size).map(image => <div className="gallery-item-row" key={image.id}>
       <SelectionCheckbox selection={selection} item={image} label={"image " + image.name} disabled={busy || batch.busy} />
-      <button className={"gallery-item " + (selection.has(image) ? "is-selected" : "")} type="button" disabled={busy || batch.busy} aria-pressed={selection.has(image)} onClick={() => {
-        if (folder !== "pending" && !selection.enabled) start(filtered, filtered.findIndex(item => item.id === image.id));
-        else { if (!selection.enabled) selection.start(); selection.toggle(image); }
-      }}><span className="gallery-thumbnail"><ProtectedImage src={image.url} alt={image.name} /></span><span className="gallery-name">{image.name}</span></button>
-      <div className="review-destinations"><button type="button" disabled={busy||batch.busy} onClick={()=>start([image])}>Review image</button><button type="button" disabled={busy||batch.busy||!destinations} onClick={()=>take(image,'editor')}>Edit Image</button><button type="button" disabled={busy||batch.busy||!destinations} onClick={()=>take(image,'workflow')}>Start Workflow</button></div>
-      {selection.has(image) && <ImageItemActions image={image} />}
+      <button className={"gallery-item " + (selection.has(image) ? "is-selected" : "")} type="button" disabled={busy || batch.busy} aria-pressed={selection.has(image)} onMouseDown={preventSelectionText} onClick={event => selection.activate(image,event,folder !== "pending" ? ()=>start(filtered, filtered.findIndex(item => item.id === image.id)) : null)}><span className="gallery-thumbnail">{canReadReviewImage(image)?<ImageThumbnail src={image.url} alt={image.name} />:<span>{reviewFileMessage(image)}</span>}</span><span className="gallery-name">{image.name}</span></button>
+      <div className="review-destinations"><button type="button" disabled={busy||batch.busy} onClick={()=>start([image])}>Review image</button><button type="button" disabled={busy||batch.busy||!destinations||!canReadReviewImage(image)} onClick={()=>take(image,'editor')}>Edit Image</button><button type="button" disabled={busy||batch.busy||!destinations||!canReadReviewImage(image)} onClick={()=>take(image,'workflow')}>Start Workflow</button></div>
+      {selection.has(image) && canReadReviewImage(image) && <ImageItemActions image={image} />}
     </div>)}</div>
     {filing && <FileImagesDialog images={filing} folders={library.folders} onClose={() => setFiling(null)} />}
     <dialog ref={dialog} className="review-slideshow" aria-label="Image review slideshow" onCancel={event => { event.preventDefault(); close(); }} onClose={() => { if (!active) saveCaption()?.catch(() => {}); }} onKeyDown={event => {
@@ -140,9 +141,9 @@ export default function ImageReview({ active }) {
       if (event.key === "ArrowLeft") { event.preventDefault(); navigate(Math.max(0, position - 1)); }
     }}>
       {current && <><header><div><h2>{current.name}</h2><p>{position + 1} of {slides.length}{current.rating ? " · " + current.rating : ""}</p></div><button type="button" autoFocus disabled={busy} onClick={close}>Close slideshow</button></header>
-        <div className="review-slide-stage"><button type="button" aria-label="Previous review image" disabled={busy || position === 0} onClick={() => navigate(position - 1)}>‹</button><ProtectedImage src={current.url} alt={current.name} /><button type="button" aria-label="Next review image" disabled={busy || position === slides.length - 1} onClick={() => navigate(position + 1)}>›</button></div>
-        <div className="review-destinations" aria-label="Use reviewed image"><button type="button" disabled={busy||!destinations} onClick={()=>take(current,'editor')}>Edit Image</button><button type="button" disabled={busy||!destinations} onClick={()=>take(current,'workflow')}>Start Workflow</button><button type="button" disabled={busy} onClick={()=>exportSet([current],'image')}>Export image &amp; caption</button></div>
-        <ImageItemActions image={current} />
+        <div className="review-slide-stage"><button type="button" aria-label="Previous review image" disabled={busy || position === 0} onClick={() => navigate(position - 1)}>‹</button>{canReadReviewImage(current)?<ProtectedImage src={current.url} alt={current.name} />:<p role="status">{reviewFileMessage(current)}</p>}<button type="button" aria-label="Next review image" disabled={busy || position === slides.length - 1} onClick={() => navigate(position + 1)}>›</button></div>
+        <div className="review-destinations" aria-label="Use reviewed image"><button type="button" disabled={busy||!destinations||!canReadReviewImage(current)} onClick={()=>take(current,'editor')}>Edit Image</button><button type="button" disabled={busy||!destinations||!canReadReviewImage(current)} onClick={()=>take(current,'workflow')}>Start Workflow</button><button type="button" disabled={busy||!canReadReviewImage(current)} onClick={()=>exportSet([current],'image')}>Export image &amp; caption</button></div>
+        {canReadReviewImage(current) && <ImageItemActions image={current} />}
         <ImageReviewMetadata key={current.id} ref={editor} image={current} tags={library.tags} disabled={busy} onTagsChanged={tagsChanged} onSaved={update => {
           setSlides(items => items.map(item => item.id === update.id ? { ...item, ...update } : item));
           library.refresh();

@@ -34,6 +34,12 @@ it("keeps both panes above their minimum dimensions even in a short window", () 
   expect(short.available).toBe(480);
   expect(short.min).toBeCloseTo(short.max);
 });
+it("leaves room for two chat composers and allows scrolling in a short window", () => {
+  const limits = splitLimits(400, "vertical", true);
+  expect(limits.available).toBe(720);
+  expect(limits.available * limits.min / 100).toBeCloseTo(320);
+  expect(limits.available * (100 - limits.max) / 100).toBeCloseTo(400);
+});
 it("keeps hidden navigation mounted and exposes keyboard accessible dividers", () => {
   storage({ sidebarCollapsed: true });
   const html = renderToStaticMarkup(<AppLayout activeTab="chats" pinnedTab="markdown" sidebar={() => <textarea defaultValue="nav draft" />}>

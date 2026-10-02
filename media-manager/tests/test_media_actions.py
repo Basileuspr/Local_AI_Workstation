@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 from media_organizer import media_actions, scanner
 from tests import test_custom_folders
 
@@ -62,3 +63,64 @@ class MediaActionTests(unittest.TestCase):
         self.assertEqual(Path(row['CurrentPath']).read_bytes(), self.originals[row['OriginalPath']])
         media_actions.tag_action(self.state, dict(action='remove',runId=self.run_id,recordIds=[row['RecordId']],tagId=tag['id']))
         self.assertEqual(self.state.library(self.run_id)['records'][0]['TagIds'], [])
+
+    def test_bulk_delete_restore_and_permanent_delete_preserve_unselected(self):
+        rows = self.state.library(self.run_id)['records']
+        items = [dict(recordId=row['RecordId'], expectedPath=row['CurrentPath']) for row in rows]
+        payload = dict(runId=self.run_id, items=items, action='delete', confirmation=f'DELETE {len(items)}')
+        with self.assertRaises(ValueError): media_actions.validate_batch(self.state, dict(payload, confirmation='DELETE'))
+        media_actions.execute_batch(self.state, payload, lambda **_: None)
+        deleted = self.state.library(self.run_id)['records']; self.assertTrue(all(row['Trashed'] for row in deleted))
+        first = deleted[0]; content = Path(first['CurrentPath']).read_bytes()
+        media_actions.execute(self.state, self.payload(first, action='restore'), lambda **_: None)
+        restored = self.state.library(self.run_id)['records'][0]
+        self.assertEqual(Path(restored['CurrentPath']).read_bytes(), content)
+        extra = next(row for row in self.state.library(self.run_id)['records'] if row['Trashed'])
+        with self.assertRaisesRegex(ValueError, 'FOREVER'):
+            media_actions.execute(self.state, self.payload(extra, action='purge', confirmation='DELETE'), lambda **_: None)
+        media_actions.execute(self.state, self.payload(extra, action='purge', confirmation='DELETE FOREVER'), lambda **_: None)
+        self.assertFalse(Path(extra['CurrentPath']).exists())
+        self.assertEqual(Path(restored['CurrentPath']).read_bytes(), content)
+        self.assertTrue(next(row for row in self.state.library(self.run_id)['records'] if row['RecordId'] == extra['RecordId'])['PermanentlyDeleted'])
+
+    def test_bulk_hash_preflight_rejects_entire_changed_selection(self):
+        rows = self.state.library(self.run_id)['records']
+        path = Path(rows[-1]['CurrentPath']); stamp = path.stat(); data = bytearray(path.read_bytes()); data[-1] ^= 1
+        path.write_bytes(data); os.utime(path, ns=(stamp.st_atime_ns, stamp.st_mtime_ns))
+        payload = dict(runId=self.run_id, items=[dict(recordId=row['RecordId'], expectedPath=row['CurrentPath']) for row in rows], action='delete', confirmation=f'DELETE {len(rows)}')
+        with self.assertRaisesRegex(ValueError, 'SHA-256'): media_actions.execute_batch(self.state, payload, lambda **_: None)
+        self.assertTrue(all(Path(row['CurrentPath']).exists() for row in rows))
+
+    def test_windows_preview_lock_retries_with_hash_checks_then_preserves_other_copy(self):
+        row = self.state.library(self.run_id)['records'][0]; content = Path(row['CurrentPath']).read_bytes()
+        original_move = media_actions.mover.safe_move
+        locked = PermissionError('Preview reader is active'); locked.winerror = 32
+        calls = []; phases = []
+        def transient_lock(*args, **kwargs):
+            calls.append(args)
+            if len(calls) == 1: raise locked
+            return original_move(*args, **kwargs)
+        with patch.object(media_actions.mover, 'safe_move', side_effect=transient_lock):
+            media_actions.execute(self.state, self.payload(row, action='delete', confirmation='DELETE'), lambda **values: phases.append(values.get('phase')))
+        self.assertEqual(len(calls), 2); self.assertIn('waiting for preview to finish', phases)
+        deleted = self.state.library(self.run_id)['records'][0]
+        self.assertTrue(deleted['Trashed']); self.assertEqual(Path(deleted['CurrentPath']).read_bytes(), content)
+        other = self.state.library(self.run_id)['records'][1]
+        self.assertEqual(Path(other['CurrentPath']).read_bytes(), self.originals[other['OriginalPath']])
+
+    def test_changed_file_during_preview_wait_is_retained(self):
+        row = self.state.library(self.run_id)['records'][0]; source = Path(row['CurrentPath'])
+        locked = PermissionError('Preview reader is active'); locked.winerror = 32
+        original_move = media_actions.mover.safe_move; calls = []
+        def change_during_wait(*args, **kwargs):
+            calls.append(args)
+            if len(calls) == 1:
+                stamp = source.stat(); data = bytearray(source.read_bytes()); data[-1] ^= 1
+                source.write_bytes(data); os.utime(source, ns=(stamp.st_atime_ns, stamp.st_mtime_ns))
+                raise locked
+            return original_move(*args, **kwargs)
+        with patch.object(media_actions.mover, 'safe_move', side_effect=change_during_wait):
+            with self.assertRaisesRegex(ValueError, 'SHA-256'):
+                media_actions.execute(self.state, self.payload(row, action='delete', confirmation='DELETE'), lambda **_: None)
+        self.assertTrue(source.exists())
+        self.assertFalse(any(path.is_file() for path in source.parent.glob('.media-manager-trash/**/*')))

@@ -1,16 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { appTabLabels } from "../navigation";
 import { downloadBlob } from "../downloadBlob";
-import { fetchToolRegistry, filterTools, TOOL_EFFECT_LABELS } from "../toolRegistry";
+import { fetchToolRegistry, filterTools, registryText, toolText, toolTextFilename, TOOL_AVAILABILITY_LABELS, TOOL_EFFECT_LABELS } from "../toolRegistry";
 import "./ToolRegistry.css";
 
-const availabilityLabels = { registered: "API registered", ui_only: "Interactive workspace", unavailable: "API unavailable" };
+const availabilityLabels = TOOL_AVAILABILITY_LABELS;
 
-export function ToolRegistryDetails({ tool }) {
+export function ToolRegistryDetails({ tool, onDownloadText, exporting }) {
   if (!tool) return <p className="tool-registry-empty">No tools match these filters.</p>;
   return <article className="tool-registry-detail" aria-label={`${tool.name} details`}>
     <div className="tool-registry-meta"><span>{tool.category}</span><span>{availabilityLabels[tool.availability] || "Unknown status"}</span></div>
     <h3>{tool.name}</h3><code className="tool-registry-id">{tool.id}</code>
+    {onDownloadText && <button className="tool-registry-item-download" type="button" disabled={exporting} onClick={() => onDownloadText(tool)} aria-label={`Download TXT for ${tool.name}`}>Download item TXT</button>}
     <p>{tool.description}</p>
     <dl>
       <dt>Workspace</dt><dd>{appTabLabels[tool.workspace] || tool.workspace}</dd>
@@ -47,11 +48,22 @@ export default function ToolRegistry({ active = true }) {
     return () => { current = false; clearTimeout(timeout); controller.abort(); };
   }, [active, reload]);
 
-  async function exportRegistry(kind) {
+  async function exportRegistry(kind, tool = null) {
     if (!registry || exportLock.current) return;
     exportLock.current = true; setExporting(true); setNotice("");
     try {
-      if (kind === "json") {
+      if (tool) {
+        if (kind === "copy") {
+          await navigator.clipboard.writeText(toolText(tool));
+          setNotice(`Copied ${tool.name}.`);
+        } else {
+          downloadBlob(new Blob([toolText(tool)], { type: "text/plain;charset=utf-8" }), toolTextFilename(tool));
+          setNotice(`TXT download prepared for ${tool.name}.`);
+        }
+      } else if (kind === "txt") {
+        downloadBlob(new Blob([registryText(registry)], { type: "text/plain;charset=utf-8" }), "workstation-tool-registry.txt");
+        setNotice("Full TXT catalog download prepared.");
+      } else if (kind === "json") {
         downloadBlob(new Blob([JSON.stringify(registry, null, 2) + "\n"], { type: "application/json" }), "workstation-tool-registry.json");
         setNotice("Full JSON registry download prepared.");
       } else {
@@ -65,7 +77,7 @@ export default function ToolRegistry({ active = true }) {
         }
       }
     } catch (failure) {
-      setNotice(kind === "copy" ? `Could not copy the catalog. Try Download Markdown. ${failure.message}` : failure.message);
+      setNotice(kind === "copy" ? `Could not copy ${tool ? tool.name : "the catalog"}. Try ${tool ? "Download item TXT" : "Download TXT"}. ${failure.message}` : failure.message);
     } finally { exportLock.current = false; setExporting(false); }
   }
 
@@ -75,10 +87,10 @@ export default function ToolRegistry({ active = true }) {
   const selectedTool = matches.find(tool => tool.id === selected) || matches[0];
   return <section className="dashboard-card tool-registry" aria-labelledby="tool-registry-heading">
     <header className="tool-registry-header">
-      <div><h2 id="tool-registry-heading">Tool registry</h2><p>Explore what the workstation can do and read each tool’s requirements.</p></div>
+      <div><h2 id="tool-registry-heading">Tool registry</h2></div>
       <button type="button" onClick={() => setReload(value => value + 1)} disabled={loading || !active}>{loading ? "Loading…" : "Refresh"}</button>
     </header>
-    <p className="tool-registry-note">Local LLM access is prepared for discovery. Automatic tool execution is not connected. API registration does not confirm that a model or dependency is ready.</p>
+
     {error && <p className="tool-registry-error" role="alert">{error}{registry ? " Showing the last loaded catalog." : ""}</p>}
     {!registry && !error && <p role="status">{active ? "Loading tool catalog…" : "Open Dashboard to load the tool catalog."}</p>}
     {registry && <>
@@ -90,19 +102,21 @@ export default function ToolRegistry({ active = true }) {
       <p className="tool-registry-count" role="status">{matches.length} of {tools.length} tools · Schema {registry.schema_version}</p>
       <div className="tool-registry-browser">
         <ul className="tool-registry-list" aria-label="Registered tools">{matches.map(tool => <li key={tool.id}>
-          <button type="button" aria-pressed={selectedTool?.id === tool.id} onClick={() => setSelected(tool.id)}>
+          <button className="tool-registry-select" type="button" aria-pressed={selectedTool?.id === tool.id} onClick={() => setSelected(tool.id)}>
             <strong>{tool.name}</strong><span>{tool.category} · {availabilityLabels[tool.availability] || "Unknown status"}</span>
           </button>
+          <button className="tool-registry-copy" type="button" disabled={exporting} aria-label={`Copy ${tool.name}`} onClick={() => exportRegistry("copy", tool)}>Copy</button>
         </li>)}</ul>
-        <ToolRegistryDetails tool={selectedTool} />
+        <ToolRegistryDetails tool={selectedTool} exporting={exporting} onDownloadText={tool => exportRegistry("txt", tool)} />
       </div>
       <div className="tool-registry-exports" aria-label="Export full tool registry">
         <button type="button" disabled={exporting} onClick={() => exportRegistry("copy")}>Copy catalog for LLM</button>
         <button type="button" disabled={exporting} onClick={() => exportRegistry("json")}>Download JSON</button>
         <button type="button" disabled={exporting} onClick={() => exportRegistry("markdown")}>Download Markdown</button>
+        <button type="button" disabled={exporting} onClick={() => exportRegistry("txt")}>Download TXT</button>
       </div>
-      <p className="tool-registry-note">Exports include the full catalog. Structured discovery: <code>GET /tools/registry</code> · Readable catalog: <code>GET /tools/registry.md</code></p>
-      <p className="tool-registry-feedback" role="status">{exporting ? "Preparing catalog…" : notice}</p>
+
+      <p className="tool-registry-feedback" role="status">{exporting ? "Preparing export…" : notice}</p>
     </>}
   </section>;
 }

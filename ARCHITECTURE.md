@@ -7,6 +7,14 @@ below describe that earlier snapshot.
 
 See `PROJECT_STATUS.md` for the current validation scope and known limitations.
 
+Storage libraries now route generated/imported media through
+`backend/services/storage_libraries.py`. A primary SQLite catalog binds each
+media object to its original folder; marked library folders can live on multiple
+local drives. Metadata, indexes, models, and encrypted vaults retain their prior
+locations. Missing or replaced library drives fail explicitly. Backups flatten
+managed library media into the portable app-data tree; reset/import leave external
+folders intact. See the Storage libraries section in [README.md](README.md).
+
 ---
 
 ## 1. What this is
@@ -27,7 +35,7 @@ Three processes:
 |   - spawns the Python backend with LAW_PORT set                      |
 |   - polls /health until ready                                        |
 |   - loads the renderer with ?apiPort=<port>                          |
-|   - tray, single-instance lock, hide-on-close, backend shutdown      |
+|   - tray, single-instance lock, full exit/restart, backend shutdown  |
 +---------------+---------------------------------+-------------------+
                 | spawn (stdout piped to log)     | loadURL / loadFile
                 v                                 v

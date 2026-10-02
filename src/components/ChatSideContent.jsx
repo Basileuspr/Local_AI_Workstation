@@ -36,7 +36,7 @@ function SideDocument({ artifact, active }) {
 
 export default function ChatSideContent({ active }) {
   const workspace = useChatWorkspace(), state = useStore();
-  if (!workspace?.pin || workspace.pin.kind === "tool") return null;
+  if (!workspace?.pin || ["tool", "chat"].includes(workspace.pin.kind)) return null;
   return <section className="chat-side-content" aria-label={workspace.title}>
     {workspace.pin.kind === "document" ? workspace.artifact
       ? <SideDocument key={workspace.artifact.id} artifact={workspace.artifact} active={active} />

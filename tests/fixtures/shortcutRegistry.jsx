@@ -19,4 +19,20 @@ function Fixture() {
     <div className="pane" data-capture-tab="shortcuts" hidden={!workspaceVisible(tab, workspace.pin, "shortcuts")}><ShortcutRegistry /></div>
   </AppLayout>;
 }
-createRoot(document.getElementById("root")).render(<StoreProvider><ChatWorkspaceProvider><Fixture /></ChatWorkspaceProvider></StoreProvider>);
+function IconUploadProbe() {
+  if (!new URLSearchParams(location.search).has("icons-check")) return null;
+  function upload(invalid = false) {
+    const input = document.querySelector('.registry-icon-editor input[type="file"]');
+    if (!input) return;
+    const bytes = invalid ? '<svg onload="alert(1)"/>' : Uint8Array.from(atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a2ioAAAAASUVORK5CYII="), character => character.charCodeAt(0));
+    const transfer = new DataTransfer();
+    transfer.items.add(new File([bytes], "fixture-icon.png", { type: "image/png" }));
+    input.files = transfer.files;
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+  return <aside style={{position:"fixed",bottom:8,right:8,zIndex:1000,display:"flex",gap:8}}>
+    <button onClick={() => upload()}>Upload fixture icon</button>
+    <button onClick={() => upload(true)}>Upload invalid fixture icon</button>
+  </aside>;
+}
+createRoot(document.getElementById("root")).render(<StoreProvider><ChatWorkspaceProvider><Fixture /><IconUploadProbe /></ChatWorkspaceProvider></StoreProvider>);

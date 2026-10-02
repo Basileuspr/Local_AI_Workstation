@@ -93,12 +93,12 @@ export function CapabilityReadings() {
   };
   return <section className="dashboard-card">
     <h2>Available on this PC</h2>
-    <p>Detected automatically and checked again as services and models change. Unavailable features leave the rest of the app usable.</p>
+
     {host && <p>{host.os} · {host.architecture}{host.memory_total_bytes ? ` · ${(host.memory_total_bytes / 1024 ** 3).toFixed(1)} GiB RAM` : ""}
       {capabilities.chat_context_limit && ` · Chat context limit: ${capabilities.chat_context_limit.toLocaleString()} tokens`}</p>}
     {!status?.backend?.ok && <p>Local services are unavailable. Desktop tools that do not need the backend can still be used.</p>}
     {capabilities?.error && <p>{capabilities.error}</p>}
     <CapabilityList features={{ ...detected, ...desktop?.features }} />
-    <p className="dashboard-note">Availability means requirements were detected, not that a particular model or workload is guaranteed to fit in memory.</p>
+
   </section>;
 }

@@ -65,13 +65,13 @@ export default function AudioExtractor({active,onUseForTranscription,transcripti
   return <section className="audio-speech audio-extractor" aria-label="Extract audio from video"
     onDragOver={event => event.preventDefault()} onDrop={event => {event.preventDefault(); if (event.dataTransfer.files?.[0]) choose(event.dataTransfer.files[0]);}}>
     <h2>Extract audio from video</h2>
-    <p>Turn a video into an audio file. Choose a file or drop it here, extract the sound, then listen, save, or use it for transcription.</p>
+
     <div className="audio-controls">
       <label className="audio-file-picker">Video or audio file <input aria-label="Video or audio to extract" type="file" accept={MEDIA_AUDIO_ACCEPT} disabled={busy} onChange={e => {const value = e.target.files?.[0]; e.target.value = ''; if (value) choose(value);}}/></label>
       <label>Save as <select aria-label="Extracted audio format" disabled={busy} value={format} onChange={e => setFormat(e.target.value)}>{Object.entries(EXTRACTION_FORMATS).map(([id,label]) => <option key={id} value={id} disabled={status && !status.formats?.includes(id)}>{label}</option>)}</select></label>
       <label>Audio track <input className="audio-track-number" aria-label="Audio track to extract" type="number" min={1} max={32} step={1} disabled={busy} value={track} onChange={e => setTrack(e.target.value === '' ? '' : Number(e.target.value))}/></label>
     </div>
-    <small>MP4, MOV, MKV, WebM, AVI and other common video/audio formats. Up to 2 GB and 2 hours per input. Track 1 is the first audio track; choose another number for an alternate language or commentary.</small>
+
     {file && <div className="audio-source"><span>{file.name} · {(file.size/1024**2).toFixed(2)} MB</span><button type="button" disabled={busy} onClick={() => {preview.current?.pause(); setFile(null); setResult(null); setError(''); setNotice('');}}>Remove extraction source</button></div>}
     <div className="audio-controls"><button type="button" className="audio-demo-button" disabled={!active || busy || !file || !status?.formats?.includes(format) || !Number.isInteger(track) || track < 1 || track > 32} onClick={run}>Extract audio</button>{busy && <button type="button" onClick={() => operation.current?.controller.abort()}>Cancel extraction</button>}</div>
     {!status && !error && <p role="status">Checking audio extractor…</p>}
@@ -86,6 +86,6 @@ export default function AudioExtractor({active,onUseForTranscription,transcripti
       <div className="audio-controls"><button type="button" onClick={() => downloadBlob(result.file,result.file.name)}>Save extracted audio</button><button type="button" disabled={!active || busy || transcriptionBusy} onClick={() => {preview.current?.pause(); onUseForTranscription(result.file); setNotice('Audio loaded in Speech to text. Choose your settings, then Transcribe audio.');}}>Use for transcription</button></div>
       {transcriptionBusy && <small>Finish the current recording or transcription before loading this audio.</small>}
     </div>}
-    <details className="audio-help"><summary>Audio extraction help</summary><p>MP3 and M4A make compact files. WAV uses uncompressed 16-bit audio; FLAC compresses that audio without further loss. Audio is converted to the chosen format, with mono or stereo output and sample rates up to 48 kHz. Surround sound is mixed to stereo. Output files are limited to 250 MB; use MP3 or M4A for longer videos.</p><p>All extraction happens on this computer using the audio runtime. The original file stays unchanged. Video, subtitles, cover art, and source metadata are omitted. Files without an audio track cannot be extracted. Leaving Audio stops playback while extraction continues; closing or refreshing cancels an unfinished request and clears unsaved results.</p></details>
+
   </section>;
 }

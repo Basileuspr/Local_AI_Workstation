@@ -12,6 +12,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const {redactSecrets} = require('./redactSecrets');
 
 const MAX_BYTES = 2_000_000;
 const BACKUP_COUNT = 3;
@@ -91,8 +92,7 @@ function emit(level, line) {
 
 function write(level, scope, message) {
   // Split so a multi-line chunk does not leave continuation lines unlabelled.
-  const lines = String(message).replace(/((?:law_token|apiToken)=)[^&\s"']+/gi, "$1REDACTED")
-    .replace(/(Bearer\s+|X-LAW-Session["']?\s*[:=]\s*["']?)[^\s"',;}]+/gi, "$1REDACTED")
+  const lines = redactSecrets(message)
     .split(/\r?\n/).map((l) => l.trimEnd()).filter(Boolean);
   if (lines.length === 0) return;
 

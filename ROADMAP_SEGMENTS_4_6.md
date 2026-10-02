@@ -1,7 +1,8 @@
 # Roadmap segments 4–6 implementation
 
-Implementation reference for desktop security, persistent scene state and
-reviewed frame continuity. Normal Generate remains available separately.
+Implemented against the existing dirty `baseline/v1.0.0-portable` checkout on
+2026-09-18/19. User data and unrelated working changes were retained. No commit
+or push was made. Normal Generate remains available separately.
 
 ## Segment 4: desktop and backend boundary
 
@@ -167,5 +168,8 @@ Verified results:
   established to be caused by the scene changes; no dependency replacement or
   user-model change was attempted.
 
-Desktop startup changes require a full restart. Existing FastAPI startup/shutdown
-event deprecation warnings do not fail tests.
+The live app connection was repaired and reopened, and successful authenticated
+requests were observed. The session was subsequently active and left running;
+the latest main-process/backend changes take effect on its next full restart.
+Existing FastAPI startup/shutdown event deprecation warnings remain; they do not
+fail tests.

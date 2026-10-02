@@ -1,4 +1,4 @@
-"""Markdown checklist support; edits are restricted to one existing task marker."""
+"""Markdown checklist edits and persistent, item-level change history."""
 import re
 
 TASK = re.compile(r"^(\s*(?:[-+*]|\d+[.)])\s+)\[([ xX])\](?:[ \t]+(.*)|$)")
@@ -56,6 +56,30 @@ def checklist_lines(content):
         elif task := TASK.match(line):
             tasks[index] = task
     return tasks
+
+
+def checklist_history_change(before, after, items=None):
+    """Use editor line identities so duplicate text and simultaneous edits stay distinct."""
+    def snapshot(content):
+        return [dict(line_index=line, text=task[3] or "", checked=task[2].lower() == "x")
+                for line, task in checklist_lines(content).items()]
+
+    previous, current = snapshot(before), snapshot(after)
+    old = {item["line_index"]: item for item in previous}
+    submitted = current if items is None else items
+    kept = {item["line_index"] for item in submitted if item["line_index"] is not None}
+    changes = [dict(kind="removed", before=item) for item in previous if item["line_index"] not in kept]
+    for item in submitted:
+        original = old.get(item["line_index"])
+        updated = dict(text=item["text"], checked=item["checked"])
+        if original is None:
+            changes.append(dict(kind="added", after=updated))
+            continue
+        if original["text"] != item["text"]:
+            changes.append(dict(kind="edited", before=original, after=updated))
+        if original["checked"] != item["checked"]:
+            changes.append(dict(kind="completed" if item["checked"] else "reopened", before=original, after=updated))
+    return dict(action="toggle" if items is None else "edit", before=previous, after=current, changes=changes)
 
 
 def edit_checklist(content, items):

@@ -31,7 +31,7 @@ export default function ImageResolutionControls({width,height,onChange,min=256,m
     {sizes.length>1&&<label>Scale · {width} × {height}<input aria-label={`${prefix}Resolution scale`} type="range" min="0" max={sizes.length-1} value={Math.max(0,index)} onChange={e=>onChange(sizes[Number(e.target.value)])}/></label>}
     <div className="image-quick-buttons">
     {sourceSize&&<button type="button" onClick={()=>{const next=fitDimensions(sourceSize.width,sourceSize.height,{min,max});if(next){onChange(next);setError('');}else setError('The source is too wide or tall for these limits. Choose an output ratio.');}}>Match source proportions</button>}
-    </div><small>{min}–{max} pixels per side, multiples of 8. Locked resizing preserves the ratio; unlocked values round to the nearest supported size.</small>
+    </div>
     {error&&<p role="alert">{error}</p>}
   </div>;
 }

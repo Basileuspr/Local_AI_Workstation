@@ -2,10 +2,11 @@ from fastapi.responses import StreamingResponse
 from starlette.background import BackgroundTask
 from typing import Literal
 from fastapi import APIRouter, Depends, File, Header, HTTPException, Response, UploadFile
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictBool
 from starlette.concurrency import run_in_threadpool
 from services import image_library as library, image_vault as vault
 from services.app_logging import get_logger
+from services.image_thumbnails import response as image_response
 
 logger = get_logger("backend.image_library")
 
@@ -39,6 +40,10 @@ class ImageEdit(BaseModel):
     hidden: bool | None = None
     caption: str | None = Field(default=None, max_length=10000)
     tag_ids: list[str] | None = Field(default=None, max_length=100)
+    category: str | None = Field(default=None, max_length=120)
+    project: str | None = Field(default=None, max_length=120)
+    favorite: StrictBool | None = None
+    review_status: Literal['unreviewed', 'accepted', 'rejected'] | None = None
 
 
 class Tag(BaseModel):
@@ -111,14 +116,15 @@ async def upload(files: list[UploadFile] = File(...)):
 
 
 @router.get("/images/{image_id}/content")
-def content(image_id: str):
+def content(image_id: str, thumbnail: bool = False):
     data, item = call(library.image_bytes, image_id)
-    return Response(data, media_type=item["type"], headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
+    return image_response(data, item["type"], thumbnail)
 
 
 @router.patch("/images/{image_id}")
 def edit_image(image_id: str, request: ImageEdit):
-    return call(library.edit_image, image_id, rating=request.rating, folder_ids=request.folder_ids, set_rating="rating" in request.model_fields_set, hidden=request.hidden, caption=request.caption, tag_ids=request.tag_ids)
+    return call(library.edit_image, image_id, rating=request.rating, folder_ids=request.folder_ids, set_rating="rating" in request.model_fields_set, hidden=request.hidden, caption=request.caption, tag_ids=request.tag_ids,
+                category=request.category, project=request.project, favorite=request.favorite, review_status=request.review_status)
 
 
 @router.delete("/images/{image_id}")

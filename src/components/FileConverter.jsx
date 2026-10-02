@@ -2,9 +2,10 @@ import { useRef, useState } from "react";
 import {useImageRemoval} from './ImageRemovalControls';
 import { apiUrl } from "../api";
 import "./Tools.css";
+import ImageThumbnail, { FileImageThumbnail, ThumbnailRetryButton } from "./ImageThumbnail";
 
 export function ConvertedAttachment({ artifact }) {
-  return <div className="document-attachment"><strong>{artifact.name}</strong><span>{artifact.width} × {artifact.height} · {Math.ceil(artifact.size / 1024)} KB</span><a href={apiUrl(`/workspaces/converted/${artifact.id}`)} download={artifact.name}>Download image</a></div>;
+  return <div className="document-attachment"><span className="file-thumbnail-slot"><ImageThumbnail src={apiUrl(`/workspaces/converted/${artifact.id}`)} alt={artifact.name} /></span><strong>{artifact.name}</strong><span>{artifact.width} × {artifact.height} · {Math.ceil(artifact.size / 1024)} KB</span><a href={apiUrl(`/workspaces/converted/${artifact.id}`)} download={artifact.name}>Download image</a></div>;
 }
 
 export default function FileConverter() {
@@ -29,13 +30,14 @@ export default function FileConverter() {
     } finally { setBusy(false); setProgress("Finished."); }
   }
   return <section className="tools-workspace" onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();if(!busy)setFiles(Array.from(e.dataTransfer.files));}}>
-    <header className="tools-heading"><h1>File Converter</h1><p>Drop images or choose files. Originals are preserved.</p></header>
+    <header className="tools-heading"><h1>File Converter</h1></header>
     <div className="tools-toolbar"><button disabled={busy} onClick={()=>input.current.click()}>Choose images</button><input ref={input} hidden multiple type="file" accept="image/*" onChange={e=>{setFiles(Array.from(e.target.files));e.target.value="";}} />
-      <label>Convert to <select disabled={busy} value={target} onChange={e=>setTarget(e.target.value)}>{["png","jpg","webp","bmp","tiff"].map(format=><option key={format} value={format}>{format.toUpperCase()}</option>)}</select></label>
+      <label>Convert to <select disabled={busy} value={target} onChange={e=>setTarget(e.target.value)}>{["png","jpg","webp","bmp","tiff","ico"].map(format=><option key={format} value={format}>{format.toUpperCase()}</option>)}</select></label>
       <button disabled={busy||!files.length} onClick={convert}>Convert {files.length || ""} file{files.length===1?"":"s"}</button>
     </div>
-    <p className="tools-note">Still images up to 20 MB and 24 megapixels. JPG and BMP use a white background for transparency. Chat can also convert an attached image: “Convert this to PNG.”</p>
-    {removal.toolbar}<ul>{files.map((file,i)=><li key={i}>{file.name}{removal.controls(file, `conversion input ${file.name}`)}</li>)}</ul><p role="status">{progress}</p>
+
+    {files.length > 0 && <ThumbnailRetryButton />}
+    {removal.toolbar}<ul className="thumbnail-file-list">{files.map((file,i)=><li key={i}><FileImageThumbnail file={file} /><span className="thumbnail-filename">{file.name}</span>{removal.controls(file, `conversion input ${file.name}`)}</li>)}</ul><p role="status">{progress}</p>
     {errors.map((error,i)=><p role="alert" key={i}>{error}</p>)}
     {outputRemoval.toolbar}{results.map(artifact=><div key={artifact.id}><ConvertedAttachment artifact={artifact} />{outputRemoval.controls(artifact, `converted image ${artifact.name}`)}</div>)}
   </section>;

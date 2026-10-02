@@ -1,4 +1,3 @@
-import { useRef } from "react";
 import { defaultImageSettings } from "../preferences";
 import { MAX_IMAGE_STEPS, MAX_IMAGE_GUIDANCE } from "../imageGenerationLimits";
 import "./ImageGenerationHelp.css";
@@ -64,22 +63,11 @@ const scales = [
 ];
 
 export default function ImageGenerationHelp() {
-  const dialogRef = useRef(null);
-  return (
-    <div className="image-generation-help">
-      <button className="image-info-button" type="button" aria-label="Generate information: settings and examples" title="Settings and examples" aria-haspopup="dialog" onClick={() => dialogRef.current?.showModal()}>
-        <span aria-hidden="true">ⓘ</span>
-      </button>
-      <dialog ref={dialogRef} className="lora-help-dialog image-help-dialog" aria-labelledby="image-help-title">
-        <header className="lora-help-heading">
-          <h2 id="image-help-title">Generate · settings & examples</h2>
-          <button type="button" autoFocus onClick={() => dialogRef.current?.close()} aria-label="Close Generate information">Close</button>
-        </header>
-        <p>Read each scale from lowest to highest. Change one setting at a time to learn its effect. Higher is not always better.</p>
+  return <div className="workspace-help-guide">
         {scales.map(({ title, description, rows }) => (
           <section key={title}>
             <h3>{title}</h3>
-            <p>{description}</p>
+            <dl className="workspace-control-help"><div><dt>What it controls</dt><dd>{description}</dd></div></dl>
             <table className="image-help-scale">
               <caption>{title}: lowest to highest</caption>
               <thead><tr><th scope="col">Value / degree</th><th scope="col">What you may see</th></tr></thead>
@@ -87,12 +75,12 @@ export default function ImageGenerationHelp() {
             </table>
             {title.startsWith("Guidance") && <div className="image-guidance-example">
               <h4>Same prompt · guidance 5 vs 20</h4>
-              <p>Prompt: “A red ceramic teapot on a wooden table, soft morning window light, watercolor.”</p>
               <dl>
+                <div><dt>Example prompt</dt><dd>A red ceramic teapot on a wooden table, soft morning window light, watercolor.</dd></div>
                 <div><dt>5 · Moderate influence</dt><dd>Might resemble a loose watercolor wash, with gentle lighting and softly suggested wood grain; some requested details may be less exact.</dd></div>
                 <div><dt>20 · Very strong influence</dt><dd>Might emphasize the red color and table texture more forcefully, but could produce hard edges, harsh shadows or a less convincing watercolor treatment.</dd></div>
               </dl>
-              <p>These are written examples, not results from your model. To compare actual images, keep the same model, prompt, negative prompt, adapter, dimensions, steps and a fixed seed (for example 42), then change only Guidance.</p>
+              <dl><div><dt>Compare your model</dt><dd>Keep the model, prompts, adapter, dimensions, steps and seed fixed; change only Guidance. These written examples are illustrative, not measured outputs.</dd></div></dl>
             </div>}
           </section>
         ))}
@@ -107,8 +95,6 @@ export default function ImageGenerationHelp() {
             <div><dt>RESET DEFAULT</dt><dd>Clears both prompts, model, adapter, profile selections, seed and the current preview. Restores {defaultImageSettings.width} × {defaultImageSettings.height}, {defaultImageSettings.steps} steps, guidance {defaultImageSettings.guidanceScale}, adapter strength {defaultImageSettings.loraScale}, and long-prompt encoding on. Saved profiles, images and chats remain available. Stop an active generation before resetting.</dd></div>
           </dl>
         </section>
-        <p>Parameter reference: <a href="https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_xl" target="_blank" rel="noreferrer">Diffusers SDXL documentation</a>. Follow your model's own guidance for specific settings.</p>
-      </dialog>
-    </div>
-  );
+        <dl><div><dt>Parameter reference</dt><dd><a href="https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_xl" target="_blank" rel="noreferrer">Diffusers SDXL documentation</a></dd></div></dl>
+  </div>;
 }

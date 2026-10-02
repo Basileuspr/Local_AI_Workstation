@@ -32,7 +32,7 @@ export default function SpreadsheetViewer() {
     } catch (failure) { setError(failure.message); } finally { setBusy(false); }
   }
   return <section className="tools-workspace" onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); void read(e.dataTransfer.files[0]); }}>
-    <header className="tools-heading"><h1>Spreadsheet Viewer</h1><p>Open or drop a CSV to explore it and ask questions in chat.</p></header>
+    <header className="tools-heading"><h1>Spreadsheet Viewer</h1></header>
     <div className="tools-toolbar"><button onClick={() => input.current.click()}>Open CSV</button><input ref={input} type="file" hidden accept=".csv,.tsv,text/csv" onChange={e => { void read(e.target.files[0]); e.target.value = ""; }} />
       <label>Separator <select value={delimiter} onChange={e => { const next=e.target.value; setDelimiter(next); try { parse(source,next); } catch(failure) { setError(failure.message); } }}><option value=",">Comma</option><option value=";">Semicolon</option><option value={"\t"}>Tab</option></select></label>
       <input aria-label="Filter CSV rows" type="search" placeholder="Find rows…" value={query} onChange={e => { setQuery(e.target.value); setPage(0); }} />
@@ -41,7 +41,7 @@ export default function SpreadsheetViewer() {
     <p>{name || "No file open"} · {data.rows.length.toLocaleString()} rows · {visible.length.toLocaleString()} matching · {selected.length} selected</p>
     {!!data.headers.length && <><details><summary>Columns to include in chat ({columns.length})</summary><div className="csv-columns">{data.headers.map((header, i) => <label key={i}><input type="checkbox" checked={columns.includes(i)} onChange={e => setColumns(e.target.checked ? [...columns,i].sort((a,b)=>a-b) : columns.filter(v=>v!==i))} />{header}</label>)}</div></details>
       <div className="tools-toolbar"><button disabled={busy} onClick={() => send("all")}>Use file in chat</button><button disabled={busy} onClick={() => send("filtered")}>Use filtered rows</button><button disabled={busy || !selected.length} onClick={() => send("selected")}>Use selected rows</button><button onClick={() => setSelected([])}>Clear selection</button></div>
-      <p className="tools-note">Chat receives at most 14,000 characters of data. Any sampling is stated explicitly. CSV formulas are displayed as text.</p>
+
       <div className="csv-table"><table><thead><tr><th>Select</th><th>Row</th>{data.headers.map((header,i)=><th key={i}><button onClick={()=>setSort({column:i,direction:sort?.column===i ? -sort.direction : 1})}>{header}{sort?.column===i ? sort.direction===1 ? " ↑" : " ↓" : ""}</button></th>)}</tr></thead><tbody>{visible.slice(page*100,page*100+100).map(row=><tr key={row.id}><td><input aria-label={`Select row ${row.id+1}`} type="checkbox" checked={selected.includes(row.id)} onChange={e=>setSelected(e.target.checked?[...selected,row.id]:selected.filter(id=>id!==row.id))} /></td><td>{row.id+1}</td>{row.values.map((value,i)=><td key={i}>{value}</td>)}</tr>)}</tbody></table></div>
       <div className="tools-toolbar"><button disabled={!page} onClick={()=>setPage(page-1)}>Previous</button><span>Page {page+1} of {Math.max(1,Math.ceil(visible.length/100))}</span><button disabled={(page+1)*100>=visible.length} onClick={()=>setPage(page+1)}>Next</button></div>
     </>}

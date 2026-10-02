@@ -50,7 +50,7 @@ class CustomFolderTests(unittest.TestCase):
         self.assertFalse(Path(plan['files'][0]['destination']).exists())
         for path, content in self.originals.items():
             self.assertEqual(Path(path).read_bytes(), content)
-        with self.assertRaisesRegex(ValueError, 'Type MOVE'):
+        with self.assertRaisesRegex(ValueError, 'Confirm moving'):
             self.state.start('custom-move', dict(runId=self.run_id, planId=plan['planId']))
         with self.assertRaises(ValueError):
             self.preview(['unknown-id'])

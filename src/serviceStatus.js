@@ -106,11 +106,12 @@ export function describeStatus(rawStatus) {
 }
 
 /** Short label and CSS class for the header indicator. */
-export function statusIndicator({ connected, isGenerating, problem, hasModel }) {
+export function statusIndicator({ connected, isGenerating, problem, hasModel, activity }) {
   if (!connected) return { className: "error", label: "not ready" };
   if (problem?.severity === SEVERITY.blocked) {
     return { className: "error", label: problem.title.toLowerCase() };
   }
+  if (activity) return { className: "busy", label: activity.statusLabel };
   if (isGenerating) return { className: "busy", label: "responding" };
   if (problem?.severity === SEVERITY.degraded) {
     return { className: "warning", label: "limited" };

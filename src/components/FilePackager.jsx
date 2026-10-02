@@ -5,6 +5,7 @@ import "./Tools.css";
 import "./FilePackager.css";
 import {useImageRemoval} from './ImageRemovalControls';
 import {CharacterShortcut} from '../CharacterWorkspace';
+import { FileImageThumbnail, isImageFile, ThumbnailRetryButton } from "./ImageThumbnail";
 
 export default function FilePackager() {
   const picker = useRef(null), folderPicker = useRef(null), lock = useRef(false), request = useRef(null);
@@ -65,11 +66,11 @@ export default function FilePackager() {
     onDragOver={event => { event.preventDefault(); event.dataTransfer.dropEffect = busy ? "none" : "copy"; }}
     onDragEnter={event => { event.preventDefault(); if (!busy && event.dataTransfer.types.includes("Files")) { dragDepth.current++; setDragging(true); } }}
     onDragLeave={() => { dragDepth.current = Math.max(0, dragDepth.current - 1); if (!dragDepth.current) setDragging(false); }}>
-    <header className="tools-heading"><p className="tools-eyebrow">Local file tools</p><h1>Packager</h1><p>Collect files and folders into one ZIP. Your originals stay where they are.</p></header>
+    <header className="tools-heading"><p className="tools-eyebrow">Local file tools</p><h1>Packager</h1></header>
     <CharacterShortcut/>
     <div className={`packager-dropzone${dragging ? " dragging" : ""}`}>
       <strong>{dragging ? "Drop to add to your package" : "Drop files or folders here"}</strong>
-      <p>Any file type. Add more files with another drop.</p>
+
       <div className="tools-toolbar">
         <button type="button" disabled={busy} onClick={() => picker.current.click()}>Choose files</button>
         <button type="button" disabled={busy} onClick={() => folderPicker.current.click()}>Choose folder</button>
@@ -83,12 +84,13 @@ export default function FilePackager() {
         <option value="compressed">Compressed · smaller ZIP</option><option value="stored">Fast · no compression</option>
       </select></label>
     </div>
-    <p className="tools-note">Folder structure is preserved. Matching filenames get numbered names. Up to 1,000 items and 512 MiB per package. Drop folders to include empty folders; the folder picker includes files only.</p>
+
     <div className="packager-list-heading"><h2>Package contents</h2><span>{fileCount} file{fileCount === 1 ? "" : "s"} · {packageBytes(total)}</span>
       <button type="button" disabled={busy || !entries.length} onClick={() => { setEntries([]); setResult(null); setError(""); setStatus("Selection cleared. Original files were not changed."); }}>Clear list</button></div>
     {removal.toolbar}
+    {entries.some(entry => isImageFile(entry.file)) && <ThumbnailRetryButton />}
     {entries.length ? <ul className="packager-files" aria-label="Package contents">{entries.map(entry => <li key={entry.id}>
-      <span className="packager-path" title={entry.path}>{entry.path}{entry.directory ? "/" : ""}</span><span>{entry.directory ? "Folder" : packageBytes(entry.file.size)}</span>
+      <span className="packager-file-preview"><FileImageThumbnail file={entry.file} /><span className="packager-path" title={entry.path}>{entry.path}{entry.directory ? "/" : ""}</span></span><span>{entry.directory ? "Folder" : packageBytes(entry.file.size)}</span>
       {removal.controls(entry,entry.path)}
     </li>)}</ul> : <p className="tools-empty">No files added yet.</p>}
     <div className="tools-toolbar"><button type="button" className="packager-create" disabled={busy || !entries.length} onClick={createPackage}>{busy ? "Working…" : "Create ZIP"}</button>

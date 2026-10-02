@@ -21,6 +21,7 @@ export default defineConfig(({ command }) => {
   }],
   define: { __LAW_BUILD_INFO__: JSON.stringify(rendererIdentity) },
   root: "src",
+  worker: { format: 'es' },
   base: "./",
   build: {
     outDir: path.resolve(__dirname, "dist"),

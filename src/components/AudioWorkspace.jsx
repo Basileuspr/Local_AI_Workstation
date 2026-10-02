@@ -1,3 +1,4 @@
+import { useChatPane } from "../ChatPane";
 import {useEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {AUDIO_ACCEPT, AUDIO_LANGUAGES, audioRequest, createAudioCapture, transcribeAudio, validateAudio, formatAudioTranscript, renameAudioSpeakers} from '../audio';
 import {localVoices, pauseSpeech, resumeSpeech, saveVoicePreferences, speakText, speechStore, stopSpeech, voicePreferences} from '../audioSpeech';
@@ -121,12 +122,12 @@ export function TranscriptionPanel({active, onInsert, compact = false, incomingA
   const warnings = busy === 'transcribe' ? execution?.warnings : result?.processing?.warnings;
   return <section className={`audio-transcription${compact ? ' compact' : ''}`} aria-label="Speech to text">
     <h2>Speech to text</h2>
-    <p>Upload a complete audio file up to 2 hours and 250 MB. Longer files are processed automatically into one transcript. Microphone recordings can run up to 10 minutes.</p>
+
     <div className="audio-controls"><label>Transcription model <select aria-label="Transcription model" disabled={locked} value={modelSize} onChange={e => setModelSize(e.target.value)}>{Object.entries(AUDIO_MODELS).map(([key, value]) => <option key={key} value={key}>{value.label}</option>)}</select></label>
       <label>Processing <select aria-label="Audio processing" disabled={locked} value={acceleration} onChange={e => setAcceleration(e.target.value)}><option value="auto">Auto · use available GPU</option><option value="cpu">CPU only</option></select></label>
       <label>CPU assistance <select aria-label="Audio CPU assistance" disabled={locked} value={cpuAssistance} onChange={e => setCpuAssistance(e.target.value)}><option value="auto">Auto</option><option value="light">Light · fewer cores</option><option value="balanced">Balanced · more cores</option></select></label>
     </div>
-    <small>Auto uses an available NVIDIA GPU for transcription. CPU assistance speeds up speaker analysis and processes independent sections together.</small>
+
     <div className="audio-model-status" role="status">{status ? `${selectedModel.model} · ${selectedModel.ready ? 'Ready for local transcription' : status.installed ? 'Model setup needed' : 'Audio runtime not installed'}` : 'Checking transcription setup…'}</div>
     {status && !status.installed && <p>Install the optional audio runtime using <code>venv\Scripts\python.exe -m pip install -r requirements-audio.txt</code>, then restart the app.</p>}
     {status?.installed && <button type="button" disabled={locked} onClick={() => run('setup')}>{selectedModel.model_ready ? 'Repair / refresh model' : `Download transcription model (~${selectedModel.download_mb || 500} MB)`}</button>}
@@ -139,7 +140,7 @@ export function TranscriptionPanel({active, onInsert, compact = false, incomingA
     <fieldset className="audio-speaker-settings" disabled={locked}><legend>Speaker separation</legend>
       <label><input type="checkbox" checked={diarize} onChange={e => setDiarize(e.target.checked)}/> Separate speakers</label>
       {diarize && <><label>Number of speakers <select aria-label="Number of speakers" value={numSpeakers} onChange={e => setNumSpeakers(Number(e.target.value))}><option value={0}>Auto detect</option>{Array.from({length:20}, (_, i) => i + 1).map(value => <option key={value} value={value}>{value}</option>)}</select></label>
-        <small>Voices are compared across the whole recording. If you know the count, select it. Similar voices, brief replies, and people talking at once may still need correction.</small>
+
         {status?.speakers?.ready ? <small>Local speaker models ready · {status.speakers.model || 'TitaNet Large'}.</small> : <><p>Download the updated speaker models to improve voice separation.</p>{status?.speakers?.installed ? <button type="button" onClick={() => run('speakers-setup')}>Download speaker models (~110 MB)</button> : <small>Update the audio runtime using <code>venv\Scripts\python.exe -m pip install -r requirements-audio.txt</code>, then restart.</small>}</>}
       </>}
     </fieldset>
@@ -151,12 +152,12 @@ export function TranscriptionPanel({active, onInsert, compact = false, incomingA
     {error && <p role="alert" className="audio-error">{error}</p>}
     {result && <p role="status">{result.text ? `Transcript ready · ${AUDIO_LANGUAGES[result.language] || result.language} · ${result.duration}s · Whisper ${result.modelSize}` : 'No speech detected. Try a clearer recording or choose its language.'}</p>}
     {result?.processing && <p>Completed in {elapsedLabel(result.processing.total_seconds)} · {result.processing.device === 'cuda' ? 'GPU' : 'CPU'} transcription{result.processing.timings && <> · Speech {elapsedLabel(result.processing.timings.transcribe_seconds)}{result.processing.timings.speaker_seconds > 0 && <> · Speaker analysis {elapsedLabel(result.processing.timings.speaker_seconds)}</>}</>}</p>}
-    {result?.diarized && result.speakers?.length > 0 && <details className="audio-speaker-names"><summary>{result.speakers.length} speaker labels · rename or correct</summary><p>These labels distinguish voices within this recording. Edit any mistaken label or words directly in the transcript. Unknown or overlapping speech is marked separately.</p><div className="audio-controls">{result.speakers.map(label => <label key={label}>{label}<input aria-label={`Name for ${label}`} maxLength={40} value={speakerNames[label] || ''} onChange={e => setSpeakerNames(value => ({...value, [label]:e.target.value}))}/></label>)}</div><button type="button" disabled={locked} onClick={applyNames}>Apply speaker names</button></details>}
+    {result?.diarized && result.speakers?.length > 0 && <details className="audio-speaker-names"><summary>{result.speakers.length} speaker labels · rename or correct</summary><div className="audio-controls">{result.speakers.map(label => <label key={label}>{label}<input aria-label={`Name for ${label}`} maxLength={40} value={speakerNames[label] || ''} onChange={e => setSpeakerNames(value => ({...value, [label]:e.target.value}))}/></label>)}</div><button type="button" disabled={locked} onClick={applyNames}>Apply speaker names</button></details>}
     <CharacterFileButton file={file} label="recording" disabled={locked}/>
     {text.trim()&&<CharacterFileButton file={new File([text],'Transcript.txt',{type:'text/plain;charset=utf-8'})} label="transcript" disabled={locked}/>}
     <label className="audio-text-label">Transcript<textarea aria-label="Audio transcript" rows={compact ? 4 : 8} value={text} disabled={Boolean(busy)} onChange={e => setText(e.target.value)} placeholder="Your editable transcript appears here."/></label>
     <div className="audio-controls"><button type="button" disabled={!text.trim()} onClick={async () => {try {await navigator.clipboard.writeText(text);} catch {setError('Could not copy. Select the transcript and press Ctrl+C.');}}}>Copy transcript</button><button type="button" disabled={!text.trim()} onClick={() => downloadBlob(new Blob([text], {type:'text/plain;charset=utf-8'}), 'Transcript.txt')}>Save transcript</button>{onInsert && <button type="button" disabled={!text.trim()} onClick={() => onInsert(text)}>Insert into message</button>}</div>
-    <small>Transcription runs on this computer. Temporary server audio is removed after each attempt. Closing or refreshing the app clears unsaved audio and transcripts. Navigating away discards an unfinished recording.</small>
+
   </section>;
 }
 
@@ -164,20 +165,21 @@ export default function AudioWorkspace({active}) {
   const [text, setText] = useState('');
   const [incomingAudio,setIncomingAudio] = useState(null), [transcriptionBusy,setTranscriptionBusy] = useState(false);
   const transcriptionSection = useRef(null);
-  return <div className="audio-workspace"><header><h1>Audio</h1><p>Capture speech, transcribe audio, and listen to text.</p></header>
+  return <div className="audio-workspace"><header><h1>Audio</h1></header>
     <CharacterShortcut/>
-    <details className="audio-help"><summary>Help, settings & examples</summary><p>Record microphone → Stop recording → Transcribe audio. For a file, choose Upload audio, then Transcribe. Select a language if automatic detection struggles with a short clip. Whisper can mishear speech; review names, numbers, and quiet sections.</p><p>Enable Separate speakers for conversations. For example, choose 3 speakers for a three-person meeting. The transcript groups each voice into timestamped turns. You can rename labels, correct individual turns, and copy, save, or insert the labeled text into chat. Overlapping speech can remain uncertain; these labels do not identify people by name.</p><p>For voice output, enter text below, choose a local voice and speed, then Read aloud. Example: paste a paragraph you want to proofread by listening. The same voice settings apply to chat Read aloud buttons. Playback is local and starts only when requested.</p><p>Whisper large-v3 Turbo (roughly 1.6 GB) is recommended for accuracy and GPU speed. Whisper small (500 MB) and base (150 MB) use less memory. Auto processing uses an available NVIDIA GPU; if it is busy or unavailable, the same selected model runs on CPU, which can take longer. CPU assistance adjusts parallel workers to available cores and memory; Light uses fewer cores. Updated speaker models use roughly 110 MB. Speaker mode compares voices across the whole recording, then transcribes short speech sections to reduce missed quiet speech and timing drift. After setup, all processing works offline. WAV, MP3, M4A, AAC, OGG, FLAC, WebM, and audio tracks in MP4 are supported. Transcription starts after recording stops.</p></details>
+
     <AudioExtractor active={active} transcriptionBusy={transcriptionBusy} onUseForTranscription={file => {setIncomingAudio({file}); transcriptionSection.current?.scrollIntoView({behavior:'smooth',block:'start'});}}/>
-    <div className="audio-columns" ref={transcriptionSection}><TranscriptionPanel active={active} incomingAudio={incomingAudio} onBusyChange={setTranscriptionBusy}/><section className="audio-speech" aria-label="Text to speech"><h2>Text to speech</h2><VoiceSettings/><label className="audio-text-label">Text to read<textarea aria-label="Text to read aloud" rows={12} maxLength={20000} value={text} onChange={e => setText(e.target.value)} placeholder="Type or paste text to hear it spoken."/></label><ReadAloud text={text} owner="audio-workspace" active={active}/><small>Up to 20,000 characters. Uses installed local system voices.</small></section></div>
+    <div className="audio-columns" ref={transcriptionSection}><TranscriptionPanel active={active} incomingAudio={incomingAudio} onBusyChange={setTranscriptionBusy}/><section className="audio-speech" aria-label="Text to speech"><h2>Text to speech</h2><VoiceSettings/><label className="audio-text-label">Text to read<textarea aria-label="Text to read aloud" rows={12} maxLength={20000} value={text} onChange={e => setText(e.target.value)} placeholder="Type or paste text to hear it spoken."/></label><ReadAloud text={text} owner="audio-workspace" active={active}/></section></div>
     <VoiceCloningPanel active={active}/>
   </div>;
 }
 
 export function ChatAudio({active, sessionId, onInsert, open: controlledOpen, onToggle}) {
+  const pane = useChatPane();
   const [localOpen, setLocalOpen] = useState(false);
   const [visited, setVisited] = useState(false);
   const open = controlledOpen ?? localOpen;
   useEffect(() => { if (open) setVisited(true); }, [open]);
   const toggle = () => onToggle ? onToggle() : setLocalOpen(value => !value);
-  return <div className="chat-audio"><button type="button" className="chat-tool-button" aria-label="Microphone / audio" title="Record microphone or transcribe audio" aria-expanded={open} aria-controls="chat-audio-panel" onClick={toggle}>Audio</button>{(open || visited) && <div id="chat-audio-panel" className="chat-audio-panel chat-tool-panel" hidden={!open} role="region" aria-label="Microphone and audio"><header><strong>Microphone / audio</strong><button type="button" className="chat-tool-button" onClick={toggle}>Close</button></header><TranscriptionPanel key={sessionId || 'new'} active={active && open} onInsert={onInsert} compact/><VoiceSettings/></div>}</div>;
+  return <div className="chat-audio"><button type="button" className="chat-tool-button" aria-label="Microphone / audio" title="Record microphone or transcribe audio" aria-expanded={open} aria-controls={pane.domId("chat-audio-panel")} onClick={toggle}>Audio</button>{(open || visited) && <div id={pane.domId("chat-audio-panel")} className="chat-audio-panel chat-tool-panel" hidden={!open} role="region" aria-label="Microphone and audio"><header><strong>Microphone / audio</strong><button type="button" className="chat-tool-button" onClick={toggle}>Close</button></header><TranscriptionPanel key={sessionId || 'new'} active={active && open} onInsert={onInsert} compact/><VoiceSettings/></div>}</div>;
 }

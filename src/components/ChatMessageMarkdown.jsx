@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import MarkdownMessage from "./MarkdownMessage";
 import ChatChecklistEditor from "./ChatChecklistEditor";
+import ChatChecklistHistory from "./ChatChecklistHistory";
 import { checklistItems } from "../markdownTasks";
 import { useDispatch } from "../useStore";
 import { useChatWorkspace } from "../ChatWorkspace";
@@ -50,5 +51,6 @@ export default function ChatMessageMarkdown({ message, sessionId, streaming = fa
       }}>Edit list</button>
       {workspace && !inSidePane && <button type="button" onClick={() => workspace.setPin({ kind: "message", messageId: message.id })}>Pin list beside chat</button>}
     </div>}
+    <ChatChecklistHistory history={message.checklist_history}/>
   </div>;
 }

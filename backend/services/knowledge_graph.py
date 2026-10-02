@@ -25,6 +25,9 @@ def database():
             CREATE TABLE IF NOT EXISTS authored_nodes (
                 doc_id TEXT PRIMARY KEY, filename TEXT NOT NULL, title TEXT NOT NULL,
                 kind TEXT NOT NULL, text TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS index_links (
+                entry_id TEXT NOT NULL, doc_id TEXT NOT NULL,
+                PRIMARY KEY (entry_id, doc_id));
         """)
         with connection:
             # Serialize migration with other graph reads/writes. Old x/y rows remain intact.
@@ -140,6 +143,7 @@ def forget_document(doc_id):
         connection.execute("DELETE FROM positions WHERE doc_id = ?", (doc_id,))
         connection.execute("DELETE FROM node_options WHERE doc_id = ?", (doc_id,))
         connection.execute("DELETE FROM authored_nodes WHERE doc_id = ?", (doc_id,))
+        connection.execute("DELETE FROM index_links WHERE doc_id = ?", (doc_id,))
 
 
 def document(doc_id, offset=0, limit=30):

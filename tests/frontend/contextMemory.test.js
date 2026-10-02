@@ -63,8 +63,8 @@ describe("getContextUsage — window normalization", () => {
     expect(usageFor({ contextWindow: undefined }).windowTokens).toBe(8192);
   });
 
-  it("falls back to 8192 when the window is implausibly small", () => {
-    expect(usageFor({ contextWindow: 1000 }).windowTokens).toBe(8192);
+  it("respects small configured windows rather than inflating their budget", () => {
+    expect(usageFor({ contextWindow: 1000 }).windowTokens).toBe(1000);
   });
 
   it("falls back to 8192 when the window is not a number", () => {
@@ -108,10 +108,10 @@ describe("getContextUsage — usable budget", () => {
     expect(on.usableInputTokens).toBeLessThan(off.usableInputTokens);
   });
 
-  it("never reports a usable budget below the 512-token floor", () => {
+  it("reports no usable input budget when reserves exceed the context window", () => {
     const usage = usageFor({ contextWindow: 2048, responseLength: 4096, useKnowledgeBase: true });
 
-    expect(usage.usableInputTokens).toBe(512);
+    expect(usage.usableInputTokens).toBe(0);
   });
 });
 
@@ -432,6 +432,8 @@ describe("rotateContextMemory", () => {
     });
 
     expect(result.memorySummary).toBe("previous summary");
+    expect(result.summarizedMessageCount).toBe(0);
+    expect(result.contextMessages.filter(message => message.role !== "system")).toHaveLength(20);
   });
 
   it("returns context messages that already include the new summary", async () => {

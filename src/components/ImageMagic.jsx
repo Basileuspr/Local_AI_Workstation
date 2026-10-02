@@ -103,14 +103,14 @@ export default function ImageMagic({session,preview,getSource,onAccept,onBusy,re
     setStrokes(strokeRef.current.map(s=>({...s,points:[...s.points]})));
   }
   return <details className="ie-magic" onToggle={e=>{if(e.currentTarget.open&&!catalog)discover();}}><summary>Magic Edit &amp; AI refinement</summary>
-    <p>Describe the desired result. For a specific correction, paint the area to change. Installed local models create a candidate for review.</p>
+
     {error&&<p role="alert" className="ie-error">{error}</p>}
     <fieldset disabled={busy||disabled||!session}>
       <label>Edit request<textarea aria-label="Magic edit request" rows="3" maxLength="6000" value={prompt} onChange={e=>setPrompt(e.target.value)} placeholder="Keep the current pose and lines. Use the reference background style and the character reference's skin tone."/></label>
       <button onClick={()=>{setPrompt('Refine this image: clean compression artifacts, improve fine edges and natural texture, preserve the same subject, pose, colors and composition.');setStrength(.2);}}>Use detail refinement prompt</button>
       <label>Change area<select value={scope} onChange={e=>setScope(e.target.value)}><option value="all">Whole image</option><option value="paint">Paint an area</option></select></label>
-      {scope==='paint'&&<><p>Drag over the area to edit. Blue is selected; everything outside it is preserved in the accepted image.</p><div className="ie-mask-stage"><img src={preview} alt="Current image for marking the edit area" onLoad={e=>{if(canvas.current){canvas.current.width=e.currentTarget.naturalWidth;canvas.current.height=e.currentTarget.naturalHeight;paintMask(canvas.current,strokes,null,'rgba(65,210,255,.5)');}}}/><canvas ref={canvas} aria-label="Paint the image area to edit" onPointerDown={e=>draw(e,true)} onPointerMove={e=>draw(e)} onPointerUp={()=>{drawing.current=false;}} onPointerCancel={()=>{drawing.current=false;}}/></div><label>Brush radius: {radius}%<input type="range" min="1" max="25" value={radius} onChange={e=>setRadius(Number(e.target.value))}/></label><button onClick={()=>setStrokes(items=>items.slice(0,-1))}>Undo mask stroke</button><button onClick={()=>setStrokes([])}>Clear edit area</button></>}
-      <details><summary>Reference roles · {refs.length} images</summary><p>References are read by the selected vision model into editable text guidance. Generation uses that text and the current image; it does not directly condition on reference pixels.</p>
+      {scope==='paint'&&<><div className="ie-mask-stage"><img src={preview} alt="Current image for marking the edit area" onLoad={e=>{if(canvas.current){canvas.current.width=e.currentTarget.naturalWidth;canvas.current.height=e.currentTarget.naturalHeight;paintMask(canvas.current,strokes,null,'rgba(65,210,255,.5)');}}}/><canvas ref={canvas} aria-label="Paint the image area to edit" onPointerDown={e=>draw(e,true)} onPointerMove={e=>draw(e)} onPointerUp={()=>{drawing.current=false;}} onPointerCancel={()=>{drawing.current=false;}}/></div><label>Brush radius: {radius}%<input type="range" min="1" max="25" value={radius} onChange={e=>setRadius(Number(e.target.value))}/></label><button onClick={()=>setStrokes(items=>items.slice(0,-1))}>Undo mask stroke</button><button onClick={()=>setStrokes([])}>Clear edit area</button></>}
+      <details><summary>Reference roles · {refs.length} images</summary>
         <label className="ie-import">Add reference image<FreshFileInput aria-label="Add Magic Edit reference" accept="image/png,image/jpeg,image/webp" disabled={busy||disabled||refs.length>=4} onChange={e=>{const f=e.target.files?.[0];e.target.value='';addReference(f);}}/></label>
         {reference?.file&&<button disabled={refs.length>=4} onClick={()=>addReference(reference.file)}>Add current reference source</button>}
         {removal.toolbar}
@@ -123,7 +123,7 @@ export default function ImageMagic({session,preview,getSource,onAccept,onBusy,re
       <label>Change strength: {Math.round(strength*100)}%<input aria-label="Magic Edit strength" type="range" min=".05" max=".8" step=".05" value={strength} onChange={e=>setStrength(Number(e.target.value))}/></label>
       <p>AI working canvas</p>
       <ImageGenerationSizing width={workingSize.width} height={workingSize.height} allowLongWait={workingSize.allow_long_wait} waitKey="allow_long_wait" limits={imageProvider?.resolution_limits} prefix="Magic Edit " sourceSize={session} onChange={patch=>setWorkingSize(size=>({...size,...patch}))}/>
-      <p>Lower strength stays closer to the image. AI may change or invent details. Small images use a larger working copy for stable editing. Proportions are preserved, and the accepted image keeps its original dimensions.</p>
+
       <button disabled={!model||!imageProvider?.available||!prompt.trim()} onClick={()=>run('edit')}>Generate edited candidate</button>
       {catalog&&(!imageProvider?.available||!model)&&<p>Magic Edit needs an installed compatible SDXL model and a working CUDA runtime. No models or dependencies are downloaded here.</p>}
     </fieldset>

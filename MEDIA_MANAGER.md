@@ -5,10 +5,19 @@ bundled in `media-manager/`. A fresh checkout includes all Media Organizer
 functionality; no separate Desktop application installation is needed.
 
 The host supplies a place to display the module and owns its process lifetime.
-It does not import media, pass generated images, share galleries, add backend
-routes, or connect any generation/review/collection controls. The module's
-existing folder pickers, thumbnail viewer, duplicates, filters and custom-folder
-actions run unchanged. Opening the tab does not scan or move anything.
+The module retains its folder pickers, thumbnail viewer, duplicates, filters and
+custom-folder actions. Opening the tab does not scan or move anything.
+**Review & classify** adds slideshow ratings, captions, tags, and local face and
+scene grouping through a restricted server-side bridge. This first video
+pipeline analyzes one preview frame per video. See [Visual Review](VISUAL_REVIEW.md)
+for scope, corrections, exports, persistence and verification boundaries.
+
+In the media library, Ctrl-click a thumbnail or checkbox to toggle a clip.
+Shift-click selects an inclusive range in the displayed timeline order;
+Ctrl+Shift-click adds the range to the existing selection. Only displayed,
+eligible clips are included. Changing filters, sorting or loaded rows resets
+the range start. A regular thumbnail click still opens the player, while a
+regular checkbox click toggles selection. Command-click also works on macOS.
 
 ## Isolation and lifecycle
 
@@ -17,9 +26,11 @@ actions run unchanged. Opening the tab does not scan or move anything.
   randomly assigned loopback server origin. Both apps retain their existing CSP.
 - Only the trusted Workstation main frame can request launch, placement, focus,
   and status. This bridge exposes no media or filesystem operations.
-- The separate Python child gets OS runtime paths, not Workstation credentials,
-  data/model configuration, or Python injection variables. Its own session token
-  stays inside its UI server and renderer.
+- The separate Python child gets OS runtime paths plus a review-only server
+  address and credential. That credential is restricted to `/visual-review/media/*`
+  and never reaches the renderer. The child receives no general Workstation
+  session credential, data/model configuration, or Python injection variables.
+  Its own UI token remains separate.
 - Launch is lazy and reused across tab switches. The compact navigation drawer
   temporarily hides the native view. **Enter Media Manager** gives it keyboard
   focus, scrolls to the module's source input or active search, and acknowledges
@@ -31,6 +42,8 @@ actions run unchanged. Opening the tab does not scan or move anything.
   private data only. Fresh installations store reports and managed media under
   the workstation user-data directory's `media-manager/runs`. Workstation reset,
   galleries, image events and saved preferences do not alter those reports.
+  Shared face groups, scene labels and review notes live in Workstation app data;
+  app backups and reset include that shared catalog.
 
 ## Location and launch
 

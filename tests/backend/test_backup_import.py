@@ -65,9 +65,9 @@ def test_export_import_round_trip_and_preimport_data_retained(current):
 @pytest.mark.parametrize("confirmation", [None, "", "import", "RESET"])
 def test_confirmation_required_before_staging(current, confirmation):
     archive = archive_at(current.parent / "backup.zip")
-    with pytest.raises(ValueError, match="Type IMPORT"):
+    with pytest.raises(ValueError, match="Confirm replacement from the reviewed backup import dialog"):
         service.import_backup(archive, "invalid", confirmation, {}, current)
-    assert (current / "old.txt").exists()
+    assert (current / "old.txt").read_bytes() == b"CURRENT PRIVATE DATA"
     assert not list(current.parent.glob(".law-import-*"))
 
 

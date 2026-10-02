@@ -1,0 +1,16 @@
+.index-knowledge-links { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); min-width: 0; font-size: 12px; }
+.index-knowledge-links summary { cursor: pointer; color: var(--accent); padding: 4px 0; }
+.index-knowledge-links p { margin: 8px 0; color: var(--text-dim); line-height: 1.6; }
+.index-knowledge-links form { display: flex; align-items: flex-end; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.index-knowledge-links label { display: grid; gap: 6px; flex: 1; min-width: min(180px, 100%); }
+.index-knowledge-links select { width: 100%; min-width: 0; }
+.index-knowledge-links button, .index-knowledge-links select { border: 1px solid var(--border); background: var(--bg-input); color: var(--text); border-radius: 5px; padding: 7px 9px; font: inherit; }
+.index-knowledge-links button { cursor: pointer; }
+.index-knowledge-links button:disabled { opacity: .5; cursor: default; }
+.index-knowledge-links :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.index-knowledge-link { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
+.index-knowledge-link > button:first-child { min-width: 0; flex: 1; text-align: left; overflow-wrap: anywhere; color: var(--accent); }
+.index-knowledge-link > button:last-child { flex: 0 0 auto; }
+.index-link-status { margin: 0 0 12px; font-size: 12px; color: var(--text-dim); }
+.index-link-status[role=alert] { color: var(--red); }
+.prompt-index-entry.index-entry-selected, .prompt-index-entry:focus { outline: 2px solid var(--accent); outline-offset: -2px; }

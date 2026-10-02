@@ -2,9 +2,12 @@ import { useContext, useEffect, useRef, useState } from "react";
 import { NavigationOpenContext } from "./AppLayout";
 import "./MediaManager.css";
 import { useDesktopCapabilities } from "./Compatibility";
+import { WINDOW_LAYOUT_EVENT } from '../windowRendering';
+import { FloatingToolBoundsContext, avoidFloatingTool } from '../floatingToolBounds';
 
 export default function MediaManager({ active }) {
   const drawerOpen = useContext(NavigationOpenContext);
+  const floatingTool = useContext(FloatingToolBoundsContext);
   const container = useRef(null);
   const [status, setStatus] = useState({ ready: false });
   const [attempt, setAttempt] = useState(0);
@@ -33,14 +36,16 @@ export default function MediaManager({ active }) {
     const position = () => {
       const bounds = container.current?.getBoundingClientRect();
       desktop.placeMediaManager({ visible: active && status.ready && !drawerOpen,
-        bounds: bounds && { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height } }).catch(() => {});
+        bounds: bounds && avoidFloatingTool({ x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height }, floatingTool) }).catch(() => {});
     };
     position();
     const resize = new ResizeObserver(position);
     if (container.current) resize.observe(container.current);
     window.addEventListener("resize", position);
-    return () => { resize.disconnect(); window.removeEventListener("resize", position); desktop.placeMediaManager({ visible: false }).catch(() => {}); };
-  }, [active, status.ready, drawerOpen, desktop]);
+    window.addEventListener('scroll', position, true);
+    window.addEventListener(WINDOW_LAYOUT_EVENT, position);
+    return () => { resize.disconnect(); window.removeEventListener("resize", position); window.removeEventListener('scroll', position, true); window.removeEventListener(WINDOW_LAYOUT_EVENT, position); desktop.placeMediaManager({ visible: false }).catch(() => {}); };
+  }, [active, status.ready, drawerOpen, desktop, floatingTool]);
 
   return <section className="media-manager-shell" aria-label="Media Manager">
     <header className="media-manager-access">
@@ -50,7 +55,7 @@ export default function MediaManager({ active }) {
         catch { setFocusNotice("Could not enter Media Manager. Reopen its tab."); }
       }}>Enter Media Manager</button>}
       {focusNotice && <small role="status">{focusNotice}</small>}
-      <small>F6 returns to app navigation</small>
+
     </header>
     <div className="media-manager-surface" ref={container}>
       {!desktop?.startMediaManager ? <p>Open the desktop app to use Media Manager.</p>
