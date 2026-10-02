@@ -26,7 +26,8 @@ def folder_inventory(root, suffixes):
             if folder.is_dir() and any(file.is_file() and file.suffix in suffixes for file in folder.iterdir())]
 
 
-def snapshot(routes, root=PROJECT_ROOT):
+def snapshot(routes, root=PROJECT_ROOT, build_info=None):
+    from services.build_info import read_build_info
     package = read_json(root / "package.json")
     dependencies = []
     for group in ("dependencies", "devDependencies"):
@@ -38,6 +39,7 @@ def snapshot(routes, root=PROJECT_ROOT):
                     for route in routes if getattr(route, "methods", None) and hasattr(route, "endpoint") and not route.path.startswith(("/docs", "/redoc", "/openapi"))], key=lambda item: (item["module"], item["path"]))
     requirements = root / "requirements.txt"
     return {"sampled_at": datetime.now(timezone.utc).isoformat(),
+        "build": build_info if build_info is not None else read_build_info(root),
         "frontend": {"app": package.get("name"), "version": package.get("version"), "folders": folder_inventory(root / "src", {".js", ".jsx", ".css", ".html"}),
                      "desktop_folders": folder_inventory(root / "electron", {".js"}), "production_build_present": (root / "dist" / "index.html").is_file()},
         "backend": {"python": platform.python_version(), "implementation": platform.python_implementation(), "platform": platform.system(), "folders": folder_inventory(root / "backend", {".py"})},

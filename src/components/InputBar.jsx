@@ -1,11 +1,13 @@
 import FreshFileInput from "./FreshFileInput";
 import {ChatAudio} from './AudioWorkspace';
+import {chatSpeech} from '../chatSpeech';
 import {useImageRemoval} from "./ImageRemovalControls";
 import {validateImageFile} from "../useChatUploads";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { chatSubmissionQueue } from "../chatSubmissionQueue";
 import { useStore, useDispatch, useRefs } from "../useStore.jsx";
 import * as api from "../api";
+import { persistSessionSummary } from "../sessionPersistence";
 import { contextDefaults, rotateContextMemory, buildContextMessages } from "../contextMemory";
 import {chatInfluences} from '../chatInfluences';
 import { createMessageId } from "../messageIds";
@@ -35,6 +37,8 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
   const chatSubmissions = useSyncExternalStore(chatSubmissionQueue.subscribe, chatSubmissionQueue.getSnapshot);
   const textareaRef = useRef(null);
   const currentSessionRef = useRef(state.currentSessionId);
+  const voiceOutputRef = useRef(state.voiceOutput);
+  voiceOutputRef.current = state.voiceOutput;
   currentSessionRef.current = state.currentSessionId;
   const attachmentMenuRef = useRef(null);
   const imageInputRef = useRef(null);
@@ -81,6 +85,7 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
     window.addEventListener('stage-chat-images', stage);
     return () => window.removeEventListener('stage-chat-images', stage);
   }, [active, isUploading]);
+
 
   const selectedEdit = destinations?.chatEdit?.sessionId === state.currentSessionId ? destinations.chatEdit : null;
   useEffect(() => {
@@ -129,7 +134,7 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
       { id: job.id, role: "user", content: job.text },
       { id: job.replyId, role: "assistant", content: summary, images: [base64], imagePreviews: [{ id: job.imageId, src: dataUrl, name, type: "image/png", size: blob.size }] },
     ], selectedModel);
-    if (currentSessionRef.current === job.sessionId) dispatch({ type: "SET_SESSION", payload: { id: saved.id, messages: saved.messages, title: saved.title, memorySummary: saved.memory_summary || "", summarizedMessageCount: saved.summarized_message_count || 0 } });
+    if (currentSessionRef.current === job.sessionId) dispatch({ type: "SET_SESSION", payload: { id: saved.id, revision: saved.revision, messages: saved.messages, title: saved.title, memorySummary: saved.memory_summary || "", summarizedMessageCount: saved.summarized_message_count || 0 } });
     setEditJob(null); destinations.clearChatEdit();
     if (onSessionSaved) void Promise.resolve(onSessionSaved()).catch(error => showToast(error.message, "error"));
   }
@@ -255,7 +260,7 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
       refs.pendingChatCreation.then(session => {
         if (currentSessionRef.current === null) {
           currentSessionRef.current = session.id;
-          dispatch({ type: "SET_SESSION", payload: { id: session.id, messages: session.messages || [], title: session.title, memorySummary: "", summarizedMessageCount: 0 } });
+          dispatch({ type: "SET_SESSION", payload: { id: session.id, revision: session.revision, messages: session.messages || [], title: session.title, memorySummary: "", summarizedMessageCount: 0 } });
         }
       }).catch(() => {}).finally(() => { refs.pendingChatCreation = null; });
     }
@@ -286,6 +291,7 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
     let nextSummarizedMessageCount = summarizedMessageCount;
     let fullResponse = "";
     let stopped = false;
+    let responseCompleted = false, responseFailed = false, replySaved = false;
     let saved;
     const userMsg = { id: createMessageId(), role: "user", content: text };
     const influencePlan=chatInfluences(state);
@@ -294,7 +300,7 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
     const showSavedSession = (session) => {
       if (session?.id && currentSessionRef.current === session.id) {
         dispatch({ type: "SET_SESSION", payload: {
-          id: session.id, messages: session.messages, title: session.title,
+          id: session.id, revision: session.revision, messages: session.messages, title: session.title,
           memorySummary: session.memory_summary || "", summarizedMessageCount: session.summarized_message_count || 0,
         } });
       }
@@ -307,6 +313,8 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
       // Persist the submitted turn before waiting; append cannot overwrite a
       // result arriving from Generate or a different queued request.
       saved = await api.appendSessionMessages(sessionId, [userMsg], selectedModel);
+      nextMemorySummary = saved.memory_summary || "";
+      nextSummarizedMessageCount = saved.summarized_message_count || 0;
       showSavedSession(saved);
       const updatedHistory = saved.messages;
       const contextWindow = getSelectedContextWindow();
@@ -322,12 +330,14 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
           contextWindow, responseLength: canvasData ? Math.max(4096, responseLength) : responseLength, systemPrompt: budgetPrompt, useKnowledgeBase,
           triggerRatio: contextDefaults.hardTriggerRatio, requestId, signal: abortController.signal,
         });
-        nextMemorySummary = rotatedMemory.memorySummary;
-        nextSummarizedMessageCount = rotatedMemory.summarizedMessageCount;
+        saved = await persistSessionSummary(api, saved, rotatedMemory.memorySummary, rotatedMemory.summarizedMessageCount);
+        nextMemorySummary = saved.memory_summary || "";
+        nextSummarizedMessageCount = saved.summarized_message_count || 0;
+        showSavedSession(saved);
         contextMessages = rotatedMemory.contextMessages;
       } catch (error) {
         if (error.name === "AbortError") stopped = true;
-        else console.warn("Memory compaction skipped:", error);
+        else { console.warn("Memory compaction skipped:", error); showToast(error.message || "Memory compaction was not saved", "error"); }
       }
       if (wasStopped()) return;
       const res = await api.streamChat({
@@ -368,6 +378,7 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
           }
           if (event.document_text) assistantMsg.document_text = event.document_text;
           if (event.cancelled) stopped = true;
+          if (event.error || /^\[Error:/.test(event.token || '')) responseFailed = true;
           if (event.token) {
             fullResponse += event.token;
             // Find only this message, never the last message in another chat.
@@ -381,7 +392,7 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
               if (messagesEl && !refs.imageViewerOpen) messagesEl.scrollTop = messagesEl.scrollHeight;
             }
           }
-          if (event.done) done = true;
+          if (event.done) {done = true;responseCompleted = true;}
         }
       }
       // Do not cancel the reader on done: the backend still performs cleanup
@@ -390,6 +401,7 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
     } catch (error) {
       if (error.name === "AbortError" || wasStopped()) stopped = true;
       else {
+        responseFailed = true;
         const detail = error.message || "Could not reach the backend";
         fullResponse = fullResponse || `[Error: ${detail}]`;
         showToast(detail, "error");
@@ -400,9 +412,10 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
           // Streaming text is written outside React; remove it before React
           // replaces the empty assistant placeholder with rendered Markdown.
           document.querySelector(`[data-message-id="${assistantMsg.id}"] .message-markdown`)?.replaceChildren();
-          saved = await api.appendSessionMessages(sessionId, fullResponse ? [{ ...assistantMsg, content: fullResponse }] : [], selectedModel, {
-            memorySummary: nextMemorySummary, summarizedMessageCount: nextSummarizedMessageCount,
-          });
+          saved = await api.appendSessionMessages(sessionId, fullResponse ? [{ ...assistantMsg, content: fullResponse }] : [], selectedModel);
+          nextMemorySummary = saved.memory_summary || "";
+          nextSummarizedMessageCount = saved.summarized_message_count || 0;
+          replySaved = Boolean(fullResponse);
           showSavedSession(saved);
           if (!wasStopped()) {
             try {
@@ -413,13 +426,12 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
                 useKnowledgeBase, triggerRatio: contextDefaults.normalTriggerRatio, requestId, signal: abortController.signal,
               });
               if (!wasStopped() && (rotated.memorySummary !== nextMemorySummary || rotated.summarizedMessageCount !== nextSummarizedMessageCount)) {
-                saved = await api.appendSessionMessages(sessionId, [], selectedModel, {
-                  memorySummary: rotated.memorySummary, summarizedMessageCount: rotated.summarizedMessageCount,
-                });
+                saved = await persistSessionSummary(api, saved, rotated.memorySummary, rotated.summarizedMessageCount);
                 showSavedSession(saved);
               }
             } catch (error) {
               console.warn("Post-response memory compaction skipped:", error);
+              showToast(error.message || "Memory compaction was not saved", "error");
             }
           }
           if (onSessionSaved) await onSessionSaved();
@@ -435,6 +447,8 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved }) {
           dispatch({ type: "SET_GENERATING", payload: false });
         }
         if (currentSessionRef.current === sessionId) textareaRef.current?.focus();
+        chatSpeech.completed({message:{...assistantMsg,content:fullResponse},sessionId,preferences:voiceOutputRef.current,
+          completed:replySaved && responseCompleted && !responseFailed && !wasStopped() && !/^\[Error:/.test(fullResponse)});
       }
     }
   }

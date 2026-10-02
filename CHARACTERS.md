@@ -17,12 +17,23 @@ existing panels. Selected character and workspace persist across app restarts.
 
 ## Reference library
 
-Each character can link library images, Character Parts datasets, LoRA projects,
-trained adapters, Knowledge documents, other characters, and saved files. These
+Each character can link library images, Face Extractor datasets, Character Parts
+datasets, LoRA projects, trained adapters, Knowledge documents, other characters,
+and saved files. These
 are explicit associations with stable source IDs; linking does not move files,
 train a model, or infer someone's identity. Resources can belong to multiple
 characters. Reference notes describe the relationship or hold a voice transcript.
-Part datasets open in Character Parts, projects in LoRA, and documents in Knowledge.
+Face datasets open in Faces, part datasets in Character Parts, projects in LoRA,
+and documents in Knowledge.
+
+The same ties can be made from the other side. **Faces**, **Character Parts** and
+**LoRA** each show an optional **Characters** panel for the open dataset, project
+or trained LoRA. It lists the characters already tied to it, with **Open
+character** and **Untie**, and **Tie to character** adds one with an optional
+note. The workspace's selected character is chosen by default. Nothing is tied
+automatically. Tying a whole face dataset is separate from the accepted face
+references a profile holds; neither changes the other. Untie and deleting a
+dataset or project behave like Unlink above: the other side is kept.
 
 **Upload reference file** saves a local copy of images, videos, audio, documents, model
 files, or other identifying material (128 MiB per file, 500 links per character).

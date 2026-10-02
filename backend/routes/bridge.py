@@ -214,13 +214,20 @@ async def save_chat(job_id: uuid.UUID):
                 session_id = session["id"]
                 bridge.store.update("outgoing", str(job_id), saved_session=session_id)
             result = current["result"]
-            answer = {"role": "assistant", "content": result.get("text", "Generated on the paired PC.")}
+            answer = {"id": str(job_id) + "-answer", "role": "assistant", "content": result.get("text", "Generated on the paired PC.")}
             if result.get("image"):
-                answer["generatedImages"] = [{"src": result["image"], "prompt": current["payload"]["prompt"]}]
-            messages = [{"role": "user", "content": current["payload"]["prompt"]}, answer]
+                answer["generatedImages"] = [{"id": str(job_id) + "-image", "src": result["image"], "prompt": current["payload"]["prompt"]}]
+            messages = [{"id": str(job_id) + "-prompt", "role": "user", "content": current["payload"]["prompt"]}, answer]
             # Once saved, subsequent clicks never overwrite a user's later edits.
             if not current.get("save_complete"):
-                if not session_store.update_session(session_id, messages, model=current["payload"]["model"]):
+                destination = session_store.get_session(session_id)
+                if destination is None:
+                    raise ValueError("The saved destination was removed. Result remains in Bridge.")
+                present = {message.get("id") for message in destination.get("messages", [])}
+                # A crash after append but before save_complete must also keep
+                # any subsequent edits to the already persisted stable IDs.
+                messages = [message for message in messages if message["id"] not in present]
+                if not session_store.append_messages(session_id, messages, model=current["payload"]["model"]):
                     raise ValueError("The saved destination was removed. Result remains in Bridge.")
                 bridge.store.update("outgoing", str(job_id), save_complete=True)
             return {"session_id": session_id}

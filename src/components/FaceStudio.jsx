@@ -6,6 +6,7 @@ import {useCharacterWorkspace} from '../CharacterWorkspace';
 import ProtectedImage from "../ImagePrivacy";
 import MediaCardActions from "./MediaCardActions";
 import CharacterNameDialog from "./CharacterNameDialog";
+import CharacterLinks from "./CharacterLinks";
 import { browserFaceSource, desktopFaceSource, scanFaceBatches } from "../faceImport";
 import "./FaceStudio.css";
 
@@ -305,6 +306,12 @@ export default function FaceStudio({ active }) {
 
   const running = importing || (run && !TERMINAL.has(run.status));
   const progress = importing ? importProgress : run;
+  const faceDatasetTarget = characters?.faceDatasetTarget;
+  useEffect(() => {
+    if (!faceDatasetTarget?.id) return;
+    if (running || busy) { setError("Finish the current face task before opening another dataset."); return; }
+    setDatasetId(faceDatasetTarget.id); setSelected(new Set()); setScores(null); setReference(""); setImportProgress(null);
+  }, [faceDatasetTarget]);
 
   return <section className="face-studio">
     <header className="face-header">
@@ -338,6 +345,8 @@ export default function FaceStudio({ active }) {
     {notice && <p className="face-notice" role="status">{notice}</p>}
 
     {!dataset && ready && <p className="face-note">Create a dataset to begin.</p>}
+
+    {dataset && <CharacterLinks kind="face_dataset" targetId={dataset.id} label="face dataset" disabled={running || Boolean(busy)} />}
 
     {dataset && <>
       <div className={`face-import ${dragging ? "dragging" : ""}`}

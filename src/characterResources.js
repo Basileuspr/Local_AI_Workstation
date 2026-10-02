@@ -1,5 +1,5 @@
 import {apiUrl} from './api';
-export const RESOURCE_KINDS = {image:'Library image',parts:'Character parts dataset',lora_project:'LoRA project',lora_adapter:'Trained LoRA',knowledge:'Knowledge document',character:'Related character',file:'Saved file'};
+export const RESOURCE_KINDS = {image:'Library image',face_dataset:'Face dataset',parts:'Character parts dataset',lora_project:'LoRA project',lora_adapter:'Trained LoRA',knowledge:'Knowledge document',character:'Related character',file:'Saved file'};
 async function request(path,options) {
   const response = await fetch(apiUrl(`/faces${path}`),options);
   if (!response.ok) {
@@ -10,6 +10,7 @@ async function request(path,options) {
 }
 const json = (method,body) => ({method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
 export const resourceCatalog = kind => request(`/character-resources/catalog/${encodeURIComponent(kind)}`);
+export const linkedCharacters = (kind,targetId) => request(`/character-resources/links/${encodeURIComponent(kind)}/${encodeURIComponent(targetId)}`);
 export const linkResource = (id,kind,target_id,note='') => request(`/characters/${id}/resources`,json('POST',{kind,target_id,note}));
 export const editResource = (id,link,note) => request(`/characters/${id}/resources/${link}`,json('PUT',{note}));
 export const unlinkResource = (id,link) => request(`/characters/${id}/resources/${link}`,{method:'DELETE'});

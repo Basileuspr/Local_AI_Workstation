@@ -286,7 +286,7 @@ def test_local_routes_require_session_and_save_result_once(tmp_path, monkeypatch
         session_id = result.json()["session_id"]
         saved = session_store.get_session(session_id)
         assert saved["messages"][1]["content"] == "Remote answer"
-        session_store.update_session(session_id, [{"role": "user", "content": "Later user edit"}])
+        session_store.update_session(session_id, [{"role": "user", "content": "Later user edit"}], expected_revision=(session_store.get_session(session_id) or {}).get("revision"))
         result = client.post(f"/bridge/jobs/outgoing/{job_id}/save-chat", headers=headers)
         assert result.json()["session_id"] == session_id
         assert session_store.get_session(session_id)["messages"][0]["content"] == "Later user edit"

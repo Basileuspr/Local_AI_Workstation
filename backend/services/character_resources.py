@@ -19,7 +19,7 @@ from services.image_library import atomic, identity
 
 MAX_FILE_BYTES = 128 * 1024 * 1024
 MAX_RESOURCES = 500
-KINDS = {"image", "parts", "lora_project", "lora_adapter", "knowledge", "character", "file"}
+KINDS = {"image", "face_dataset", "parts", "lora_project", "lora_adapter", "knowledge", "character", "file"}
 AUDIO_TYPES = {".wav": "audio/wav", ".mp3": "audio/mpeg", ".m4a": "audio/mp4",
                ".aac": "audio/aac", ".flac": "audio/flac", ".ogg": "audio/ogg",
                ".opus": "audio/ogg", ".webm": "audio/webm", ".aiff": "audio/aiff"}
@@ -107,7 +107,9 @@ def catalog(kind):
         from services import image_library
         return [{"id": item["id"], "name": item["name"], "url": item["url"], "category": "image"}
                 for item in image_library.public_index()["images"] if not item.get("hidden")]
-    if kind == "parts":
+    if kind == "face_dataset":
+        items = store.list_datasets()
+    elif kind == "parts":
         from services.character_parts import store as parts
         items = parts.list_datasets()
     elif kind == "lora_project":
@@ -163,6 +165,29 @@ def list_resources(character_id):
     return result
 
 
+def linked_characters(kind, target_id):
+    """Characters explicitly tied to one source, for that source's own workspace.
+
+    Links to missing sources are still reported so they can be untied.
+    """
+    if kind not in KINDS:
+        raise ValueError("Choose a supported reference type")
+    found = []
+    with bank.LOCK:
+        if not bank.ROOT.is_dir():
+            return []
+        for path in bank.ROOT.glob("*.json"):
+            try:
+                data = bank._read(path.stem)
+            except (ValueError, OSError):
+                continue
+            for link in data["resources"]:
+                if link["kind"] == kind and link["target_id"] == target_id:
+                    found.append({"character_id": data["id"], "name": data["name"],
+                                  "link_id": link["id"], "note": link["note"]})
+    return sorted(found, key=lambda item: item["name"].casefold())
+
+
 def add(character_id, kind, target_id, note=""):
     resolve(kind, target_id)
     if kind == "character" and target_id == character_id:
@@ -207,7 +232,8 @@ def unlink(character_id, link_id):
         bank._write(data)
 
 
-def upload(character_id, filename, payload, note=""):
+def save_asset(filename, payload):
+    """Reuse the shared file library for explicit saves from other workspaces."""
     from services import image_vault
     if not payload or len(payload) > MAX_FILE_BYTES:
         raise ValueError("Choose a nonempty file up to 128 MiB")
@@ -217,14 +243,21 @@ def upload(character_id, filename, payload, note=""):
     suffix = Path(name).suffix.lower()
     mime, category = media_type(io.BytesIO(payload), suffix)
     with bank.LOCK:
+        if not asset_path(digest, "json").is_file() or not asset_path(digest, "blob").is_file():
+            atomic(asset_path(digest, "blob"), payload)
+            atomic(asset_path(digest, "json"), json.dumps({"id": digest, "name": name, "size": len(payload),
+                   "media_type": mime, "category": category, "media_version": MEDIA_VERSION}, ensure_ascii=False).encode())
+        return asset(digest)
+
+
+def upload(character_id, filename, payload, note=""):
+    digest = hashlib.sha256(payload).hexdigest()
+    with bank.LOCK:
         data = bank._read(character_id)  # Reject deleted profiles before writing a copy.
         if len(data["resources"]) >= MAX_RESOURCES and not any(
                 item["kind"] == "file" and item["target_id"] == digest for item in data["resources"]):
             raise ValueError(f"A character holds up to {MAX_RESOURCES} linked resources")
         if len(note) > 4000:
             raise ValueError("Reference notes must be at most 4,000 characters")
-        if not asset_path(digest, "json").is_file() or not asset_path(digest, "blob").is_file():
-            atomic(asset_path(digest, "blob"), payload)
-            atomic(asset_path(digest, "json"), json.dumps({"id": digest, "name": name, "size": len(payload),
-                   "media_type": mime, "category": category, "media_version": MEDIA_VERSION}, ensure_ascii=False).encode())
+        save_asset(filename, payload)
         return add(character_id, "file", digest, note)

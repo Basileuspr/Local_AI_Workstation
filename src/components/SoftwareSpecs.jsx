@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { apiUrl } from "../api";
 import { downloadBlob } from "../downloadBlob";
 import { SOFTWARE_GROUPS, formatSoftwareSpecs } from "../softwareSpecs";
+import { rendererBuild, buildIdentityLines } from "../buildIdentity";
 
 export default function SoftwareSpecs() {
   const [snapshot, setSnapshot] = useState(null), [groups, setGroups] = useState(SOFTWARE_GROUPS.map(([id]) => id));
@@ -19,6 +20,7 @@ export default function SoftwareSpecs() {
     const value = await response.json();
     const runtime = await window.workstationDesktop?.softwareRuntime?.();
     value.frontend.runtime = runtime || { status: "Desktop runtime unavailable in this window" };
+    value.frontend.renderer_build = rendererBuild;
     setSnapshot(value); return value;
   }
   return <section className="dashboard-card software-specs"><h2>App software specs</h2><p className="dashboard-note">Current source folders, installed versions, available app API calls, and model catalogs. Choose which sections to include.</p>
@@ -28,7 +30,9 @@ export default function SoftwareSpecs() {
       <button disabled={busy || !groups.length} onClick={() => act(async () => { const value = await refresh(); downloadBlob(new Blob([formatSoftwareSpecs(value, groups)], { type: "text/plain" }), "workstation-software-specs.txt"); setNotice("Software specs download started."); })}>Export specs</button>
       <button disabled={busy} onClick={() => act(async () => { const response = await fetch(apiUrl("/system/logs/export")); if (!response.ok) throw new Error("Could not export app logs."); downloadBlob(await response.blob(), "workstation-app-logs.zip"); setNotice("App log ZIP download started."); })}>Export app logs (ZIP)</button></div>
     {busy && <p role="status">Reading app records…</p>}{error && <p role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}
-    {snapshot && <details><summary>Preview selected specs · {new Date(snapshot.sampled_at).toLocaleString()}</summary><pre className="software-spec-preview">{formatSoftwareSpecs(snapshot, groups)}</pre></details>}
+    {snapshot && <><p className="dashboard-note">Version {snapshot.build?.package_version || snapshot.build?.app_version || "unavailable"} · Build {snapshot.build?.build_id || "unrecorded"}</p>
+      {buildIdentityLines(snapshot).filter(line => line.includes("differ") || line.includes("rebuild") || line.includes("Rebuild")).map(line => <p role="status" key={line}>{line}</p>)}
+      <details><summary>Preview selected specs · {new Date(snapshot.sampled_at).toLocaleString()}</summary><pre className="software-spec-preview">{formatSoftwareSpecs(snapshot, groups)}</pre></details></>}
     <p className="dashboard-note">API calls describe registered app endpoints, not tools granted to a model. Log export includes recorded paths and errors; session credentials are redacted.</p>
   </section>;
 }

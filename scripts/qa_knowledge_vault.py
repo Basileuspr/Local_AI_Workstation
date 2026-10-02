@@ -1,5 +1,6 @@
 """Disposable Knowledge graph fixture. Does not open the user's data directory."""
 import json
+import asyncio
 import os
 from pathlib import Path
 import socket
@@ -14,8 +15,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routes.files import router
+from routes import files
 from services import knowledge_base as kb
 import uvicorn
+
+# Exercise authored-node storage/routes with synthetic embeddings. No live Ollama
+# calls, GPU admission, or model unloading occurs in this disposable fixture.
+kb._create_embeddings = lambda texts, cancel_event=None: [[1., 0., 0.] for _ in texts]
+async def fixture_embedding_work(request, label, operation, *args):
+    return await asyncio.to_thread(operation, *args)
+files._embedding_work = fixture_embedding_work
 
 documents = [
     ("a", "Project Atlas.md", "Project Atlas connects [[Research notes]] with [[Architecture]] and [[Release plan]].\nThis is synthetic QA content, not a personal document."),

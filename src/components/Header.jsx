@@ -15,6 +15,8 @@ export default function Header({ onSessionRenamed, onCompactMemory }) {
   const [renaming, setRenaming] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const exportRef = useRef(null);
+  const currentSessionRef = useRef(state.currentSessionId);
+  currentSessionRef.current = state.currentSessionId;
 
   const {
     sessionTitle,
@@ -133,8 +135,8 @@ export default function Header({ onSessionRenamed, onCompactMemory }) {
       return;
     }
     try {
-      await api.saveSession(currentSessionId, conversationHistory, selectedModel, { title });
-      dispatch({ type: "SET_SESSION_TITLE", payload: title });
+      const saved = await api.updateSessionMetadata(currentSessionId, { title });
+      if (currentSessionRef.current === currentSessionId) dispatch({ type: "SESSION_METADATA_SAVED", payload: saved });
       await onSessionRenamed?.();
       setRenaming(false);
       showToast("Chat renamed", "success");

@@ -51,7 +51,10 @@ async function snapshotDocument({ tab, label, embedded = false }) {
   }
   const copy = clone(root);
   if (!embedded) {
-    copy.classList.remove("navigation-open");
+    copy.classList.remove("navigation-open", "sidebar-collapsed", "layout-resizing");
+    copy.querySelectorAll(".workspace-panes").forEach(node => node.classList.remove("split-chat", "split-stacked"));
+    copy.querySelectorAll(".pinned-workspace").forEach(node => node.classList.remove("pinned-workspace"));
+    copy.querySelectorAll(".pinned-pane-heading, .chat-pin-picker, .chat-pin-notice, .workspace-divider").forEach(node => node.remove());
     copy.querySelectorAll(".navigation-backdrop, .sidebar-group-current").forEach(node => node.remove());
     const title = copy.querySelector(".workspace-navigation > span"); if (title) title.textContent = label;
     copy.querySelectorAll("[data-sidebar-route]").forEach(button => {

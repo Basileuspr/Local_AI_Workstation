@@ -20,7 +20,8 @@ async def software_specs(request: Request):
     from services import software_specs as inventory
     from services.image_generation import discover_models
     from services.lora_store import list_adapters
-    result = await run_in_threadpool(inventory.snapshot, request.app.routes)
+    result = await run_in_threadpool(inventory.snapshot, request.app.routes,
+                                   build_info=getattr(request.app.state, "build_info", None))
     models = {"ollama": [], "image": [], "lora": [], "errors": []}
     try:
         async with httpx.AsyncClient(timeout=4, trust_env=False) as client:

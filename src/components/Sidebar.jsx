@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useStore, useDispatch, useRefs } from "../useStore.jsx";
 import * as api from "../api";
+import { runtimeObserver } from "../appPolling";
 import { chatSubmissionQueue } from "../chatSubmissionQueue";
 import PromptPhraseButtons from "./PromptPhraseButtons";
 import ImageGallery from "./ImageGallery";
@@ -8,7 +9,7 @@ import SidebarNavigation from "./SidebarNavigation";
 import BulkActions, { SelectionCheckbox } from "./BulkActions";
 import { useSelection, useBatchAction } from "../useSelection";
 
-export default function Sidebar({ onLoadSession, onNewChat, onNavigate, imageLibraryTarget }) {
+export default function Sidebar({ onLoadSession, onNewChat, onNavigate, imageLibraryTarget, imagesActive }) {
   const state = useStore();
   const dispatch = useDispatch();
   const refs = useRefs();
@@ -52,17 +53,12 @@ export default function Sidebar({ onLoadSession, onNewChat, onNavigate, imageLib
   }, [activeSidebarTab, sessions, refreshDeleted]);
 
   const refreshRuntime = useCallback(async () => {
-    try {
-      setRuntimeStatus(await api.fetchRuntimeStatus());
-    } catch {
-      setRuntimeStatus({ unavailable: true });
-    }
+    runtimeObserver().invalidate();
   }, []);
 
   useEffect(() => {
-    refreshRuntime();
-    const timer = window.setInterval(refreshRuntime, 3000);
-    return () => window.clearInterval(timer);
+    return runtimeObserver().subscribe({ data: setRuntimeStatus,
+      error: () => setRuntimeStatus(current => ({ ...current, unavailable: true })) });
   }, [refreshRuntime]);
 
   async function handleGlobalReset() {
@@ -282,7 +278,7 @@ export default function Sidebar({ onLoadSession, onNewChat, onNavigate, imageLib
         </div>
 
         <div hidden={activeSidebarTab !== "images"}>
-          <ImageGallery images={sessionImages} onOpen={onLoadSession} active={activeSidebarTab === "images"}
+          <ImageGallery images={sessionImages} onOpen={onLoadSession} active={imagesActive ?? activeSidebarTab === "images"}
             workspaceTarget={imageLibraryTarget} onNavigate={onNavigate}
             onImagesRemoved={galleryImagesRemoved}
             onRemove={handleRemoveGalleryImage} onDelete={handlePermanentlyDeleteGalleryImage} />

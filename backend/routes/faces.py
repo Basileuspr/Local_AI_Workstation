@@ -1,5 +1,5 @@
 """Face dataset API. Detection runs in the background through the shared queue."""
-from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Path, Query, UploadFile
 from fastapi.responses import Response, FileResponse
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
@@ -263,6 +263,11 @@ class CharacterResourceNote(BaseModel):
 @router.get("/character-resources/catalog/{kind}")
 async def resource_catalog(kind: str):
     return {"items": await run_in_threadpool(call, character_resources.catalog, kind)}
+
+
+@router.get("/character-resources/links/{kind}/{target_id}")
+async def resource_links(kind: str, target_id: str = Path(max_length=128)):
+    return {"characters": await run_in_threadpool(call, character_resources.linked_characters, kind, target_id)}
 
 
 @router.post("/characters/{character_id}/resources", status_code=201)

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { bridgeRequest, bridgePending, bridgeJobStatus } from "../bridgeApi";
 import { listSessions } from "../api";
 import { useDispatch } from "../useStore";
+import { createPollingObserver } from "../polling";
 import "./PCBridge.css";
 
 export function BridgeJobs({ jobs, peers, busy, action, showResult, saveResult }) {
@@ -21,7 +22,7 @@ export function BridgeJobs({ jobs, peers, busy, action, showResult, saveResult }
   </article>) : <p>No bridge jobs yet. Local work continues to use the existing workspaces.</p>}</div>;
 }
 
-export default function PCBridge() {
+export default function PCBridge({ active = true }) {
   const dispatch = useDispatch();
   const [status, setStatus] = useState(null), [jobs, setJobs] = useState([]);
   const [error, setError] = useState(""), [notice, setNotice] = useState(""), [busy, setBusy] = useState(false);
@@ -44,22 +45,18 @@ export default function PCBridge() {
     }
   }
   useEffect(() => {
-    let stopped = false, timer;
-    async function poll() {
-      try {
+    if (!active) return;
+    const observer = createPollingObserver({ read: async () => {
         const [next, history] = await Promise.all([bridgeRequest(), bridgeRequest("/jobs")]);
-        if (!stopped) {
+        return { value: { next, history } };
+      }, interval: (_, { hidden, failures }) => hidden ? null : failures ? Math.min(30000, 5000 * 2 ** Math.min(failures - 1, 3)) : 5000 });
+    return observer.subscribe({ data: ({ next, history }) => {
           setStatus(next); setJobs(history.jobs || []); setPollError("");
           if (!initialized.current) {
             initialized.current = true; setAddress(next.listen.address); setPort(next.listen.port); setName(next.name);
           }
-        }
-      } catch (failure) { if (!stopped) setPollError(`Bridge status unavailable. ${failure.message} Checks will continue automatically.`); }
-      if (!stopped) timer = setTimeout(poll, 5000);
-    }
-    void poll();
-    return () => { stopped = true; clearTimeout(timer); };
-  }, []);
+      }, error: failure => setPollError(`Bridge status unavailable. ${failure.message} Checks will continue automatically.`) });
+  }, [active]);
   useEffect(() => {
     if (!invitation) return;
     const timer = setTimeout(() => setInvitation(""), 300000);

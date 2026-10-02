@@ -6,7 +6,7 @@ import {useImageRemoval} from './ImageRemovalControls';
 import {formatImageEstimate, imageRemainingSeconds} from '../imageProgress';
 import {formatQueueTime} from '../queueTiming';
 
-export default function ImageBatchOutput({ batch, requests = [], onOpen, onEdit, onCopy, onRemove, editDisabled, copying }) {
+export default function ImageBatchOutput({ batch, requests = [], onOpen, onEdit, onCopy, onRemove, onReference, editDisabled, copying }) {
   const removal = useImageRemoval(batch.slots.filter(slot => slot.image), slots => onRemove?.(slots.map(slot => slot.image)), {label:'batch images', scope:batch.id});
   const count = batch.slots.length;
   const columns = Math.min(4, Math.ceil(Math.sqrt(count)));
@@ -33,6 +33,7 @@ export default function ImageBatchOutput({ batch, requests = [], onOpen, onEdit,
           {onRemove && removal.controls(slot, `batch image ${index + 1}`)}
           <GeneratedImagePreview key={slot.image.url} className="image-batch-output-preview" src={apiUrl(slot.image.url)} alt={`Batch image ${index + 1}`} onOpen={onOpen ? () => onOpen(slot.image) : undefined} />
           <div className="image-batch-output-actions">
+            {onReference && <button type="button" disabled={editDisabled} onClick={() => onReference(slot.image)}>Use as reference</button>}
             <button type="button" disabled={editDisabled} onClick={() => onEdit(slot.image)}>Edit Image</button>
             <button type="button" disabled={copying} onClick={() => onCopy(slot.image)}>Copy Image</button>
           </div>

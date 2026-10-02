@@ -1,4 +1,6 @@
 const listeners = new Set();
+const stoppers = new Set();
+export function registerSpeechStopper(stop) {stoppers.add(stop); return () => stoppers.delete(stop);}
 let snapshot = {owner:null, status:'idle', error:''}, generation = 0;
 const publish = value => { snapshot = value; listeners.forEach(fn => fn()); };
 export const speechStore = {subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }, getSnapshot:() => snapshot};
@@ -12,6 +14,7 @@ export function speechChunks(text) {
   return String(text).trim().match(/.{1,220}(?:\s|$)|.{1,220}/gs)?.map(chunk => chunk.trim()).filter(Boolean) || [];
 }
 export function stopSpeech(owner) {
+  stoppers.forEach(stop => stop(owner));
   if (owner && snapshot.owner !== owner) return;
   generation++; globalThis.speechSynthesis?.cancel(); publish({owner:null, status:'idle', error:''});
 }

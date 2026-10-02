@@ -5,6 +5,7 @@ import { QueueJobTiming, usePromptQueue } from './PromptQueue';
 export default function ImageGenerationProgress({ requestId, reportedProgress, status }) {
   const measured = useTaskProgress(
     `image:${requestId}`, `/image-generation/progress/${encodeURIComponent(requestId)}`,
+    750, status === undefined && !reportedProgress,
   );
   const progress = reportedProgress || measured.progress;
   const elapsed = reportedProgress?.elapsed_seconds ?? measured.elapsed;

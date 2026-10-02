@@ -33,6 +33,36 @@ ENGINES = {
 }
 _lock = threading.Lock()
 _progress = None
+_requests = {}
+_requests_lock = threading.Lock()
+
+
+def register_request(request_id):
+    with _requests_lock:
+        if request_id in _requests:
+            raise AudioError('This speech request is already running.', 409)
+        event = threading.Event()
+        _requests[request_id] = event
+        return event
+
+
+def finish_request(request_id, event):
+    with _requests_lock:
+        if _requests.get(request_id) is event:
+            _requests.pop(request_id)
+
+
+def cancel_request(request_id):
+    with _requests_lock:
+        event = _requests.get(request_id)
+        if event is not None:
+            event.set()
+        return event is not None
+
+
+def check_cancelled(event):
+    if event is not None and event.is_set():
+        raise AudioError('Speech generation cancelled.', 499)
 
 
 def engine_spec(engine):
@@ -135,7 +165,7 @@ def stop_worker(process):
     process.wait()
 
 
-def synthesize(engine, text, reference, reference_text, language, acceleration, directory):
+def synthesize(engine, text, reference, reference_text, language, acceleration, directory, cancel_event=None):
     global _progress
     spec = validate(engine, text, reference_text, language, acceleration)
     if not status()['engines'][engine]['ready']:
@@ -145,10 +175,13 @@ def synthesize(engine, text, reference, reference_text, language, acceleration, 
     execution = None
     started = time.perf_counter()
     try:
+        check_cancelled(cancel_event)
         _progress = {'stage':'Preparing reference', 'engine':engine}
         prepared = directory / 'reference.wav'
         prepare_reference(reference, prepared)
+        check_cancelled(cancel_event)
         execution = audio_acceleration.choose_device(acceleration, 'turbo', audio_acceleration.cpu_plan('light'))
+        check_cancelled(cancel_event)
         request = {'engine':engine, 'model':str(ROOT / spec['folder']), 'text':text.strip(),
                    'reference':str(prepared), 'reference_text':reference_text.strip(), 'language':language,
                    'device':execution['device'], 'threads':execution['cpu_threads'], 'output':str(directory / 'voice.wav')}
@@ -163,13 +196,27 @@ def synthesize(engine, text, reference, reference_text, language, acceleration, 
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding='utf-8', errors='replace',
             env=environment, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         try:
-            output, _ = process.communicate(timeout=600)
+            if cancel_event is None:
+                output, _ = process.communicate(timeout=600)
+            else:
+                deadline = time.monotonic() + 600
+                while True:
+                    check_cancelled(cancel_event)
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise subprocess.TimeoutExpired(process.args, 600)
+                    try:
+                        output, _ = process.communicate(timeout=min(.25, remaining))
+                        break
+                    except subprocess.TimeoutExpired:
+                        continue
         except subprocess.TimeoutExpired as exc:
             stop_worker(process)
             raise AudioError('Voice generation exceeded ten minutes. Try shorter text or an available GPU.', 504) from exc
         finally:
             if process.poll() is None:
                 stop_worker(process)
+        check_cancelled(cancel_event)
         if process.returncode:
             logging.getLogger(__name__).warning('Voice worker %s failed: %s', engine, output[-5000:])
             message = 'Voice generation failed. Try shorter text or CPU only processing.'

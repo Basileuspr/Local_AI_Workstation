@@ -2,7 +2,9 @@ import {useEffect, useRef, useState} from 'react';
 import {AUDIO_ACCEPT, audioRequest, createAudioCapture, transcribeAudio} from '../audio';
 import {stopSpeech} from '../audioSpeech';
 import {downloadBlob} from '../downloadBlob';
-import {generateClonedVoice, validateVoiceReference, VOICE_DEMO_TEXT, VOICE_ENGINES, VOICE_LANGUAGES} from '../voiceCloning';
+import {generateClonedVoice, saveVoiceReference, validateVoiceReference, VOICE_DEMO_TEXT, VOICE_ENGINES} from '../voiceCloning';
+import {useDispatch} from '../useStore';
+import {VoiceEngineControls} from './VoiceOutputSettings';
 import {newVoiceReferencePhrase, VOICE_PHRASE_MOODS} from '../voiceReferencePhrases';
 import CharacterFileButton from './CharacterFileButton';
 import {useCharacterWorkspace} from '../CharacterWorkspace';
@@ -25,6 +27,7 @@ function useAudioUrl(blob) {
 }
 
 export default function VoiceCloningPanel({active}) {
+  const dispatch = useDispatch();
   const characters=useCharacterWorkspace(),[loadedTarget,setLoadedTarget]=useState('');
   const [status, setStatus] = useState(null), [error, setError] = useState('');
   const [engine, setEngine] = useState('chatterbox-turbo'), [language, setLanguage] = useState('English');
@@ -147,6 +150,18 @@ export default function VoiceCloningPanel({active}) {
   }
   const selected = status?.engines?.[engine], needsTranscript = engine !== 'chatterbox-turbo';
   const locked = Boolean(busy || capturing);
+  async function useForChat() {
+    if (!dispatch || !reference || operation.current || capture.current) return;
+    if (needsTranscript && !referenceText.trim()) {setError('Transcribe or enter the reference words before using this voice for chat.');return;}
+    operation.current = true; setBusy('save'); setError('');
+    try {
+      const saved = await saveVoiceReference(reference);
+      if (!mounted.current) return;
+      dispatch({type:'SET_VOICE_OUTPUT',payload:{referenceId:saved.id,referenceName:saved.name,referenceText,engine,language,acceleration}});
+      setPlaybackNotice('Voice selected for chat. Use Speak on an assistant message; automatic speech is controlled in Settings → Voice Output.');
+    } catch (e) {if (mounted.current) setError(e.message);}
+    finally {operation.current = false;if (mounted.current) setBusy('');}
+  }
   async function loadSavedReference(){
     if(operation.current||capture.current)return;
     operation.current=true;setBusy('reference');setError('');
@@ -165,11 +180,9 @@ export default function VoiceCloningPanel({active}) {
     <h2>Voice cloning</h2>
     {characters?.voiceTarget && loadedTarget!==characters.voiceTarget.request && <div className="audio-source"><p>Character reference: {characters.voiceTarget.name}</p><button type="button" disabled={!active||locked} onClick={loadSavedReference}>Load saved voice reference</button><small>Replaces the reference in this panel. Check that its notes contain only the words spoken before generating.</small></div>}
     <p>Generate new speech from a 6–30 second recording of one clear voice. Use your own voice or one you have permission to use.</p>
-    <div className="audio-controls">
-      <label>Voice model <select aria-label="Voice cloning model" disabled={locked} value={engine} onChange={e => {setEngine(e.target.value); if(e.target.value === 'chatterbox-turbo') setLanguage('English');}}>{Object.entries(VOICE_ENGINES).map(([key,label]) => <option key={key} value={key}>{label}</option>)}</select></label>
-      <label>Language <select aria-label="Cloned voice language" disabled={locked || engine === 'chatterbox-turbo'} value={language} onChange={e => setLanguage(e.target.value)}>{VOICE_LANGUAGES.map(value => <option key={value}>{value}</option>)}</select></label>
-      <label>Processing <select aria-label="Voice cloning processing" disabled={locked} value={acceleration} onChange={e => setAcceleration(e.target.value)}><option value="auto">Auto · use available GPU</option><option value="cpu">CPU only</option></select></label>
-    </div>
+    <VoiceEngineControls value={{engine,language,acceleration}} disabled={locked} onChange={value => {
+      if (value.engine) setEngine(value.engine);if (value.language) setLanguage(value.language);if (value.acceleration) setAcceleration(value.acceleration);
+    }}/>
     <p className="audio-model-status" role="status">{status ? selected?.ready ? `${VOICE_ENGINES[engine]} · Installed locally` : `${VOICE_ENGINES[engine]} · Installation incomplete` : 'Checking voice models…'}</p>
     {status?.reference_ready === false ? <p>Install the audio decoder with <code>venv\Scripts\python.exe -m pip install -r requirements-audio.txt</code>, then restart the app.</p> : status && !selected?.ready && <p>Run <code>powershell -ExecutionPolicy Bypass -File scripts/install-voice-models.ps1</code> from the project folder, then reopen Audio.</p>}
     <div className="audio-voice-recorder" aria-label="Record a voice reference">
@@ -198,13 +211,14 @@ export default function VoiceCloningPanel({active}) {
     {recordedPhrase && <details className="audio-recorded-phrase"><summary>Phrase shown during this recording</summary><p>{recordedPhrase}</p><div className="audio-controls"><button type="button" disabled={locked} onClick={() => setReferenceText(recordedPhrase)}>Use recorded phrase as transcript</button><SaveVoiceText text={recordedPhrase} filename="recorded-voice-phrase.txt">Save recorded phrase (.txt)</SaveVoiceText></div><small>Only use this if you read the entire phrase word for word. Otherwise, use Transcribe reference below and review the result.</small></details>}
     <label className="audio-text-label">Words in the reference {needsTranscript ? '(auto-transcribed if blank)' : '(optional)'}<textarea aria-label="Reference voice transcript" rows={3} maxLength={4000} value={referenceText} disabled={locked} onChange={e => setReferenceText(e.target.value)} placeholder="Enter the words spoken in your reference, or let the app transcribe it."/></label>
     <CharacterFileButton file={reference} note={referenceText} label="voice reference" disabled={locked}/>
+    <button type="button" disabled={!dispatch || !active || locked || !reference} onClick={useForChat}>Use this voice for chat</button>
     <div className="audio-controls"><button type="button" disabled={!active || locked || !reference} onClick={() => run('transcribe')}>Transcribe reference</button><SaveVoiceText text={referenceText} filename="voice-reference-transcript.txt">Save reference text (.txt)</SaveVoiceText></div>
     <small>OmniVoice and Qwen automatically transcribe a blank reference transcript before generating. You can review and correct the words for better results. Chatterbox Turbo uses the recording alone.</small>
     <label className="audio-text-label">Text to generate<textarea aria-label="Text for cloned voice" rows={3} maxLength={1500} value={text} disabled={locked} onChange={e => setText(e.target.value)} placeholder="Type what the generated voice should say, or leave blank to try the demo."/></label>
     {!text.trim() && <p className="audio-demo-text">Demo text: “{VOICE_DEMO_TEXT[language]}”</p>}
     <div className="audio-controls"><button type="button" className="audio-demo-button" disabled={!active || locked || !selected?.ready || !reference} onClick={() => run('demo')}>Demo this voice</button><button type="button" disabled={!active || locked || !selected?.ready || !reference || !text.trim()} onClick={() => run('generate')}>Generate cloned voice</button><SaveVoiceText text={text.trim() || VOICE_DEMO_TEXT[language]} filename="cloned-voice-text.txt">Save text (.txt)</SaveVoiceText></div>
     <small>Demo this voice generates your text (or the sample above) and plays it automatically when ready. Save text (.txt) keeps those words before or during generation. The finished result also lets you save the exact text used for its audio.</small>
-    {busy && <p role="status">{busy === 'transcribe' ? 'Transcribing reference' : progress?.stage || 'Generating speech locally'}{progress?.device && ` · ${progress.device === 'cuda' ? 'GPU' : 'CPU'}`} · {Math.floor(elapsed/60)}m {elapsed%60}s elapsed</p>}
+    {busy && <p role="status">{busy === 'save' ? 'Saving chat voice reference' : busy === 'transcribe' ? 'Transcribing reference' : progress?.stage || 'Generating speech locally'}{progress?.device && ` · ${progress.device === 'cuda' ? 'GPU' : 'CPU'}`} · {Math.floor(elapsed/60)}m {elapsed%60}s elapsed</p>}
     {busy && progress?.warnings?.map(value => <p key={value}>{value}</p>)}
     {error && <p role="alert" className="audio-error">{error}</p>}
     {playbackNotice && <p role="status">{playbackNotice}</p>}

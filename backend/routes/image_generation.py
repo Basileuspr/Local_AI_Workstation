@@ -9,10 +9,13 @@ import hashlib
 import json
 import uuid
 from contextlib import suppress
+from fastapi import Request
+from services.conditional_status import conditional_status
 from pathlib import Path
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException, Request, Query
+from fastapi import APIRouter, HTTPException, Request, Query, UploadFile, File
+from typing import Literal
 from starlette.concurrency import run_in_threadpool
 from services.request_queue import queue, QueueCancelled, prepare_runtime
 from fastapi.responses import FileResponse
@@ -51,11 +54,30 @@ class ImageGenerationRequest(BaseModel):
     long_prompt: bool = True
     output_dir: str | None = Field(default=None, max_length=32767)
     allow_long_wait: bool = False
+    source_image_ref: str | None = Field(default=None, pattern=r"^blob:[0-9a-f]{64}$")
+    strength: float = Field(default=0.3, ge=0.05, le=1, allow_inf_nan=False)
+    source_fit: Literal["contain", "crop", "edge"] = "contain"
 
     @model_validator(mode="after")
     def supported_dimensions(self):
         validate_dimensions(self.width, self.height, self.allow_long_wait)
+        if self.source_image_ref and int(self.steps * self.strength) < 1:
+            raise ValueError("Increase Steps or Change amount to allow at least one image-to-image step.")
         return self
+
+
+@router.post("/references")
+async def upload_generation_reference(file: UploadFile = File(...)):
+    from services.generation_reference import MAX_UPLOAD_BYTES, store_reference
+    try:
+        content = await file.read(MAX_UPLOAD_BYTES + 1)
+        if len(content) > MAX_UPLOAD_BYTES:
+            raise HTTPException(413, "Reference image exceeds the 20 MiB limit.")
+        return await run_in_threadpool(store_reference, file.filename or "Reference image", content)
+    except ValueError as error:
+        raise HTTPException(400, str(error)) from error
+    finally:
+        await file.close()
 
 
 @router.get("/models")
@@ -99,6 +121,9 @@ async def submit_image_tasks(submission: ImageTaskSubmission):
     if len(submission.requests) > 1 and not submission.batch_id:
         raise HTTPException(400, "Batch requests require a batch ID")
     try:
+        from services.generation_reference import reference_bytes
+        for reference in {request.source_image_ref for request in submission.requests if request.source_image_ref}:
+            await run_in_threadpool(reference_bytes, reference)
         await image_tasks.submit(submission.client_id, [request.model_dump() for request in submission.requests],
                                  submission.batch_id, submission.chat_model, execute_saved_image)
     except ValueError as error:
@@ -107,7 +132,7 @@ async def submit_image_tasks(submission: ImageTaskSubmission):
 
 
 @router.get("/tasks")
-async def image_task_snapshot(client_id: str = Query(min_length=1, max_length=100)):
+async def image_task_snapshot(client_id: str = Query(min_length=1, max_length=100), request: Request = None):
     tasks = image_tasks.snapshot(client_id)
     for task in tasks:
         job = queue.find(kind="image", request_id=task["request_id"], include_finished=True)
@@ -117,16 +142,23 @@ async def image_task_snapshot(client_id: str = Query(min_length=1, max_length=10
             task["status"] = ("saving" if job.stage == "saving" or job.status == "completed"
                               else job.status if job.status in {"queued", "running", "cancelling"} else "running")
         task["progress"] = image_progress_snapshot(task["request_id"])
-    return {"tasks": tasks}
+    return conditional_status(request, {"tasks": tasks})
 
 
 @router.post("/generate")
 async def generate_image(request: ImageGenerationRequest, client_request: Request):
+    if request.source_image_ref:
+        from services.generation_reference import reference_bytes
+        try:
+            await run_in_threadpool(reference_bytes, request.source_image_ref)
+        except ValueError as error:
+            raise HTTPException(400, str(error)) from error
     request.request_id = request.request_id or uuid.uuid4().hex
     job = queue.enqueue("image", f"{request.request_label} · {request.prompt}" if request.request_label else request.prompt, request.request_id,
                         timing_profile=hashlib.sha256(json.dumps([
                             request.model_id, request.width, request.height, request.steps,
                             request.lora_id, request.long_prompt, request.allow_long_wait,
+                            bool(request.source_image_ref), request.strength if request.source_image_ref else None,
                         ]).encode()).hexdigest(),
                         session_id=request.session_id,
                         owner=f"image-generation:{request.request_id}",

@@ -9,6 +9,7 @@ export function CharacterWorkspaceProvider({onNavigate,onOpenDestination,childre
   const [target,setTarget] = useState(null), [knowledgeTarget,setKnowledgeTarget] = useState(null);
   const [documentTarget,setDocumentTarget] = useState(null);
   const [voiceTarget,setVoiceTarget] = useState(null);
+  const [faceDatasetTarget,setFaceDatasetTarget] = useState(null);
   const select = useCallback(character => {
     const value = character ? {id:character.id,name:character.name} : null;
     setSelected(value);
@@ -23,13 +24,14 @@ export function CharacterWorkspaceProvider({onNavigate,onOpenDestination,childre
   function openResource(item) {
     if(item.kind==='character')return openCreator(item.target_id);
     if(item.kind==='knowledge'){setDocumentTarget({id:item.target_id,request:crypto.randomUUID()});return onNavigate('knowledge');}
+    if(item.kind==='face_dataset'){setFaceDatasetTarget({id:item.target_id,request:crypto.randomUUID()});return onNavigate('faces');}
     if(item.kind==='parts')return onOpenDestination?.({tab:'character-parts',datasetId:item.target_id});
     if(item.kind==='lora_project')return onOpenDestination?.({tab:'lora',projectId:item.target_id});
     if(item.kind==='lora_adapter')return onNavigate('lora');
     if(item.kind==='image')return onNavigate('library');
   }
   function openVoice(item){setVoiceTarget({...item,request:crypto.randomUUID()});onNavigate('audio');}
-  return <Context.Provider value={{selected,select,target,knowledgeTarget,documentTarget,voiceTarget,openVoice,openCreator,openKnowledge,openResource,onNavigate}}>{children}</Context.Provider>;
+  return <Context.Provider value={{selected,select,target,knowledgeTarget,documentTarget,voiceTarget,faceDatasetTarget,openVoice,openCreator,openKnowledge,openResource,onNavigate}}>{children}</Context.Provider>;
 }
 export const useCharacterWorkspace = () => useContext(Context);
 

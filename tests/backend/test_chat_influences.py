@@ -100,6 +100,14 @@ def test_retrieval_failures_are_not_reported_as_included(chat_client):
     assert not actual['knowledge']['sources']
 
 
+def test_checklist_request_tells_provider_about_clickable_markdown(chat_client):
+    from services.chat_checklists import CHECKLIST_INSTRUCTION
+    client, captured, _, _ = chat_client
+    submit(client, messages=[{'role': 'user', 'content': 'Make me an interactive Markdown to-do list.'}],
+           use_durable_memory=False, use_knowledge_base=False)
+    assert {'role': 'system', 'content': CHECKLIST_INSTRUCTION} in captured[0]['messages']
+
+
 def test_canvas_receipt_uses_final_instructions_and_overridden_options():
     from services.chat_canvas import CanvasContext, stream_canvas
     captured = []

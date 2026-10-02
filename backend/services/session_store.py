@@ -29,6 +29,25 @@ from services.app_logging import get_logger
 logger = get_logger("backend.session_store")
 _session_lock = threading.RLock()
 
+# Disposable metadata only: JSON files remain the source of truth. File revisions
+# also detect edits/restores performed outside this process (e.g. backup import).
+_inventory_root = None
+_metadata_entries = {}
+
+
+class SessionConflict(ValueError):
+    """The caller must reload and explicitly retry a changed chat."""
+    def __init__(self, revision, *, required=False):
+        self.revision = revision
+        self.required = required
+        super().__init__("Reload this chat before saving: its history or metadata has changed." if not required
+                         else "An expected revision is required. Reload this chat before saving.")
+
+
+def _check_revision(session, expected_revision):
+    if not expected_revision or expected_revision != session["revision"]:
+        raise SessionConflict(session["revision"], required=not expected_revision)
+
 
 def _serialized(function):
     @wraps(function)
@@ -217,11 +236,16 @@ def _ensure_stable_ids(session: dict) -> bool:
         messages = session["messages"]
         changed = True
 
-    for message in messages:
+    def legacy_id(kind):
+        # A listing can compute the same IDs as a later single-chat migration,
+        # without writing the chat or holding its payload in the inventory.
+        return uuid.uuid5(uuid.NAMESPACE_URL, f"law-session:{session.get('id')}:{kind}").hex
+
+    for message_index, message in enumerate(messages):
         if not isinstance(message, dict):
             continue
         if not isinstance(message.get("id"), str) or not message["id"]:
-            message["id"] = uuid.uuid4().hex
+            message["id"] = legacy_id(f"message:{message_index}")
             changed = True
         # Keep legacy raw-image identities stable when another image is deleted.
         # Initial IDs match the old URLs; newly appended images get unique IDs.
@@ -230,8 +254,8 @@ def _ensure_stable_ids(session: dict) -> bool:
             existing = message.get("raw_image_ids")
             ids = []
             for index in range(len(raw)):
-                candidate = _raw_image_id(message, index) if existing is None or (isinstance(existing, list) and index < len(existing)) else f"raw-{message['id']}-{uuid.uuid4().hex}"
-                ids.append(candidate if candidate not in ids else f"raw-{message['id']}-{uuid.uuid4().hex}")
+                candidate = _raw_image_id(message, index) if existing is None or (isinstance(existing, list) and index < len(existing)) else f"raw-{message['id']}-{legacy_id(f'raw:{message_index}:{index}')}"
+                ids.append(candidate if candidate not in ids else f"raw-{message['id']}-{legacy_id(f'raw:{message_index}:{index}')}")
             if existing != ids:
                 message["raw_image_ids"] = ids
                 changed = True
@@ -239,9 +263,9 @@ def _ensure_stable_ids(session: dict) -> bool:
             previews = message.get(field)
             if not isinstance(previews, list):
                 continue
-            for preview in previews:
+            for preview_index, preview in enumerate(previews):
                 if isinstance(preview, dict) and not preview.get("id"):
-                    preview["id"] = uuid.uuid4().hex
+                    preview["id"] = legacy_id(f"preview:{message_index}:{field}:{preview_index}")
                     changed = True
 
     hidden = session.get("hidden_gallery_image_ids")
@@ -353,12 +377,35 @@ def get_session(session_id: str) -> dict | None:
         needs_save = needs_save and False
 
     if needs_save:
+        _backup_session_file(session_id)
         _save_session(session)
+    # Legacy identity is derived without a bulk rewrite. The next real write
+    # assigns a fresh token, including restores, so old clients cannot pass CAS.
+    session.setdefault("revision", "legacy-" + hashlib.sha256(
+        json.dumps(session, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest())
     return session
 
 
 @_serialized
-def append_messages(session_id: str, messages: list[dict], model=None, memory_summary=None, summarized_message_count=None):
+def migrate_session_metadata(session_ids: list[str]) -> dict:
+    """Explicit legacy migration, bounded to 25 selected chats per request.
+
+    Opening an individual chat still migrates that chat on first touch. Library
+    listings never invoke this path or write IDs/blob references to source JSON.
+    """
+    if not 1 <= len(session_ids) <= 25 or any(
+        not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9_-]+", value)
+        for value in session_ids
+    ):
+        raise ValueError("Select 1–25 valid session IDs for migration")
+    result = {"processed": [], "missing": []}
+    for session_id in dict.fromkeys(session_ids):
+        result["processed" if get_session(session_id) is not None else "missing"].append(session_id)
+    return result
+
+
+@_serialized
+def append_messages(session_id: str, messages: list[dict], model=None, memory_summary=None, summarized_message_count=None, expected_revision=None):
     """Merge this request's messages without replacing another queued result."""
     if not re.fullmatch(r"[A-Za-z0-9_-]+", session_id or ""):
         raise ValueError("Invalid session ID")
@@ -367,16 +414,20 @@ def append_messages(session_id: str, messages: list[dict], model=None, memory_su
     session = get_session(session_id)
     if session is None:
         return None
+    if memory_summary is not None or summarized_message_count is not None:
+        _check_revision(session, expected_revision)
     merged = list(session.get("messages") or [])
     indices = {message.get("id"): index for index, message in enumerate(merged)}
     for message in messages:
         if message["id"] in indices:
+            if merged[indices[message["id"]]] != message:
+                _check_revision(session, expected_revision)
             merged[indices[message["id"]]] = message
         else:
             indices[message["id"]] = len(merged)
             merged.append(message)
     return update_session(session_id, merged, model=model, memory_summary=memory_summary,
-                          summarized_message_count=summarized_message_count)
+                          summarized_message_count=summarized_message_count, expected_revision=session["revision"])
 
 
 @_serialized
@@ -387,14 +438,16 @@ def update_session(
     title: str = None,
     memory_summary: str | None = None,
     summarized_message_count: int | None = None,
+    expected_revision: str | None = None,
 ) -> dict | None:
     """
-    Update a session with new messages.
-    Called after each exchange (user message + assistant response).
+    Replace history against an explicit loaded revision, under the write lock.
     """
     session = get_session(session_id)
     if not session:
         return None
+
+    _check_revision(session, expected_revision)
 
     session["messages"] = messages
     _ensure_stable_ids(session)
@@ -433,86 +486,215 @@ def update_session(
     return session
 
 
-def list_sessions() -> list:
+@_serialized
+def update_checklist_item(session_id, message_id, *, line_index, checked, expected_content):
+    from services.chat_checklists import set_task_checked
+    return _update_checklist_message(session_id, message_id, expected_content,
+                                     lambda content: set_task_checked(content, line_index, checked))
+
+
+@_serialized
+def edit_message_checklist(session_id, message_id, *, items, expected_content):
+    from services.chat_checklists import edit_checklist
+    return _update_checklist_message(session_id, message_id, expected_content,
+                                     lambda content: edit_checklist(content, items))
+
+
+def _update_checklist_message(session_id, message_id, expected_content, transform):
+    """Called under the lock; preserve concurrent appends and all other metadata."""
+    from services.chat_checklists import checklist_lines
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", session_id or ""):
+        raise ValueError("Invalid session ID")
+    session = get_session(session_id)
+    if session is None:
+        return None
+    public_session(session)
+    for index, message in enumerate(session["messages"]):
+        if message.get("id") != message_id:
+            continue
+        if message.get("role") not in {"user", "assistant"}:
+            raise ValueError("Only user and assistant checklists can be changed")
+        if message.get("content") != expected_content:
+            raise SessionConflict(session["revision"])
+        if not message.get("checklist_editable") and not checklist_lines(expected_content):
+            raise ValueError("This message does not contain a checklist")
+        previous_revision = session["revision"]
+        content = transform(expected_content)
+        if content != expected_content:
+            message["content"] = content
+            message["checklist_editable"] = True
+            # An old summary must not continue telling the model a completed task is pending.
+            if index < session.get("summarized_message_count", 0):
+                session["memory_summary"] = ""
+                session["summarized_message_count"] = 0
+            session["updated_at"] = datetime.now().isoformat()
+            _save_session(session)
+        return {"id": session_id, "message_id": message_id, "content": content, "checklist_editable": True,
+                "previous_revision": previous_revision, "revision": session["revision"],
+                "memory_summary": session.get("memory_summary", ""),
+                "summarized_message_count": session.get("summarized_message_count", 0)}
+    return None
+
+
+@_serialized
+def update_session_metadata(session_id, *, title=None, model=None, memory_summary=None,
+                            summarized_message_count=None, expected_revision=None):
+    """Change explicit metadata only. Summaries must match their source revision."""
+    session = get_session(session_id)
+    if session is None:
+        return None
+    previous_revision = session["revision"]
+    if memory_summary is not None or summarized_message_count is not None or expected_revision is not None:
+        _check_revision(session, expected_revision)
+    if title:
+        session["title"] = title
+    if model:
+        session["model"] = model
+    if memory_summary is not None:
+        session["memory_summary"] = memory_summary
+    if summarized_message_count is not None:
+        session["summarized_message_count"] = summarized_message_count
+    session["updated_at"] = datetime.now().isoformat()
+    _save_session(session)
+    return {**session, "previous_revision": previous_revision}
+
+
+@_serialized
+def clear_session_metadata_cache():
+    """Discard derived metadata; the next listing rebuilds it from session JSON."""
+    global _inventory_root
+    _inventory_root = None
+    _metadata_entries.clear()
+
+
+def _file_revision(filepath):
+    stat = filepath.stat()
+    return (stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size, stat.st_ino)
+
+
+def _summary_for_session(session):
+    try:
+        return {"id": session["id"], "title": session["title"],
+                "created_at": session["created_at"], "updated_at": session["updated_at"],
+                "model": session.get("model"), "message_count": len(session.get("messages", []))}
+    except (KeyError, TypeError, AttributeError):
+        return None
+
+
+def _metadata_for_session(session):
+    """Derive small summaries and digests, never retaining chat/image payloads."""
+    summary = _summary_for_session(session)
+    _ensure_stable_ids(session)  # In-memory normalization only; no listing writes.
+    images = []
+    hidden_ids = set(session["hidden_gallery_image_ids"])
+    for message_index in range(len(session["messages"]) - 1, -1, -1):
+        message = session["messages"][message_index]
+        if not isinstance(message, dict):
+            continue
+        records = _message_image_records(message)
+        for image_index in range(len(records) - 1, -1, -1):
+            record = records[image_index]
+            image_id = record["id"]
+            raw = record["data"]
+            if image_store.is_reference(raw):
+                digest = raw.removeprefix("blob:")
+            else:
+                decoded = image_store.decode_payload(raw)
+                digest = hashlib.sha256(decoded).hexdigest() if decoded is not None else None
+            metadata = {
+                "id": f"{session['id']}:{message['id']}:{image_id}",
+                "session_id": session["id"], "session_title": session.get("title") or "New Chat",
+                "message_id": message["id"], "image_id": image_id,
+                "message_index": message_index, "image_index": image_index,
+                "name": record.get("name") or f"Chat image {image_index + 1}",
+                "type": record.get("type"), "size": record.get("size"),
+                **({"seed": record["seed"]} if "seed" in record else {}),
+                "source": record.get("source") or "uploaded",
+                "updated_at": session.get("updated_at") or session.get("created_at") or "",
+                "url": f"/sessions/{session['id']}/images/by-id/{message['id']}/{image_id}",
+            }
+            images.append((image_id in hidden_ids, digest, metadata))
+    return summary, images
+
+
+def _session_inventory():
+    """Called under _session_lock. Reparse only new/changed files, evict removals.
+
+    Stat checks remain O(number of chats), but warm reads do not depend on total
+    retained conversation bytes. No disk index, backup rewrite, or blob cleanup.
     """
-    List all sessions, sorted by most recently updated.
-    Returns summary info only — not the full message history.
-    This keeps the list fast even with many sessions.
-    """
+    global _inventory_root
     ensure_sessions_dir()
-    sessions = []
-
+    root = SESSIONS_DIR.resolve()
+    if root != _inventory_root:
+        _metadata_entries.clear()
+        _inventory_root = root
+    present = set()
+    inventory = []
     for filepath in SESSIONS_DIR.glob("*.json"):
+        present.add(filepath.name)
         try:
-            with open(filepath, "r", encoding="utf-8") as f:
-                session = json.load(f)
-                sessions.append({
-                    "id": session["id"],
-                    "title": session["title"],
-                    "created_at": session["created_at"],
-                    "updated_at": session["updated_at"],
-                    "model": session.get("model"),
-                    "message_count": len(session.get("messages", [])),
-                })
-        except (json.JSONDecodeError, KeyError):
-            continue  # Skip corrupted files
+            revision = _file_revision(filepath)
+            entry = _metadata_entries.get(filepath.name)
+            if entry is None or entry[0] != revision:
+                with open(filepath, "r", encoding="utf-8") as stream:
+                    session = json.load(stream)
+                # An external writer changed it during the read: retry next time,
+                # rather than caching a mixture under the new file's revision.
+                if _file_revision(filepath) != revision:
+                    _metadata_entries.pop(filepath.name, None)
+                    continue
+                try:
+                    metadata = _metadata_for_session(session)
+                except (KeyError, TypeError, AttributeError, ValueError):
+                    # A malformed image field must not hide an otherwise valid
+                    # chat summary. Its original JSON remains recoverable.
+                    metadata = (_summary_for_session(session), [])
+                entry = (revision, metadata)
+                _metadata_entries[filepath.name] = entry
+            inventory.append(entry[1])
+        except (OSError, json.JSONDecodeError, UnicodeError):
+            _metadata_entries.pop(filepath.name, None)
+            continue  # Keep the authoritative file; retry after repair.
+    for name in _metadata_entries.keys() - present:
+        del _metadata_entries[name]
+    return inventory
 
-    # Most recent first
-    sessions.sort(key=lambda s: s["updated_at"], reverse=True)
+
+@_serialized
+def list_sessions() -> list:
+    """List summaries from the same revision-checked inventory as the gallery."""
+    sessions = [dict(summary) for summary, _ in _session_inventory() if summary is not None]
+    sessions.sort(key=lambda session: session["updated_at"], reverse=True)
     return sessions
 
 
-def list_session_images(hidden: bool = False) -> list:
-    """List image metadata across chats without copying the embedded image data."""
-    ensure_sessions_dir()
-    images = []
+@_serialized
+def list_session_image_inventory() -> dict:
+    """One shared visible/hidden inventory, filtered by CURRENT vault state.
+
+    Never cache an authorization decision. A damaged vault must fail closed,
+    including when all session metadata is warm. Internal digests stay private.
+    """
     from services import image_vault
+    inventory = _session_inventory()
+    # Read AFTER a potentially long cold rebuild, not before it.
     locked = image_vault.locked_hashes()
+    groups = {"images": [], "hidden_images": []}
+    for _, images in inventory:
+        for hidden, digest, metadata in images:
+            # Unknown legacy sources cannot be proved public while locks exist.
+            # Suppress only their listing; keep their JSON references untouched.
+            if digest not in locked and not (locked and digest is None):
+                groups["hidden_images" if hidden else "images"].append(dict(metadata))
+    for images in groups.values():
+        images.sort(key=lambda image: image["updated_at"], reverse=True)
+    return groups
 
-    for filepath in SESSIONS_DIR.glob("*.json"):
-        try:
-            with open(filepath, "r", encoding="utf-8") as f:
-                session = json.load(f)
-            if _ensure_stable_ids(session):
-                _save_session(session)
 
-            messages = session.get("messages", [])
-            hidden_image_ids = set(session.get("hidden_gallery_image_ids", []))
-            for message_index in range(len(messages) - 1, -1, -1):
-                message = messages[message_index]
-                if not isinstance(message, dict):
-                    continue
-                records = _message_image_records(message)
-                for image_index in range(len(records) - 1, -1, -1):
-                    record = records[image_index]
-                    image_id = record["id"]
-                    if (image_id in hidden_image_ids) != hidden:
-                        continue
-                    if locked:
-                        raw = record.get("data") or ""
-                        digest = raw.removeprefix("blob:") if image_store.is_reference(raw) else hashlib.sha256(image_store.decode_payload(raw) or b"").hexdigest()
-                        if digest in locked: continue
-                    images.append({
-                        "id": f"{session['id']}:{message['id']}:{image_id}",
-                        "session_id": session["id"],
-                        "session_title": session.get("title") or "New Chat",
-                        "message_id": message["id"],
-                        "image_id": image_id,
-                        "message_index": message_index,
-                        "image_index": image_index,
-                        "name": record.get("name") or f"Chat image {image_index + 1}",
-                        "type": record.get("type"),
-                        "size": record.get("size"),
-                        **({"seed": record["seed"]} if "seed" in record else {}),
-                        "source": record.get("source") or "uploaded",
-                        "updated_at": session.get("updated_at") or session.get("created_at") or "",
-                        "url": f"/sessions/{session['id']}/images/by-id/{message['id']}/{image_id}",
-                    })
-        except (json.JSONDecodeError, KeyError, TypeError):
-            continue
-
-    images.sort(key=lambda image: image["updated_at"], reverse=True)
-    return images
+def list_session_images(hidden: bool = False) -> list:
+    """Compatibility wrapper for consumers requesting a single gallery group."""
+    return list_session_image_inventory()["hidden_images" if hidden else "images"]
 
 
 def get_session_image(
@@ -729,6 +911,7 @@ def delete_session(session_id: str) -> bool:
         TRASH_DIR.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         filepath.replace(TRASH_DIR / f"{session_id}.{stamp}.json")
+        _metadata_entries.pop(filepath.name, None)
         logger.info("Moved session %s to the trash", session_id)
     except OSError:
         logger.exception("Could not move session %s to the trash; preserving the original", session_id)
@@ -761,6 +944,7 @@ def list_deleted_sessions() -> list[dict]:
     return entries
 
 
+@_serialized
 def restore_session(filename: str) -> dict | None:
     """Put a trashed session back, refusing any path that escapes the trash."""
     safe_name = Path(filename).name
@@ -847,10 +1031,13 @@ def _save_session(session: dict):
         with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=SESSIONS_DIR,
                                          prefix=".pending-", suffix=".tmp", delete=False) as stream:
             temporary = Path(stream.name)
-            json.dump(session, stream, indent=2, ensure_ascii=False)
+            saved = {**session, "revision": uuid.uuid4().hex}
+            json.dump(saved, stream, indent=2, ensure_ascii=False)
             stream.flush()
             os.fsync(stream.fileno())
         temporary.replace(filepath)
+        session["revision"] = saved["revision"]
+        _metadata_entries.pop(filepath.name, None)
     finally:
         if temporary is not None:
             temporary.unlink(missing_ok=True)

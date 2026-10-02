@@ -41,12 +41,12 @@ export function DocumentPage({ document: value }) {
   </article>;
 }
 
-export function DocumentAttachment({ artifact, onView }) {
+export function DocumentAttachment({ artifact, onView, besideChat = false }) {
   const [busy, setBusy] = useState(false), [error, setError] = useState("");
   return <div className="document-attachment">
     <span className="document-file-icon" aria-hidden="true">W</span>
     <div className="document-file-info"><strong>{artifact.name}</strong><small>Word document · {Math.max(1, Math.ceil((artifact.size || 0) / 1024))} KB</small></div>
-    <button type="button" onClick={() => onView(artifact)}>View</button>
+    <button type="button" onClick={() => onView(artifact)}>{besideChat ? "Open beside chat" : "View"}</button>
     <button type="button" disabled={busy} onClick={async () => {
       setBusy(true); setError("");
       try { await downloadDocument(artifact); } catch (failure) { setError(failure.message); }

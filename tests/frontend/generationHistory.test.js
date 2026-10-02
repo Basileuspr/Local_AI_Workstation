@@ -7,6 +7,13 @@ const available = n => `chat:message-${n}:image-${n}`;
 const complete = (state, n) => reduce(state, { type: "complete", image: image(n) });
 
 describe("Generate session history", () => {
+  it("clears all previews and batch slots without changing the previous results", () => {
+    const batch = reduce(emptyGenerationHistory, {type:'start-batch',id:'batch',requestIds:['a','b']});
+    const state = reduce(batch, {type:'complete',image:{...image(1),request_id:'a',batch_id:'batch'}});
+    expect(reduce(state, {type:'clear'})).toEqual(emptyGenerationHistory);
+    expect(state.images).toHaveLength(1);
+    expect(state.batch.slots[0].image.seed).toBe(1);
+  });
   it("removes multiple results without renumbering batch slots or mutating originals", () => {
     let state = reduce(emptyGenerationHistory, {type:'start-batch',id:'batch',requestIds:['a','b','c']});
     for (const [index,id] of ['a','b','c'].entries()) state=reduce(state,{type:'complete',image:{...image(index+1),request_id:id,batch_id:'batch'}});

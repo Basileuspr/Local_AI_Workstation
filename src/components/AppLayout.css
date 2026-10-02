@@ -1,7 +1,19 @@
 .sidebar-shell { display: flex; flex-direction: column; flex: 0 0 var(--sidebar-width); min-height: 0; background: var(--bg-sidebar); }
 .sidebar-shell #sidebar { flex: 1; height: auto; overflow: hidden; }
 .sidebar-shell #sidebar-content { min-height: 0; }
-.compact-menu-button, .navigation-close { display: none; }
+.navigation-close { display: none; }
+.navigation-toggle { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+.sidebar-collapsed .sidebar-shell { display: none; }
+.workspace-divider { position: relative; flex: 0 0 10px; background: var(--bg-sidebar); cursor: col-resize; touch-action: none; user-select: none; }
+.workspace-divider[hidden] { display: none; }
+.workspace-divider::after { content: ""; position: absolute; top: calc(50% - 20px); left: 4px; width: 2px; height: 40px; border-radius: 2px; background: var(--border); }
+.workspace-divider:hover::after, .workspace-divider:focus-visible::after { background: var(--accent); }
+.workspace-divider:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.workspace-divider[aria-orientation=horizontal] { cursor: row-resize; }
+.workspace-divider[aria-orientation=horizontal]::after { top: 4px; left: calc(50% - 20px); height: 2px; width: 40px; }
+.layout-resizing, .layout-resizing * { user-select: none !important; }
+.layout-resizing:has(.workspace-divider[aria-orientation=vertical]:focus), .layout-resizing:has(.workspace-divider[aria-orientation=vertical]:focus) * { cursor: col-resize !important; }
+.layout-resizing:has(.workspace-divider[aria-orientation=horizontal]:focus), .layout-resizing:has(.workspace-divider[aria-orientation=horizontal]:focus) * { cursor: row-resize !important; }
 .workspace-navigation { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; min-width: 0; padding: 8px 12px; border-bottom: 1px solid var(--border); background: var(--bg-sidebar); }
 .workspace-navigation span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
 .workspace-refresh { margin-left: auto; }
@@ -9,7 +21,6 @@
 .workspace-navigation button:focus-visible, .navigation-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 @media (max-width: 900px) {
-  .compact-menu-button { display: inline-flex; }
   .workspace-navigation { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; min-width: 0; padding: 8px 12px; border-bottom: 1px solid var(--border); background: var(--bg-sidebar); }
   .workspace-navigation span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
   .workspace-navigation button { flex: 0 0 auto; }

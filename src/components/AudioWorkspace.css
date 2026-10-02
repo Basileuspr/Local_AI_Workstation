@@ -22,7 +22,7 @@
 .audio-workspace h2, .audio-transcription h2 {font-size:18px; margin:0 0 12px;}
 .audio-controls {display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin:14px 0;}
 .audio-controls label {display:flex; flex-wrap:wrap; gap:8px; align-items:center;}
-.audio-workspace button, .chat-audio button, .audio-read-aloud button {padding:7px 12px; border:1px solid #42546e; border-radius:7px; color:inherit; background:#1c2b42; cursor:pointer;}
+.audio-workspace button, .chat-audio button, .audio-read-aloud button, .voice-output-settings button {padding:7px 12px; border:1px solid #42546e; border-radius:7px; color:inherit; background:#1c2b42; cursor:pointer;}
 .audio-workspace button:disabled, .chat-audio button:disabled, .audio-read-aloud button:disabled {opacity:.5; cursor:default;}
 .audio-workspace select, .chat-audio select {padding:6px; max-width:100%; color:inherit; background:#152135; border:1px solid #42546e; border-radius:6px;}
 .audio-text-label {display:flex; flex-direction:column; gap:8px; margin:16px 0;}
@@ -34,6 +34,14 @@
 .audio-recording, .audio-error {color:#ffb1b1;}
 .audio-read-aloud {display:inline-flex; flex-wrap:wrap; gap:6px; align-items:center;}
 .audio-read-aloud [role=alert] {color:#ffb1b1; font-size:13px;}
+.voice-output-settings {display:flex; flex-direction:column; gap:10px; padding:14px; border:1px solid var(--border); border-radius:8px; min-width:0;}
+.voice-output-settings > label {display:flex; flex-wrap:wrap; gap:8px; align-items:center;}
+.voice-output-settings select, .voice-output-settings textarea {max-width:100%; color:var(--text); background:var(--bg-input); border:1px solid var(--border); border-radius:5px; padding:6px;}
+.voice-output-settings textarea {width:100%; box-sizing:border-box; resize:vertical; font:inherit;}
+.voice-output-settings small {line-height:1.5; color:var(--text-dim);}
+.voice-output-settings .audio-controls {margin:0;}
+.voice-output-settings > button {align-self:flex-start;}
+.chat-speak small {max-width:65ch; line-height:1.4;}
 .chat-audio {margin:8px 0;}
 .chat-audio-panel {max-height:50vh; overflow:auto; margin-top:8px;}
 .audio-file-picker input {max-width:245px;}

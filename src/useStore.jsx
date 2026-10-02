@@ -1,6 +1,6 @@
 import { createContext, useContext, useReducer, useRef, useCallback } from "react";
 import { defaultRoleplayConfig, mergeRoleplayConfig,roleplayFromCharacter } from "./roleplayPrompt";
-import { defaultImageSettings, loadPreferences } from "./preferences";
+import { defaultImageSettings, defaultVoiceOutput, normalizeVoiceOutput, loadPreferences } from "./preferences";
 import { loadNavigation } from "./navigation";
 import { orderModels } from "./modelOrder";
 
@@ -22,6 +22,7 @@ const initialState = {
 
   // Session
   currentSessionId: null,
+  sessionRevision: null,
   conversationHistory: [],
   sessionTitle: "New Chat",
   memorySummary: "",
@@ -57,6 +58,7 @@ const initialState = {
   roleplayOpen: false,
   roleplay: defaultRoleplayConfig,
   imageSettings: defaultImageSettings,
+  voiceOutput: defaultVoiceOutput,
   customProfiles: [],
   activeCustomProfileId: "",
   activeLoraProjectId: "",
@@ -194,12 +196,14 @@ export function reducer(state, action) {
         title,
         memorySummary = "",
         summarizedMessageCount = 0,
+        revision = null,
       } = action.payload;
       const scopes = state.knowledgeScopes || {};
       const scope = scopes[id] || (!state.currentSessionId ? scopes.draft : null) || { mode: "off", ids: [] };
       return {
         ...state,
         currentSessionId: id,
+        sessionRevision: revision,
         conversationHistory: messages,
         sessionTitle: title,
         memorySummary,
@@ -224,6 +228,35 @@ export function reducer(state, action) {
         memorySummary: action.payload.memorySummary,
         summarizedMessageCount: action.payload.summarizedMessageCount,
       };
+
+    case "SESSION_METADATA_SAVED": {
+      const saved = action.payload;
+      if (state.currentSessionId !== saved.id) return state;
+      if (action.expectedRevision !== undefined && state.sessionRevision !== action.expectedRevision) return state;
+      // A rename can succeed over newer server history. Do not copy that
+      // response's summary/revision onto an older local history (or vice versa).
+      if (action.expectedRevision === undefined && state.sessionRevision !== saved.previous_revision)
+        return { ...state, sessionTitle: saved.title };
+      return { ...state, sessionTitle: saved.title, sessionRevision: saved.revision,
+        memorySummary: saved.memory_summary || "", summarizedMessageCount: saved.summarized_message_count || 0 };
+    }
+
+    case "CHECKLIST_ITEM_SAVED": {
+      const saved = action.payload;
+      if (state.currentSessionId !== saved.id) return state;
+      const message = state.conversationHistory.find(item => item.id === saved.message_id);
+      if (!message || message.content !== action.expectedContent) return state;
+      const next = { ...state, conversationHistory: state.conversationHistory.map(item =>
+        item.id === saved.message_id ? { ...item, content: saved.content,
+          ...(saved.checklist_editable ? { checklist_editable: true } : {}) } : item) };
+      // A narrow response cannot certify other history that arrived out of order.
+      if (state.sessionRevision === saved.previous_revision) {
+        next.sessionRevision = saved.revision;
+        next.memorySummary = saved.memory_summary || "";
+        next.summarizedMessageCount = saved.summarized_message_count || 0;
+      }
+      return next;
+    }
 
     case "SET_SESSION_TITLE":
       return { ...state, sessionTitle: action.payload };
@@ -292,6 +325,9 @@ export function reducer(state, action) {
 
     case "SET_PARAM":
       return updateActiveCustomProfile({ ...state, [action.key]: action.value });
+
+    case "SET_VOICE_OUTPUT":
+      return { ...state, voiceOutput: normalizeVoiceOutput({ ...state.voiceOutput, ...action.payload }) };
 
     case "SET_IMAGE_SETTINGS":
       return updateActiveCustomProfile({

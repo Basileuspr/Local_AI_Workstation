@@ -2,9 +2,13 @@ import { useEffect, useCallback, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { StoreProvider, useStore, useDispatch } from "./useStore.jsx";
 import * as api from "./api";
+import { statusObserver } from "./appPolling";
 import { mergeKnownModels, reconcileChatModel, modelInventoryKey } from "./modelCatalog";
 import { pickPreferences, savePreferences } from "./preferences";
-import { loadNavigation, saveNavigation } from "./navigation";
+import { loadNavigation, saveNavigation, resolveActiveTab } from "./navigation";
+import { ChatWorkspaceProvider, useChatWorkspace } from "./ChatWorkspace";
+import { workspaceVisible } from "./chatPins";
+import ChatSideContent from "./components/ChatSideContent";
 
 import { ImageGenerationProvider } from "./ImageGenerationContext";
 import { AnalyzeIterateProvider } from "./AnalyzeIterateContext";
@@ -32,6 +36,7 @@ import Dashboard from "./components/Dashboard";
 import PromptQueue, { PromptQueueProvider } from "./components/PromptQueue";
 import KnowledgeVault from "./components/KnowledgeVault";
 import Tools, { MarkdownViewer } from "./components/Tools";
+import ShortcutRegistry from "./components/ShortcutRegistry";
 import CodeViewer from "./components/CodeViewer";
 import ViewerBrowser from './components/ViewerBrowser';
 import SpreadsheetViewer from "./components/SpreadsheetViewer";
@@ -47,6 +52,7 @@ import { get as getWorkflow } from "./imageWorkflowApi";
 
 function AppInner() {
   const state = useStore();
+  const chatWorkspace = useChatWorkspace();
   const latestState = useRef(state);
   latestState.current = state;
   const dispatch = useDispatch();
@@ -111,6 +117,7 @@ function AppInner() {
     state.useKnowledgeBase,
     state.roleplay,
     state.imageSettings,
+    state.voiceOutput,
     state.customProfiles,
     state.activeCustomProfileId,
     state.activeLoraProjectId,
@@ -124,11 +131,10 @@ function AppInner() {
     let refreshingStatus = false;
     let initialized = false;
     let catalogKey = null;
-    async function refreshStatus() {
+    async function refreshStatus(status) {
       if (refreshingStatus || stopped) return;
       refreshingStatus = true;
       try {
-        const status = await api.fetchStatus();
         if (stopped) return;
         dispatch({ type: "SET_SERVICE_STATUS", payload: status });
         dispatch({ type: "SET_CONNECTED", payload: Boolean(status?.backend?.ok) });
@@ -182,10 +188,13 @@ function AppInner() {
         }
     }
 
-    void refreshStatus();
-
-    const interval = setInterval(refreshStatus, 5000);
-    return () => { stopped = true; clearInterval(interval); };
+    const detach = statusObserver().subscribe({ data: status => { void refreshStatus(status); },
+      error: error => { if (!stopped) {
+        dispatch({ type: "SET_SERVICE_STATUS", payload: { backend: { ok: false }, ollama: { reachable: false, error: "backend_unreachable" } } });
+        dispatch({ type: "SET_CONNECTED", payload: false });
+        dispatch({ type: "SET_MODELS_ERROR", payload: error.message || "Local services are still loading." });
+      } } });
+    return () => { stopped = true; detach(); };
   }, []);
 
   // --- Sidebar refresh ---
@@ -221,7 +230,7 @@ function AppInner() {
       dispatch({
         type: "SET_SESSION",
         payload: {
-          id: session.id,
+          id: session.id, revision: session.revision,
           messages: [],
           title: "New Chat",
           memorySummary: session.memory_summary || "",
@@ -246,7 +255,7 @@ function AppInner() {
         dispatch({
           type: "SET_SESSION",
           payload: {
-            id: session.id,
+            id: session.id, revision: session.revision,
             messages: session.messages || [],
             title: session.title,
             memorySummary: session.memory_summary || "",
@@ -318,14 +327,12 @@ function AppInner() {
         targetTokens: 700,
       });
       const memorySummary = result.summary || state.memorySummary;
-      dispatch({
-        type: "SET_MEMORY",
-        payload: { memorySummary, summarizedMessageCount: compactUntil },
-      });
-      await api.saveSession(state.currentSessionId, state.conversationHistory, state.selectedModel, {
+      const saved = await api.updateSessionMetadata(state.currentSessionId, {
         memorySummary,
         summarizedMessageCount: compactUntil,
+        expectedRevision: state.sessionRevision,
       });
+      dispatch({ type: "SESSION_METADATA_SAVED", payload: saved, expectedRevision: state.sessionRevision });
       dispatch({ type: "SHOW_TOAST", payload: { message: "Conversation context compacted", type: "success" } });
     } catch (error) {
       dispatch({ type: "SHOW_TOAST", payload: { message: error.message || "Could not compact context", type: "error" } });
@@ -333,19 +340,19 @@ function AppInner() {
   }, [dispatch, state]);
 
   // Keep chat mounted while dedicated workspaces occupy the main pane.
-  const activeTab =
-    ["characters", "audio", "browser", "js-viewer", "markdown", "html-viewer", "css-viewer", "spreadsheets", "canvas", "converter", "packager", "gif-maker"].includes(state.activeSidebarTab) ||
-    state.activeSidebarTab === "tools" ||
-    state.activeSidebarTab === "knowledge" || state.activeSidebarTab === "image-editor" || state.activeSidebarTab === "media-manager" || state.activeSidebarTab === "images" || state.activeSidebarTab === "review" || state.activeSidebarTab === "library" || state.activeSidebarTab === "generate" || state.activeSidebarTab === "lora" || state.activeSidebarTab === "workflows" || state.activeSidebarTab === "dashboard" || state.activeSidebarTab === "queue" || state.activeSidebarTab === "faces" || state.activeSidebarTab === "character-parts"
-      ? state.activeSidebarTab
-      : "chat";
+  const activeTab = resolveActiveTab(state.activeSidebarTab);
+  const visible = tab => workspaceVisible(activeTab, chatWorkspace.pin, tab);
+  const pinnedTab = chatWorkspace.pin?.kind === "tool" ? chatWorkspace.pin.tab : chatWorkspace.pin ? "chat-attachment" : null;
 
   return (
     <ImageGenerationProvider onSessionSaved={handleSessionSaved}>
     <AnalyzeIterateProvider>
     <ImageDestinationsProvider>
     <CharacterWorkspaceProvider onNavigate={tab => dispatch({type:'SET_SIDEBAR_TAB',payload:tab})} onOpenDestination={openQueueDestination}>
-      <AppLayout activeTab={state.activeSidebarTab} onRefresh={refreshCurrentView} refreshing={refreshing} sidebar={closeNavigation => <Sidebar
+      <AppLayout activeTab={state.activeSidebarTab} onRefresh={refreshCurrentView} refreshing={refreshing}
+        pinnedTab={pinnedTab} pinnedTitle={chatWorkspace.title} onUnpin={() => chatWorkspace.setPin(null)} pinNotice={chatWorkspace.storageError}
+        sidebar={closeNavigation => <Sidebar
+        imagesActive={visible("images")}
         imageLibraryTarget={imageLibraryTarget}
         onNavigate={closeNavigation}
         onNewChat={() => { closeNavigation(); return handleNewChat(); }}
@@ -358,30 +365,31 @@ function AppInner() {
           in the DOM and died with the component. The same applied to the image
           studio's result and the transcript's scroll position.
         */}
-          <div className="pane" data-capture-tab="media-manager" hidden={activeTab !== "media-manager"}><MediaManager active={activeTab === "media-manager"} /></div>
-          <div className="pane" data-capture-tab="knowledge" hidden={activeTab !== "knowledge"}><KnowledgeVault active={activeTab === "knowledge"} /></div>
-          <div className="pane" data-capture-tab="tools" hidden={activeTab !== "tools"}><Tools /></div>
-          <div className="pane" data-capture-tab="markdown" hidden={activeTab !== "markdown"}><MarkdownViewer /></div>
-          <div className="pane" data-capture-tab="browser" hidden={activeTab !== "browser"}><ViewerBrowser active={activeTab==='browser'} onOpenSource={openBrowserSource}/></div>
-          <div className="pane" data-capture-tab="html-viewer" hidden={activeTab !== "html-viewer"}><CodeViewer kind="html" incoming={viewerInputs.html}/></div>
-          <div className="pane" data-capture-tab="css-viewer" hidden={activeTab !== "css-viewer"}><CodeViewer kind="css" incoming={viewerInputs.css}/></div>
-          <div className="pane" data-capture-tab="js-viewer" hidden={activeTab !== "js-viewer"}><CodeViewer kind="js" incoming={viewerInputs.js}/></div>
-          <div className="pane" data-capture-tab="spreadsheets" hidden={activeTab !== "spreadsheets"}><SpreadsheetViewer /></div>
-          <div className="pane" data-capture-tab="canvas" hidden={activeTab !== "canvas"}><CanvasWorkspace /></div>
-          <div className="pane" data-capture-tab="converter" hidden={activeTab !== "converter"}><FileConverter /></div>
-          <div className="pane" data-capture-tab="packager" hidden={activeTab !== "packager"}><FilePackager /></div>
-          <div className="pane" data-capture-tab="gif-maker" hidden={activeTab !== "gif-maker"}><GifMakerWorkspace active={activeTab === "gif-maker"}/></div>
-          <div className="pane" data-capture-tab="audio" hidden={activeTab !== "audio"}><AudioWorkspace active={activeTab === "audio"}/></div>
-          <div className="pane" data-capture-tab="image-editor" hidden={activeTab !== "image-editor"}><ImageEditor /></div>
-          <div className="pane image-library-pane" data-capture-tab="images" hidden={activeTab !== "images"} ref={setImageLibraryTarget} />
-          <div className="pane" data-capture-tab="review" hidden={activeTab !== "review"}><ImageReview active={activeTab === "review"} onOpenSource={handleLoadSession} /></div>
-          <div className="pane" data-capture-tab="queue" hidden={activeTab !== "queue"}>
+          <div className="pane" data-capture-tab="media-manager" hidden={!visible("media-manager")}><MediaManager active={visible("media-manager")} /></div>
+          <div className="pane" data-capture-tab="knowledge" hidden={!visible("knowledge")}><KnowledgeVault active={visible("knowledge")} /></div>
+          <div className="pane" data-capture-tab="tools" hidden={!visible("tools")}><Tools /></div>
+          <div className="pane" data-capture-tab="shortcuts" hidden={!visible("shortcuts")}><ShortcutRegistry /></div>
+          <div className="pane" data-capture-tab="markdown" hidden={!visible("markdown")}><MarkdownViewer /></div>
+          <div className="pane" data-capture-tab="browser" hidden={!visible("browser")}><ViewerBrowser active={visible("browser")} onOpenSource={openBrowserSource}/></div>
+          <div className="pane" data-capture-tab="html-viewer" hidden={!visible("html-viewer")}><CodeViewer kind="html" incoming={viewerInputs.html}/></div>
+          <div className="pane" data-capture-tab="css-viewer" hidden={!visible("css-viewer")}><CodeViewer kind="css" incoming={viewerInputs.css}/></div>
+          <div className="pane" data-capture-tab="js-viewer" hidden={!visible("js-viewer")}><CodeViewer kind="js" incoming={viewerInputs.js}/></div>
+          <div className="pane" data-capture-tab="spreadsheets" hidden={!visible("spreadsheets")}><SpreadsheetViewer /></div>
+          <div className="pane" data-capture-tab="canvas" hidden={!visible("canvas")}><CanvasWorkspace /></div>
+          <div className="pane" data-capture-tab="converter" hidden={!visible("converter")}><FileConverter /></div>
+          <div className="pane" data-capture-tab="packager" hidden={!visible("packager")}><FilePackager /></div>
+          <div className="pane" data-capture-tab="gif-maker" hidden={!visible("gif-maker")}><GifMakerWorkspace active={visible("gif-maker")}/></div>
+          <div className="pane" data-capture-tab="audio" hidden={!visible("audio")}><AudioWorkspace active={visible("audio")}/></div>
+          <div className="pane" data-capture-tab="image-editor" hidden={!visible("image-editor")}><ImageEditor /></div>
+          <div className="pane image-library-pane" data-capture-tab="images" hidden={!visible("images")} ref={setImageLibraryTarget} />
+          <div className="pane" data-capture-tab="review" hidden={!visible("review")}><ImageReview active={visible("review")} onOpenSource={handleLoadSession} /></div>
+          <div className="pane" data-capture-tab="queue" hidden={!visible("queue")}>
             <PromptQueue onOpenDestination={openQueueDestination} />
           </div>
-          <div className="pane" data-capture-tab="dashboard" hidden={activeTab !== "dashboard"}>
-            <Dashboard />
+          <div className="pane" data-capture-tab="dashboard" hidden={!visible("dashboard")}>
+            <Dashboard active={visible("dashboard")} />
           </div>
-          <div className="pane chat-pane" data-capture-tab="chats" hidden={activeTab !== "chat"}>
+          <div className="pane chat-pane" data-capture-tab="chats" hidden={!visible("chats")}>
             <Header
               onSessionRenamed={handleSessionRenamed}
               onCompactMemory={handleCompactMemory}
@@ -394,38 +402,41 @@ function AppInner() {
             />
             <WebAccess onOpenSession={handleLoadSession} />
             <InputBar
-              active={activeTab === "chat"}
+              active={visible("chats")}
               onNewChat={handleNewChat}
               onSessionSaved={handleSessionSaved}
             />
           </div>
 
-          <div className="pane" data-capture-tab="library" hidden={activeTab !== "library"}>
-            <PromptIndex active={activeTab === "library"} />
+          <div className="pane" data-capture-tab="library" hidden={!visible("library")}>
+            <PromptIndex active={visible("library")} />
           </div>
 
-          <div className="pane" data-capture-tab="generate" hidden={activeTab !== "generate"}>
+          <div className="pane" data-capture-tab="generate" hidden={!visible("generate")}>
             <ImageStudio
-              active={activeTab === "generate"}
+              active={visible("generate")}
               onNewChat={handleNewChat}
               onSessionSaved={handleSessionSaved}
             />
           </div>
 
-          <div className="pane" data-capture-tab="lora" hidden={activeTab !== "lora"}>
-            <LoraStudio active={activeTab === "lora"} />
+          <div className="pane" data-capture-tab="lora" hidden={!visible("lora")}>
+            <LoraStudio active={visible("lora")} />
           </div>
 
-          <div className="pane" data-capture-tab="workflows" hidden={activeTab !== "workflows"}>
-            <ImageWorkflows active={activeTab === "workflows"} />
+          <div className="pane" data-capture-tab="workflows" hidden={!visible("workflows")}>
+            <ImageWorkflows active={visible("workflows")} />
           </div>
 
-          <div className="pane" data-capture-tab="faces" hidden={activeTab !== "faces"}>
-            <FaceStudio active={activeTab === "faces"} />
+          <div className="pane" data-capture-tab="faces" hidden={!visible("faces")}>
+            <FaceStudio active={visible("faces")} />
           </div>
-          <div className="pane" data-capture-tab="characters" hidden={activeTab !== "characters"}><CharacterCreator active={activeTab === "characters"}/></div>
-          <div className="pane" data-capture-tab="character-parts" hidden={activeTab !== "character-parts"}>
-            <CharacterStudio active={activeTab === "character-parts"} openDataset={queueDataset} />
+          <div className="pane" data-capture-tab="characters" hidden={!visible("characters")}><CharacterCreator active={visible("characters")}/></div>
+          <div className="pane" data-capture-tab="character-parts" hidden={!visible("character-parts")}>
+            <CharacterStudio active={visible("character-parts")} openDataset={queueDataset} />
+          </div>
+          <div className="pane" data-capture-tab="chat-attachment" hidden={activeTab !== "chats" || !chatWorkspace.pin || chatWorkspace.pin.kind === "tool"}>
+            <ChatSideContent active={activeTab === "chats"} />
           </div>
       </AppLayout>
         <Toast />
@@ -452,7 +463,7 @@ export default function App() {
   if (reset) return <section className="dashboard"><h1>Updating app data</h1><p className="dashboard-note">Applying desktop settings and reopening the app…</p>{resetError && <><p role="alert">{resetError}</p><button onClick={() => { localStorage.setItem("app-reset-notice", resetError); window.location.reload(); }}>Return to Dashboard</button></>}</section>;
   return (
     <StoreProvider>
-        <PromptQueueProvider><ImagePrivacyProvider><AppInner /></ImagePrivacyProvider></PromptQueueProvider>
+        <PromptQueueProvider><ImagePrivacyProvider><ChatWorkspaceProvider><AppInner /></ChatWorkspaceProvider></ImagePrivacyProvider></PromptQueueProvider>
     </StoreProvider>
   );
 }

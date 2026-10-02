@@ -19,7 +19,7 @@ describe("batch output layout", () => {
     const batch = { slots: Array.from({ length: count }, (_, i) => ({ id: `request-${i}`, status: "complete", image: { url: `/image-${i}.png`, seed: i } })) };
     const html = renderToStaticMarkup(<ImageBatchOutput batch={batch} />);
     expect((html.match(/class="image-batch-output-tile"/g) || []).length).toBe(count);
-    expect((html.match(/aria-label="Batch image \d+\. Hover or focus to zoom/g) || []).length).toBe(count);
+    expect((html.match(/class="generated-image-preview[^"]*"[^>]*aria-label="Batch image \d+"/g) || []).length).toBe(count);
     expect(html).toContain(`--batch-columns:${Math.min(4, Math.ceil(Math.sqrt(count)))}`);
     expect(html).toContain("Seed: <code>0</code>");
     expect((html.match(/>Copy Seed</g) || []).length).toBe(count);

@@ -11,6 +11,7 @@ export const captureActions = appTabs.map(tab => ({ id: `capture:${tab}`, name: 
 
 export const FUNCTION_BUTTONS_STORAGE_KEY = "local-ai-workstation-function-buttons-v1";
 export const functionTargets = [
+  { id: "shortcuts", name: "Shortcut Registry" },
   { id: "audio", name: "Audio" },
   { id: "browser", name: "Browser" },
   { id: "js-viewer", name: "JavaScript Viewer" },

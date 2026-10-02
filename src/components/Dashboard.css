@@ -91,6 +91,7 @@
 }
 
 .software-specs { margin: 20px 0; }
+.software-specs .dashboard-note { overflow-wrap: anywhere; }
 .software-spec-groups, .software-spec-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 14px 0; }
 .software-spec-groups label { display: flex; align-items: center; gap: 7px; font-size: 12px; }
 .software-spec-actions button { padding: 9px 12px; color: var(--accent); border: 1px solid var(--border); border-radius: 6px; background: var(--bg-input); cursor: pointer; }

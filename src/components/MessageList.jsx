@@ -1,10 +1,13 @@
 import FreshFileInput from "./FreshFileInput";
-import {ReadAloud} from './AudioWorkspace';
+import ChatSpeak from './ChatSpeak';
+import {chatSpeech} from '../chatSpeech';
 import ProtectedImage from "../ImagePrivacy";
 import ImageItemActions from "./ImageItemActions";
 import { useEffect, useRef, useState } from "react";
 import { useStore, useDispatch } from "../useStore.jsx";
 import MarkdownMessage from "./MarkdownMessage";
+import ChatMessageMarkdown from "./ChatMessageMarkdown";
+import { useChatWorkspace } from "../ChatWorkspace";
 import { createMessageId } from "../messageIds";
 import { isImageFile, useChatUploads } from "../useChatUploads";
 import { SEVERITY, describeStatus } from "../serviceStatus";
@@ -43,6 +46,7 @@ function avatarFor(role) {
 export default function MessageList({ onNewChat, onSessionSaved }) {
   const state = useStore();
   const dispatch = useDispatch();
+  const chatWorkspace = useChatWorkspace();
   const fileInputRef = useRef(null);
   const [dragActive, setDragActive] = useState(false);
   const [imagePreview, setImagePreview] = useState(null);
@@ -56,6 +60,10 @@ export default function MessageList({ onNewChat, onSessionSaved }) {
   const { conversationHistory, scrollTargetMessageId } = state;
   const problem = describeStatus(state.serviceStatus);
   const { currentSessionId } = state;
+  useEffect(() => {
+    chatSpeech.configure({sessionId:currentSessionId,active:state.activeSidebarTab === 'chats',preferences:state.voiceOutput});
+  },[currentSessionId,state.activeSidebarTab,state.voiceOutput]);
+  useEffect(() => () => chatSpeech.stop(),[]);
 
   /**
    * Where to load a message image from.
@@ -266,18 +274,24 @@ export default function MessageList({ onNewChat, onSessionSaved }) {
                       ))}
                     </div>
                   )}
-                  <MarkdownMessage onImageClick={image => setImagePreview({ ...image, chat_session_id: currentSessionId, id: `${messageId}:inline:${image.url}` })}>{summarizeContent(message)}</MarkdownMessage>
+                  {summarizeContent(message) === message.content
+                    ? <ChatMessageMarkdown key={`${currentSessionId}:${messageId}`} message={message} sessionId={currentSessionId}
+                        streaming={state.isGenerating && index === conversationHistory.length - 1}
+                        onImageClick={image => setImagePreview({ ...image, chat_session_id: currentSessionId, id: `${messageId}:inline:${image.url}` })} />
+                    : <MarkdownMessage>{summarizeContent(message)}</MarkdownMessage>}
                   {message.role==='assistant'&&message.content&&<ReplyInfluences message={message}/>}
                   {message.knowledge_sources && <details className="knowledge-sources"><summary>Knowledge supplied: {message.knowledge_sources.length} excerpts</summary>
                     {message.knowledge_sources.length ? <ul>{message.knowledge_sources.map((source, i) => <li key={i}>{source.filename} — excerpt {source.chunk_index + 1}, {source.characters} characters</li>)}</ul> : <p>No Knowledge excerpts were supplied for this reply.</p>}
                   </details>}
-                  {(message.artifacts || []).filter(artifact => artifact.kind === "docx").map(artifact => <DocumentAttachment key={artifact.id} artifact={artifact} onView={setDocumentPreview} />)}
+                  {(message.artifacts || []).filter(artifact => artifact.kind === "docx").map(artifact => <DocumentAttachment key={artifact.id} artifact={artifact}
+                    onView={chatWorkspace ? item => chatWorkspace.setPin({ kind: "document", artifactId: item.id }) : setDocumentPreview}
+                    besideChat={!!chatWorkspace} />)}
                   {(message.artifacts || []).filter(artifact => artifact.kind === "converted-image").map(artifact => <ConvertedAttachment key={artifact.id} artifact={artifact} />)}
                   {message.canvas_applied && <button type="button" onClick={() => dispatch({ type: "SET_SIDEBAR_TAB", payload: "canvas" })}>Open Canvas</button>}
                 </div>
               </div>
               <div className="message-actions">
-                {message.role === 'assistant' && message.content && <ReadAloud text={message.content} owner={`chat:${currentSessionId}:${messageId}`} active={state.activeSidebarTab === 'chats' && !(state.isGenerating && index === conversationHistory.length - 1)}/>}
+                {message.role === 'assistant' && message.content && <ChatSpeak message={{...message,id:messageId}} sessionId={currentSessionId} active={state.activeSidebarTab === 'chats'} streaming={state.isGenerating && index === conversationHistory.length - 1}/>}
                 <button
                   className={`copy-btn ${copiedIndex === index ? "copied" : ""}`}
                   type="button"

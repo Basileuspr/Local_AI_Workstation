@@ -65,6 +65,8 @@ window.fetch = async (input, options = {}) => {
     resolve(new Response(JSON.stringify({filename:`image-${request.seed}.svg`,url:`/tests/fixtures/generatePreview.svg?seed=${request.seed}`,image_ref:'blob:fixture',seed:request.seed})));
   }));
   if (path.includes('/progress/')) return json({progress:{phase:'Waiting for fixture completion',step:1,total_steps:24}});
+  if (path === '/image-generation/prompt-tokens') return json({prompt:{token_count:12,native_content_limit:75,chunks_required:1},
+    negative_prompt:{token_count:0,native_content_limit:75,chunks_required:1},long_prompt_max_chunks:4});
   if (path.startsWith('/image-generation/')) return json({});
   if (path.startsWith('/sessions/')) return json([]);
   return originalFetch(input, options);

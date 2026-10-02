@@ -9,6 +9,7 @@ import {
 } from "../preferences";
 import { responseStyles } from "../responseStyle";
 import CustomProfileControls from "./CustomProfileControls";
+import VoiceOutputSettings from './VoiceOutputSettings';
 
 export default function SettingsPanel() {
   const state = useStore();
@@ -90,6 +91,7 @@ export default function SettingsPanel() {
   return (
     <div id="settings-panel" className="visible">
       <div id="settings-inner">
+        <VoiceOutputSettings/>
         <div className="roleplay-area">
           <div className="settings-top-actions">
             <div className="roleplay-toolbar">

@@ -138,7 +138,7 @@ def test_saving_moves_payloads_out_of_the_json(store):
     from services import image_store
 
     session = store.create_session()
-    store.update_session(session["id"], legacy_session_with_images())
+    store.update_session(session["id"], legacy_session_with_images(), expected_revision=(store.get_session(session["id"]) or {}).get("revision"))
 
     raw = (store.SESSIONS_DIR / f"{session['id']}.json").read_text(encoding="utf-8")
 
@@ -156,7 +156,7 @@ def test_migration_shrinks_the_session_file_dramatically(store):
     store.update_session(
         session["id"],
         [{"id": "m1", "role": "user", "content": "x", "images": [big]}],
-    )
+     expected_revision=(store.get_session(session["id"]) or {}).get("revision"))
 
     size = (store.SESSIONS_DIR / f"{session['id']}.json").stat().st_size
     assert size < 1000, f"session JSON is still {size} bytes"
@@ -164,7 +164,7 @@ def test_migration_shrinks_the_session_file_dramatically(store):
 
 def test_the_picture_is_still_retrievable_after_migration(store):
     session = store.create_session()
-    store.update_session(session["id"], legacy_session_with_images())
+    store.update_session(session["id"], legacy_session_with_images(), expected_revision=(store.get_session(session["id"]) or {}).get("revision"))
 
     found = store.get_session_image_by_id(session["id"], "m1", "p1")
 
@@ -207,7 +207,7 @@ def test_backup_is_not_overwritten_by_later_saves(store):
 
     store.get_session(session["id"])
     first = (store.BACKUPS_DIR / f"{session['id']}.pre-blob.json").read_bytes()
-    store.update_session(session["id"], [{"id": "m2", "role": "user", "content": "later"}])
+    store.update_session(session["id"], [{"id": "m2", "role": "user", "content": "later"}], expected_revision=(store.get_session(session["id"]) or {}).get("revision"))
     store.get_session(session["id"])
 
     assert (store.BACKUPS_DIR / f"{session['id']}.pre-blob.json").read_bytes() == first
@@ -215,7 +215,7 @@ def test_backup_is_not_overwritten_by_later_saves(store):
 
 def test_migration_is_idempotent(store):
     session = store.create_session()
-    store.update_session(session["id"], legacy_session_with_images())
+    store.update_session(session["id"], legacy_session_with_images(), expected_revision=(store.get_session(session["id"]) or {}).get("revision"))
     first = (store.SESSIONS_DIR / f"{session['id']}.json").read_text(encoding="utf-8")
 
     store.get_session(session["id"])
@@ -235,7 +235,7 @@ def test_served_paths_are_left_alone(store):
             "content": "generated",
             "generatedImages": [{"id": "g1", "url": "/image-generation/outputs/a.png"}],
         }],
-    )
+     expected_revision=(store.get_session(session["id"]) or {}).get("revision"))
 
     loaded = store.get_session(session["id"])
     assert loaded["messages"][0]["generatedImages"][0]["url"] == "/image-generation/outputs/a.png"
@@ -247,7 +247,7 @@ def test_undecodable_values_are_preserved_not_discarded(store):
     store.update_session(
         session["id"],
         [{"id": "m1", "role": "user", "content": "x", "images": ["!!!not base64!!!"]}],
-    )
+     expected_revision=(store.get_session(session["id"]) or {}).get("revision"))
 
     loaded = store.get_session(session["id"])
     assert loaded["messages"][0]["images"] == ["!!!not base64!!!"]
@@ -255,7 +255,7 @@ def test_undecodable_values_are_preserved_not_discarded(store):
 
 def test_gallery_still_lists_migrated_images(store):
     session = store.create_session()
-    store.update_session(session["id"], legacy_session_with_images())
+    store.update_session(session["id"], legacy_session_with_images(), expected_revision=(store.get_session(session["id"]) or {}).get("revision"))
 
     images = store.list_session_images()
 
@@ -270,7 +270,7 @@ def test_the_duplicate_upload_pair_still_lists_once(store):
     matching the inline format needed.
     """
     session = store.create_session()
-    store.update_session(session["id"], legacy_session_with_images())
+    store.update_session(session["id"], legacy_session_with_images(), expected_revision=(store.get_session(session["id"]) or {}).get("revision"))
 
     assert len(store.list_session_images()) == 1
 
@@ -279,7 +279,7 @@ def test_the_duplicate_upload_pair_still_lists_once(store):
 
 def test_deleting_a_session_moves_it_to_the_trash(store):
     session = store.create_session(title="Important")
-    store.update_session(session["id"], [{"id": "m1", "role": "user", "content": "keep me"}])
+    store.update_session(session["id"], [{"id": "m1", "role": "user", "content": "keep me"}], expected_revision=(store.get_session(session["id"]) or {}).get("revision"))
 
     assert store.delete_session(session["id"]) is True
     assert store.get_session(session["id"]) is None
@@ -291,7 +291,7 @@ def test_deleting_a_session_moves_it_to_the_trash(store):
 
 def test_a_deleted_session_can_be_restored(store):
     session = store.create_session(title="Important")
-    store.update_session(session["id"], [{"id": "m1", "role": "user", "content": "keep me"}])
+    store.update_session(session["id"], [{"id": "m1", "role": "user", "content": "keep me"}], expected_revision=(store.get_session(session["id"]) or {}).get("revision"))
     store.delete_session(session["id"])
 
     restored = store.restore_session(store.list_deleted_sessions()[0]["file"])
@@ -346,8 +346,8 @@ def test_permanently_deleting_one_shared_image_keeps_the_other_chat_intact(store
         "content": "image",
         "imagePreviews": [{"id": image_id, "src": reference, "name": "shared.png"}],
     }]
-    store.update_session(first["id"], message("m1", "p1"))
-    store.update_session(second["id"], message("m2", "p2"))
+    store.update_session(first["id"], message("m1", "p1"), expected_revision=(store.get_session(first["id"]) or {}).get("revision"))
+    store.update_session(second["id"], message("m2", "p2"), expected_revision=(store.get_session(second["id"]) or {}).get("revision"))
 
     assert store.permanently_delete_session_image(first["id"], "p1") is True
 

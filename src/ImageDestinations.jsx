@@ -6,11 +6,14 @@ import { sourceFor } from "./imageLibraryApi";
 import * as workflows from "./imageWorkflowApi";
 import * as library from "./imageLibraryApi";
 import FileImagesDialog from "./components/ImageFolderTools";
+import { useImageGeneration } from './ImageGenerationContext';
+import { readReferenceImage } from './generationReference';
 
 const Context = createContext(null);
 export const useImageDestinations = () => useContext(Context);
 
 export function ImageDestinationsProvider({ children }) {
+  const generation = useImageGeneration();
   const dispatch = useDispatch(), privacy = useImagePrivacy(), currentPrivacy = useRef(privacy);
   currentPrivacy.current = privacy;
   const [editorInput, setEditorInput] = useState(null);
@@ -37,7 +40,11 @@ export function ImageDestinationsProvider({ children }) {
     lock.current = true;
     try {
       const file = await readImage(image);
-      if (destination === "gif") {
+      if (destination === "generate") {
+        if (!generation) throw new Error('Generate is not available in this view.');
+        generation.setReferenceImage(await readReferenceImage(file));
+        dispatch({ type: "SET_SIDEBAR_TAB", payload: "generate" });
+      } else if (destination === "gif") {
         openGifMaker({ files: [file] });
       } else if (destination === "editor") {
         setEditorInput({ file, id: crypto.randomUUID() });

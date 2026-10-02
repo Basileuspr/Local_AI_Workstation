@@ -1,10 +1,12 @@
 """Document graph over the existing RAG index; never edits Chroma's database."""
 from contextlib import contextmanager
 from pathlib import PurePosixPath
+import json
 import re
 import sqlite3
 
 from services import knowledge_base as kb
+from services.knowledge_node_options import KnowledgeNodeOptions
 
 
 @contextmanager
@@ -17,9 +19,18 @@ def database():
                 source TEXT NOT NULL, target TEXT NOT NULL,
                 PRIMARY KEY (source, target), CHECK (source < target));
             CREATE TABLE IF NOT EXISTS positions (
-                doc_id TEXT PRIMARY KEY, x REAL NOT NULL, y REAL NOT NULL);
+                doc_id TEXT PRIMARY KEY, x REAL NOT NULL, y REAL NOT NULL, z REAL);
+            CREATE TABLE IF NOT EXISTS node_options (
+                doc_id TEXT PRIMARY KEY, options TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS authored_nodes (
+                doc_id TEXT PRIMARY KEY, filename TEXT NOT NULL, title TEXT NOT NULL,
+                kind TEXT NOT NULL, text TEXT NOT NULL);
         """)
         with connection:
+            # Serialize migration with other graph reads/writes. Old x/y rows remain intact.
+            connection.execute("BEGIN IMMEDIATE")
+            if "z" not in {row[1] for row in connection.execute("PRAGMA table_info(positions)")}:
+                connection.execute("ALTER TABLE positions ADD COLUMN z REAL")
             yield connection
     finally:
         connection.close()
@@ -34,10 +45,14 @@ def _names(filename):
 def graph():
     nodes = sorted(kb.list_documents(), key=lambda item: item["filename"].casefold())
     ids = {node["doc_id"] for node in nodes}
+    with database() as connection:
+        authored = {doc_id: {"title": title, "kind": kind} for doc_id, title, kind in connection.execute("SELECT doc_id, title, kind FROM authored_nodes")}
     aliases = {}
     for node in nodes:
         for alias in _names(node["filename"]):
             aliases.setdefault(alias, set()).add(node["doc_id"])
+        if node["doc_id"] in authored:
+            aliases.setdefault(authored[node["doc_id"]]["title"].casefold(), set()).add(node["doc_id"])
     links = {}
     unresolved = {doc_id: set() for doc_id in ids}
     collection = kb._get_collection()
@@ -68,9 +83,10 @@ def graph():
         for source, target in connection.execute("SELECT source, target FROM links"):
             if source in ids and target in ids:
                 links.setdefault((source, target), set()).add("manual")
-        positions = {doc_id: {"x": x, "y": y} for doc_id, x, y in connection.execute("SELECT doc_id, x, y FROM positions")}
+        positions = {doc_id: {"x": x, "y": y, **({"z": z} if z is not None else {})} for doc_id, x, y, z in connection.execute("SELECT doc_id, x, y, z FROM positions")}
+        options = {doc_id: json.loads(value) for doc_id, value in connection.execute("SELECT doc_id, options FROM node_options")}
     return {
-        "nodes": [{**node, "position": positions.get(node["doc_id"]), "unresolved_links": sorted(unresolved[node["doc_id"]])} for node in nodes],
+        "nodes": [{**node, "position": positions.get(node["doc_id"]), "options": options.get(node["doc_id"], KnowledgeNodeOptions().model_dump()), "authored": node["doc_id"] in authored, "node_kind": authored.get(node["doc_id"], {}).get("kind"), "unresolved_links": sorted(unresolved[node["doc_id"]])} for node in nodes],
         "edges": [{"source": source, "target": target, "kinds": sorted(kinds)} for (source, target), kinds in sorted(links.items())],
     }
 
@@ -93,16 +109,37 @@ def set_link(source, target, *, remove=False):
             connection.execute("INSERT OR IGNORE INTO links VALUES (?, ?)", pair)
 
 
-def set_position(doc_id, x, y):
+def set_position(doc_id, x, y, z=None):
     _require_documents(doc_id)
     with database() as connection:
-        connection.execute("INSERT INTO positions VALUES (?, ?, ?) ON CONFLICT(doc_id) DO UPDATE SET x=excluded.x, y=excluded.y", (doc_id, x, y))
+        saved = connection.execute("SELECT options FROM node_options WHERE doc_id = ?", (doc_id,)).fetchone()
+        if saved and json.loads(saved[0]).get("locked"):
+            raise ValueError("Unlock the node position before moving it")
+        connection.execute("INSERT INTO positions (doc_id, x, y, z) VALUES (?, ?, ?, ?) ON CONFLICT(doc_id) DO UPDATE SET x=excluded.x, y=excluded.y, z=COALESCE(excluded.z, positions.z)", (doc_id, x, y, z))
+
+
+def set_options(doc_id, options: KnowledgeNodeOptions):
+    _require_documents(doc_id)
+    with database() as connection:
+        connection.execute("INSERT INTO node_options VALUES (?, ?) ON CONFLICT(doc_id) DO UPDATE SET options=excluded.options", (doc_id, options.model_dump_json()))
+    return options.model_dump()
+
+
+def set_symbol(doc_id, icon):
+    _require_documents(doc_id)
+    with database() as connection:
+        saved = connection.execute("SELECT options FROM node_options WHERE doc_id = ?", (doc_id,)).fetchone()
+        options = KnowledgeNodeOptions(**({**json.loads(saved[0]), "icon": icon} if saved else {"icon": icon}))
+        connection.execute("INSERT INTO node_options VALUES (?, ?) ON CONFLICT(doc_id) DO UPDATE SET options=excluded.options", (doc_id, options.model_dump_json()))
+    return options.model_dump()
 
 
 def forget_document(doc_id):
     with database() as connection:
         connection.execute("DELETE FROM links WHERE source = ? OR target = ?", (doc_id, doc_id))
         connection.execute("DELETE FROM positions WHERE doc_id = ?", (doc_id,))
+        connection.execute("DELETE FROM node_options WHERE doc_id = ?", (doc_id,))
+        connection.execute("DELETE FROM authored_nodes WHERE doc_id = ?", (doc_id,))
 
 
 def document(doc_id, offset=0, limit=30):

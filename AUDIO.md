@@ -2,7 +2,42 @@
 
 Open **Workspace → Audio** for video-to-audio extraction, microphone recording,
 audio-file transcription, and local text-to-speech. Chat has a **Microphone / audio** panel above its
-message input and **Read aloud** controls on assistant messages.
+message input and **Speak** controls on assistant messages.
+
+Chat assistant messages now have **Speak / Stop** controls for the existing cloned
+voice engines. In **Audio → Voice cloning**, choose an engine, record or upload a
+6–30 second reference, review its transcript, then choose **Use this voice for
+chat**. This explicitly saves the reference in the existing shared audio library.
+The original recording is preserved. Engine, language, processing choice and
+reference transcript are retained in the normal application preferences.
+
+Open **Settings → Voice Output** to select a saved reference or enable
+**Automatically speak assistant responses**. Automatic speech defaults to off
+and stays off after restarting when disabled. Only newly completed, successful
+responses in the visible chat are spoken automatically; reopening history does
+not replay it. Leaving the chat, changing its voice, or choosing Stop cancels
+pending speech and playback. Submitting another chat request remains possible.
+
+Speech uses one completed-response synthesis request, up to the existing
+**1,500-character** limit after removing Markdown formatting. Longer responses
+show a useful error without changing their text; paste a shorter passage into
+Audio to speak it. Speech failures never replace the chat response or retry
+automatically. Generated chat audio is temporary and is released when playback
+ends or stops. Standalone Windows-voice read-aloud and cloned-voice generation
+remain available in Audio. This does not change microphone or transcription
+behavior.
+
+After building the app, verify the production chat integration in an isolated
+Electron profile and temporary backend storage:
+
+```powershell
+.\node_modules\.bin\electron.cmd scripts/qa-chat-speech.cjs
+```
+
+This check uses synthetic chat and voice inference with real muted HTML audio
+playback. It covers Speak/Stop, cancellation, errors, automatic speech,
+preferences after reload, the saved voice catalogue, and standalone cloning.
+Reports and screenshots are saved under `artifacts/chat-speech-smoke`.
 
 Record → Stop recording → Transcribe audio → review/edit the transcript.
 In chat, **Insert into message** appends the transcript to the existing draft;

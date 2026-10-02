@@ -60,7 +60,7 @@ def pictures():
 
 def test_raw_image_ids_and_hidden_images_survive_multiple_removals(isolated):
     session = store.create_session("Legacy raw images")
-    store.update_session(session["id"], [{"id":"m", "role":"user", "images":pictures()}])
+    store.update_session(session["id"], [{"id":"m", "role":"user", "images":pictures()}], expected_revision=(store.get_session(session["id"]) or {}).get("revision"))
     original = store.list_session_images()
     by_id = {image["image_id"]: image for image in original}
     assert set(by_id) == {f"raw-m-{i}" for i in range(5)}
@@ -74,7 +74,7 @@ def test_raw_image_ids_and_hidden_images_survive_multiple_removals(isolated):
     assert store.get_session_image_by_id(session["id"], "m", "raw-m-1") is None
     loaded = store.get_session(session["id"])
     loaded["messages"][0]["images"].append(pictures()[1])
-    store.update_session(session["id"], loaded["messages"])
+    store.update_session(session["id"], loaded["messages"], expected_revision=(store.get_session(session["id"]) or {}).get("revision"))
     ids = store.get_session(session["id"])["messages"][0]["raw_image_ids"]
     assert ids[:3] == ["raw-m-0", "raw-m-2", "raw-m-4"]
     assert len(set(ids)) == 4
@@ -84,7 +84,7 @@ def test_preview_removal_keeps_other_raw_image_ids_stable(isolated):
     session = store.create_session("Mixed images")
     raw = pictures()[:3]
     store.update_session(session["id"], [{"id":"m", "role":"user", "images":raw,
-        "imagePreviews":[{"id":"preview", "src":f"data:image/png;base64,{raw[0]}"}]}])
+        "imagePreviews":[{"id":"preview", "src":f"data:image/png;base64,{raw[0]}"}]}], expected_revision=(store.get_session(session["id"]) or {}).get("revision"))
     assert store.permanently_delete_session_image(session["id"], "preview")
     assert {image["image_id"] for image in store.list_session_images()} == {"raw-m-1", "raw-m-2"}
 
@@ -100,6 +100,6 @@ def test_failed_session_replacement_never_truncates_the_original(isolated, monke
         return replace(self, target)
     monkeypatch.setattr(Path, "replace", fail_pending)
     with pytest.raises(PermissionError):
-        store.update_session(session["id"], [{"id":"m", "role":"user", "content":"Changed"}])
+        store.update_session(session["id"], [{"id":"m", "role":"user", "content":"Changed"}], expected_revision=(store.get_session(session["id"]) or {}).get("revision"))
     assert path.read_bytes() == before
     assert not list(store.SESSIONS_DIR.glob(".pending-*"))

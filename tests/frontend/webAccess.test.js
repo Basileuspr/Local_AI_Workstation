@@ -5,8 +5,12 @@ import { buildContextMessages } from "../../src/contextMemory";
 vi.mock("../../src/api", () => ({
   apiUrl: (path) => path,
   createSession: vi.fn(async () => ({ id: "new-session" })),
-  saveSession: vi.fn(async (id, messages, model, options) => ({ id, messages, model, title: options.title })),
+  appendSessionMessages: vi.fn(async (id, messages, model) => {
+    webSaved = { id, messages, model }; return webSaved;
+  }),
+  updateSessionMetadata: vi.fn(async (id, options) => ({ ...webSaved, id, title: options.title })),
 }));
+let webSaved;
 
 const source = { id: "source", title: "Solar energy", url: "https://en.wikipedia.org/wiki/Solar_energy", fetched_at: "2026-09-07T00:00:00Z", attribution: "Wikipedia contributors", revision: 123, content_hash: "hash", text: "a".repeat(9000) };
 

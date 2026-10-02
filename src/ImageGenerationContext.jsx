@@ -1,10 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useReducer, useRef, useState } from "react";
 import { useDispatch, useRefs, useStore } from "./useStore";
 import * as api from "./api";
+import { imageTasksObserver } from "./appPolling";
+import { invalidatePolling } from "./polling";
 import { createMessageId } from "./messageIds";
 import { imageRequest, reconcileImageLora, validateImageSelection } from "./chatImageGeneration";
 import { activeImageTasks, imageGenerationClientId, imageTaskFinished, restoreImageTaskHistory } from './imageTaskState';
 import { emptyGenerationHistory, generationHistoryReducer } from "./generationHistory";
+import { referenceOptions } from './generationReference';
 
 const ImageGenerationContext = createContext(null);
 
@@ -21,8 +24,16 @@ export function ImageGenerationProvider({ children, onSessionSaved }) {
   const [requests, setRequests] = useState([]);
   const [clientId] = useState(imageGenerationClientId);
   const [connectionError, setConnectionError] = useState('');
+  const [referenceImage, setReferenceImage] = useState(null);
+  const [referenceStrength, setReferenceStrength] = useState(.3);
+  const [referenceFit, setReferenceFit] = useState('contain');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitting = useRef(false), referenceUploads = useRef(new WeakMap());
+  useEffect(() => () => { if (referenceImage?.url) URL.revokeObjectURL(referenceImage.url); }, [referenceImage]);
   const activeRequests = useRef([]);
   const taskStatuses = useRef(new Map());
+  // After clearing, only later submissions may repopulate this tab's output.
+  const visibleRequests = useRef(null);
   const hydratedTasks = useRef(false);
   const submittedHere = useRef(false);
   const taskSerial = useRef(0);
@@ -39,9 +50,9 @@ export function ImageGenerationProvider({ children, onSessionSaved }) {
     const serial = ++historyRefresh.current;
     try {
       // Hidden images still exist. Locked or deleted sources are excluded by the API.
-      const groups = await Promise.all([api.listSessionImages(), api.listSessionImages(true)]);
+      const { images, hiddenImages } = await api.listSessionImageInventory();
       if (serial === historyRefresh.current) updateHistory({ type: "reconcile", checkedUrls,
-        availableIds: groups.flat().map(image => image.id) });
+        availableIds: [...images, ...hiddenImages].map(image => image.id) });
     } catch { /* A failed refresh must not erase this session's history. */ }
   }, []);
   useEffect(() => { void refreshHistory(); }, [refreshHistory, state.activeSidebarTab, state.sessions, state.sessionImages]);
@@ -85,7 +96,7 @@ export function ImageGenerationProvider({ children, onSessionSaved }) {
     void api.loadSession(pendingSessionSync.id).then((session) => {
       if (disposed || latest.current.isGenerating || latest.current.currentSessionId !== session.id) return;
       dispatch({ type: "SET_SESSION", payload: {
-        id: session.id, messages: session.messages, title: session.title,
+        id: session.id, revision: session.revision, messages: session.messages, title: session.title,
         memorySummary: session.memory_summary || "", summarizedMessageCount: session.summarized_message_count || 0,
       } });
       setPendingSessionSync(null);
@@ -103,10 +114,11 @@ export function ImageGenerationProvider({ children, onSessionSaved }) {
   const acceptTasks = useCallback(tasks => {
     const first = !hydratedTasks.current;
     hydratedTasks.current = true;
-    if (first && !submittedHere.current) updateHistory({type:'restore',history:restoreImageTaskHistory(tasks)});
+    const visible = task => visibleRequests.current === null || visibleRequests.current.has(task.request_id);
+    if (first && !submittedHere.current && visibleRequests.current === null) updateHistory({type:'restore',history:restoreImageTaskHistory(tasks)});
     const newest = tasks.at(-1);
     // Also recover an accepted submission whose POST response was lost.
-    if (!first && newest && !taskStatuses.current.has(newest.request_id)) {
+    if (!first && newest && visible(newest) && !taskStatuses.current.has(newest.request_id)) {
       updateHistory(newest.batch_id ? {type:'start-batch',id:newest.batch_id,
         requestIds:tasks.filter(task => task.batch_id === newest.batch_id).sort((a,b) => a.batch_index-b.batch_index).map(task => task.request_id)} : {type:'start-single'});
     }
@@ -119,14 +131,14 @@ export function ImageGenerationProvider({ children, onSessionSaved }) {
       if (taskStatuses.current.get(task.request_id) === task.status) continue;
       taskStatuses.current.set(task.request_id, task.status);
       if (task.status === 'completed' && task.result) {
-        if (!first || submittedHere.current) updateHistory({type:'complete',image:task.result});
+        if (visible(task) && (!first || submittedHere.current)) updateHistory({type:'complete',image:task.result});
         completed = true;
         if (latest.current.currentSessionId === task.session_id) setPendingSessionSync({id:task.session_id});
-        if (!first && task.result.output_warning) dispatch({type:'SHOW_TOAST',payload:{message:task.result.output_warning,type:'error'}});
+        if (visible(task) && !first && task.result.output_warning) dispatch({type:'SHOW_TOAST',payload:{message:task.result.output_warning,type:'error'}});
       } else if (imageTaskFinished(task)) {
-        updateHistory({type:'batch-failed',batchId:task.batch_id,requestId:task.request_id,
+        if (visible(task)) updateHistory({type:'batch-failed',batchId:task.batch_id,requestId:task.request_id,
           cancelled:task.status === 'cancelled',error:task.error});
-        if (!first && task.status === 'failed') dispatch({type:'SHOW_TOAST',payload:{message:task.error || 'Image generation failed',type:'error'}});
+        if (visible(task) && !first && task.status === 'failed') dispatch({type:'SHOW_TOAST',payload:{message:task.error || 'Image generation failed',type:'error'}});
       }
     }
     if (completed) void Promise.allSettled([sessionSaved.current?.()]);
@@ -136,39 +148,51 @@ export function ImageGenerationProvider({ children, onSessionSaved }) {
   // This subscription belongs to the app, never to the visible Generate pane.
   // Unmount/refresh only detaches the UI; Stop is a separate server command.
   useEffect(() => {
-    let disposed = false, timer;
     const stopAll = () => { for (const request of activeRequests.current) void api.stopImageGeneration(request.id).catch(() => {}); };
     refs.imageResetUi = stopAll;
     refs.imageAbortController = {abort:stopAll};
-    async function poll() {
-      const serial = ++taskSerial.current;
-      try {
-        const data = await api.imageGenerationTasks(clientId);
-        if (!disposed && serial === taskSerial.current) acceptTasks(data.tasks || []);
-      } catch (error) {
-        if (!disposed) setConnectionError(`${error.message}. Reconnecting to submitted image requests.`);
-      } finally { if (!disposed) timer = setTimeout(poll, 1000); }
-    }
-    void poll();
+    const detach = imageTasksObserver(clientId).subscribe({ data: data => acceptTasks(data.tasks || []),
+      recovered: () => setConnectionError(''),
+      error: error => setConnectionError(`${error.message}. Reconnecting to submitted image requests.`) });
     return () => {
-      disposed = true; clearTimeout(timer); taskSerial.current++; refreshSerial.current++;
+      detach(); taskSerial.current++; refreshSerial.current++;
       if (refs.imageResetUi === stopAll) { refs.imageResetUi = null; refs.imageAbortController = null; }
     };
   }, [refs, clientId, acceptTasks]);
 
-  async function submit(items, {onSubmitted, batchId} = {}) {
+  async function submit(items, {onSubmitted, batchId, reference = null, strength = .3, fit = 'contain'} = {}) {
+    if (submitting.current) return false;
     try {
       if (catalogError) throw new Error(catalogError);
       if (!Array.isArray(items) || !items.length || items.length > 32) throw new Error('Choose 1–32 batch requests.');
       items = items.map(item => ({...item,settings:reconcileImageLora(item.settings,catalog)}));
-      for (const item of items) validateImageSelection(item.settings,catalog);
+      for (const item of items) {
+        validateImageSelection(item.settings,catalog);
+        if (reference && catalog.models.find(model => model.id === item.settings.modelId)?.supports_reference === false) {
+          throw new Error('This model supports text-to-image only. Remove the reference image or choose an SDXL model.');
+        }
+        referenceOptions(reference, item.referenceStrength ?? strength, fit, item.settings.steps);
+      }
     } catch (error) { toast(error.message); return false; }
     submittedHere.current = true;
     const source = latest.current.currentSessionId;
     const chatModel = latest.current.selectedModel;
     const captured = items.map((item,index) => ({...imageRequest({...item.settings},createMessageId()),
       request_label: [batchId ? `Image ${index+1} of ${items.length}` : '',item.label].filter(Boolean).join(' · ').slice(0,160) || null}));
+    for (const request of captured) visibleRequests.current?.add(request.request_id);
+    submitting.current = true; setIsSubmitting(true);
     try {
+      if (reference) {
+        let upload = referenceUploads.current.get(reference.file);
+        if (!upload) {
+          upload = api.uploadGenerationReference(reference.file);
+          referenceUploads.current.set(reference.file, upload);
+          upload.catch(() => referenceUploads.current.delete(reference.file));
+        }
+        const stored = await upload;
+        captured.forEach((request, index) => Object.assign(request,
+          referenceOptions(reference, items[index].referenceStrength ?? strength, fit, request.steps), {source_image_ref:stored.reference}));
+      }
       let sessionId = source;
       if (!sessionId) {
         if (!newSession.current) newSession.current = api.createSession();
@@ -180,6 +204,7 @@ export function ImageGenerationProvider({ children, onSessionSaved }) {
       taskSerial.current++;
       updateHistory(batchId ? {type:'start-batch',id:batchId,requestIds:captured.map(request => request.request_id)} : {type:'start-single'});
       acceptTasks(data.tasks || []);
+      invalidatePolling("image-tasks", "queue", "runtime");
       const current = latest.current;
       if (current.currentSessionId === sessionId || (!source && !current.currentSessionId)) {
         if (!current.currentSessionId) dispatch({type:'SET_SESSION',payload:{id:sessionId,messages:[],title:'New Chat'}});
@@ -191,18 +216,28 @@ export function ImageGenerationProvider({ children, onSessionSaved }) {
     } catch (error) {
       toast(error.message || 'Could not submit image requests');
       return false;
-    } finally { newSession.current = null; }
+    } finally { newSession.current = null; submitting.current = false; setIsSubmitting(false); }
   }
 
-  function generate(settings, {onSubmitted,requestLabel} = {}) {
-    return submit([{settings,label:requestLabel}],{onSubmitted});
+  function generate(settings, {onSubmitted,requestLabel,...options} = {}) {
+    return submit([{settings,label:requestLabel}],{onSubmitted,...options});
   }
-  function generateBatch(items) {
-    return submit(items,{batchId:createMessageId()});
+  function generateBatch(items, options = {}) {
+    return submit(items,{...options,batchId:createMessageId()});
   }
 
   const removeImages = images => updateHistory({type:'remove', urls:images.map(image => image.url)});
-  return <ImageGenerationContext.Provider value={{ ...catalog, catalogError, connectionError, refreshModels, requests, requestId: requests[0]?.id, isGenerating: requests.length > 0, result, setResult, generatedImages, batch, refreshHistory, generate, generateBatch, stop, removeImages }}>
+  function clear() {
+    if (submitting.current) return false;
+    visibleRequests.current = new Set();
+    historyRefresh.current++;
+    updateHistory({type:'clear'});
+    setReferenceImage(null); setReferenceStrength(.3); setReferenceFit('contain');
+    referenceUploads.current = new WeakMap();
+    return true;
+  }
+  return <ImageGenerationContext.Provider value={{ ...catalog, catalogError, connectionError, refreshModels, requests, requestId: requests[0]?.id, isGenerating: requests.length > 0, result, setResult, generatedImages, batch, refreshHistory, generate, generateBatch, stop, removeImages,
+    referenceImage, setReferenceImage, referenceStrength, setReferenceStrength, referenceFit, setReferenceFit, isSubmitting, clear }}>
     {children}
   </ImageGenerationContext.Provider>;
 }

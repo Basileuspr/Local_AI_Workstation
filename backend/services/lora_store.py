@@ -558,7 +558,7 @@ def validate_project(project: dict, models: list[dict]) -> dict:
     if training_goal == "character_identity" and not (project.get("trigger_word") or "").strip():
         errors.append("Character identity training requires a unique trigger token")
     selected = next((model for model in models if model.get("id") == project.get("base_model_id")), None)
-    if not selected:
+    if not selected or selected.get("supports_lora_training") is False:
         errors.append("Select an installed SDXL base model")
     if not project.get("images"):
         errors.append("Add at least one training image")

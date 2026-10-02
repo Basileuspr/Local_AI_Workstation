@@ -73,7 +73,10 @@ for _warning in settings.warnings:
 
 # --- App Setup ---
 
-app = FastAPI(title="Local AI Workstation")
+from services.build_info import read_build_info
+APP_BUILD = read_build_info()
+app = FastAPI(title="Local AI Workstation", version=APP_BUILD["package_version"])
+app.state.build_info = APP_BUILD
 
 from services.maintenance_gate import MaintenanceMiddleware, router as maintenance_router
 app.add_middleware(MaintenanceMiddleware)
@@ -118,6 +121,8 @@ app.include_router(image_generation_router)
 app.include_router(lora_router)
 app.include_router(image_workflows_router)
 app.include_router(system_stats_router)
+from routes.tool_registry import router as tool_registry_router
+app.include_router(tool_registry_router)
 app.include_router(request_queue_router)
 from routes.bridge import router as bridge_router
 app.include_router(bridge_router)
@@ -301,7 +306,15 @@ def _split_visible_and_thinking(text: str, state: dict, flush: bool = False) -> 
 @app.get("/health")
 async def health_check():
     return Response(content='{"status":"ok"}', media_type="application/json",
-                    headers={"X-LAW-Launch": os.environ.get("LAW_LAUNCH_ID", "")})
+                    headers={"X-LAW-Launch": os.environ.get("LAW_LAUNCH_ID", ""),
+                             "X-LAW-Version": app.version, "X-LAW-Build": APP_BUILD.get("build_id") or "unrecorded"})
+
+
+@app.get("/version")
+def application_version():
+    """The captured identity loaded by this backend, independent of Git availability."""
+    from fastapi.responses import JSONResponse
+    return JSONResponse(APP_BUILD, headers={"Cache-Control": "no-store"})
 
 
 def _model_matches(available: str, configured: str) -> bool:
@@ -1013,6 +1026,10 @@ async def _chat(request: ChatRequest, client_request: Request):
                 "If an excerpt is insufficient, say so. You cannot browse or refresh sources yourself."
             ),
         })
+
+    from services.chat_checklists import wants_checklist, CHECKLIST_INSTRUCTION
+    if request.use_memory and not create_word and not edit_canvas and wants_checklist(last_prompt):
+        messages_to_send.insert(0, {"role": "system", "content": CHECKLIST_INSTRUCTION})
 
     # --- Build Ollama options from parameters ---
     if request.canvas_context and not edit_canvas:

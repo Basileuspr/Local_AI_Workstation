@@ -234,6 +234,36 @@ def test_edit_guidance_sends_current_image_and_ordered_reference_roles(request_c
     assert not result.image_paths
 
 
+def test_reference_analysis_keeps_observations_separate_and_does_not_change_prompt(request_context, monkeypatch):
+    import json
+    from dataclasses import replace
+    request, context = request_context
+    request = replace(request, stage=request.stage.model_copy(update={'operation':'describe','analysis_kind':'reference'}))
+    details = {'appearance':'curly brown hair', 'style':'watercolor', 'composition':'portrait',
+               'lighting':'soft window light', 'uncertainties':['Eye color is unclear.']}
+    async def handler(req):
+        if req.url.path == '/api/show': return httpx.Response(200, json={'capabilities':['vision']})
+        payload = json.loads(req.content)
+        assert set(details) == set(payload['format']['properties'])
+        assert len(payload['messages'][0]['images']) == 1
+        assert 'untrusted' in payload['messages'][0]['content']
+        assert payload['options']['num_predict'] == 2048
+        return httpx.Response(200, text=json.dumps({'message':{'content':json.dumps(details)},'done':True})+'\n')
+    client_type = httpx.AsyncClient
+    monkeypatch.setattr(adapters.httpx, 'AsyncClient', lambda **kwargs: client_type(transport=httpx.MockTransport(handler), **kwargs))
+    result = asyncio.run(adapters.OllamaProvider().execute(request, context))
+    assert result.metadata['reference_analysis'] == details
+    assert request.prompt_settings.prompt == 'Test scene'
+    assert not result.image_paths
+
+
+@pytest.mark.parametrize('text', ['not json', '{}', '{"appearance":"","style":"","composition":"","lighting":"","uncertainties":[]}'])
+def test_reference_analysis_rejects_invalid_or_empty_results(text):
+    from services.image_workflows.reference_analysis import parse_analysis
+    with pytest.raises(ValueError, match='prompt is unchanged'):
+        parse_analysis(text)
+
+
 def test_ollama_cancel_closes_stream_and_awaits_unload(request_context, monkeypatch):
     request, context = request_context
     entered, closed, unloading, release = (asyncio.Event() for _ in range(4))

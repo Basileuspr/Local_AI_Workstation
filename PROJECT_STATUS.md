@@ -1,5 +1,43 @@
 # Project status
 
+## GitHub source publication review — 2026-10-02
+
+- Reviewed the completed changes against GitHub `main` at `de4dd46`, with the
+  update prepared directly on that public history in a separate checkout.
+- Published scope includes chat checklists and side panes, session metadata and
+  revision protection, Knowledge note/node controls, reference-image generation,
+  audio/voice controls, the Dashboard tool registry, Shortcut Registry and shared
+  build identity. See [release records](RELEASES.md).
+- Concurrent Functions sequences, Index/Knowledge links and new-chat startup
+  changes are excluded from this snapshot and remain local for the next update.
+- Automated validation: 736 frontend tests, 1,140 backend tests, and 117 Media
+  Manager tests passed. Backend data, logs, models and temporary files were
+  isolated. A fresh JavaScript dependency installation and production build
+  passed; the existing Python environment passed `pip check`. `npm audit`
+  reported zero known vulnerabilities.
+- Real GPU inference, LoRA training, transcription/voice quality, a fresh Python
+  installation, and the running desktop loading this update were not revalidated.
+  Existing FastAPI lifecycle deprecation and Vite bundle-size warnings remain.
+- The outgoing tree and ancestry are reviewed separately from test results.
+  Private runtime data, recordings, model weights, generated media and older
+  local development snapshots are excluded; local source and user data remain
+  preserved. Public history/reader assets are regenerated in this checkout.
+
+The [September 30 application review](docs/application-review/AUDIT.md) records
+fresh checks and distinguishes current findings from the historical entries below.
+Use the [local history and comparison reader](docs/application-review/index.html)
+to inspect committed changes, uncommitted feature observations and saved versions.
+
+## Build identity follow-up — 2026-09-30
+
+- R01 assigns `1.0.1-dev` and coordinates the generated build identifier across
+  desktop software specs, renderer and backend metadata. Production builds
+  capture current source/dependency metadata and reject recorded-source drift.
+- [Release records](RELEASES.md) and the [R01 change record](docs/application-review/changes/R01-build-identity.md)
+  describe capture, component mismatch warnings and the next reviewed-release workflow.
+- This is a local development record. Original uncommitted feature creation
+  dates and public-repository parity are not established by the version change.
+
 ## Feature release review — 2026-09-28
 
 - Character Creator now links biographies, notes, images, videos, audio, faces,
@@ -114,3 +152,7 @@ publication check.
 Feature-specific documentation describes additional constraints. Older sections
 of `ARCHITECTURE.md` and implementation reports are historical snapshots; source
 and current tests take precedence where they differ.
+
+## Session persistence follow-up - 2026-10-01
+
+R03 adds expected-revision checks to whole-history replacement, metadata-only rename/settings and compaction, and coordinated frontend conflict handling. Appended replies are saved independently of summary conflicts. The dated contract and preservation evidence are in [R03](docs/application-review/changes/R03-session-revisions.md). This is development source; rebuild and fully relaunch to load it.

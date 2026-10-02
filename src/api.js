@@ -1,4 +1,5 @@
 import { API_BASE, API_TOKEN } from "./config";
+import { fetchWorkload } from "./polling";
 
 export { API_BASE, API_TOKEN };
 
@@ -78,15 +79,36 @@ export async function createSession() {
 }
 
 export async function loadSession(sessionId) {
-  const res = await fetch(apiUrl(`/sessions/${sessionId}`));
+  const res = await fetch(apiUrl(`/sessions/${sessionId}`), { cache: "no-store" });
+  if (!res.ok) await sessionSaveError(res, "Could not load the chat");
   return await res.json();
+}
+
+async function sessionSaveError(response, fallback) {
+  const data = await response.json().catch(() => ({}));
+  const detail = data.detail;
+  const error = new Error(typeof detail === "string" ? detail : detail?.message || fallback);
+  error.status = response.status;
+  error.code = detail?.code;
+  error.currentRevision = detail?.current_revision;
+  throw error;
+}
+
+export async function updateSessionMetadata(sessionId, { title, model, memorySummary, summarizedMessageCount, expectedRevision } = {}) {
+  const res = await fetch(apiUrl(`/sessions/${encodeURIComponent(sessionId)}/metadata`), {
+    method: "PATCH", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title, model, memory_summary: memorySummary,
+      summarized_message_count: summarizedMessageCount, expected_revision: expectedRevision }),
+  });
+  if (!res.ok) await sessionSaveError(res, "Could not update the chat metadata");
+  return res.json();
 }
 
 export async function saveSession(
   sessionId,
   messages,
   model,
-  { memorySummary, summarizedMessageCount, title } = {}
+  { memorySummary, summarizedMessageCount, title, expectedRevision } = {}
 ) {
   const res = await fetch(apiUrl(`/sessions/${sessionId}`), {
     method: "PUT",
@@ -97,13 +119,32 @@ export async function saveSession(
       title,
       memory_summary: memorySummary,
       summarized_message_count: summarizedMessageCount,
+      expected_revision: expectedRevision,
     }),
   });
   if (!res.ok) {
-    const error = await res.json().catch(() => ({}));
-    throw new Error(error.detail || "Could not save the chat");
+    await sessionSaveError(res, "Could not save the chat");
   }
   return await res.json();
+}
+
+export async function updateChecklistItem(sessionId, messageId, { lineIndex, checked, expectedContent }) {
+  const response = await fetch(apiUrl(`/sessions/${encodeURIComponent(sessionId)}/messages/${encodeURIComponent(messageId)}/checklist`), {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ line_index: lineIndex, checked, expected_content: expectedContent }),
+  });
+  if (!response.ok) await sessionSaveError(response, "Could not save the checklist. Try again.");
+  return response.json();
+}
+
+export async function editMessageChecklist(sessionId, messageId, { items, expectedContent }) {
+  const response = await fetch(apiUrl(`/sessions/${encodeURIComponent(sessionId)}/messages/${encodeURIComponent(messageId)}/checklist`), {
+    method: "PUT", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ items, expected_content: expectedContent }),
+  });
+  if (!response.ok) await sessionSaveError(response, "Could not save the checklist. Your edits are still here.");
+  return response.json();
 }
 
 export async function deleteSession(sessionId) {
@@ -143,15 +184,14 @@ export async function permanentlyDeleteSession(file) {
   }
 }
 
-export async function appendSessionMessages(sessionId, messages, model, { memorySummary, summarizedMessageCount } = {}) {
+export async function appendSessionMessages(sessionId, messages, model, { memorySummary, summarizedMessageCount, expectedRevision } = {}) {
   const response = await fetch(apiUrl(`/sessions/${encodeURIComponent(sessionId)}/messages/append`), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages, model, memory_summary: memorySummary, summarized_message_count: summarizedMessageCount }),
+    body: JSON.stringify({ messages, model, memory_summary: memorySummary, summarized_message_count: summarizedMessageCount, expected_revision: expectedRevision }),
   });
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.detail || "Could not save the queued result to its chat");
+    await sessionSaveError(response, "Could not save the queued result to its chat");
   }
   return response.json();
 }
@@ -163,7 +203,7 @@ export async function fetchRuntimeStatus() {
 }
 
 export async function resetRuntime() {
-  const res = await fetch(apiUrl(`/runtime/reset`), { method: "POST" });
+  const res = await fetchWorkload(apiUrl(`/runtime/reset`), { method: "POST" });
   if (!res.ok) {
     const error = await res.json().catch(() => ({}));
     throw new Error(error.detail || "Could not reset local runtimes");
@@ -187,6 +227,14 @@ export async function listSessionImages(hidden = false) {
     ...image,
     url: apiUrl(`${image.url}`),
   }));
+}
+
+export async function listSessionImageInventory() {
+  const res = await fetch(apiUrl(`/sessions/images?include_hidden=true`));
+  if (!res.ok) throw new Error("Could not load chat images");
+  const data = await res.json();
+  const withUrls = images => (images || []).map(image => ({ ...image, url: apiUrl(image.url) }));
+  return { images: withUrls(data.images), hiddenImages: withUrls(data.hidden_images) };
 }
 
 export async function removeSessionImage(sessionId, imageId) {
@@ -277,7 +325,7 @@ export async function streamChat({
   username = "local-user",
   signal,
 }) {
-  const res = await fetch(apiUrl(`/chat`), {
+  const res = await fetchWorkload(apiUrl(`/chat`), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -319,7 +367,7 @@ export async function streamChat({
 
 export async function stopChat(requestId) {
   if (!requestId) return;
-  await fetch(apiUrl(`/chat/stop/${encodeURIComponent(requestId)}`), {
+  await fetchWorkload(apiUrl(`/chat/stop/${encodeURIComponent(requestId)}`), {
     method: "POST",
   });
 }
@@ -333,7 +381,7 @@ export function getThinkingExportUrl() {
 }
 
 export async function compactMemory({ model, previousSummary, messages, targetTokens, requestId, sessionId, signal }) {
-  const res = await fetch(apiUrl(`/memory/compact`), {
+  const res = await fetchWorkload(apiUrl(`/memory/compact`), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -437,7 +485,7 @@ export async function loadImageGenerationModels() {
 }
 
 export async function generateImage(options, { signal } = {}) {
-  const res = await fetch(apiUrl(`/image-generation/generate`), {
+  const res = await fetchWorkload(apiUrl(`/image-generation/generate`), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(options),
@@ -452,9 +500,20 @@ export async function generateImage(options, { signal } = {}) {
   return await res.json();
 }
 
+export async function uploadGenerationReference(file) {
+  const body = new FormData();
+  body.append('file', file);
+  const res = await fetchWorkload(apiUrl('/image-generation/references'), { method: 'POST', body });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({}));
+    throw new Error(typeof error.detail === 'string' ? error.detail : 'Could not upload the reference image');
+  }
+  return res.json();
+}
+
 export async function stopImageGeneration(requestId) {
   if (!requestId) return { stopped: false };
-  const res = await fetch(apiUrl(`/image-generation/stop/${encodeURIComponent(requestId)}`), {
+  const res = await fetchWorkload(apiUrl(`/image-generation/stop/${encodeURIComponent(requestId)}`), {
     method: "POST",
   });
   if (!res.ok) throw new Error("Could not stop image generation");
@@ -462,7 +521,7 @@ export async function stopImageGeneration(requestId) {
 }
 
 export async function imageGenerationTasks(clientId, submission) {
-  const res = await fetch(apiUrl(`/image-generation/tasks${submission ? '' : `?client_id=${encodeURIComponent(clientId)}`}`), submission ? {
+  const res = await (submission ? fetchWorkload : fetch)(apiUrl(`/image-generation/tasks${submission ? '' : `?client_id=${encodeURIComponent(clientId)}`}`), submission ? {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify({...submission, client_id:clientId}),
   } : {cache:'no-store'});

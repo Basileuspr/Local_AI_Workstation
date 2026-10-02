@@ -6,6 +6,7 @@ import { useDispatch, useStore } from "../useStore.jsx";
 import * as api from "../api";
 import LoraAnalysisProgress from "./LoraAnalysisProgress";
 import LoraHelp from "./LoraHelp";
+import CharacterLinks from "./CharacterLinks";
 import CpuPerformance from "./CpuPerformance";
 import BulkActions, { SelectionCheckbox } from "./BulkActions";
 import { useSelection, useBatchAction } from "../useSelection";
@@ -87,7 +88,7 @@ export default function LoraStudio({ active = true }) {
       api.loraHardware(),
       api.listLoraVisionModels().catch(() => []),
     ]);
-    setModels(imageModels.models || []);
+    setModels((imageModels.models || []).filter(model => model.supports_lora_training !== false));
     setHardware(nextHardware);
     setVisionModels(nextVisionModels);
   }
@@ -426,6 +427,7 @@ export default function LoraStudio({ active = true }) {
             </div>
             <p className="lora-pipeline-note">{identityTraining ? "Identity mode trains a reusable character trigger from consistent features across varied angles, expressions, and actions. It requires a unique trigger token." : "Style mode learns recurring visual treatment rather than one character identity."}</p>
             <button type="button" className="lora-secondary-button" onClick={saveProject} disabled={loading || workspaceBusy}>Save project settings</button>
+            <CharacterLinks kind="lora_project" targetId={project.id} label="LoRA project" disabled={workspaceBusy} />
           </section>
 
           <section className="lora-card lora-analysis-card">
@@ -488,6 +490,7 @@ export default function LoraStudio({ active = true }) {
             {training.error && <p className="lora-error">{training.error}</p>}
             <pre className="lora-log">{(training.logs || []).slice(-8).join("\n") || "No training logs yet."}</pre>
             {project.adapter && <div className="lora-output lora-complete-output"><strong>Complete LoRA ready</strong><span>{project.adapter.filename} is selectable in Generate for its matching base model.</span>{project.adapter.complete_path && <><code>{project.adapter.complete_path}</code><small>model/ · weights/ · training-images/ · captions/ · manifests</small></>}</div>}
+            {project.adapter?.id && <CharacterLinks kind="lora_adapter" targetId={project.adapter.id} label="trained LoRA" disabled={workspaceBusy} />}
           </section>
         </div>
       </div>

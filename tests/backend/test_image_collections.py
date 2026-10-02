@@ -91,6 +91,27 @@ def test_hidden_images_are_listed_and_restored_without_touching_chat(isolated):
     assert session_store.get_session(session["id"])["messages"] == original
 
 
+def test_warm_chat_inventory_obeys_real_vault_lock_unlock_restore(isolated):
+    session, reference, source = chat()
+    headers = auth(isolated)
+    session_store.hide_session_image(session["id"], "image")
+    endpoint = "/sessions/images?include_hidden=true"
+    before = isolated.get(endpoint).json()
+    assert len(before["hidden_images"]) == 1
+    locked = isolated.post("/image-library/vault/import", headers=headers, json=source)
+    assert locked.status_code == 200, locked.text
+    assert isolated.get(endpoint).json() == {"images": [], "hidden_images": []}
+    assert isolated.post("/image-library/vault/lock").status_code == 200
+    token = isolated.post("/image-library/vault/unlock", json={"pin": "12345678"}).json()["token"]
+    # Unlocking private access must not publish locked images into chat galleries.
+    assert isolated.get(endpoint).json() == {"images": [], "hidden_images": []}
+    restored = isolated.post(f"/image-library/vault/images/{locked.json()['id']}/restore",
+                             headers={"Authorization": "Bearer " + token})
+    assert restored.status_code == 200, restored.text
+    assert isolated.get(endpoint).json() == before
+    assert image_store.get_bytes(reference)[0] == picture()
+
+
 def test_folder_copy_survives_source_deletion_and_folder_removal(isolated):
     session, reference, source = chat()
     folder = isolated.post("/image-library/folders", json={"name":"🌲 Scene"}).json()

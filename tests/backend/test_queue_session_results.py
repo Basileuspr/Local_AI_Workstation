@@ -11,7 +11,7 @@ def test_concurrent_results_append_without_losing_other_messages(sessions_dir):
         list(executor.map(lambda message: session_store.append_messages(session_id, [message]), messages))
     saved = session_store.get_session(session_id)
     assert {message["id"] for message in saved["messages"]} == {message["id"] for message in messages}
-    session_store.append_messages(session_id, [{**messages[0], "content": "updated"}])
+    session_store.append_messages(session_id, [{**messages[0], "content": "updated"}], expected_revision=saved["revision"])
     saved = session_store.get_session(session_id)
     assert len(saved["messages"]) == 20
     assert next(message for message in saved["messages"] if message["id"] == "result-0")["content"] == "updated"

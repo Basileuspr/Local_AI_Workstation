@@ -33,6 +33,7 @@ const groups = [
     { id: "css-viewer", label: "CSS / Styling" },
     { id: "js-viewer", label: "JavaScript Viewer" },
     { id: "spreadsheets", label: "Spreadsheets" },
+    { id: "shortcuts", label: "Shortcut Registry" },
   ] },
 ];
 

@@ -1,6 +1,7 @@
 export const emptyGenerationHistory = { images: [], result: null, batch: null };
 
 export function generationHistoryReducer(state, action) {
+  if (action.type === 'clear') return emptyGenerationHistory;
   if (action.type === 'restore') return action.history;
   if (action.type === 'remove') {
     const removed = new Set(action.urls);

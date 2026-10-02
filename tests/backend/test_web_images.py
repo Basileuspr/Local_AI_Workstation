@@ -205,7 +205,7 @@ def test_image_route_and_chat_survive_reopen_and_respect_vault(tmp_path, monkeyp
     reference = image_store.put_bytes(raster())
     session = session_store.create_session()
     session_store.update_session(session["id"], [{"role": "user", "content": "Web source", "imagePreviews": [
-        {"id": "web-1", "src": reference, "name": "Panel 1", "source": "web"}]}])
+        {"id": "web-1", "src": reference, "name": "Panel 1", "source": "web"}]}], expected_revision=(session_store.get_session(session["id"]) or {}).get("revision"))
     saved = session_store.get_session(session["id"])
     message = saved["messages"][0]
     assert session_store.get_session_image_by_id(session["id"], message["id"], "web-1")[0] == raster()

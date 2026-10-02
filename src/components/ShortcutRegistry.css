@@ -1,0 +1,36 @@
+.shortcut-registry > * { flex-shrink: 0; }
+.registry-help, .registry-scope, .registry-type { color: var(--text-dim); font-size: 12px; }
+.registry-help p { margin-top: 10px; line-height: 1.6; }
+.registry-help summary { cursor: pointer; color: var(--text); }
+.registry-filters { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; }
+.registry-filters label, .registry-editor label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--text-dim); min-width: 0; }
+.registry-filters label:first-child { flex: 1; min-width: min(260px, 100%); }
+.registry-filters input, .registry-filters select { width: 100%; min-height: 38px; }
+.shortcut-registry button { padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-input); color: var(--text); cursor: pointer; }
+.shortcut-registry button:disabled { opacity: .45; cursor: default; }
+.shortcut-registry :is(button, input, select, textarea, a, summary):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.registry-entries { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr)); gap: 14px; }
+.registry-entry, .registry-editor { padding: 18px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; min-width: 0; }
+.registry-entry { display: flex; flex-direction: column; align-items: start; gap: 10px; overflow-wrap: anywhere; }
+.registry-entry-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: start; gap: 12px; width: 100%; }
+.registry-entry h3, .registry-editor h2 { font-size: 16px; margin-top: 5px; }
+.registry-entry kbd { padding: 6px 9px; border: 1px solid var(--border-active); border-radius: 5px; font: 13px var(--font-mono); color: var(--accent); background: var(--bg-input); }
+.registry-entry p { font-size: 13px; line-height: 1.6; white-space: pre-wrap; }
+.registry-entry a { color: var(--accent); font-size: 12px; margin-top: auto; }
+.registry-editor-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 14px; margin: 16px 0; }
+.registry-editor :is(input, select, textarea) { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 5px; background: var(--bg-input); color: var(--text); font: inherit; }
+.registry-editor textarea { resize: vertical; }
+.registry-folders { display: flex; flex-direction: column; gap: 12px; }
+.registry-folder { border: 1px solid var(--border); border-radius: 8px; min-width: 0; overflow: hidden; }
+.registry-folder-heading { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--bg-card); }
+.registry-folder-heading h2 { flex: 1; min-width: 0; font-size: 16px; }
+.shortcut-registry .registry-folder-toggle { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; width: 100%; border: 0; background: transparent; text-align: left; }
+.registry-folder-toggle span:nth-child(2) { overflow-wrap: anywhere; }
+.registry-folder-toggle small { margin-left: auto; color: var(--text-dim); font-weight: normal; white-space: nowrap; }
+.registry-folder-heading > button { flex-shrink: 0; }
+.registry-folder-content { padding: 14px; }
+.registry-folder-content[hidden] { display: none; }
+.registry-folder-tools, .registry-folder-editor { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.registry-folder-tools p { flex: 1; }
+.registry-folder-editor { padding: 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card); }
+.registry-folder-editor label { display: flex; flex-direction: column; gap: 6px; flex: 1; color: var(--text-dim); font-size: 13px; min-width: min(240px, 100%); }

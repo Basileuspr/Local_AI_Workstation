@@ -19,7 +19,7 @@ from services.gpu_coordination import gpu_coordinator
 
 MODELS_DIR = settings.diffusers_dir
 OUTPUT_DIR = settings.generated_images_dir
-SUPPORTED_PIPELINES = {"StableDiffusionXLPipeline"}
+SUPPORTED_PIPELINES = {"StableDiffusionXLPipeline", "ErnieImagePipeline"}
 LONG_PROMPT_MAX_CHUNKS = 4
 _TOKENIZER_CACHE: dict[str, tuple] = {}
 
@@ -56,7 +56,7 @@ def _read_json(path: Path) -> dict:
 
 
 def _display_name(model_id: str) -> str:
-    acronyms = {"sdxl": "SDXL", "nsfw": "NSFW", "wai": "WAI", "vae": "VAE"}
+    acronyms = {"sdxl": "SDXL", "nsfw": "NSFW", "wai": "WAI", "vae": "VAE", "nf4": "NF4", "ernie": "ERNIE"}
     words = []
     for part in model_id.replace("_", "-").split("-"):
         if not part:
@@ -89,6 +89,12 @@ def discover_models() -> list[dict]:
             "pipeline": pipeline_class,
             "format": "diffusers-safetensors",
             "is_sdxl": pipeline_class == "StableDiffusionXLPipeline",
+            "supports_reference": pipeline_class == "StableDiffusionXLPipeline",
+            "supports_long_prompt": pipeline_class == "StableDiffusionXLPipeline",
+            "supports_lora_training": pipeline_class == "StableDiffusionXLPipeline",
+            "dimension_multiple": 16 if pipeline_class == "ErnieImagePipeline" else 8,
+            "recommended_settings": ({"steps": 8, "guidanceScale": 2, "negativePrompt": ""}
+                                     if model_dir.name.lower().startswith("verboa-image-1") else None),
         })
     return models
 
@@ -99,8 +105,10 @@ def _model_tokenizers(model: dict):
     if cached:
         return cached
     try:
-        from transformers import CLIPTokenizer
-        tokenizers = (
+        from transformers import AutoTokenizer, CLIPTokenizer
+        tokenizers = (AutoTokenizer.from_pretrained(
+            model["path"], subfolder="tokenizer", local_files_only=True,
+        ),) if model.get("pipeline") == "ErnieImagePipeline" else (
             # local_files_only everywhere models are loaded: the LoRA worker and
             # the workflow adapters already say so, and a path that silently
             # reached the Hub would make "runs locally" depend on the weather.
@@ -113,9 +121,9 @@ def _model_tokenizers(model: dict):
     return tokenizers
 
 
-def _token_summary(tokenizers: tuple, prompt: str) -> dict:
+def _token_summary(tokenizers: tuple, prompt: str, native_limit: int | None = None) -> dict:
     counts = [len(tokenizer(prompt or "", add_special_tokens=False).input_ids) for tokenizer in tokenizers]
-    content_limit = max(1, min(int(tokenizer.model_max_length) - 2 for tokenizer in tokenizers))
+    content_limit = native_limit or max(1, min(int(tokenizer.model_max_length) - 2 for tokenizer in tokenizers))
     token_count = max(counts, default=0)
     return {
         "token_count": token_count,
@@ -131,13 +139,17 @@ def prompt_token_status(model_id: str, prompt: str, negative_prompt: str | None 
     if not model:
         raise ValueError("Selected image model is not installed or is not supported")
     tokenizers = _model_tokenizers(model)
-    positive = _token_summary(tokenizers, prompt)
-    negative = _token_summary(tokenizers, negative_prompt or "")
+    is_ernie = model.get("pipeline") == "ErnieImagePipeline"
+    native_limit = (min(int(tokenizers[0].model_max_length), 2048)
+                    - tokenizers[0].num_special_tokens_to_add(pair=False)) if is_ernie else None
+    positive = _token_summary(tokenizers, prompt, native_limit)
+    negative = _token_summary(tokenizers, negative_prompt or "", native_limit)
     return {
         "prompt": positive,
         "negative_prompt": negative,
-        "long_prompt_max_chunks": LONG_PROMPT_MAX_CHUNKS,
-        "long_prompt_max_tokens": positive["native_content_limit"] * LONG_PROMPT_MAX_CHUNKS,
+        "long_prompt_supported": not is_ernie,
+        "long_prompt_max_chunks": 1 if is_ernie else LONG_PROMPT_MAX_CHUNKS,
+        "long_prompt_max_tokens": positive["native_content_limit"] * (1 if is_ernie else LONG_PROMPT_MAX_CHUNKS),
     }
 
 
@@ -149,6 +161,7 @@ class ImageGenerationManager:
         self._workflow_pipelines = {}
         self._active_pipeline = None
         self._model_id: str | None = None
+        self._pipeline_type = "StableDiffusionXLPipeline"
         self._lora_id: str | None = None
         self._compel = None
         self._offload_strategy = "model"
@@ -202,6 +215,7 @@ class ImageGenerationManager:
             except ImportError:
                 pass
         self._model_id = None
+        self._pipeline_type = "StableDiffusionXLPipeline"
         self._lora_id = None
         self._compel = None
 
@@ -221,10 +235,19 @@ class ImageGenerationManager:
             raise RuntimeError("CUDA is unavailable. This SDXL configuration requires an NVIDIA CUDA device.")
 
         self._unload()
+        is_ernie = model.get("pipeline") == "ErnieImagePipeline"
+        if is_ernie:
+            from services.capabilities import missing_packages
+            if _read_json(Path(model["path"]) / "transformer/config.json").get("quantization_config") and missing_packages(("bitsandbytes",)):
+                raise RuntimeError("This quantized image model requires requirements-ernie.txt. Install it and restart the app.")
         torch.backends.cuda.matmul.allow_tf32 = True
-        pipeline = DiffusionPipeline.from_pretrained(
+        pipeline_class = DiffusionPipeline
+        if is_ernie:
+            from services.ernie_image import LocalErnieImagePipeline
+            pipeline_class = LocalErnieImagePipeline
+        pipeline = pipeline_class.from_pretrained(
             model["path"],
-            torch_dtype=torch.float16,
+            torch_dtype=torch.bfloat16 if is_ernie else torch.float16,
             use_safetensors=True,
             local_files_only=True,
         )
@@ -250,6 +273,9 @@ class ImageGenerationManager:
             self._offload_strategy = image_offload_strategy(torch.cuda.get_device_properties(0).total_memory)
         except (AttributeError, OSError, RuntimeError):
             self._offload_strategy = "model"
+        self._pipeline_type = model.get("pipeline", "StableDiffusionXLPipeline")
+        if is_ernie:
+            self._offload_strategy = "mixed"
         self._enable_offload(pipeline)
         pipeline.set_progress_bar_config(disable=True)
 
@@ -260,7 +286,10 @@ class ImageGenerationManager:
         self._compel = None
 
     def _enable_offload(self, pipeline):
-        if self._offload_strategy == "sequential" and hasattr(pipeline, "enable_sequential_cpu_offload"):
+        if self._pipeline_type == "ErnieImagePipeline":
+            self._offload_strategy = "mixed"
+            pipeline.enable_model_cpu_offload()
+        elif self._offload_strategy == "sequential" and hasattr(pipeline, "enable_sequential_cpu_offload"):
             pipeline.enable_sequential_cpu_offload()
         else:
             self._offload_strategy = "model"
@@ -280,7 +309,8 @@ class ImageGenerationManager:
     def _configure_wait_mode(self, allow_long_wait):
         from services.capabilities import image_offload_strategy
         from services.image_generation_limits import current_resolution_limits
-        desired = "sequential" if allow_long_wait else image_offload_strategy(current_resolution_limits()["vram_bytes"])
+        desired = ("mixed" if self._pipeline_type == "ErnieImagePipeline" else
+                   "sequential" if allow_long_wait else image_offload_strategy(current_resolution_limits()["vram_bytes"]))
         if desired == self._offload_strategy:
             return
         # Shared workflow modules must have only one active offload hook chain.
@@ -305,21 +335,7 @@ class ImageGenerationManager:
                 if self._lora_id is not None:
                     self._activate_pipeline(self._pipeline)
                     self._set_lora(None, 1)
-                if operation == "txt2img":
-                    pipeline = self._pipeline
-                else:
-                    if operation not in self._workflow_pipelines:
-                        from diffusers import StableDiffusionXLImg2ImgPipeline, StableDiffusionXLInpaintPipeline
-                        cls = StableDiffusionXLInpaintPipeline if operation == "inpaint" else StableDiffusionXLImg2ImgPipeline
-                        # from_pipe shares UNet, VAE, and both text encoders.
-                        # No checkpoint load or tensor copies per frame.
-                        # Diffusers defaults from_pipe to float32, which casts
-                        # these shared weights too. Preserve each component's
-                        # dtype (including any upcast VAE) instead of doubling
-                        # UNet memory or copying all weights on every switch.
-                        self._workflow_pipelines[operation] = cls.from_pipe(
-                            self._pipeline, torch_dtype=None, add_watermarker=False)
-                    pipeline = self._workflow_pipelines[operation]
+                pipeline = self._pipeline_for_operation(operation)
                 self._activate_pipeline(pipeline)
                 try:
                     context.check_cancelled()
@@ -327,6 +343,21 @@ class ImageGenerationManager:
                 finally:
                     pipeline.maybe_free_model_hooks()
         return resident()
+
+    def _pipeline_for_operation(self, operation):
+        if operation == "txt2img":
+            return self._pipeline
+        if self._pipeline_type == "ErnieImagePipeline":
+            raise ValueError("This ERNIE image model supports text-to-image only. Choose an SDXL model for reference images or inpainting.")
+        if operation not in {"img2img", "inpaint"}:
+            raise ValueError("Unsupported image operation")
+        if operation not in self._workflow_pipelines:
+            from diffusers import StableDiffusionXLImg2ImgPipeline, StableDiffusionXLInpaintPipeline
+            cls = StableDiffusionXLInpaintPipeline if operation == "inpaint" else StableDiffusionXLImg2ImgPipeline
+            # Share weights and preserve component dtypes; one active offload chain.
+            self._workflow_pipelines[operation] = cls.from_pipe(
+                self._pipeline, torch_dtype=None, add_watermarker=False)
+        return self._workflow_pipelines[operation]
 
     def unload_for_training(self) -> None:
         """Release a resident offloaded pipeline before a trainer is spawned."""
@@ -472,6 +503,9 @@ class ImageGenerationManager:
         cancellation_event: threading.Event | None = None,
         allow_long_wait: bool = False,
         on_gpu_complete=None,
+        source_image_ref: str | None = None,
+        strength: float = 0.3,
+        source_fit: str = "contain",
     ) -> dict:
         from services.image_generation_limits import current_resolution_limits, validate_dimensions
         validate_dimensions(width, height, allow_long_wait, current_resolution_limits())
@@ -479,6 +513,21 @@ class ImageGenerationManager:
         model = models.get(model_id)
         if not model:
             raise ValueError("Selected image model is not installed or is not a supported Diffusers pipeline.")
+        is_ernie = model.get("pipeline") == "ErnieImagePipeline"
+        if is_ernie:
+            if width % 16 or height % 16:
+                raise ValueError("This ERNIE image model requires width and height in multiples of 16.")
+            if source_image_ref or lora_id:
+                raise ValueError("This ERNIE image model supports text-to-image without local SDXL LoRAs. Remove the reference image and choose LoRA None.")
+
+        source = None
+        effective_steps = steps
+        if source_image_ref:
+            if not 0.05 <= strength <= 1 or int(steps * strength) < 1:
+                raise ValueError("Increase Steps or Change amount to allow at least one image-to-image step.")
+            from services.generation_reference import prepare_reference
+            source = prepare_reference(source_image_ref, width, height, source_fit)
+            effective_steps = int(steps * strength)
 
         request_id = request_id or uuid.uuid4().hex
         lease_owner = f"image-generation:{request_id}"
@@ -492,7 +541,7 @@ class ImageGenerationManager:
             with self._cancel_state_lock:
                 self._cancel_events[request_id] = cancel_event
                 self._active_request_id = request_id
-                self._progress[request_id] = {"phase": "Loading model", "step": 0, "total_steps": steps, "started": started}
+                self._progress[request_id] = {"phase": "Loading model", "step": 0, "total_steps": effective_steps, "started": started}
             with self._lock:
                 from services.lora_training import manager as training_manager
                 if training_manager.is_active():
@@ -503,6 +552,8 @@ class ImageGenerationManager:
                 if cancel_event.is_set():
                     raise ImageGenerationCancelled("Image generation stopped")
                 self._set_lora(lora_id, lora_scale)
+                pipeline = self._pipeline_for_operation("img2img" if source is not None else "txt2img")
+                self._activate_pipeline(pipeline)
                 self._update_progress(request_id, phase="Preparing prompt")
                 import torch
 
@@ -511,6 +562,8 @@ class ImageGenerationManager:
                     token_status["prompt"]["chunks_required"],
                     token_status["negative_prompt"]["chunks_required"],
                 ) > 1
+                if is_ernie and needs_long_prompt:
+                    raise ValueError(f"This model accepts up to {token_status['long_prompt_max_tokens']} prompt tokens. Shorten the prompt or negative prompt.")
                 if long_prompt and needs_long_prompt and max(
                     token_status["prompt"]["chunks_required"], token_status["negative_prompt"]["chunks_required"]
                 ) > LONG_PROMPT_MAX_CHUNKS:
@@ -526,8 +579,8 @@ class ImageGenerationManager:
 
                 def step_completed(_pipeline, step, _timestep, callback_kwargs):
                     self._raise_if_cancelled(cancel_event, callback_kwargs)
-                    self._update_progress(request_id, step=min(step + 1, steps), step_elapsed=time.monotonic() - denoising_started,
-                                          phase="Decoding image" if step + 1 >= steps else "Generating image")
+                    self._update_progress(request_id, step=min(step + 1, effective_steps), step_elapsed=time.monotonic() - denoising_started,
+                                          phase="Decoding image" if step + 1 >= effective_steps else "Generating image")
                     return callback_kwargs
 
                 pipeline_args = {
@@ -538,6 +591,12 @@ class ImageGenerationManager:
                     "generator": generator,
                     "callback_on_step_end": step_completed,
                 }
+                if is_ernie:
+                    pipeline_args["use_pe"] = False
+                if source is not None:
+                    pipeline_args.pop("width")
+                    pipeline_args.pop("height")
+                    pipeline_args.update(image=source, strength=strength)
                 if long_prompt and needs_long_prompt:
                     pipeline_args.update(self._long_prompt_embeddings(prompt, negative_prompt))
                 else:
@@ -546,12 +605,14 @@ class ImageGenerationManager:
                     raise ImageGenerationCancelled("Image generation stopped")
                 denoising_started = time.monotonic()
                 self._update_progress(request_id, phase="Generating image", denoising_started=denoising_started)
-                result = self._pipeline(**pipeline_args)
+                result = pipeline(**pipeline_args)
                 if cancel_event.is_set():
                     raise ImageGenerationCancelled("Image generation stopped")
                 torch.cuda.synchronize()
                 peak_vram_bytes = torch.cuda.max_memory_allocated()
                 image = result.images[0]
+                scheduler = getattr(pipeline, "scheduler", None)
+                scheduler_recipe = {"name": type(scheduler).__name__, "config": dict(scheduler.config)} if scheduler is not None else None
                 del result, pipeline_args, generator
 
             # Pixels are now on CPU and no pipeline tensors are used below.
@@ -569,6 +630,13 @@ class ImageGenerationManager:
             output_path = OUTPUT_DIR / filename
             metadata = PngInfo()
             metadata.add_text("local_ai_seed", str(seed))
+            recipe = dict(schema_version=1, model_id=model_id, prompt=prompt, negative_prompt=negative_prompt,
+                          width=width, height=height, steps=steps, guidance_scale=guidance_scale, seed=seed,
+                          lora_id=lora_id, lora_scale=lora_scale, long_prompt=long_prompt,
+                          allow_long_wait=allow_long_wait, scheduler=scheduler_recipe,
+                          source_image_ref=source_image_ref, strength=strength if source_image_ref else None,
+                          source_fit=source_fit if source_image_ref else None)
+            metadata.add_text("local_ai_generation", json.dumps(recipe, ensure_ascii=False))
             partial_path = output_path.with_suffix(".png.part")
             try:
                 image.save(partial_path, format="PNG", pnginfo=metadata)
@@ -586,6 +654,7 @@ class ImageGenerationManager:
                 "peak_vram_bytes": peak_vram_bytes,
                 "generation_seconds": round(time.monotonic() - started, 2),
                 "long_prompt_used": bool(long_prompt and needs_long_prompt),
+                "generation_recipe": recipe,
                 "url": f"/image-generation/outputs/{filename}",
             }
         except Exception as exc:

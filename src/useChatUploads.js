@@ -134,7 +134,7 @@ export function useChatUploads({ onNewChat, onSessionSaved } = {}) {
     }
     const session = await onNewChat?.();
     if (!session?.id) return null;
-    return { id: session.id, messages: [], title: session.title || "New Chat" };
+    return { id: session.id, revision: session.revision, messages: [], title: session.title || "New Chat" };
   }, [currentSessionId, conversationHistory, sessionTitle, onNewChat]);
 
   const commit = useCallback(
@@ -147,6 +147,7 @@ export function useChatUploads({ onNewChat, onSessionSaved } = {}) {
           type: "SET_SESSION",
           payload: {
             id: sessionId,
+            revision: saved.revision,
             messages: saved.messages,
             title: saved.title,
             memorySummary: saved.memory_summary || "",

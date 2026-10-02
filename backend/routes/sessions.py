@@ -8,7 +8,7 @@ the request, calls the service, and returns the result.
 """
 
 from fastapi import APIRouter, HTTPException, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 # Import the session store service (Python side only)
 import sys
@@ -21,9 +21,15 @@ from services.session_store import (
     get_session,
     public_session,
     update_session,
+    update_session_metadata,
+    update_checklist_item,
+    edit_message_checklist,
+    SessionConflict,
     append_messages,
     list_sessions,
     list_session_images,
+    list_session_image_inventory,
+    migrate_session_metadata,
     get_session_image,
     get_session_image_by_id,
     hide_session_image,
@@ -47,6 +53,48 @@ class UpdateSessionRequest(BaseModel):
     title: str | None = None
     memory_summary: str | None = None
     summarized_message_count: int | None = None
+    expected_revision: str | None = None
+
+
+class UpdateSessionMetadataRequest(BaseModel):
+    # Forbid histories here: an older caller must not accidentally replace them.
+    model_config = {"extra": "forbid"}
+    title: str | None = None
+    model: str | None = None
+    memory_summary: str | None = None
+    summarized_message_count: int | None = Field(default=None, ge=0)
+    expected_revision: str | None = None
+
+
+def revision_error(error):
+    return HTTPException(status_code=428 if error.required else 409, detail={
+        "code": "session_revision_required" if error.required else "session_conflict",
+        "message": str(error), "current_revision": error.revision,
+    })
+
+
+class MetadataMigrationRequest(BaseModel):
+    session_ids: list[str] = Field(min_length=1, max_length=25)
+
+
+class ChecklistItemRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+    line_index: int = Field(ge=0, strict=True)
+    checked: bool = Field(strict=True)
+    expected_content: str
+
+
+class ChecklistEditItem(BaseModel):
+    model_config = {"extra": "forbid"}
+    line_index: int | None = Field(default=None, ge=0, strict=True)
+    text: str = Field(max_length=4000)
+    checked: bool = Field(strict=True)
+
+
+class ChecklistEditRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+    expected_content: str
+    items: list[ChecklistEditItem] = Field(max_length=500)
 
 
 # --- Endpoints ---
@@ -73,9 +121,21 @@ def get_all_sessions():
 
 
 @router.get("/images")
-def get_all_session_images(hidden: bool = False):
+def get_all_session_images(response: Response, hidden: bool = False, include_hidden: bool = False):
     """Return a lightweight gallery index for images stored in chats."""
+    response.headers["Cache-Control"] = "no-store"
+    if include_hidden:
+        return list_session_image_inventory()
     return {"images": list_session_images(hidden=hidden)}
+
+
+@router.post("/metadata/migrate")
+def migrate_selected_session_metadata(request: MetadataMigrationRequest):
+    """Optional, explicit maintenance for at most 25 selected legacy chats."""
+    try:
+        return migrate_session_metadata(request.session_ids)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
 
 
 @router.get("/{session_id}/images/by-id/{message_id}/{image_id}")
@@ -170,19 +230,34 @@ def get_session_by_id(session_id: str):
 @router.put("/{session_id}")
 def update_session_by_id(session_id: str, request: UpdateSessionRequest):
     """
-    Save updated messages to a session.
-    The frontend calls this after each message exchange.
+    Replace history only if it still matches the caller's loaded revision.
+    Additive turns use append; rename/settings use the metadata route.
     """
-    session = update_session(
-        session_id=session_id,
-        messages=request.messages,
-        model=request.model,
-        title=request.title,
-        memory_summary=request.memory_summary,
-        summarized_message_count=request.summarized_message_count,
-    )
+    try:
+        session = update_session(
+            session_id=session_id,
+            messages=request.messages,
+            model=request.model,
+            title=request.title,
+            memory_summary=request.memory_summary,
+            summarized_message_count=request.summarized_message_count,
+            expected_revision=request.expected_revision,
+        )
+    except SessionConflict as error:
+        raise revision_error(error) from error
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
+    return public_session(session)
+
+
+@router.patch("/{session_id}/metadata")
+def patch_session_metadata(session_id: str, request: UpdateSessionMetadataRequest):
+    try:
+        session = update_session_metadata(session_id, **request.model_dump(exclude_unset=True))
+    except SessionConflict as error:
+        raise revision_error(error) from error
+    if session is None:
+        raise HTTPException(404, "Session not found")
     return public_session(session)
 
 
@@ -191,12 +266,41 @@ def append_session_messages(session_id: str, request: UpdateSessionRequest):
     try:
         session = append_messages(session_id, request.messages, model=request.model,
                                   memory_summary=request.memory_summary,
-                                  summarized_message_count=request.summarized_message_count)
+                                  summarized_message_count=request.summarized_message_count,
+                                  expected_revision=request.expected_revision)
+    except SessionConflict as error:
+        raise revision_error(error) from error
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     if session is None:
         raise HTTPException(404, "The original chat is no longer available")
     return public_session(session)
+
+
+@router.patch("/{session_id}/messages/{message_id}/checklist")
+def patch_checklist_item(session_id: str, message_id: str, request: ChecklistItemRequest):
+    try:
+        result = update_checklist_item(session_id, message_id, **request.model_dump())
+    except SessionConflict as error:
+        raise revision_error(error) from error
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from error
+    if result is None:
+        raise HTTPException(404, "The checklist message is no longer available")
+    return result
+
+
+@router.put("/{session_id}/messages/{message_id}/checklist")
+def edit_checklist_message(session_id: str, message_id: str, request: ChecklistEditRequest):
+    try:
+        result = edit_message_checklist(session_id, message_id, **request.model_dump())
+    except SessionConflict as error:
+        raise revision_error(error) from error
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from error
+    if result is None:
+        raise HTTPException(404, "The checklist message is no longer available")
+    return result
 
 
 @router.delete("/{session_id}")

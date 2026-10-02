@@ -11,6 +11,7 @@ export default function ChatImageControls({ active = true, onGenerate, open, onT
   const change = (payload) => dispatch({ type: "SET_IMAGE_SETTINGS", payload });
   const compatible = loras.filter((adapter) => adapter.base_model_id === settings.modelId);
   const missingModel = settings.modelId && !models.some((model) => model.id === settings.modelId);
+  const selectedModel = models.find(model => model.id === settings.modelId);
   const missingLora = settings.loraId && !compatible.some((adapter) => adapter.id === settings.loraId);
   return <div className="chat-image-controls">
     <details className="chat-image-disclosure" open={open}>
@@ -40,6 +41,7 @@ export default function ChatImageControls({ active = true, onGenerate, open, onT
       </label>}
       <button type="button" onClick={() => dispatch({ type: "SET_SIDEBAR_TAB", payload: "generate" })}>Image settings</button>
       <button type="button" aria-label="Refresh image models and LoRAs" onClick={refreshModels}>↻</button>
+      {selectedModel?.recommended_settings && <button type="button" onClick={() => change(selectedModel.recommended_settings)}>Use Verboa settings</button>}
       <button type="button" className="chat-image-generate" onClick={onGenerate}
         disabled={!settings.modelId || missingModel || missingLora || !runtime?.ready || !!catalogError}
         title="Generate an image from the text in the message box">{isGenerating ? "Queue image" : "Generate image"}</button>

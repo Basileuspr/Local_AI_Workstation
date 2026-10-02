@@ -1,53 +1,36 @@
 import { useEffect, useState } from "react";
 import { apiUrl } from "./api";
 import { taskElapsedSeconds, taskProgressCache } from "./taskProgress";
+import { sharedPollingObserver, readPollingJson } from "./polling";
 
-export default function useTaskProgress(taskKey, path, pollInterval = 750) {
+export default function useTaskProgress(taskKey, path, pollInterval = 750, enabled = true) {
   const [view, setView] = useState(() => ({ taskKey, snapshot: taskProgressCache.read(taskKey), now: performance.now() }));
 
   useEffect(() => {
-    const controller = new AbortController();
-    let disposed = false;
-    let pollTimer;
+    if (!enabled) return;
 
     function refresh() {
       setView({ taskKey, snapshot: taskProgressCache.read(taskKey), now: performance.now() });
     }
 
-    async function poll() {
-      const pollId = taskProgressCache.beginPoll();
-      try {
-        const response = await fetch(apiUrl(path), { signal: controller.signal, cache: "no-store" });
-        if (!response.ok) throw new Error("Progress unavailable");
-        const data = await response.json();
-        if (!disposed) {
-          taskProgressCache.record(taskKey, data.progress, pollId);
-          refresh();
-        }
-      } catch {
-        if (!disposed) {
-          taskProgressCache.markUnavailable(taskKey, pollId);
-          refresh();
-        }
-      } finally {
-        if (!disposed) pollTimer = setTimeout(poll, pollInterval);
-      }
-    }
-
+    const observer = sharedPollingObserver(`progress:${path}`, {
+      read: options => readPollingJson(apiUrl(path), options), active: data => Boolean(data?.progress),
+      interval: (_, { failures }) => failures ? Math.min(30000, 2000 * 2 ** Math.min(4, failures - 1)) : pollInterval,
+    });
     refresh();
-    poll();
+    const detach = observer.subscribe({ data: data => {
+      taskProgressCache.record(taskKey, data.progress, taskProgressCache.beginPoll()); refresh();
+    }, error: () => { taskProgressCache.markUnavailable(taskKey, taskProgressCache.beginPoll()); refresh(); } });
     const clock = setInterval(refresh, 250);
     return () => {
-      disposed = true;
-      controller.abort();
+      detach();
       clearInterval(clock);
-      clearTimeout(pollTimer);
     };
-  }, [taskKey, path, pollInterval]);
+  }, [taskKey, path, pollInterval, enabled]);
 
   // A changed task must never render the previous task's state, even before
   // its effect has run (for example, switching between analysis projects).
-  const snapshot = view.taskKey === taskKey ? view.snapshot : taskProgressCache.read(taskKey);
+  const snapshot = enabled ? view.taskKey === taskKey ? view.snapshot : taskProgressCache.read(taskKey) : null;
   return {
     progress: snapshot?.progress || null,
     elapsed: taskElapsedSeconds(snapshot, view.taskKey === taskKey ? view.now : performance.now()),

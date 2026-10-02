@@ -20,12 +20,13 @@ export function validateVoiceReference(file) {
   return validateAudio(file) || (file.size > 25 * 1024 * 1024 ? 'Reference recordings must be 25 MB or smaller.' : '');
 }
 
-export async function generateClonedVoice({engine, text, reference, referenceText, language, acceleration}) {
+export async function generateClonedVoice({engine, text, reference, referenceText, language, acceleration, requestId, signal}) {
   const problem = validateVoiceReference(reference);
   if (problem) throw new Error(problem);
   const body = new FormData();
   for (const [key,value] of Object.entries({engine,text,reference,reference_text:referenceText,language,acceleration})) body.append(key,value);
-  const response = await fetch(apiUrl('/audio/voices/synthesize'), {method:'POST',body});
+  if (requestId) body.append('request_id', requestId);
+  const response = await fetch(apiUrl('/audio/voices/synthesize'), {method:'POST',body,signal});
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
     throw new Error(typeof error.detail === 'string' ? error.detail : 'Voice generation failed.');
@@ -34,4 +35,22 @@ export async function generateClonedVoice({engine, text, reference, referenceTex
   let processing = {};
   try { processing = JSON.parse(response.headers.get('x-voice-processing') || '{}'); } catch { /* Audio is still usable. */ }
   return {blob:await response.blob(), processing, engine};
+}
+
+export async function stopClonedVoice(requestId) {
+  const response = await fetch(apiUrl(`/audio/voices/stop/${encodeURIComponent(requestId)}`), {method:'POST'});
+  if (!response.ok) throw new Error('Could not stop speech generation.');
+  return response.json();
+}
+
+export async function saveVoiceReference(reference) {
+  const problem = validateVoiceReference(reference);
+  if (problem) throw new Error(problem);
+  const body = new FormData(); body.append('reference', reference);
+  const response = await fetch(apiUrl('/audio/voices/references'), {method:'POST',body});
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.detail || 'Could not save the chat voice reference.');
+  }
+  return response.json();
 }

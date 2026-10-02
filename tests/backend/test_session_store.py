@@ -299,7 +299,7 @@ def test_update_session_persists_memory_fields(sessions_dir):
         model="mistral:latest",
         memory_summary="Goals: ship the thing.",
         summarized_message_count=4,
-    )
+     expected_revision=(get_session(session["id"]) or {}).get("revision"))
     loaded = get_session(session["id"])
 
     assert loaded["memory_summary"] == "Goals: ship the thing."
@@ -310,9 +310,9 @@ def test_update_session_persists_memory_fields(sessions_dir):
 def test_update_session_leaves_memory_untouched_when_not_supplied(sessions_dir):
     """Omitting the fields must not clear a summary that already exists."""
     session = create_session()
-    update_session(session["id"], [], memory_summary="keep me", summarized_message_count=2)
+    update_session(session["id"], [], memory_summary="keep me", summarized_message_count=2, expected_revision=(get_session(session["id"]) or {}).get("revision"))
 
-    update_session(session["id"], [{"role": "user", "content": "hi"}])
+    update_session(session["id"], [{"role": "user", "content": "hi"}], expected_revision=(get_session(session["id"]) or {}).get("revision"))
     loaded = get_session(session["id"])
 
     assert loaded["memory_summary"] == "keep me"
@@ -322,7 +322,7 @@ def test_update_session_leaves_memory_untouched_when_not_supplied(sessions_dir):
 def test_update_session_autotitles_from_first_user_message(sessions_dir):
     session = create_session()
 
-    update_session(session["id"], [{"role": "user", "content": "Explain quantum tunnelling"}])
+    update_session(session["id"], [{"role": "user", "content": "Explain quantum tunnelling"}], expected_revision=(get_session(session["id"]) or {}).get("revision"))
 
     assert get_session(session["id"])["title"] == "Explain quantum tunnelling"
 
@@ -331,7 +331,7 @@ def test_autotitle_truncates_long_messages(sessions_dir):
     session = create_session()
     long_content = "x" * 80
 
-    update_session(session["id"], [{"role": "user", "content": long_content}])
+    update_session(session["id"], [{"role": "user", "content": long_content}], expected_revision=(get_session(session["id"]) or {}).get("revision"))
 
     assert get_session(session["id"])["title"] == "x" * 50 + "..."
 
@@ -339,19 +339,19 @@ def test_autotitle_truncates_long_messages(sessions_dir):
 def test_explicit_title_wins_over_autotitle(sessions_dir):
     session = create_session()
 
-    update_session(session["id"], [{"role": "user", "content": "ignored"}], title="Chosen")
+    update_session(session["id"], [{"role": "user", "content": "ignored"}], title="Chosen", expected_revision=(get_session(session["id"]) or {}).get("revision"))
 
     assert get_session(session["id"])["title"] == "Chosen"
 
 
 def test_update_missing_session_returns_none(sessions_dir):
-    assert update_session("nope", []) is None
+    assert update_session("nope", [], expected_revision=(get_session("nope") or {}).get("revision")) is None
 
 
 def test_list_sessions_is_sorted_most_recently_updated_first(sessions_dir):
     first = create_session(title="First")
     second = create_session(title="Second")
-    update_session(second["id"], [], title="Second")
+    update_session(second["id"], [], title="Second", expected_revision=(get_session(second["id"]) or {}).get("revision"))
 
     listed = list_sessions()
 
@@ -392,7 +392,7 @@ def test_gallery_lists_images_across_sessions(sessions_dir):
                 ],
             }
         ],
-    )
+     expected_revision=(get_session(session["id"]) or {}).get("revision"))
 
     images = list_session_images()
 
@@ -413,7 +413,7 @@ def test_hidden_images_are_excluded_from_the_gallery_but_kept_in_chat(sessions_d
                 "imagePreviews": [{"id": "p1", "src": f"data:image/png;base64,{PNG_B64}"}],
             }
         ],
-    )
+     expected_revision=(get_session(session["id"]) or {}).get("revision"))
 
     assert hide_session_image(session["id"], "p1") is True
 
@@ -423,7 +423,7 @@ def test_hidden_images_are_excluded_from_the_gallery_but_kept_in_chat(sessions_d
 
 def test_hiding_an_unknown_image_reports_failure(sessions_dir):
     session = create_session()
-    update_session(session["id"], [{"id": "m1", "role": "user", "content": "hi"}])
+    update_session(session["id"], [{"id": "m1", "role": "user", "content": "hi"}], expected_revision=(get_session(session["id"]) or {}).get("revision"))
 
     assert hide_session_image(session["id"], "not-there") is False
 

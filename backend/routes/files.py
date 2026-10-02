@@ -25,6 +25,8 @@ from pydantic import BaseModel, Field
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
+from services.knowledge_node_options import KnowledgeNodeOptions, KnowledgeNodeIcon
+from services.knowledge_notes import KnowledgeNodeDraft
 from services.file_parser import parse_file
 from services.request_queue import queue, QueueCancelled, prepare_runtime
 from services.knowledge_base import (
@@ -45,6 +47,12 @@ class KnowledgeLink(BaseModel):
 class KnowledgePosition(BaseModel):
     x: float = Field(ge=-100000, le=100000, allow_inf_nan=False)
     y: float = Field(ge=-100000, le=100000, allow_inf_nan=False)
+    z: float | None = Field(default=None, ge=-100000, le=100000, allow_inf_nan=False)
+
+
+class KnowledgeNodeSymbol(BaseModel):
+    model_config = {"extra": "forbid"}
+    icon: KnowledgeNodeIcon
 
 
 @router.get("/knowledge-base/graph")
@@ -78,10 +86,21 @@ def _change_knowledge_link(link, remove=False):
 def save_knowledge_position(doc_id: str, position: KnowledgePosition):
     from services.knowledge_graph import set_position
     try:
-        set_position(doc_id, position.x, position.y)
+        set_position(doc_id, position.x, position.y, position.z)
     except LookupError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
     return {"ok": True}
+
+
+@router.put("/knowledge-base/graph/options/{doc_id}")
+def save_knowledge_node_options(doc_id: str, options: KnowledgeNodeOptions):
+    from services.knowledge_graph import set_options
+    try:
+        return {"options": set_options(doc_id, options)}
+    except LookupError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
 
 
 @router.get("/knowledge-base/documents/{doc_id}")
@@ -89,6 +108,15 @@ def read_knowledge_document(doc_id: str, offset: int = Query(0, ge=0), limit: in
     from services.knowledge_graph import document
     try:
         return document(doc_id, offset, limit)
+    except LookupError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@router.put("/knowledge-base/graph/symbols/{doc_id}")
+def save_knowledge_node_symbol(doc_id: str, symbol: KnowledgeNodeSymbol):
+    from services.knowledge_graph import set_symbol
+    try:
+        return {"options": set_symbol(doc_id, symbol.icon)}
     except LookupError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
 
@@ -208,6 +236,30 @@ async def add_to_knowledge_base(client_request: Request, file: UploadFile = File
         "ocr_pages": parsed.get("ocr_pages", []),
         "ocr_model": parsed.get("ocr_model"),
     }
+
+
+@router.post("/knowledge-base/nodes")
+async def start_knowledge_node(client_request: Request, draft: KnowledgeNodeDraft):
+    from services.knowledge_notes import save_node
+    return await _embedding_work(client_request, f"Create Knowledge node: {draft.title}", save_node, draft)
+
+
+@router.get("/knowledge-base/nodes/{doc_id}")
+def read_authored_knowledge_node(doc_id: str):
+    from services.knowledge_notes import read_node
+    try:
+        return read_node(doc_id)
+    except LookupError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@router.put("/knowledge-base/nodes/{doc_id}")
+async def edit_knowledge_node(doc_id: str, client_request: Request, draft: KnowledgeNodeDraft):
+    from services.knowledge_notes import save_node
+    try:
+        return await _embedding_work(client_request, f"Update Knowledge node: {draft.title}", save_node, draft, doc_id)
+    except LookupError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
 
 
 @router.get("/knowledge-base/query")

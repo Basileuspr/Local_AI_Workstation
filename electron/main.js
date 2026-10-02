@@ -36,6 +36,9 @@ const { createTabCapture } = require("./tabCapture");
 const { runDesktopAction, writeClipboardImage } = require("./desktopFunctions");
 const { createProgramLaunchers } = require("./programLaunchers");
 const { backendFailure, pythonPreflight, desktopCapabilities } = require("./compatibility");
+const { readBuildInfo } = require("./buildInfo");
+// Capture once for this process. A later source build must not relabel a running desktop.
+const desktopBuild = readBuildInfo(path.resolve(__dirname, ".."));
 if (process.env.LAW_DISABLE_GPU === "1" || process.argv.includes("--law-software-rendering")) app.disableHardwareAcceleration();
 if (process.env.LAW_USER_DATA_DIR) app.setPath("userData", path.resolve(process.env.LAW_USER_DATA_DIR));
 const maintenanceToken = randomUUID();
@@ -198,6 +201,7 @@ ipcMain.handle("dashboard:cancel-drive-scan", (event, id) => trustedDesktop(even
 ipcMain.handle("dashboard:software-runtime", event => trustedDesktop(event) ? {
     app: app.getVersion(), electron: process.versions.electron, chromium: process.versions.chrome,
     node: process.versions.node, v8: process.versions.v8, architecture: process.arch,
+    build: desktopBuild,
 } : null);
 
 ipcMain.handle("dashboard:open-app-folder", async (event) => {

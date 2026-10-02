@@ -3,6 +3,25 @@ import { defaultRoleplayConfig, mergeRoleplayConfig } from "./roleplayPrompt";
 export const PREFERENCES_STORAGE_KEY = "local-ai-workstation-preferences-v1";
 export const LEGACY_ROLEPLAY_STORAGE_KEY = "local-ai-workstation-roleplay";
 
+export const defaultVoiceOutput = {
+  autoSpeak: false, referenceId: '', referenceName: '', referenceText: '',
+  engine: 'chatterbox-turbo', language: 'English', acceleration: 'auto',
+};
+
+export function normalizeVoiceOutput(value = {}) {
+  value = value && typeof value === 'object' ? value : {};
+  const engine = ['omnivoice','chatterbox-turbo','qwen3-tts'].includes(value.engine) ? value.engine : defaultVoiceOutput.engine;
+  return {
+    autoSpeak: value.autoSpeak === true,
+    referenceId: /^[a-f0-9]{64}$/.test(value.referenceId || '') ? value.referenceId : '',
+    referenceName: typeof value.referenceName === 'string' ? value.referenceName.slice(0, 200) : '',
+    referenceText: typeof value.referenceText === 'string' ? value.referenceText.slice(0, 4000) : '',
+    engine,
+    language: ['English','Chinese','Japanese','Korean','German','French','Russian','Portuguese','Spanish','Italian'].includes(value.language) && engine !== 'chatterbox-turbo' ? value.language : 'English',
+    acceleration: value.acceleration === 'cpu' ? 'cpu' : 'auto',
+  };
+}
+
 export const defaultImageSettings = {
   modelId: "",
   prompt: "",
@@ -36,6 +55,7 @@ const DEFAULT_PREFERENCES = {
   useKnowledgeBase: false,
   roleplay: defaultRoleplayConfig,
   imageSettings: defaultImageSettings,
+  voiceOutput: defaultVoiceOutput,
   customProfiles: [],
   activeCustomProfileId: "",
   activeLoraProjectId: "",
@@ -57,6 +77,7 @@ export function loadPreferences() {
         ...saved,
         roleplay: mergeRoleplayConfig(saved.roleplay),
         imageSettings: { ...defaultImageSettings, ...(saved.imageSettings || {}) },
+        voiceOutput: normalizeVoiceOutput(saved.voiceOutput),
         customProfiles: Array.isArray(saved.customProfiles) ? saved.customProfiles : [],
         activeCustomProfileId: saved.activeCustomProfileId || "",
       };
@@ -98,6 +119,7 @@ export function pickPreferences(state) {
     useKnowledgeBase: state.useKnowledgeBase,
     roleplay: state.roleplay,
     imageSettings: state.imageSettings,
+    voiceOutput: normalizeVoiceOutput(state.voiceOutput),
     customProfiles: state.customProfiles,
     activeCustomProfileId: state.activeCustomProfileId,
     activeLoraProjectId: state.activeLoraProjectId,

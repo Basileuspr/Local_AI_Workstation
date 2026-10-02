@@ -81,3 +81,7 @@ ROADMAP_ORIGINAL*.md
 *.gz
 *.rar
 .law-import-*
+
+# Additional local build exclusions
+# Generated portable identity; source captures retain the dated record.
+/build-info.json

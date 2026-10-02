@@ -5,6 +5,22 @@ import "./ImageGenerationHelp.css";
 
 const scales = [
   {
+    title: "Reference image · likeness and emulation",
+    description: "Upload, drop, paste, or choose Use as Generate reference from image actions across the app. Actual reference pixels guide image-to-image generation. Read reference details with an installed vision model, review the separate appearance/style/composition/lighting fields, then explicitly add selected fields to your prompt.",
+    rows: [
+      ["5–35% · Small changes", "A starting range for keeping composition and appearance close. Compare a few settings; likeness is not guaranteed."],
+      ["40–75% · Larger changes", "More freedom to alter shapes and details. Subject identity may change."],
+      ["80–100% · Most change", "Strong regeneration; at 100% the source has little influence."],
+      ["Fit whole image / Crop to fill", "Fit preserves the whole picture with white padding when needed. Crop fills the output using a center crop. Neither stretches the source."],
+      ["Remove reference", "Return to text-only generation for future requests. Already queued images keep the reference they were submitted with."],
+      ["Keep appearance / Balanced emulation / Reinterpret style", "Presets adjust change amount, steps and guidance. Keep appearance uses 25% change with 80 scheduled steps for 20 actual denoising steps. This provides more refinement than the default seven steps at 30% of 24; output quality and identity still need comparison."],
+      ["Extend edges", "Fits the complete source and fills spare space using border pixels. It avoids white bars, but wide padding can still produce repeated edge details. Match source proportions to reduce padding."],
+      ["Compare change amounts", "Queues up to three nearby strengths with the same seed, prompt, model, LoRA and matched denoising budget. Each result keeps its source and settings in its saved recipe. This is a visual comparison, not a likeness score."],
+      ["Style without the original composition", "Read reference details, select only style and lighting, add them to your prompt, then Remove reference. Your new subject and composition come from the prompt without using the original pixels."],
+      ["Character LoRA", "Choose a compatible trained identity LoRA and explicitly add its trigger to the prompt. Reference pixels and text guidance do not guarantee identity across large pose changes."],
+    ],
+  },
+  {
     title: "Guidance · prompt influence",
     description: "Higher guidance increases pressure to follow the prompt; it is not a quality score. These are illustrative tendencies, not measured previews or guarantees. The model, prompt and adapter change the outcome.",
     rows: [

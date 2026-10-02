@@ -11,6 +11,7 @@ import MediaCardActions from "./MediaCardActions";
 import CharacterSilhouette from "./CharacterSilhouette";
 import CharacterRegionEditor from "./CharacterRegionEditor";
 import CharacterFocus from "./CharacterFocus";
+import CharacterLinks from "./CharacterLinks";
 import "./CharacterStudio.css";
 
 const PAGE_SIZE = 36;
@@ -180,6 +181,7 @@ export default function CharacterStudio({ active, openDataset }) {
     <div className="character-datasets"><label>Character dataset<select value={datasetId} disabled={disabled || running} onChange={event => setDatasetId(event.target.value)}><option value="">Choose a dataset</option>{datasets.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
       <form onSubmit={event => { event.preventDefault(); guard(async () => { const data = await api.create(newName); await refreshList(); setDatasetId(data.id); setNewName(""); }); }}><label>New dataset name<input value={newName} maxLength={120} disabled={disabled || running} onChange={event => setNewName(event.target.value)} placeholder="Character name or training set" /></label><button disabled={disabled || running || !newName.trim()}>Create dataset</button></form>
     </div>
+    {dataset && <CharacterLinks kind="parts" targetId={dataset.id} label="parts dataset" disabled={disabled || running} />}
     {!dataset ? <div className="character-empty"><h2>Build a complete character training set</h2><p>Create a dataset, import source images, then review suggested regions or draw your own crops.</p><p>Full images and crops can be accepted separately for export. Rejected selections remain recoverable.</p></div> : <>
       <div className="character-actions">
         {desktop?.chooseFaceInputs ? <><button disabled={disabled} onClick={() => pickDesktop(false)}>Import files</button><button disabled={disabled} onClick={() => pickDesktop(true)}>Import folder</button></> : <label className="character-file-button">Import images<FreshFileInput type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple disabled={disabled} onChange={event => { const files = Array.from(event.target.files || []); event.target.value = ""; if (files.length) importImages(() => browserFaceSource(files)); }} /></label>}

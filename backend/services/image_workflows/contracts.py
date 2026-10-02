@@ -57,7 +57,7 @@ class Stage(Record):
     control_scale: float = Field(default=1, ge=0, le=2)
     control_kind: Literal["edges", "depth", "pose", "other"] = "edges"
     upscale_factor: int = Field(default=2, ge=2, le=4)
-    analysis_kind: Literal["description", "scene", "edit_guidance"] = "description"
+    analysis_kind: Literal["description", "scene", "edit_guidance", "reference"] = "description"
     reference_roles: list[Annotated[str, Field(min_length=1, max_length=300)]] = Field(default_factory=list, max_length=8)
 
     @model_validator(mode="after")

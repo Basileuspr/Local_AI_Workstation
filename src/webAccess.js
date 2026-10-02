@@ -1,4 +1,4 @@
-import { apiUrl, createSession, saveSession } from "./api";
+import { apiUrl, createSession, appendSessionMessages, updateSessionMetadata } from "./api";
 import { createMessageId } from "./messageIds";
 
 async function webRequest(path, options = {}) {
@@ -44,8 +44,7 @@ export async function createWebChat(source, model) {
   const session = await createSession();
   if (!session?.id) throw new Error("Could not create a chat");
   const messages = [buildWebSourceMessage(source)];
-  const saved = await saveSession(session.id, messages, model, {
-    title: `Web: ${source.title}`.slice(0, 100), memorySummary: "", summarizedMessageCount: 0,
-  });
+  await appendSessionMessages(session.id, messages, model);
+  const saved = await updateSessionMetadata(session.id, { title: `Web: ${source.title}`.slice(0, 100) });
   return saved;
 }

@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { chatSubmissionQueue } from "../chatSubmissionQueue";
 import { apiUrl } from "../api";
+import { queueObserver } from "../appPolling";
+import { invalidatePolling } from "../polling";
 import { useDispatch } from "../useStore.jsx";
 import { queueDestination } from "../queueNavigation";
 import { calculateQueueTiming, formatQueueTime, loadQueueTiming, recordQueueTiming, saveQueueTiming } from '../queueTiming';
@@ -16,37 +18,20 @@ export function PromptQueueProvider({ children }) {
   const [data, setData] = useState({ jobs: [], error: "", paused: false });
   const [reports, setReports] = useState(loadQueueTiming);
   const reportRef = useRef(reports);
+  const imageQueueRef = useRef("");
   const [persistent, setPersistent] = useState(true);
   useEffect(() => {
-    let stopped = false;
-    let timer;
-    let controller;
-    async function refresh() {
-      controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10000);
-      let delay = 2000;
-      try {
-        const response = await fetch(apiUrl("/queue"), { signal: controller.signal, cache: "no-store" });
-        if (!response.ok) throw new Error(response.status === 404 ? "Restart the desktop app to load Prompt Queue." : "Could not read the queue.");
-        const next = await response.json();
-        if (!stopped) {
+    return queueObserver().subscribe({ data: next => {
+          const imageState = JSON.stringify(next.jobs?.filter(job => job.kind === "image").map(job => [job.request_id, job.status]));
+          if (imageQueueRef.current !== imageState) { imageQueueRef.current = imageState; invalidatePolling("image-tasks"); }
           const updated = recordQueueTiming(reportRef.current, next);
           if (JSON.stringify(updated) !== JSON.stringify(reportRef.current)) {
             reportRef.current = updated; setReports(updated);
             setPersistent(saveQueueTiming(updated));
           }
           setData({ ...next, error: "" });
-        }
-        if (next.jobs?.some(pending)) delay = 750;
-      } catch (error) {
-        if (!stopped) setData((current) => ({ ...current, error: error.message || "Queue connection unavailable" }));
-      } finally {
-        clearTimeout(timeout);
-        if (!stopped) timer = setTimeout(refresh, delay);
-      }
-    }
-    refresh();
-    return () => { stopped = true; clearTimeout(timer); controller?.abort(); };
+      }, recovered: () => setData(current => current.error ? { ...current, error: "" } : current),
+      error: error => setData(current => ({ ...current, error: error.message || "Queue connection unavailable" })) });
   }, []);
   const timing = calculateQueueTiming(data, reports);
   return <QueueContext.Provider value={{...data, timing, reports, persistent}}>{children}</QueueContext.Provider>;
@@ -125,6 +110,7 @@ export default function PromptQueue({ onOpenDestination }) {
     } catch (failure) {
       setActionError(failure.message);
     } finally {
+      invalidatePolling("queue", "image-tasks", "runtime");
       setCancelling((current) => current.filter((id) => id !== job.id));
     }
   }

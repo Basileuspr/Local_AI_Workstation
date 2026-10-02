@@ -1,17 +1,18 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
+from services.conditional_status import conditional_status
 from services.request_queue import queue
 
 router = APIRouter(prefix="/queue", tags=["queue"])
 
 
 @router.get("")
-async def list_queue():
+async def list_queue(request: Request = None):
     snapshot = queue.snapshot()
     from services.image_generation import manager
     for job in snapshot["jobs"]:
         if job["kind"] == "image" and job["status"] == "running":
             job["progress"] = manager.generation_progress(job["request_id"])
-    return snapshot
+    return conditional_status(request, snapshot)
 
 
 @router.post("/{job_id}/cancel")

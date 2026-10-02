@@ -1,0 +1,41 @@
+.workspace-panes { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+.workspace-panes.split-chat { display: grid; grid-template-columns: minmax(0, var(--chat-share, 1fr)) 10px minmax(0, var(--pinned-share, 1fr)); background: var(--border); }
+.workspace-panes.split-chat > .chat-pane { grid-column: 1; grid-row: 1; }
+.workspace-panes.split-chat > .pinned-workspace { grid-column: 3; grid-row: 1; background: var(--bg-primary); }
+.workspace-panes.split-chat > .chat-pane-divider { grid-column: 2; grid-row: 1; }
+.workspace-panes.split-chat.split-stacked { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(280px, var(--chat-share, 1fr)) 10px minmax(200px, var(--pinned-share, .8fr)); overflow-y: auto; }
+.workspace-panes.split-chat.split-stacked > .chat-pane-divider { grid-column: 1; grid-row: 2; }
+.workspace-panes.split-chat.split-stacked > .pinned-workspace { grid-column: 1; grid-row: 3; }
+.workspace-panes > .pane { background: var(--bg-primary); }
+.pinned-pane-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex: 0 0 auto; padding: 9px 12px; border-bottom: 1px solid var(--border); }
+.pinned-pane-heading strong { min-width: 0; overflow-wrap: anywhere; font-size: 13px; }
+.chat-pin-picker { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 12px; }
+.chat-pin-picker select { width: 160px; max-width: 30vw; }
+.chat-pin-picker select, .pinned-pane-heading button, .checklist-tools button, .chat-checklist-editor button, .chat-checklist-editor input[type=text] {
+  border: 1px solid var(--border); border-radius: 5px; color: var(--text); background: var(--bg-input); padding: 6px 9px; font: inherit;
+}
+.checklist-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.checklist-tools button { font-size: 11px; cursor: pointer; }
+.checklist-tools button:focus-visible, .chat-checklist-editor :focus-visible, .chat-pin-picker select:focus-visible, .pinned-pane-heading button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.chat-checklist-editor { min-width: 0; width: 100%; margin: 8px 0; padding: 10px; border: 1px solid var(--border); border-radius: 6px; }
+.chat-checklist-editor p { font-size: 12px; color: var(--text-dim); margin: 0 0 8px; }
+.checklist-edit-items { display: grid; gap: 8px; }
+.checklist-edit-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 7px; }
+.checklist-edit-row input[type=text] { width: 100%; min-width: 0; }
+.checklist-edit-row input[type=checkbox] { accent-color: var(--accent); }
+.checklist-edit-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.chat-checklist-editor button { cursor: pointer; font-size: 12px; }
+.chat-checklist-editor button:disabled { opacity: .55; cursor: default; }
+.chat-side-content { min-height: 0; overflow: auto; padding: 16px; flex: 1; }
+.chat-side-content .document-page { width: 100%; min-height: 0; padding: 24px; }
+.chat-side-content .document-page h1 { font-size: 24px; }
+.chat-side-document-tools { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.chat-pin-notice { padding: 6px 12px; margin: 0; color: var(--yellow); font-size: 12px; }
+.pinned-workspace .image-library-mobile-collection { display: flex; align-items: center; gap: 8px; }
+.pinned-workspace .image-library-mobile-collection select { min-width: 0; max-width: 100%; }
+@media (max-width: 600px) {
+  .workspace-navigation { flex-wrap: wrap; }
+  .chat-pin-picker select { max-width: 48vw; }
+  .chat-checklist-editor { padding: 6px; }
+  .checklist-edit-row { gap: 4px; }
+}

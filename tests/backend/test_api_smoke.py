@@ -105,7 +105,7 @@ def test_session_create_read_update_delete(client):
 
     updated = client.put(
         f"/sessions/{session_id}",
-        json={
+        json={"expected_revision": client.get(f"/sessions/{session_id}").json().get("revision"),
             "messages": [{"id": "m1", "role": "user", "content": "hello"}],
             "model": "mistral:latest",
             "memory_summary": "Goals: test the API.",
@@ -127,7 +127,7 @@ def test_memory_fields_survive_a_reload_through_the_api(client):
     session_id = client.post("/sessions/new", json={}).json()["id"]
     client.put(
         f"/sessions/{session_id}",
-        json={
+        json={"expected_revision": client.get(f"/sessions/{session_id}").json().get("revision"),
             "messages": [{"id": "m1", "role": "user", "content": "hi"}],
             "memory_summary": "Important context.",
             "summarized_message_count": 2,
@@ -137,7 +137,7 @@ def test_memory_fields_survive_a_reload_through_the_api(client):
     # A later save that omits the memory fields must not erase them.
     client.put(
         f"/sessions/{session_id}",
-        json={"messages": [{"id": "m1", "role": "user", "content": "hi"}, {"id": "m2", "role": "assistant", "content": "hello"}]},
+        json={"expected_revision": client.get(f"/sessions/{session_id}").json().get("revision"), "messages": [{"id": "m1", "role": "user", "content": "hi"}, {"id": "m2", "role": "assistant", "content": "hello"}]},
     )
 
     reloaded = client.get(f"/sessions/{session_id}").json()
@@ -146,7 +146,7 @@ def test_memory_fields_survive_a_reload_through_the_api(client):
 
 
 def test_updating_a_missing_session_returns_404(client):
-    response = client.put("/sessions/missing", json={"messages": []})
+    response = client.put("/sessions/missing", json={"expected_revision": client.get("/sessions/missing").json().get("revision"), "messages": []})
 
     assert response.status_code == 404
 
@@ -221,7 +221,7 @@ def test_export_formats(client, fmt, media_type):
     session_id = client.post("/sessions/new", json={}).json()["id"]
     client.put(
         f"/sessions/{session_id}",
-        json={"messages": [{"id": "m1", "role": "user", "content": "exported content"}]},
+        json={"expected_revision": client.get(f"/sessions/{session_id}").json().get("revision"), "messages": [{"id": "m1", "role": "user", "content": "exported content"}]},
     )
 
     response = client.get(f"/export/{session_id}/{fmt}")
@@ -241,7 +241,7 @@ def test_export_omits_bulky_uploaded_file_bodies(client):
     session_id = client.post("/sessions/new", json={}).json()["id"]
     client.put(
         f"/sessions/{session_id}",
-        json={
+        json={"expected_revision": client.get(f"/sessions/{session_id}").json().get("revision"),
             "messages": [
                 {
                     "id": "m1",

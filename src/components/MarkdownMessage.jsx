@@ -2,6 +2,7 @@ import { Fragment, createContext, useContext, useState } from "react";
 import ProtectedImage from "../ImagePrivacy";
 import { localImageUrl } from "../chatImages";
 import ImageViewer from "./ImageViewer";
+import { taskPattern, codeFence, closesFence } from "../markdownTasks";
 
 const ImageClick = createContext(null);
 function InlineImage({ text }) {
@@ -39,7 +40,7 @@ function indentSize(value) {
   return value.replace(/\t/g, "  ").length;
 }
 
-function readList(lines, startIndex, baseIndent) {
+function readList(lines, startIndex, baseIndent, taskOptions) {
   const firstMatch = lines[startIndex].match(listPattern);
   const ordered = /^\d/.test(firstMatch[2]);
   const items = [];
@@ -49,12 +50,12 @@ function readList(lines, startIndex, baseIndent) {
     const match = lines[index].match(listPattern);
     if (!match || indentSize(match[1]) !== baseIndent || /^\d/.test(match[2]) !== ordered) break;
 
-    const item = { content: match[3], child: null };
+    const item = { content: match[3], child: null, line: index, task: match[3].match(taskPattern) };
     index += 1;
 
     const nextMatch = lines[index]?.match(listPattern);
     if (nextMatch && indentSize(nextMatch[1]) > baseIndent) {
-      const child = readList(lines, index, indentSize(nextMatch[1]));
+      const child = readList(lines, index, indentSize(nextMatch[1]), taskOptions);
       item.child = child.node;
       index = child.index;
     }
@@ -67,8 +68,14 @@ function readList(lines, startIndex, baseIndent) {
     node: (
       <List>
         {items.map((item, itemIndex) => (
-          <li key={itemIndex}>
-            {renderInline(item.content, `list-${startIndex}-${itemIndex}`)}
+          <li key={itemIndex} className={item.task ? "markdown-task" : undefined}>
+            {item.task ? <label className="markdown-task-label" title={taskOptions.disabledReason || undefined}>
+              <input type="checkbox" checked={item.task[1].toLowerCase() === "x"}
+                disabled={!taskOptions.onToggle || !!taskOptions.disabledReason}
+                aria-label={item.task[2] ? undefined : `Task on line ${item.line + 1}`}
+                onChange={event => taskOptions.onToggle?.(item.line, event.target.checked, event.currentTarget)} />
+              <span>{renderInline(item.task[2] || "", `task-${item.line}`)}</span>
+            </label> : renderInline(item.content, `list-${startIndex}-${itemIndex}`)}
             {item.child}
           </li>
         ))}
@@ -77,7 +84,7 @@ function readList(lines, startIndex, baseIndent) {
   };
 }
 
-export default function MarkdownMessage({ children, onImageClick }) {
+export default function MarkdownMessage({ children, onImageClick, onTaskToggle, taskDisabledReason }) {
   const [selectedImage, setSelectedImage] = useState(null);
   const lines = String(children || "").replace(/\r\n?/g, "\n").split("\n");
   const blocks = [];
@@ -90,11 +97,12 @@ export default function MarkdownMessage({ children, onImageClick }) {
       continue;
     }
 
-    if (/^```/.test(line)) {
-      const language = line.slice(3).trim();
+    const fence = codeFence(line);
+    if (fence) {
+      const language = fence.info;
       const code = [];
       index += 1;
-      while (index < lines.length && !/^```/.test(lines[index])) {
+      while (index < lines.length && !closesFence(lines[index], fence)) {
         code.push(lines[index]);
         index += 1;
       }
@@ -129,7 +137,7 @@ export default function MarkdownMessage({ children, onImageClick }) {
 
     const list = line.match(listPattern);
     if (list) {
-      const result = readList(lines, index, indentSize(list[1]));
+      const result = readList(lines, index, indentSize(list[1]), { onToggle: onTaskToggle, disabledReason: taskDisabledReason });
       blocks.push(<Fragment key={`list-${blocks.length}`}>{result.node}</Fragment>);
       index = result.index;
       continue;
@@ -137,7 +145,7 @@ export default function MarkdownMessage({ children, onImageClick }) {
 
     const paragraph = [line];
     index += 1;
-    while (index < lines.length && lines[index].trim() && !/^```/.test(lines[index]) && !/^(#{1,6})\s+/.test(lines[index]) && !/^>\s?/.test(lines[index]) && !listPattern.test(lines[index]) && !/^ {0,3}([-*_])(?:\s*\1){2,}\s*$/.test(lines[index])) {
+    while (index < lines.length && lines[index].trim() && !codeFence(lines[index]) && !/^(#{1,6})\s+/.test(lines[index]) && !/^>\s?/.test(lines[index]) && !listPattern.test(lines[index]) && !/^ {0,3}([-*_])(?:\s*\1){2,}\s*$/.test(lines[index])) {
       paragraph.push(lines[index]);
       index += 1;
     }

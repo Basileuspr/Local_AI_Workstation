@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import DashboardReset from "./DashboardReset";
 import SoftwareSpecs from "./SoftwareSpecs";
+import ToolRegistry from "./ToolRegistry";
 import DriveFolderSizes from "./DriveFolderSizes";
 import { CapabilityReadings } from "./Compatibility";
 import PCBridge from "./PCBridge";
 import { apiUrl } from "../api";
+import { createPollingObserver, readPollingJson } from "../polling";
 import { formatBytes, formatNumber, formatSystemSpecs } from "../systemSpecs";
 import "./Dashboard.css";
 
@@ -109,11 +111,11 @@ export function DashboardReadings({ stats }) {
       </div>
       {!drives.length && <p className="dashboard-note">No mounted drive readings are available.</p>}
     </section>
-    <p className="dashboard-note">CPU temperature sensors and memory configuration refresh about every 15 seconds. Other statistics refresh about every 5 seconds, including while you prompt in other tabs. All readings stay on this PC.</p>
+    <p className="dashboard-note">CPU temperature sensors and memory configuration are cached for about 15 seconds. Other statistics refresh about every 5 seconds while Dashboard is visible. Returning here refreshes the readings. All readings stay on this PC.</p>
   </>;
 }
 
-export default function Dashboard() {
+export default function Dashboard({ active = true }) {
   const [stats, setStats] = useState(null);
   const [error, setError] = useState("");
   const [copyState, setCopyState] = useState("");
@@ -154,29 +156,14 @@ export default function Dashboard() {
   }
 
   useEffect(() => {
-    // This pane stays mounted when another tab is selected. Keep one light,
-    // non-overlapping polling loop running so prompting usage remains current.
-    let stopped = false;
-    let timer;
-    let controller;
-    async function refresh() {
-      controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 12000);
-      try {
-        const response = await fetch(apiUrl("/system/stats"), { signal: controller.signal });
-        if (!response.ok) throw new Error(response.status === 404 ? "Restart the desktop app to load Dashboard's new hardware endpoint." : `Hardware readings failed (${response.status}).`);
-        const next = await response.json();
-        if (!stopped) { setStats(next); setError(""); }
-      } catch (failure) {
-        if (!stopped) setError(failure.name === "AbortError" ? "Hardware readings timed out. Retrying…" : failure.message || "Backend unavailable. Retrying…");
-      } finally {
-        clearTimeout(timeout);
-        if (!stopped) timer = setTimeout(refresh, 5000);
-      }
-    }
-    refresh();
-    return () => { stopped = true; clearTimeout(timer); controller?.abort(); };
-  }, []);
+    if (!active) return;
+    const observer = createPollingObserver({
+      read: options => readPollingJson(apiUrl("/system/stats"), options),
+      interval: (_, { hidden, failures }) => hidden ? null : failures ? Math.min(30000, 5000 * 2 ** Math.min(failures - 1, 3)) : 5000,
+    });
+    return observer.subscribe({ data: next => { setStats(next); setError(""); },
+      error: failure => setError(failure.message || "Backend unavailable. Retrying…") });
+  }, [active]);
 
   return <section className="dashboard">
     <header className="dashboard-header">
@@ -205,8 +192,9 @@ export default function Dashboard() {
     </header>
     {error && <p className="dashboard-notice" role="alert">{error}{stats ? " Showing the last successful sample; these readings are stale." : ""}</p>}
     <DashboardReset />
+    <ToolRegistry active={active} />
     <CapabilityReadings />
-    <PCBridge />
+    <PCBridge active={active} />
     <SoftwareSpecs />
     {stats ? <DashboardReadings stats={stats} /> : <p className="dashboard-note">{error ? "Waiting for the local backend." : "Collecting CPU, GPU, memory and drive readings…"}</p>}
   </section>;

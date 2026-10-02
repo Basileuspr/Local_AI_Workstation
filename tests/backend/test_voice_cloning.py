@@ -3,6 +3,9 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 import wave
+import threading
+import uuid
+from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 import pytest
@@ -126,3 +129,62 @@ def test_worker_is_offline_and_gpu_lease_lasts_until_exit(tmp_path,monkeypatch,r
         audio,info=voices.synthesize(*args)
         assert audio.startswith(b'RIFF') and info['device']=='cuda'
     assert events==['exited','released'] and not voices._lock.locked()
+
+
+def test_saving_a_chat_reference_reuses_the_shared_library(client, tmp_path, monkeypatch):
+    from services import character_resources, image_vault
+    monkeypatch.setattr(character_resources.bank, 'ROOT', tmp_path / 'bank')
+    monkeypatch.setattr(image_vault, 'ROOT', tmp_path / 'vault')
+    payload = wav()
+    response = client.post('/audio/voices/references', files={'reference':('../../Reference.wav', payload)})
+    assert response.status_code == 201
+    saved = response.json()
+    assert saved['name'] == 'Reference.wav' and saved['category'] == 'audio'
+    assert character_resources.asset_path(saved['id'], 'blob').read_bytes() == payload
+    assert character_resources.catalog('file') == [saved]
+    assert client.post('/audio/voices/references', files={'reference':('Reference.wav', wav(2))}).status_code == 400
+    assert len(character_resources.catalog('file')) == 1
+
+
+def test_chat_stop_cancels_the_existing_synthesis_request_and_cleans_temporary_files(client, monkeypatch):
+    started = threading.Event()
+    directories = []
+    def generate(*args, cancel_event):
+        directories.append(args[-1]); started.set()
+        assert cancel_event.wait(5)
+        voices.check_cancelled(cancel_event)
+    monkeypatch.setattr(voices, 'synthesize', generate)
+    request_id = str(uuid.uuid4())
+    with ThreadPoolExecutor() as pool:
+        pending = pool.submit(client.post, '/audio/voices/synthesize',
+            files={'reference':('Reference.wav', b'reference')},
+            data={'engine':'chatterbox-turbo', 'text':'Hello', 'request_id':request_id})
+        assert started.wait(5)
+        assert client.post('/audio/voices/stop/' + request_id).json() == {'stopped':True}
+        assert pending.result(timeout=5).status_code == 499
+    assert not directories[0].exists()
+    assert client.post('/audio/voices/stop/' + request_id).json() == {'stopped':False}
+
+
+def test_cancellation_waits_for_voice_worker_exit_before_releasing_gpu(tmp_path, monkeypatch):
+    monkeypatch.setattr(voices,'status',lambda:{'engines':{'chatterbox-turbo':{'ready':True}}})
+    monkeypatch.setattr(voices,'prepare_reference',lambda *args:6.1)
+    execution={'device':'cuda','cpu_threads':2,'warnings':[]}
+    monkeypatch.setattr(voices.audio_acceleration,'choose_device',lambda *args:execution)
+    cancelled = threading.Event(); events = []
+    class Process:
+        returncode = None
+        def __init__(self,*args,**kwargs): pass
+        def communicate(self, timeout):
+            assert timeout <= .25
+            cancelled.set()
+            raise voices.subprocess.TimeoutExpired('voice-worker',timeout)
+        def poll(self): return self.returncode
+    def kill(process):
+        process.returncode = -1; events.append('exited')
+    monkeypatch.setattr(voices.subprocess,'Popen',Process)
+    monkeypatch.setattr(voices,'stop_worker',kill)
+    monkeypatch.setattr(voices.audio_acceleration,'release_device',lambda plan:events.append('released'))
+    with pytest.raises(AudioError,match='cancelled'):
+        voices.synthesize('chatterbox-turbo','Hello',tmp_path/'unused.wav','','English','auto',tmp_path,cancelled)
+    assert events == ['exited','released'] and not voices._lock.locked()

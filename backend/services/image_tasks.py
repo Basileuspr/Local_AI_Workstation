@@ -61,6 +61,9 @@ class ImageTasks:
             raise ValueError("A batch must use one source chat")
         # Persist submission messages together before acknowledging the batch.
         messages = [{"id": f"image-request-{request['request_id']}", "role": "user",
+                     **({"imagePreviews": [{"id": f"reference-{request['request_id']}",
+                         "src": request["source_image_ref"], "name": "Generation reference"}]}
+                        if request.get("source_image_ref") else {}),
                      "content": f"[Image generation] {request['prompt']}" +
                      (f"\n{request['request_label']}" if request.get("request_label") else "")}
                     for request in requests]
@@ -92,6 +95,7 @@ class ImageTasks:
                        "content": f"[Image generated: {generated['filename']}]" + (f"\nSeed: {seed}" if seed is not None else ""),
                        "generatedImages": [{"id": task.image_id, "src": generated["image_ref"],
                                             "name": generated["filename"], "type": "image/png",
+                                            **({"generationRecipe": generated["generation_recipe"]} if generated.get("generation_recipe") else {}),
                                             **({"seed": seed} if seed is not None else {})}]}
             session_id = task.request["session_id"]
             saved = await run_in_threadpool(session_store.append_messages, session_id, [message], model)

@@ -4,6 +4,7 @@ import { runIsActive } from "../imageWorkflow";
 import WorkflowExportControls from "./WorkflowExportControls";
 import {useState} from 'react';
 import {useImageRemoval} from './ImageRemovalControls';
+import { REFERENCE_FIELDS } from '../generationReference';
 
 export default function WorkflowRunPanel({ record, busy, onStop, onKeep, onUseText, onKeepStitched }) {
   const [removed,setRemoved] = useState([]);
@@ -31,8 +32,17 @@ export default function WorkflowRunPanel({ record, busy, onStop, onKeep, onUseTe
         <button type="button" disabled={busy || record.accepted_output_ids.includes(output.id)} onClick={() => onKeep(output)}>{record.accepted_output_ids.includes(output.id) ? "Kept as reference" : "Keep as reference"}</button>
       </figure>)}
       {record.stage_results.filter(result => result.text).map(result => <div key={result.stage_id}>
-        <h3>Description / OCR result</h3><p className="workflow-result-text">{result.text}</p>
+        {result.metadata?.reference_analysis ? <>
+          <h3>Likeness and emulation details</h3>
+          {Object.entries(REFERENCE_FIELDS).map(([key, label]) => <section key={key}>
+            <h4>{label}</h4><p className="workflow-result-text">{result.metadata.reference_analysis[key] || 'No visible detail recorded.'}</p>
+            <button type="button" disabled={busy || !result.metadata.reference_analysis[key]?.trim()}
+              onClick={() => onUseText(result.metadata.reference_analysis[key])}>Use {label.toLowerCase()} as positive prompt</button>
+          </section>)}
+          {!!result.metadata.reference_analysis.uncertainties?.length && <p>Review: {result.metadata.reference_analysis.uncertainties.join(' ')}</p>}
+        </> : <><h3>Description / OCR result</h3><p className="workflow-result-text">{result.text}</p>
         <button type="button" disabled={busy} onClick={() => onUseText(result.text)}>Use as positive prompt</button>
+        </>}
       </div>)}
     </>}
   </section>;

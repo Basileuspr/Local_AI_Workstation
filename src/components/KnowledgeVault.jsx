@@ -3,6 +3,11 @@ import * as api from "../api";
 import { useStore, useDispatch } from "../useStore";
 import KnowledgeGraph from "./KnowledgeGraph";
 import KnowledgeContext from "./KnowledgeContext";
+import KnowledgeNodeEditor from "./KnowledgeNodeEditor";
+import KnowledgeNodeSymbol from "./KnowledgeNodeSymbol";
+import KnowledgeNodeComposer, { KnowledgeNodeContent } from "./KnowledgeNodeComposer";
+import { nodeLabel, nodeMatches } from "../knowledgeNodeOptions";
+import { layoutKnowledgeGraph3D } from "../knowledgeGraph3D";
 import BulkActions, { SelectionCheckbox } from "./BulkActions";
 import { useSelection, useBatchAction } from "../useSelection";
 import "./KnowledgeVault.css";
@@ -13,6 +18,8 @@ export default function KnowledgeVault({ active }) {
   const state = useStore(), dispatch = useDispatch();
   const characters=useCharacterWorkspace();
   const [graph, setGraph] = useState({ nodes: [], edges: [] });
+  const [nodePreview, setNodePreview] = useState(null);
+  const [startingNode, setStartingNode] = useState(false);
   const [selectedId, setSelectedId] = useState(() => {
     try { return localStorage.getItem("knowledge-vault-selected-v1") || ""; } catch { return ""; }
   });
@@ -20,6 +27,7 @@ export default function KnowledgeVault({ active }) {
   const [detail, setDetail] = useState(null), [page, setPage] = useState(0);
   const [error, setError] = useState(""), [detailError, setDetailError] = useState("");
   const [loading, setLoading] = useState(false), [busy, setBusy] = useState(false);
+  const [nodeSaving, setNodeSaving] = useState(false), nodeSaveLock = useRef(false);
   const upload = useRef(null), request = useRef(0);
   const selection = useSelection(graph.nodes, node => node.doc_id), batch = useBatchAction();
   useEffect(() => {
@@ -37,7 +45,7 @@ export default function KnowledgeVault({ active }) {
   useEffect(() => {
     if(characters?.documentTarget){setQuery('');setSelectedId(characters.documentTarget.id);setPage(0);}
   },[characters?.documentTarget]);
-  useEffect(() => { setPage(0); setTarget(""); }, [selectedId]);
+  useEffect(() => { setPage(0); setTarget(""); setNodePreview(null); }, [selectedId]);
   useEffect(() => {
     let cancelled = false; setDetail(null); setDetailError("");
     if (active && selectedId) api.knowledgeGraphRequest(`/documents/${encodeURIComponent(selectedId)}?offset=${page * 30}`, undefined, undefined, false)
@@ -60,12 +68,42 @@ export default function KnowledgeVault({ active }) {
     });
   }
   const selected = graph.nodes.find(node => node.doc_id === selectedId);
-  async function selectIndexedCharacter(docId) {
-    dispatch({type:'SET_KB_DOCUMENTS',payload:await api.listKnowledgeBase()});
-    await refresh();setQuery('');setSelectedId(docId);setPage(0);
+  async function selectIndexedDocument(docId) {
+    const documents = await api.listKnowledgeBase();
+    const data = await api.knowledgeGraphRequest();
+    request.current++; setLoading(false); setGraph(data);
+    dispatch({type:'SET_KB_DOCUMENTS',payload:documents});
+    setQuery('');setSelectedId(docId);setPage(0);
   }
   const connections = graph.edges.filter(edge => edge.source === selectedId || edge.target === selectedId);
-  const visibleNodes = graph.nodes.filter(node => node.filename.toLowerCase().includes(query.toLowerCase()));
+  const visibleNodes = graph.nodes.filter(node => nodeMatches(node, query));
+  const previewGraph = nodePreview?.id === selectedId ? { ...graph, nodes: graph.nodes.map(node => node.doc_id === selectedId ? { ...node, options: nodePreview.options } : node) } : graph;
+  async function saveNodePresentation(action) {
+    if (nodeSaveLock.current) throw new Error("Wait for the current node save to finish.");
+    nodeSaveLock.current = true; setNodeSaving(true);
+    try { return await action(); }
+    finally { nodeSaveLock.current = false; setNodeSaving(false); }
+  }
+  async function saveNodeOptions(id, options) {
+    return saveNodePresentation(async () => {
+    // Lock the current layout even when this node has never been dragged.
+    const node = graph.nodes.find(item => item.doc_id === id);
+    const needsPosition = options.locked && (!node.position || (!Number.isFinite(node.position.z) && !node.options?.locked));
+    const position = needsPosition ? layoutKnowledgeGraph3D(graph.nodes, graph.edges)[id] : node.position;
+    if (needsPosition) await api.knowledgeGraphRequest(`/positions/${encodeURIComponent(id)}`, "PUT", position);
+    const result = await api.knowledgeGraphRequest(`/options/${encodeURIComponent(id)}`, "PUT", options);
+    setGraph(current => ({ ...current, nodes: current.nodes.map(node => node.doc_id === id ? { ...node, position, options: result.options } : node) }));
+    setNodePreview(current => current?.id === id ? null : current);
+    return result.options;
+    });
+  }
+  async function saveNodeSymbol(id, icon) {
+    return saveNodePresentation(async () => {
+    const result = await api.knowledgeGraphRequest(`/symbols/${encodeURIComponent(id)}`, "PUT", { icon });
+    setGraph(current => ({ ...current, nodes: current.nodes.map(node => node.doc_id === id ? { ...node, options: result.options } : node) }));
+    setNodePreview(current => current?.id === id ? { ...current, options: { ...current.options, icon } } : current);
+    });
+  }
   function removeDocuments(items) {
     return batch.run({ items, key: node => node.doc_id, selection,
       confirm: `Remove ${items.length} document(s) from Knowledge? Their indexed chunks and vault links will be removed; original files are unchanged.`,
@@ -77,38 +115,43 @@ export default function KnowledgeVault({ active }) {
   return <section className="knowledge-vault" aria-label="Knowledge vault">
     <header className="vault-header"><div><h1>Knowledge vault</h1><p>{graph.nodes.length} documents · {graph.edges.length} connections · Available to RAG</p></div>
       <KnowledgeContext />
+      <button disabled={busy || batch.busy} aria-expanded={startingNode} onClick={() => setStartingNode(value => !value)}>+ Start node</button>
       <button disabled={busy} onClick={() => upload.current?.click()}>{busy ? "Working…" : "+ Add document"}</button>
       <input ref={upload} type="file" accept=".txt,.md,.pdf,.docx" hidden onChange={addFile} />
     </header>
-    <KnowledgeCharacterStart active={active} nodes={graph.nodes} onSelect={id => {setQuery('');setSelectedId(id);}} onIndexed={selectIndexedCharacter}/>
+    <KnowledgeNodeComposer open={startingNode} onClose={() => setStartingNode(false)} onCreated={selectIndexedDocument} disabled={busy || batch.busy} />
+    <KnowledgeCharacterStart active={active} nodes={graph.nodes} onSelect={id => {setQuery('');setSelectedId(id);}} onIndexed={selectIndexedDocument}/>
     {error && <div className="vault-error" role="alert">{error} <button onClick={refresh}>Retry</button></div>}
     <div className="vault-workspace">
-      <aside className="vault-files" aria-label="Vault documents"><label>Find a document<input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Search filenames…" /></label>
+      <aside className="vault-files" aria-label="Vault documents"><label>Find a document<input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Names, tags, notes…" /></label>
         {loading && <p role="status">Loading vault…</p>}
         <BulkActions selection={selection} items={visibleNodes} label="documents" batch={batch} disabled={busy}
           actions={[{ label: "Remove selected", danger: true, onClick: removeDocuments }]} />
-        {visibleNodes.map(node => <div className="vault-file" key={node.doc_id}><SelectionCheckbox selection={selection} item={node} label={node.filename} disabled={batch.busy} /><button aria-pressed={selectedId === node.doc_id} onClick={() => setSelectedId(node.doc_id)}><span>{node.filename}</span><small>{node.chunks} chunks</small></button></div>)}
-        {!loading && query && !graph.nodes.some(node => node.filename.toLowerCase().includes(query.toLowerCase())) && <p>No matching documents.</p>}
+        {visibleNodes.map(node => <div className="vault-file" key={node.doc_id}><SelectionCheckbox selection={selection} item={node} label={nodeLabel(node)} disabled={batch.busy} /><button aria-pressed={selectedId === node.doc_id} onClick={() => setSelectedId(node.doc_id)}><span>{nodeLabel(node)}</span><small>{node.authored ? `${node.node_kind} · ` : node.options?.label && `${node.filename} · `}{node.chunks} chunks{node.options?.locked ? " · Locked" : ""}</small>{!!node.options?.tags?.length && <small>{node.options.tags.join(" · ")}</small>}</button></div>)}
+        {!loading && query && !visibleNodes.length && <p>No matching documents.</p>}
       </aside>
-      <KnowledgeGraph {...graph} selectedId={selectedId} query={query} onSelect={setSelectedId} onPosition={async (id, position) => {
-        try { await api.knowledgeGraphRequest(`/positions/${encodeURIComponent(id)}`, "PUT", position); }
+      <KnowledgeGraph {...previewGraph} selectedId={selectedId} query={query} onSelect={setSelectedId} onPosition={async (id, position) => {
+        try { await api.knowledgeGraphRequest(`/positions/${encodeURIComponent(id)}`, "PUT", position); setGraph(current => ({ ...current, nodes: current.nodes.map(node => node.doc_id === id ? { ...node, position } : node) })); }
         catch (failure) { setError(`Position not saved: ${failure.message}`); }
       }} />
       <aside className="vault-inspector" aria-label="Document details">
         {!selected ? <div className="vault-inspector-empty"><h2>Select a document</h2><p>Explore its indexed text and connected documents.</p><p>Connect documents here, or import text containing <code>[[another document]]</code>.</p><p>Lines show explicit links, not inferred similarity. Disconnected documents still participate in RAG.</p></div> : <>
-          <div className="vault-inspector-heading"><h2>{selected.filename}</h2><button onClick={() => setSelectedId("")} aria-label="Close document">×</button></div>
-          <CharacterNodePointer key={selectedId} filename={selected.filename} onIndexed={selectIndexedCharacter}/>
+          <div className="vault-inspector-heading"><h2>{selected.authored ? nodeLabel(selected) : selected.filename}</h2><button onClick={() => setSelectedId("")} aria-label="Close document">×</button></div>
+          <KnowledgeNodeSymbol key={`node-symbol:${selectedId}`} node={selected} disabled={busy || batch.busy || nodeSaving} onSave={icon => saveNodeSymbol(selectedId, icon)} />
+          {selected.authored && <KnowledgeNodeContent key={`node-content:${selectedId}`} node={selected} active={active} disabled={busy || batch.busy} onSaved={selectIndexedDocument} />}
+          <KnowledgeNodeEditor key={`node-options:${selectedId}`} node={selected} disabled={busy || batch.busy || nodeSaving} onPreview={options => setNodePreview(options ? { id: selectedId, options } : null)} onSave={options => saveNodeOptions(selectedId, options)} />
+          <CharacterNodePointer key={selectedId} filename={selected.filename} onIndexed={selectIndexedDocument}/>
           <p>{selected.chunks} indexed chunks</p><button className="vault-remove" disabled={batch.busy || busy} onClick={() => removeDocuments([selected])}>Remove from Knowledge</button><h3>Connections</h3>
           {!connections.length && <p>No connections yet.</p>}
           {connections.map(edge => {
             const otherId = edge.source === selectedId ? edge.target : edge.source;
             const other = graph.nodes.find(node => node.doc_id === otherId);
-            return <div className="vault-connection" key={otherId}><button onClick={() => setSelectedId(otherId)}>{other?.filename}</button><small>{edge.kinds.join(" + ")}</small>
+            return <div className="vault-connection" key={otherId}><button onClick={() => setSelectedId(otherId)}>{other ? nodeLabel(other) : "Unavailable node"}</button><small>{edge.kinds.join(" + ")}</small>
               {edge.kinds.includes("manual") && <button disabled={busy} aria-label={`Unlink ${other?.filename}`} onClick={() => mutate(() => api.knowledgeGraphRequest("/links", "DELETE", { source: selectedId, target: otherId }))}>Unlink</button>}
             </div>;
           })}
           <form className="vault-link-form" onSubmit={event => { event.preventDefault(); if (target) mutate(() => api.knowledgeGraphRequest("/links", "POST", { source: selectedId, target })); }}>
-            <select aria-label="Document to connect" value={target} onChange={event => setTarget(event.target.value)}><option value="">Connect to a document…</option>{graph.nodes.filter(node => node.doc_id !== selectedId).map(node => <option key={node.doc_id} value={node.doc_id}>{node.filename}</option>)}</select>
+            <select aria-label="Document to connect" value={target} onChange={event => setTarget(event.target.value)}><option value="">Connect to a document…</option>{graph.nodes.filter(node => node.doc_id !== selectedId).map(node => <option key={node.doc_id} value={node.doc_id}>{nodeLabel(node)}</option>)}</select>
             <button disabled={busy || !target}>Connect</button>
           </form>
           {!!selected.unresolved_links?.length && <p className="vault-unresolved">Unresolved or ambiguous links: {selected.unresolved_links.join(", ")}</p>}

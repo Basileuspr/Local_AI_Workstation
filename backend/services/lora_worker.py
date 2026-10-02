@@ -195,7 +195,7 @@ def _train(project_path: Path, run_id: str, cache_root: Path) -> None:
 
     from services.image_generation import discover_models
     base = next((model for model in discover_models() if model["id"] == project.get("base_model_id")), None)
-    if not base:
+    if not base or base.get("supports_lora_training") is False:
         raise RuntimeError("The selected base model is no longer installed or is not SDXL compatible")
     base_path = base["path"]
     image_root = project_path.parent / "dataset" / "originals"

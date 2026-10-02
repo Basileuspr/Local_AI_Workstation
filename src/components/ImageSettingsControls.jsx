@@ -16,9 +16,9 @@ function NumberControl({ name, value, min, max, step = 1, increments, presets = 
   </div>;
 }
 
-export default function ImageSettingsControls({ settings, onChange, resolutionLimits }) {
+export default function ImageSettingsControls({ settings, onChange, resolutionLimits, sourceSize }) {
   return <>
-    <ImageGenerationSizing width={settings.width} height={settings.height} allowLongWait={settings.allowLongWait} limits={resolutionLimits} onChange={onChange}/>
+    <ImageGenerationSizing width={settings.width} height={settings.height} allowLongWait={settings.allowLongWait} limits={resolutionLimits} onChange={onChange} sourceSize={sourceSize}/>
     <div className="image-settings-grid">
       <NumberControl name="Steps" value={settings.steps} min={1} max={MAX_IMAGE_STEPS} increments={[1, 5, 10, 15]} presets={[10, 20, 30, 40, 50, 60, 100, MAX_IMAGE_STEPS]} onChange={steps => onChange({ steps })} />
       <NumberControl name="Guidance" value={settings.guidanceScale} min={1} max={MAX_IMAGE_GUIDANCE} step={0.1} increments={[0.1, 0.5, 1, 2]} presets={[3, 5.5, 7, 10, 15, 20, 25, MAX_IMAGE_GUIDANCE]} onChange={guidanceScale => onChange({ guidanceScale })} />

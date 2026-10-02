@@ -13,6 +13,12 @@
   flex: 0 0 auto;
 }
 
+#image-studio .image-studio-header-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+#image-studio .image-clear-btn { padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-card); color: var(--text); font: inherit; font-size: 12px; cursor: pointer; }
+#image-studio .image-clear-btn:hover:not(:disabled) { border-color: var(--accent); }
+#image-studio .image-clear-btn:disabled { opacity: .5; cursor: default; }
+#image-studio .image-clear-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
 #image-studio .image-studio-layout {
   width: 100%;
   margin: 0;
@@ -38,6 +44,16 @@
   max-width: 100%;
   box-shadow: none;
 }
+
+#image-studio .generate-reference { display: flex; flex-direction: column; gap: 9px; padding: 12px; border: 1px dashed var(--accent); border-radius: 8px; background: var(--bg-card); min-width: 0; }
+#image-studio .generate-reference > strong { color: var(--text-primary); font-size: 13px; }
+#image-studio .generate-reference > small { color: var(--text-secondary); font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+#image-studio .generate-reference > button { padding: 9px 12px; border: 1px solid var(--accent); border-radius: 6px; color: var(--accent); background: var(--bg-sidebar); cursor: pointer; }
+#image-studio .generate-reference > .generate-reference-preview { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 6px; cursor: zoom-in; }
+#image-studio .generate-reference-preview img { width: 100%; max-height: 180px; object-fit: contain; border-radius: 5px; }
+#image-studio .generate-reference-preview span { font-size: 11px; }
+#image-studio .generate-reference:focus-visible, #image-studio .generate-reference button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+#image-studio .generate-reference [role="alert"] { font-size: 12px; color: var(--red); }
 
 #image-studio .image-studio-result {
   flex: 1;
@@ -141,9 +157,22 @@
   .image-batch-output-grid { grid-template-columns: repeat(min(var(--batch-columns), 2), minmax(0, 1fr)); grid-template-rows: none; grid-auto-rows: minmax(280px, 40dvh); }
 }
 
-/* Magnify inside the existing frame; individual scale preserves saved rotation. */
 #image-studio .generated-image-preview { contain: size; overflow: hidden; cursor: zoom-in; }
-#image-studio .generated-image-preview img { scale: 1; transform-origin: var(--zoom-x, 50%) var(--zoom-y, 50%); }
-#image-studio .generated-image-preview[data-zoomed="true"] img,
-#image-studio .generated-image-preview:focus-visible img { scale: 2; }
 #image-studio .generated-image-preview:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+.reference-presets, .reference-comparison, .reference-lora-hint { display: flex; flex-wrap: wrap; gap: 8px; }
+.reference-presets small, .reference-comparison small, .reference-lora-hint small { flex-basis: 100%; }
+#image-studio :is(.reference-presets, .reference-analysis, .reference-comparison, .reference-lora-hint) button {
+  padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text-primary); background: var(--bg-sidebar); cursor: pointer;
+}
+#image-studio :is(.reference-presets, .reference-analysis, .reference-comparison, .reference-lora-hint) button:hover:not(:disabled) { border-color: var(--accent); }
+#image-studio :is(.reference-presets, .reference-analysis, .reference-comparison, .reference-lora-hint) button:disabled { opacity: .5; cursor: not-allowed; }
+.reference-analysis > button { margin: 4px 4px 4px 0; }
+.reference-presets small, .reference-comparison small, .reference-lora-hint small { color: var(--text-secondary); line-height: 1.5; font-size: 11px; }
+.reference-analysis { border-top: 1px solid var(--border); padding-top: 10px; margin-top: 8px; }
+.reference-analysis summary { cursor: pointer; font-weight: 600; }
+.reference-analysis p { font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.reference-analysis textarea { width: 100%; box-sizing: border-box; }
+#image-studio .reference-detail-choice { display: flex; flex-direction: row; align-items: center; gap: 8px; margin-top: 10px; }
+#image-studio .reference-detail-choice input { width: auto; }

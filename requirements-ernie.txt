@@ -1,0 +1,6 @@
+# Optional ERNIE Image / Verboa NF4 support. Install in the existing CUDA venv.
+-r requirements.txt
+diffusers>=0.39,<1.0
+transformers>=5.2,<6.0
+accelerate>=1.14,<2.0
+bitsandbytes==0.50.2

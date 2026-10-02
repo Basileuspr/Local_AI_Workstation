@@ -25,7 +25,9 @@ export function reconcileImageLora(settings, catalog) {
 
 export function validateImageSelection(settings, catalog) {
   if (!settings.prompt.trim()) throw new Error("Type an image description first.");
-  if (!catalog.models.some((model) => model.id === settings.modelId)) throw new Error("Select an installed image model.");
+  const model = catalog.models.find(model => model.id === settings.modelId);
+  if (!model) throw new Error("Select an installed image model.");
+  if (model.supports_lora_training === false && settings.loraId) throw new Error("This model does not use local SDXL LoRAs. Choose None.");
   if (settings.loraId && catalog.loraError) throw new Error("Optional LoRAs could not be loaded. Choose None (base model only), or refresh to try again.");
   if (settings.loraId && !(catalog.loras || []).some((adapter) => adapter.id === settings.loraId && adapter.base_model_id === settings.modelId)) {
     throw new Error("Select a LoRA compatible with this image model, or choose None.");
@@ -35,9 +37,10 @@ export function validateImageSelection(settings, catalog) {
   }
   if (!catalog.runtime?.ready) throw new Error("Image generation is unavailable. Check the Generate tab for runtime details.");
   const limits = imageSizeLimits(settings.allowLongWait, catalog.runtime?.resolution_limits);
+  const multiple = model.dimension_multiple || 8;
   for (const key of ["width", "height"]) {
     const size = Number(settings[key]);
-    if (!Number.isInteger(size) || size < limits.min || size > limits.max || size % 8) throw new Error(`Width and height must be ${limits.min}–${limits.max} pixels, in multiples of 8. Enable longer waits for larger sizes.`);
+    if (!Number.isInteger(size) || size < limits.min || size > limits.max || size % multiple) throw new Error(`Width and height must be ${limits.min}–${limits.max} pixels, in multiples of ${multiple}. Enable longer waits for larger sizes.`);
   }
   for (const [key, label, min, max, integer] of [["steps", "Steps", 1, MAX_IMAGE_STEPS, true], ["guidanceScale", "Guidance", 1, MAX_IMAGE_GUIDANCE, false], ["seed", "Seed", 0, 2147483647, true]]) {
     if (key === "seed" && settings[key] === "") continue;

@@ -263,6 +263,11 @@ class OllamaProvider:
                 payload["format"] = SceneAnalysis.model_json_schema()
                 payload["messages"][0]["content"] = INSTRUCTION
                 payload["options"]["num_predict"] = 4096
+            elif request.stage.analysis_kind == "reference":
+                from .reference_analysis import INSTRUCTION as REFERENCE_INSTRUCTION, ReferenceAnalysis
+                payload["format"] = ReferenceAnalysis.model_json_schema()
+                payload["messages"][0]["content"] = REFERENCE_INSTRUCTION
+                payload["options"]["num_predict"] = 2048
             elif request.stage.analysis_kind == "edit_guidance":
                 references = []
                 for path in request.references:
@@ -298,6 +303,12 @@ class OllamaProvider:
             return StageResult(text=analysis.observations, metadata={"provider": self.key,
                 "model_id": request.stage.model_id, "seed": request.prompt_settings.seed,
                 "scene_analysis": analysis.model_dump()})
+        if request.stage.analysis_kind == "reference":
+            from .reference_analysis import parse_analysis as parse_reference
+            analysis = parse_reference(text)
+            return StageResult(text="Reference details ready for review", metadata={"provider": self.key,
+                "model_id": request.stage.model_id, "seed": request.prompt_settings.seed,
+                "reference_analysis": analysis.model_dump()})
         return StageResult(text=text.strip(), metadata={"provider": self.key, "model_id": request.stage.model_id,
             "seed": request.prompt_settings.seed, "instruction": "Reference role guidance for review; no pixels edited." if request.stage.analysis_kind == "edit_guidance" else "Describe and transcribe; workflow image prompts are not modified.", "reference_roles": request.stage.reference_roles if request.stage.analysis_kind == "edit_guidance" else []})
 
