@@ -1,0 +1,61 @@
+.learning-workspace { padding: 24px; overflow: auto; min-height: 0; color: var(--text); }
+.learning-workspace button { color: var(--text); background: var(--bg-card); border: 1px solid var(--border); border-radius: 7px; padding: 8px 12px; cursor: pointer; font-size: 13px; }
+.learning-workspace button:disabled { opacity: .45; cursor: default; }
+.learning-workspace :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.learning-heading { display: flex; gap: 20px; align-items: start; justify-content: space-between; margin-bottom: 20px; }
+.learning-heading h1 { margin: 7px 0; font-size: 27px; }
+.learning-heading p { color: var(--text-dim); max-width: 680px; line-height: 1.6; }
+.learning-eyebrow { font-size: 11px; letter-spacing: .15em; color: var(--accent); }
+.learning-progress { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; font-size: 13px; }
+.learning-progress progress { accent-color: var(--accent); max-width: 40%; }
+.learning-layout { display: grid; grid-template-columns: 250px minmax(0, 820px); gap: 26px; }
+.learning-lessons { display: flex; flex-direction: column; gap: 8px; }
+.learning-lessons button { text-align: left; padding: 14px; }
+.learning-lessons small { display: block; margin-top: 6px; color: var(--text-dim); }
+.learning-lessons button[aria-current="page"] { border-color: var(--accent); background: var(--accent-dim); }
+.learning-lesson { min-width: 0; }
+.learning-lesson h2 { font-size: 21px; margin-bottom: 18px; }
+.learning-lesson p { line-height: 1.75; margin-bottom: 14px; }
+.learning-practice, .learning-check { margin-top: 22px; padding: 18px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg-surface); }
+.learning-practice h3 { margin-bottom: 12px; }
+.learning-practice label { display: grid; gap: 8px; }
+.learning-practice textarea { min-height: 135px; resize: vertical; width: 100%; border: 1px solid var(--border); color: var(--text); background: var(--bg-input); border-radius: 6px; padding: 10px; }
+.learning-practice button { margin-top: 12px; }
+.learning-check fieldset { border: 0; margin-bottom: 14px; }
+.learning-check legend { font-weight: 600; line-height: 1.5; margin-bottom: 14px; }
+.learning-check label { display: flex; align-items: baseline; gap: 10px; margin: 12px 0; line-height: 1.5; }
+.learning-check p[role="status"] { margin-top: 14px; }
+.learning-actions { display: flex; justify-content: space-between; gap: 12px; margin: 24px 0; }
+@media (max-width: 800px) { .learning-workspace { padding: 16px; } .learning-layout { grid-template-columns: 1fr; gap: 18px; } .learning-lessons { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); } .learning-heading { flex-wrap: wrap; } }
+
+.learning-course { container-type: inline-size; }
+.learning-course .learning-layout { align-items: start; }
+.learning-course .learning-lessons { display: flex; position: sticky; top: 0; max-height: calc(100dvh - 210px); gap: 12px; }
+.learning-lesson-filters { display: grid; gap: 10px; flex: 0 0 auto; }
+.learning-lesson-filters label { display: grid; gap: 5px; font-size: 12px; color: var(--text-dim); }
+.learning-lesson-filters input, .learning-lesson-filters select { width: 100%; min-width: 0; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-input); color: var(--text); }
+.learning-lesson-filters > small { color: var(--text-dim); }
+.learning-lesson-list { overflow-y: auto; min-height: 0; padding-right: 6px; }
+.learning-lesson-group { margin-bottom: 16px; }
+.learning-lesson-group h2 { font-size: 12px; color: var(--text-dim); margin: 0 0 8px; }
+.learning-lesson-group-buttons { display: grid; gap: 8px; }
+.learning-lesson-group-buttons button { width: 100%; overflow-wrap: anywhere; }
+.learning-no-matches { line-height: 1.6; font-size: 13px; color: var(--text-dim); }
+.learning-no-matches button { margin-top: 10px; }
+.learning-app-practice { margin-top: 22px; padding: 18px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg-surface); }
+.learning-app-practice h3 { margin-bottom: 12px; }
+.learning-workspace-links, .learning-sample-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.learning-workspace-links button { color: var(--accent); }
+.learning-app-practice ol { padding-left: 24px; line-height: 1.7; }
+.learning-app-practice li { padding-left: 3px; margin-bottom: 12px; }
+.learning-prerequisites { padding-left: 12px; border-left: 3px solid var(--accent); }
+.learning-sample { margin: 18px 0; min-width: 0; }
+.learning-sample h4, .learning-result-check h4 { margin-bottom: 8px; font-size: 14px; }
+.learning-sample pre { max-height: 210px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; margin-bottom: 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-input); font: 12px/1.6 var(--font-mono); }
+.learning-result-check { border-top: 1px solid var(--border); padding-top: 14px; margin-top: 16px; }
+.learning-result-check p { margin-bottom: 0; }
+@container (max-width: 720px) {
+  .learning-course .learning-layout { grid-template-columns: 1fr; gap: 20px; }
+  .learning-course .learning-lessons { position: static; max-height: 320px; }
+  .learning-lesson-group-buttons { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}

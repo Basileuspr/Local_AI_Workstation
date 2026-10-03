@@ -401,6 +401,69 @@ def test_hide_tagged_covers_whole_folder_beyond_selection_limit(setup):
     with pytest.raises(ValueError): manager.query(visibility='invalid')
 
 
+def test_tagged_only_includes_hidden_images_before_pagination(setup):
+    manager, _, _, src, _ = setup
+    rows = manager.query(sort='name')['images']
+    manager.metadata([rows[0]['id']], tags=['Done'], hidden=True, favorite=True)
+    manager.metadata([rows[1]['id']], tags=['Trip'])
+    page = manager.query(tagged_only=True, visibility='all', sort='name', limit=1, offset=1)
+    assert page['total'] == 2 and page['images'][0]['id'] == rows[1]['id']
+    assert manager.query(tagged_only=True)['total'] == 1
+    assert manager.query(tagged_only=True, visibility='all', tag='Done', folder_id=src, favorite=True)['total'] == 1
+    manager.metadata([rows[2]['id']], hidden=True)
+    assert manager.query(tagged_only=True, visibility='hidden')['total'] == 1
+    assert manager.query(tagged_only=True, hide_tagged=True, visibility='all')['total'] == 0
+    assert manager.query()['total'] == 1  # Showing hidden results never unhides them.
+
+
+def test_unhide_images_restores_untagged_and_tagged_without_changing_files(setup):
+    manager, source, _, src, _ = setup
+    originals = {file: file.read_bytes() for file in source.rglob('*') if file.is_file()}
+    rows = manager.query(sort='name')['images']
+    manager.metadata([rows[0]['id']], tags=['Done'], favorite=True, hidden=True)
+    manager.metadata([rows[1]['id']], hidden=True)
+    assert manager.unhide_images(src) == {'ok': True, 'updated': 2}
+    assert manager.unhide_images(src)['updated'] == 0
+    restarted = ImageManager(manager.directory)
+    assert restarted.query()['total'] == 3
+    assert restarted.query(visibility='hidden')['total'] == 0
+    assert restarted.image(rows[0]['id'])['tags'] == ['Done']
+    assert restarted.image(rows[0]['id'])['favorite'] == 1
+    assert originals == {file: file.read_bytes() for file in source.rglob('*') if file.is_file()}
+
+
+def test_unhide_images_covers_folder_beyond_selection_limit(setup):
+    manager, _, _, src, dest = setup
+    with manager.database() as db:
+        template = dict(db.execute('SELECT * FROM images LIMIT 1').fetchone())
+        columns = ','.join(template)
+        records = [{**template, 'id': f'hidden-{index}', 'key': f'hidden-key-{index}', 'relative': f'{index}.png', 'folder_id': src, 'tags': '["Done"]', 'hidden': 1} for index in range(1005)]
+        records.extend([{**template, 'id': 'other-folder-hidden', 'key': 'other-hidden-key', 'folder_id': dest, 'hidden': 1},
+                        {**template, 'id': 'missing-hidden', 'key': 'missing-hidden-key', 'available': 0, 'hidden': 1}])
+        db.executemany(f"INSERT INTO images({columns}) VALUES({','.join('?' for _ in template)})", [tuple(record.values()) for record in records])
+    with pytest.raises(ValueError): manager.unhide_images('unknown-folder')
+    assert manager.unhide_images(src)['updated'] == 1005
+    assert manager.query(folder_id=dest, visibility='hidden')['total'] == 1
+    assert manager.unhide_images()['updated'] == 1
+    assert manager.image('missing-hidden')['hidden'] == 1
+
+
+def test_tagged_query_and_unhide_api(setup, monkeypatch):
+    from routes import image_manager as routes
+    manager, _, _, src, _ = setup
+    monkeypatch.setattr(routes, 'manager', manager)
+    app = FastAPI(); app.include_router(routes.router); client = TestClient(app)
+    identifier = manager.query()['images'][0]['id']
+    manager.metadata([identifier], tags=['Reviewed'], hidden=True)
+    result = client.get('/image-manager/images?tagged_only=true&visibility=all&limit=1').json()
+    assert result['total'] == 1 and result['images'][0]['id'] == identifier
+    assert client.get('/image-manager/images?tagged_only=invalid').status_code == 422
+    assert client.post('/image-manager/visibility/unhide', json={'folder_id': 'unknown'}).status_code == 422
+    assert client.post('/image-manager/visibility/unhide', json={'folder_id': src}).json()['updated'] == 1
+    assert client.get('/image-manager/images').json()['total'] == 3
+    assert client.get('/image-manager/images?visibility=hidden').json()['total'] == 0
+
+
 def test_hidden_metadata_validates_all_ids_before_updating(setup):
     manager, _, _, _, _ = setup
     identifier = manager.query()['images'][0]['id']

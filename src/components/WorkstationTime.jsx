@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { clampTimerPosition, durationFields, durationFromFields, formatCountdown, loadTimer, pauseTimer,
   remainingTime, resetTimer, saveTimer, startTimer } from "../workstationTimer";
 import { WINDOW_LAYOUT_EVENT } from "../windowRendering";
+import { clockAppearanceVariables, loadClockAppearance, saveClockAppearance } from '../clockAppearance';
+import ClockStyleDialog, { ClockFace } from './ClockStyleDialog';
 import "./WorkstationTime.css";
 
 export default function WorkstationTime({ onOverlayChange, inert = false }) {
@@ -9,6 +11,9 @@ export default function WorkstationTime({ onOverlayChange, inert = false }) {
   const [timer, setTimer] = useState(loadTimer);
   const [fields, setFields] = useState(() => durationFields(timer.durationMs));
   const [error, setError] = useState("");
+  const [clockAppearance, setClockAppearance] = useState(loadClockAppearance);
+  const [clockStyleOpen, setClockStyleOpen] = useState(false);
+  const clockTrigger = useRef(null);
   const panel = useRef(null), trigger = useRef(null), drag = useRef(null), audio = useRef(null), sounded = useRef(null);
   const left = remainingTime(timer, now);
   const active = timer.status !== "idle";
@@ -21,6 +26,7 @@ export default function WorkstationTime({ onOverlayChange, inert = false }) {
     return () => { clearInterval(tick); window.removeEventListener("focus", update); document.removeEventListener("visibilitychange", update); };
   }, []);
   useEffect(() => saveTimer(timer), [timer]);
+  useEffect(() => saveClockAppearance(clockAppearance), [clockAppearance]);
   useEffect(() => () => { void audio.current?.close().catch(() => {}); }, []);
 
   function prepareSound(enabled = timer.sound) {
@@ -118,12 +124,16 @@ export default function WorkstationTime({ onOverlayChange, inert = false }) {
   const countdown = formatCountdown(timer.status === "idle" ? durationFromFields(fields) ?? left : left);
   return <>
     <div className="workstation-time" inert={inert}>
-      <time className="workstation-clock" dateTime={time.toISOString()} title={time.toLocaleString(undefined, { dateStyle: "full", timeStyle: "long" })}
-        aria-label={`System time ${time.toLocaleTimeString()}`}>{time.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", second: "2-digit" })}</time>
+      <button ref={clockTrigger} type="button" className={`workstation-clock styled-clock clock-${clockAppearance.style}`}
+        style={clockAppearanceVariables(clockAppearance)} aria-label="Customize clock" aria-haspopup="dialog" aria-expanded={clockStyleOpen}
+        title={`${time.toLocaleString(undefined, { dateStyle: 'full', timeStyle: 'long' })} · Click to style clock`}
+        onClick={() => setClockStyleOpen(true)}><ClockFace time={time} appearance={clockAppearance} /></button>
       <button ref={trigger} type="button" className={`workstation-timer-trigger${finished ? " timer-finished" : ""}`} aria-label="Open timer"
         aria-expanded={timer.display === "panel"} aria-controls="workstation-timer" onClick={() => { prepareSound(); display("panel"); }}
         title="Open the floating timer">{finished ? "Timer finished" : active ? `Timer ${countdown}${timer.status === "paused" ? " · Paused" : ""}` : "Timer"}</button>
     </div>
+    {clockStyleOpen && <ClockStyleDialog appearance={clockAppearance} onChange={setClockAppearance} time={time}
+      onClose={() => { setClockStyleOpen(false); clockTrigger.current?.focus(); }} />}
     {finished && <span className="timer-announcement" role="alert">Timer finished.</span>}
     {visible && <section ref={panel} id="workstation-timer" inert={inert} className={`floating-timer${timer.display === "compact" ? " timer-compact" : ""}${finished ? " timer-finished" : ""}`}
       aria-label={timer.display === "compact" ? "Compact timer" : "Floating timer"}

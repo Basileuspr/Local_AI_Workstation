@@ -24,8 +24,11 @@ function finish(error) {
   const result = error ? {error:error.stack,work} : {passed:true,work,
     checks:['empty saved-tag picker', 'exact saved label without typing', 'bulk addition preserves each image tags',
       'repeat application is idempotent', 'untagged filter removes tagged selection', 'saved tags survive reload', 'original files unchanged',
+      'show tagged includes hidden images without unhiding them', 'unhide selected keeps tags', 'unhide images restores a whole folder', 'tagged and untagged filters stay mutually exclusive',
       'adjustable page size and correct displayed counts', 'pagination uses selected page size', 'page-size changes keep selection and filters', 'page size survives reload',
-      'compact view fits more smaller cards', 'density keeps selection and filters', 'density survives reload', 'comfortable view restores larger cards']};
+      'compact view fits more smaller cards', 'density keeps selection and filters', 'density survives reload', 'comfortable view restores larger cards',
+      'extra comfortable doubles thumbnail height and uses higher resolution previews', 'extra comfortable preserves selection and filters',
+      'extra comfortable survives reload and fits a narrow pane']};
   fs.writeFileSync(path.join(work,'result.json'), JSON.stringify(result,null,2));
   console.log(JSON.stringify(result)); app.exit(error ? 1 : 0);
 }
@@ -65,7 +68,10 @@ app.whenReady().then(async () => {
   const first = records.find(row=>row.relative==='landscape.png'), second = records.find(row=>row.relative==='portrait.jpg');
   const donor = records.find(row=>row.relative==='landscape-copy.png'), tag = 'Client, archive & α';
   const originals = records.map(row=>({path:path.join(source,row.relative),bytes:fs.readFileSync(path.join(source,row.relative))}));
-  const js = code => win.webContents.executeJavaScript(code);
+  const js = async code => {
+    try { return await win.webContents.executeJavaScript(code); }
+    catch (error) { throw Error(error.message + '\nCode: ' + code.slice(0, 700)); }
+  };
   const openManager = async (count = 3) => {
     await win.loadURL('app://local/index.html');
     await until(()=>js("!!document.querySelector('[data-sidebar-route=image-manager]')"),'navigation');
@@ -105,6 +111,28 @@ app.whenReady().then(async () => {
   fs.writeFileSync(path.join(work,'existing-tag-picker.png'),(await win.webContents.capturePage()).toPNG());
   win.setSize(780,850); await pause(250);
   assert(await js("(()=>{const e=document.querySelector('.image-manager');return e.scrollWidth<=e.clientWidth+1})()"),'tag toolbar fits narrow pane');
+  await api('/metadata','PATCH',{ids:[first.id],hidden:true});
+  await api('/metadata','PATCH',{ids:[second.id],tags:[]});
+  await openManager(2);
+  await click('Show tagged images');
+  await until(()=>js("document.querySelectorAll('.im-grid article').length===2 && !!document.querySelector('[aria-label=\"Select landscape.png\"]') && !document.querySelector('[aria-label=\"Select portrait.jpg\"]')"),'tagged view includes hidden image and excludes untagged');
+  assert.equal((await api('/images?visibility=hidden')).total,1);
+  assert(await js("document.querySelector('[aria-label=\"Select landscape.png\"]').closest('article').textContent.includes('Hidden')"));
+  await selectImage('landscape.png'); await click('Unhide selected');
+  await until(async()=> (await api('/images?visibility=hidden')).total===0,'selected image unhidden');
+  assert.deepEqual((await api('/images')).images.find(row=>row.id===first.id).tags,['Landscape',tag]);
+  await js("document.querySelector('.im-extra-filters').open=true;[...document.querySelectorAll('.im-extra-filters label')].find(e=>e.textContent.includes('Untagged only')).querySelector('input').click()");
+  await until(()=>js("document.querySelectorAll('.im-grid article').length===1 && !!document.querySelector('[aria-label=\"Select portrait.jpg\"]') && [...document.querySelectorAll('.im-selection button')].find(b=>b.textContent==='Show tagged images').getAttribute('aria-pressed')==='false'"),'untagged filter clears tagged view');
+  await click('Reset filters');
+  await until(()=>js("document.querySelectorAll('.im-grid article').length===3"),'normal visible library restored');
+  await api('/metadata','PATCH',{ids:[first.id,second.id],hidden:true});
+  await openManager(1);
+  await js("(()=>{const e=document.querySelector('[aria-label=\"Filter image folder\"]');e.value="+JSON.stringify(folder.id)+";e.dispatchEvent(new Event('change',{bubbles:true}))})()");
+  await click('Unhide images');
+  await until(()=>js("document.querySelectorAll('.im-grid article').length===3"),'folder unhide restores tagged and untagged images');
+  assert.equal((await api('/images?visibility=hidden')).total,0);
+  for(const original of originals) assert.deepEqual(fs.readFileSync(original.path),original.bytes);
+  await selectImage('landscape.png');
   // A 52-image fixture proves increasing the limit actually displays more than
   // the previous fixed 48, including correct navigation from a partial last page.
   const scrollFolder = await api('/folders','POST',{path:path.join(work,'scroll-source'),purpose:'source'});
@@ -161,5 +189,24 @@ app.whenReady().then(async () => {
   assert(await js("(()=>{const e=document.querySelector('.image-manager');return e.scrollWidth<=e.clientWidth+1})()"),'comfortable density control fits narrow pane');
   await select('[aria-label="Image Manager view density"]','compact'); await pause(150);
   assert(await js("(()=>{const e=document.querySelector('.image-manager');return e.scrollWidth<=e.clientWidth+1})()"),'compact density control fits narrow pane');
+  win.setSize(1200,900); await pause(250);
+  await js("window.qaExtraCard=document.querySelector('.im-grid article');qaExtraCard.querySelector('input[type=checkbox]').click()");
+  await select('[aria-label="Image Manager view density"]','extra-comfortable');
+  await until(()=>js("document.querySelector('.image-manager').dataset.density==='extra-comfortable'"),'extra comfortable view');
+  const extraComfortable = await geometry();
+  assert.equal(extraComfortable.thumbnailHeight,300);
+  assert(extraComfortable.cardHeight > comfortable.cardHeight && extraComfortable.columns < comfortable.columns);
+  assert(await js("qaExtraCard===document.querySelector('.im-grid article') && document.querySelector('.im-selection').textContent.includes('1 selected')"));
+  assert.equal(await js("document.querySelector('[aria-label=\"Filter image folder\"]').value"),scrollFolder.id);
+  assert.equal(await js("new URL(document.querySelector('.im-image img').src).searchParams.get('large')"),'true');
+  await js("document.querySelector('.im-grid').scrollIntoView({block:'start'})");
+  await pause(150);
+  fs.writeFileSync(path.join(work,'extra-comfortable-view.png'),(await win.webContents.capturePage()).toPNG());
+  await openManager(55);
+  assert.equal(await js("document.querySelector('.image-manager').dataset.density"),'extra-comfortable');
+  assert.equal(await js("document.querySelector('[aria-label=\"Image Manager view density\"]').value"),'extra-comfortable');
+  win.setSize(480,850); await pause(250);
+  assert.equal((await geometry()).columns,1);
+  assert(await js("(()=>{const e=document.querySelector('.image-manager');return e.scrollWidth<=e.clientWidth+1})()"),'extra comfortable view fits narrow pane');
   finish();
 }).catch(finish);

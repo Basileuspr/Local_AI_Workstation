@@ -46,6 +46,8 @@ import ViewerBrowser from './components/ViewerBrowser';
 const ModelViewer = lazy(() => import('./components/ModelViewer'));
 const LocalFiles = lazy(() => import('./components/LocalFiles'));
 const DocumentEditor = lazy(() => import('./components/DocumentEditor'));
+const Slicer = lazy(() => import('./components/Slicer'));
+const AppIntegrations = lazy(() => import('./components/AppIntegrations'));
 import SpreadsheetViewer from "./components/SpreadsheetViewer";
 import CanvasWorkspace from "./components/CanvasWorkspace";
 import FileConverter from "./components/FileConverter";
@@ -54,6 +56,9 @@ import HashAuditor from "./components/HashAuditor";
 import FolderReview from "./components/FolderReview";
 import { GifMakerWorkspace } from "./components/GifMaker";
 import AudioWorkspace from "./components/AudioWorkspace";
+import LearningUniversity from './components/LearningUniversity';
+import NeuralNetworkVisualizer from './components/NeuralNetworkVisualizer';
+import BreakRoom from './components/BreakRoom';
 import CharacterCreator from './components/CharacterCreator';
 import {CharacterWorkspaceProvider} from './CharacterWorkspace';
 import { get as getWorkflow } from "./imageWorkflowApi";
@@ -139,6 +144,7 @@ function AppInner() {
     state.roleplay,
     state.imageSettings,
     state.voiceOutput,
+    state.soundOutput,
     state.customProfiles,
     state.activeCustomProfileId,
     state.activeLoraProjectId,
@@ -421,11 +427,17 @@ function AppInner() {
           <div className="pane" data-capture-tab="spreadsheets" hidden={!visible("spreadsheets")}><SpreadsheetViewer /></div>
           <div className="pane" data-capture-tab="canvas" hidden={!visible("canvas")}><CanvasWorkspace /></div>
           <div className="pane" data-capture-tab="converter" hidden={!visible("converter")}><FileConverter /></div>
+          <div className="pane" data-capture-tab="slicer" hidden={!visible("slicer")}><Suspense fallback={<p>Opening Slicer…</p>}><Slicer active={visible("slicer")}/></Suspense></div>
+          <div className="pane" data-capture-tab="integrations" hidden={!visible("integrations")}><Suspense fallback={<p>Opening linked applications…</p>}><AppIntegrations active={visible("integrations")}/></Suspense></div>
           <div className="pane" data-capture-tab="packager" hidden={!visible("packager")}><FilePackager /></div>
           <div className="pane" data-capture-tab="hash-auditor" hidden={!visible("hash-auditor")}><HashAuditor active={visible("hash-auditor")} /></div>
           <div className="pane" data-capture-tab="folder-review" hidden={!visible("folder-review")}><FolderReview active={visible("folder-review")} models={state.models} defaultModel={state.summaryModel || state.selectedModel} /></div>
           <div className="pane" data-capture-tab="gif-maker" hidden={!visible("gif-maker")}><GifMakerWorkspace active={visible("gif-maker")}/></div>
           <div className="pane" data-capture-tab="audio" hidden={!visible("audio")}><AudioWorkspace active={visible("audio")}/></div>
+          <div className="pane" data-capture-tab="university" hidden={!visible("university")}><LearningUniversity course="university" onOpenWorkspace={tab => dispatch({type:'SET_SIDEBAR_TAB',payload:tab})} /></div>
+          <div className="pane" data-capture-tab="agent-university" hidden={!visible("agent-university")}><LearningUniversity course="agent-university" onOpenWorkspace={tab => dispatch({type:'SET_SIDEBAR_TAB',payload:tab})} /></div>
+          <div className="pane" data-capture-tab="neural-network" hidden={!visible("neural-network")}><NeuralNetworkVisualizer /></div>
+          <div className="pane" data-capture-tab="break-room" hidden={!visible("break-room")}><BreakRoom active={visible("break-room")} /></div>
           <div className="pane" data-capture-tab="image-editor" hidden={!visible("image-editor")}><ImageEditor /></div>
           <div className="pane image-library-pane" data-capture-tab="images" hidden={!visible("images")} ref={setImageLibraryTarget} />
           <div className="pane" data-capture-tab="review" hidden={!visible("review")}><ImageReview active={visible("review")} onOpenSource={handleLoadSession} /></div>

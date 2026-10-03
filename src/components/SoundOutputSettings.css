@@ -1,0 +1,15 @@
+.sound-output-settings {display:flex;flex-direction:column;gap:10px;padding:14px;margin:12px 0;border:1px solid var(--border);border-radius:8px;min-width:0;color:var(--text);}
+.sound-output-controls,.sound-output-actions {display:flex;align-items:center;flex-wrap:wrap;gap:10px;}
+.sound-output-controls label {display:flex;align-items:center;flex-wrap:wrap;gap:8px;min-width:0;}
+.sound-output-volume input[type=range] {width:150px;min-width:80px;padding:0;accent-color:var(--accent);}
+.sound-output-volume output {min-width:3ch;font-variant-numeric:tabular-nums;}
+.sound-output-device {flex:1 1 250px;}
+.sound-output-device select {width:100%;max-width:440px;min-width:0;padding:7px;color:inherit;background:var(--bg-input);border:1px solid var(--border);border-radius:5px;}
+.sound-output-actions button,.sound-output-controls button {padding:7px 10px;font:inherit;color:inherit;background:var(--bg-card);border:1px solid var(--border);border-radius:5px;cursor:pointer;}
+.sound-output-settings button:disabled {opacity:.5;cursor:default;}
+.sound-output-settings button[aria-pressed=true] {color:var(--accent);border-color:var(--accent);}
+.sound-output-settings small {font-size:12px;color:var(--text-dim);line-height:1.5;}
+.sound-output-settings summary {font-size:12px;cursor:pointer;color:var(--text-dim);}
+.sound-output-settings details small {display:block;margin-top:8px;}
+.sound-output-settings p {margin:0;line-height:1.5;font-size:13px;}
+.sound-output-settings .sound-output-error {color:var(--red);}

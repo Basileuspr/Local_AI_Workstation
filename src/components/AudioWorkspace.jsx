@@ -6,6 +6,8 @@ import {downloadBlob} from '../downloadBlob';
 import './AudioWorkspace.css';
 import VoiceCloningPanel from './VoiceCloningPanel';
 import AudioExtractor from './AudioExtractor';
+import SoundOutputSettings from './SoundOutputSettings';
+import {audioOutput} from '../audioOutput';
 import {CharacterShortcut} from '../CharacterWorkspace';
 import CharacterFileButton from './CharacterFileButton';
 
@@ -112,6 +114,7 @@ export function TranscriptionPanel({active, onInsert, compact = false, incomingA
     setText(value => renameAudioSpeakers(value, replacements)); setAppliedNames(names); setSpeakerNames(names); setError('');
   }
   const locked = Boolean(busy || recording || opening);
+  useEffect(() => {if(locked)return audioOutput.holdCapture();},[locked]);
   useEffect(() => {onBusyChange?.(locked);},[locked,onBusyChange]);
   useEffect(() => {
     if (!incomingAudio || importedAudio.current === incomingAudio || locked) return;
@@ -167,6 +170,7 @@ export default function AudioWorkspace({active}) {
   const transcriptionSection = useRef(null);
   return <div className="audio-workspace"><header><h1>Audio</h1></header>
     <CharacterShortcut/>
+    <SoundOutputSettings recording={transcriptionBusy}/>
 
     <AudioExtractor active={active} transcriptionBusy={transcriptionBusy} onUseForTranscription={file => {setIncomingAudio({file}); transcriptionSection.current?.scrollIntoView({behavior:'smooth',block:'start'});}}/>
     <div className="audio-columns" ref={transcriptionSection}><TranscriptionPanel active={active} incomingAudio={incomingAudio} onBusyChange={setTranscriptionBusy}/><section className="audio-speech" aria-label="Text to speech"><h2>Text to speech</h2><VoiceSettings/><label className="audio-text-label">Text to read<textarea aria-label="Text to read aloud" rows={12} maxLength={20000} value={text} onChange={e => setText(e.target.value)} placeholder="Type or paste text to hear it spoken."/></label><ReadAloud text={text} owner="audio-workspace" active={active}/></section></div>

@@ -8,11 +8,16 @@ import os
 from pathlib import Path
 import re
 import stat
+from itertools import chain
+import zipfile
 from datetime import datetime, timezone
 
 TEXT_EXTENSIONS = {'.py', '.txt', '.md', '.markdown', '.rst', '.csv', '.json', '.jsonl', '.yaml', '.yml', '.toml', '.ini', '.cfg', '.log', '.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.css', '.html', '.xml', '.sql', '.sh', '.ps1', '.bat', '.c', '.cpp', '.h', '.rs', '.go', '.java'}
 IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tif', '.tiff', '.ico', '.avif', '.heic', '.svg'}
 EXCLUDED_DIRS = {'.git', '.hg', '.svn', 'node_modules', 'venv', '.venv', '__pycache__', '.pytest_cache', '.codex', '.claude'}
+DOCX_MAX_MEMBERS = 2000
+DOCX_MAX_EXPANDED_BYTES = 64 * 1024 ** 2
+DOCX_MAX_MEMBER_BYTES = 32 * 1024 ** 2
 
 
 def linked(info):
@@ -46,10 +51,18 @@ def protected(name):
     return value == '.env' or value.startswith('.env.') or value in {'.npmrc', '.netrc', '.pypirc', 'id_rsa', 'id_ed25519'} or Path(value).suffix in {'.pem', '.key', '.p12', '.pfx'}
 
 
-def read_source(path, root, max_bytes, cancel):
+def read_source(path, root, max_bytes, cancel, expected_signature=None):
     before = path.lstat()
-    if linked(before) or offline(before) or not stat.S_ISREG(before.st_mode) or not path.resolve().is_relative_to(root):
+    if linked(before) or offline(before) or not stat.S_ISREG(before.st_mode) or not path.is_relative_to(root) or not path.resolve().is_relative_to(root):
         raise ValueError('Linked, offline, external or non-regular file; content not opened.')
+    for parent in path.parents:
+        info = parent.lstat()
+        if linked(info) or offline(info):
+            raise ValueError('Source folder changed into a link or offline placeholder; content not opened.')
+        if parent == root:
+            break
+    if expected_signature is not None and tuple(expected_signature) != signature(before):
+        raise ValueError('File changed since the folder inventory; review it again.')
     if before.st_size > max_bytes:
         raise ValueError('File exceeds the configured byte limit; content not read.')
     flags = os.O_RDONLY | getattr(os, 'O_BINARY', 0) | getattr(os, 'O_NOFOLLOW', 0) | getattr(os, 'O_NONBLOCK', 0)
@@ -74,7 +87,8 @@ def read_source(path, root, max_bytes, cancel):
 
 
 def file_metadata(info):
-    return {'bytes': info.st_size, 'modified_at': datetime.fromtimestamp(info.st_mtime, timezone.utc).isoformat()}
+    return {'bytes': info.st_size, 'modified_at': datetime.fromtimestamp(info.st_mtime, timezone.utc).isoformat(),
+            'source_signature': list(signature(info))}
 
 
 def python_metadata(text):
@@ -94,6 +108,7 @@ def extract(raw, name, max_chars, cancel=lambda: None):
     extension = Path(name).suffix.lower()
     metadata = {'sha256': hashlib.sha256(raw).hexdigest()}
     coverage = {'partial': False, 'reason': '', 'characters': 0}
+    original_length = None
     if extension in IMAGE_EXTENSIONS:
         metadata['content_policy'] = 'Metadata only; pixels, OCR and visual interpretation were not requested.'
         if extension == '.svg':
@@ -150,11 +165,32 @@ def extract(raw, name, max_chars, cancel=lambda: None):
             coverage['reason'] = 'No extractable text. Scanned/image-only pages were not OCRed or visually analyzed.'
         return {'kind': 'pdf', 'text': text, 'status': 'readable' if text else 'unreadable', 'metadata': metadata, 'coverage': coverage}
     if extension == '.docx':
+        # Bound package expansion before python-docx parses XML or media parts.
+        with zipfile.ZipFile(io.BytesIO(raw)) as package:
+            members = package.infolist()
+            if len(members) > DOCX_MAX_MEMBERS or sum(member.file_size for member in members) > DOCX_MAX_EXPANDED_BYTES:
+                raise ValueError('Word package exceeds its expanded size or member limit.')
+            seen = set()
+            for member in members:
+                cancel()
+                if (member.filename in seen or '..' in member.filename.replace('\\', '/').split('/') or
+                        member.flag_bits & 1 or member.file_size > DOCX_MAX_MEMBER_BYTES):
+                    raise ValueError('Word package contains a duplicate, unsafe, encrypted or oversized member.')
+                seen.add(member.filename)
         from docx import Document
         document = Document(io.BytesIO(raw))
-        values = [paragraph.text for paragraph in document.paragraphs]
-        values.extend(' | '.join(cell.text for cell in row.cells) for table in document.tables for row in table.rows)
-        text = '\n'.join(values)
+        values, original_length, first = [], 0, True
+        paragraphs = (paragraph.text for paragraph in document.paragraphs)
+        tables = (' | '.join(cell.text for cell in row.cells) for table in document.tables for row in table.rows)
+        for value in chain(paragraphs, tables):
+            cancel()
+            value = ('' if first else '\n') + value.replace('\r\n', '\n').replace('\r', '\n')
+            first = False
+            available = max(0, max_chars - original_length)
+            if available:
+                values.append(value[:available])
+            original_length += len(value)
+        text = ''.join(values)
         metadata['content_policy'] = 'Extracted paragraphs and table text only; embedded images were not analyzed.'
     elif extension in TEXT_EXTENSIONS or Path(name).name.lower() in {'readme', 'license', 'makefile', 'dockerfile'}:
         encoding = 'utf-16' if raw.startswith((b'\xff\xfe', b'\xfe\xff')) else 'utf-8-sig'
@@ -168,7 +204,7 @@ def extract(raw, name, max_chars, cancel=lambda: None):
     else:
         return {'kind': 'other', 'text': '', 'status': 'metadata_only', 'metadata': metadata, 'coverage': {**coverage, 'reason': 'Unsupported content type; filesystem metadata only.'}}
     text = text.replace('\r\n', '\n').replace('\r', '\n')
-    length = len(text)
+    length = original_length if original_length is not None else len(text)
     text = text[:max_chars]
     coverage.update(characters=len(text), original_characters=length, partial=length > max_chars,
                     reason='Only the configured character limit was reviewed.' if length > max_chars else '')

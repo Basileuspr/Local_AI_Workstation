@@ -1,0 +1,16 @@
+.neural-layout { display: grid; grid-template-columns: minmax(0, 820px) minmax(240px, 300px); gap: 24px; }
+.neural-diagram { padding: 16px; border: 1px solid var(--border); background: var(--bg-surface); border-radius: 10px; }
+.neural-diagram svg { width: 100%; height: auto; max-height: 420px; display: block; }
+.neural-legend, .neural-diagram > p { font-size: 12px; line-height: 1.6; color: var(--text-dim); }
+.neural-controls { display: grid; align-content: start; gap: 16px; padding: 18px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-surface); }
+.neural-controls .workspace-info-button { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; color: var(--accent); }
+.neural-controls .workspace-info-button svg { flex-shrink: 0; }
+.neural-controls label { display: grid; gap: 8px; font-size: 13px; }
+.neural-controls input { width: 100%; }
+.neural-controls select { width: 100%; padding: 8px; color: var(--text); background: var(--bg-input); border: 1px solid var(--border); border-radius: 5px; }
+.neural-readings { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); max-width: 1144px; gap: 24px; margin: 24px 0; }
+.neural-readings h2 { font-size: 18px; margin-bottom: 10px; }
+.neural-readings p { line-height: 1.6; margin-bottom: 12px; color: var(--text-dim); }
+.neural-readings table { width: 100%; border-collapse: collapse; font: 13px var(--font-mono); }
+.neural-readings td, .neural-readings th { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); }
+@media (max-width: 850px) { .neural-layout, .neural-readings { grid-template-columns: 1fr; } }

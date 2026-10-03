@@ -38,6 +38,21 @@ actions still handle videos. It does not send videos into image editing tools.
 Click a person’s face card to open their photos. **Rename person** changes the
 name throughout that group. **Merge with another person** shows both faces and
 the name the combined group will keep before you choose **Merge groups**.
+Use **Back to people folders** to return to the groups, or **Review folder page**
+to step through the displayed photos. The **Name from Tags** dropdown fills the
+name field from the saved Tags palette; choose **Save name** to apply it.
+
+Saved tags are available in the person name fields. User-supplied person names
+also appear in Image Review and Image Manager's tag filters and cover all photos
+in that person's group. These linked tags follow renames, face corrections,
+exclusions, and merges; they do not replace independently saved manual tags or
+notes. Name filtering runs before result counts and pagination.
+
+Saving an existing person's name combines the groups into the existing person,
+including older duplicate groups with that name. Matching ignores case and extra
+spaces. **Merge groups** keeps the chosen destination and also consolidates
+duplicate groups named for that destination. The combined folder counts each
+photo once, including photos containing several faces assigned to that person.
 
 Open any photo to see **People in this photo** beside the image. Choose a face,
 then either save its group’s name or use **Change person** to move just that

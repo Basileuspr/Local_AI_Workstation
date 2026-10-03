@@ -10,10 +10,15 @@ export class ChatSubmissionQueue {
     this.snapshot = this.jobs.map(({ run, onError, controller, ...job }) => job);
     this.listeners.forEach(listener => listener());
   }
-  enqueue({ id, label, session_id = null, session_title = "New Chat", model = "", pane_id = "primary", pane_label = "Chat A", run, onError = console.error }) {
-    this.jobs.push({ id, label, session_id, session_title, model, pane_id, pane_label, run, onError, controller: new AbortController(), status: "waiting", stage: "queued", created_at: new Date().toISOString() });
+  enqueue({ id, label, session_id = null, session_title = "New Chat", model = "", pane_id = "primary", pane_label = "Chat A", afterId = null, run, onError = console.error }) {
+    const job = { id, label, session_id, session_title, model, pane_id, pane_label, run, onError, controller: new AbortController(), status: "waiting", stage: "queued", created_at: new Date().toISOString() };
+    const anchor = afterId ? this.jobs.findIndex(item => item.id === afterId && item.status === 'running' && item.session_id === session_id && item.pane_id === pane_id) : -1;
+    if (afterId && anchor === -1) return false;
+    if (anchor >= 0) this.jobs.splice(anchor + 1, 0, job);
+    else this.jobs.push(job);
     this.publish();
     void this.advance();
+    return true;
   }
   cancel(id) {
     this.jobs = this.jobs.filter(job => job.id !== id || job.status === "running");

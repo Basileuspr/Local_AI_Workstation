@@ -598,7 +598,17 @@ class ImageGenerationManager:
                     pipeline_args.pop("width")
                     pipeline_args.pop("height")
                     pipeline_args.update(image=source, strength=strength)
-                if long_prompt and needs_long_prompt:
+                if is_ernie:
+                    # Encode before starting the denoising clock. The local
+                    # ERNIE runtime reuses CPU conditioning across a batch,
+                    # including the usually empty negative prompt.
+                    pipeline_args["prompt_embeds"] = pipeline.encode_prompt(prompt, pipeline._execution_device)
+                    if cancel_event.is_set():
+                        raise ImageGenerationCancelled("Image generation stopped")
+                    if guidance_scale > 1:
+                        pipeline_args["negative_prompt_embeds"] = pipeline.encode_prompt(
+                            negative_prompt or "", pipeline._execution_device)
+                elif long_prompt and needs_long_prompt:
                     pipeline_args.update(self._long_prompt_embeddings(prompt, negative_prompt))
                 else:
                     pipeline_args.update(prompt=prompt, negative_prompt=negative_prompt or None)

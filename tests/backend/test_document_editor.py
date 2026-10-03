@@ -98,13 +98,33 @@ def test_import_warns_about_omitted_sections_comments_and_fields():
     assert raw == buffer.getvalue()  # conversion only reads the source bytes
 
 
-def test_merged_cells_are_explicitly_flattened_without_duplicating_text():
+def test_merged_cells_are_preserved_without_duplicating_text():
     source = Document(); table = source.add_table(rows=2, cols=2)
     table.cell(0, 0).merge(table.cell(0, 1)).text = 'Merged text'
     buffer = BytesIO(); source.save(buffer)
     result = import_docx(buffer.getvalue())
-    assert any('Merged' in w for w in result['warnings'])
+    assert collect(result['document'], 'tableCell')[0]['attrs']['colspan'] == 2
     assert sum(node['text'].count('Merged text') for node in collect(result['document'], 'text')) == 1
+
+
+def test_headers_footers_and_real_page_fields_round_trip_without_touching_source():
+    layout = {**DEFAULT_LAYOUT, 'header': 'Project title\nSecond header line', 'footer': 'Local working copy', 'pageNumbers': True}
+    raw = export_docx(doc(p('Document body')), layout)
+    source = Document(BytesIO(raw))
+    assert source.sections[0].header.paragraphs[0].text == layout['header']
+    assert source.sections[0].footer._element.xpath('.//w:fldSimple')[0].get(qn('w:instr')) == 'PAGE'
+    result = import_docx(raw)
+    assert result['layout']['header'] == layout['header']
+    assert result['layout']['footer'] == layout['footer']
+    assert result['layout']['pageNumbers'] is True
+    exported = Document(BytesIO(export_docx(result['document'], result['layout'])))
+    assert len(exported.sections[0].footer._element.xpath('.//w:fldSimple')) == 1
+    assert raw.startswith(b'PK')
+
+
+@pytest.mark.parametrize('patch', [{'header': 'x'*2001}, {'footer': '\x00'}, {'pageNumbers': 'yes'}])
+def test_rejects_invalid_header_footer_settings(patch):
+    with pytest.raises(ValueError): export_docx(doc(p('Body')), {**DEFAULT_LAYOUT, **patch})
 
 
 @pytest.mark.parametrize('href', ['javascript:alert(1)', 'file:///C:/secret', 'data:text/html,abc', 'https://example.com\nsecret'])

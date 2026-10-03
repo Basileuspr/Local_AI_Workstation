@@ -12,6 +12,11 @@ export function mountReview(ui){
   const report=error=>{const p=content.querySelector('[role=alert]');if(p)p.textContent=error.message||String(error);};
   async function act(work){if(busy)return;busy=true;try{await work();}catch(error){report(error);}finally{busy=false;}}
   async function refresh(){catalog=await api('catalog',{person,scene,rating,query,offset});renderResults();}
+  async function enterPerson(id){
+    person=id;scene='';rating='';query='';offset=0;
+    for(const selector of ['[data-scene]','[data-rating]','[data-query]'])content.querySelector(selector).value='';
+    await refresh();
+  }
   async function poll(){try{job=await api('job');const p=content.querySelector('[data-progress]');if(p)p.textContent=job?`${job.message} · ${job.processed}/${job.total}`:'';const key=JSON.stringify([job?.id,job?.status,job?.processed]);if(last!==key){last=key;await refresh();}const failures=content.querySelector('[data-errors]');if(failures)failures.textContent=job?.errors?.map(e=>e.error).join('\n')||'';}catch(error){report(error);}}
   section.addEventListener('toggle',async()=>{
     clearInterval(timer);if(!section.open)return;
@@ -34,16 +39,30 @@ export function mountReview(ui){
     const choose=(selector,values,value)=>{const field=content.querySelector(selector);if(!field)return;field.innerHTML=field.options[0].outerHTML+values;field.value=value;};
     choose('[data-person]',catalog.people.map(p=>`<option value="${escape(p.id)}">${escape(p.name)} (${p.count})</option>`).join(''),person);
     choose('[data-scene]',Object.keys(catalog.scenes).map(s=>`<option>${escape(s)}</option>`).join(''),scene);
-    content.querySelector('[data-people]').innerHTML=catalog.people.map(p=>`<button data-person-edit="${escape(p.id)}"><img src="${escape(ui.adapter.reviewFaceUrl(p.face_id))}" alt=""><span>${escape(p.name)} · ${p.count}</span></button>`).join('');
-    content.querySelectorAll('[data-person-edit]').forEach(button=>button.onclick=()=>editPerson(catalog.people.find(p=>p.id===button.dataset.personEdit)));
+    content.querySelector('[data-people]').innerHTML=person?'':catalog.people.map(p=>`<button data-person-edit="${escape(p.id)}" aria-label="Open ${escape(p.name)} folder"><img src="${escape(ui.adapter.reviewFaceUrl(p.face_id))}" alt=""><span>${escape(p.name)} · ${p.count}</span><small>Open folder →</small></button>`).join('');
+    content.querySelectorAll('[data-person-edit]').forEach(button=>button.onclick=()=>act(()=>enterPerson(button.dataset.personEdit)));
+    const group=catalog.people.find(p=>p.id===person),editor=content.querySelector('[data-editor]');
+    if(group&&editor.dataset.person!==person)editPerson(group);
+    else if(!person){editor.textContent='';delete editor.dataset.person;}
+    const heading=editor.querySelector('[data-group-heading]');if(heading&&group)heading.textContent=`${group.name} · ${group.count} grouped previews`;
+    const folderSlides=editor.querySelector('[data-folder-slides]');if(folderSlides)folderSlides.disabled=!catalog.items.length;
     content.querySelector('[data-results]').innerHTML=catalog.items.map((item,index)=>{const loc=location(item.id);return `<button data-review-result="${index}"><img src="${escape(ui.adapter.thumbnailUrl(loc.runId,loc.recordId))}" alt="" loading="lazy"><span>${escape(item.name)}</span><small>${escape(item.review?.rating||'To review')} · ${escape(item.classification.scenes.join(' · '))}</small></button>`;}).join('');
     content.querySelectorAll('[data-review-result]').forEach(button=>button.onclick=()=>act(()=>slideshow([location(catalog.items[Number(button.dataset.reviewResult)].id)])));
     content.querySelector('[data-count]').textContent=`${catalog.total?offset+1:0}–${Math.min(offset+48,catalog.total)} of ${catalog.total}`;content.querySelector('[data-prev]').disabled=!offset;content.querySelector('[data-next]').disabled=offset+48>=catalog.total;
   }
   function editPerson(p){
-    const editor=content.querySelector('[data-editor]');editor.innerHTML=`<div class="mo-review-actions"><input data-name aria-label="Person name" maxlength="120" value="${escape(p.name)}"><button data-save-name>Save name</button><select data-merge aria-label="Merge person group"><option value="">Merge into…</option>${catalog.people.filter(x=>x.id!==p.id).map(x=>`<option value="${escape(x.id)}">${escape(x.name)}</option>`).join('')}</select><button data-merge-save>Merge groups</button><button data-close-editor>Close</button></div>`;
-    editor.querySelector('[data-save-name]').onclick=()=>act(async()=>{await api('person',{value:{id:p.id,name:editor.querySelector('[data-name]').value}});editor.textContent='';await refresh();});
-    editor.querySelector('[data-merge-save]').onclick=()=>act(async()=>{await api('merge',{value:{source_id:p.id,target_id:editor.querySelector('[data-merge]').value}});editor.textContent='';await refresh();});editor.querySelector('[data-close-editor]').onclick=()=>{editor.textContent='';};
+    const names=[...new Map([...(catalog.available_tags||[]),...catalog.people.map(p=>p.name)].map(name=>[name.toLowerCase(),name])).values()].sort((a,b)=>a.localeCompare(b,undefined,{sensitivity:'base',numeric:true}));
+    const editor=content.querySelector('[data-editor]');editor.dataset.person=p.id;
+    editor.innerHTML=`<div class="mo-review-actions"><button data-back-people>Back to people folders</button><h3 data-group-heading>${escape(p.name)} · ${p.count} grouped previews</h3><button data-folder-slides>Review folder page</button></div><div class="mo-review-actions"><label>Name<input data-name aria-label="Person name" maxlength="120" value="${escape(p.name)}"></label><label>Name from Tags<select data-tag-name aria-label="Person name from Tags"><option value="">Choose a saved tag…</option>${names.map(name=>`<option value="${escape(name)}">${escape(name)}</option>`).join('')}</select></label><button data-save-name>Save name</button><select data-merge aria-label="Merge person group"><option value="">Merge into…</option>${catalog.people.filter(x=>x.id!==p.id).map(x=>`<option value="${escape(x.id)}">${escape(x.name)}</option>`).join('')}</select><button data-merge-save>Merge groups</button></div>`;
+    editor.querySelector('[data-back-people]').onclick=()=>act(()=>enterPerson(''));
+    editor.querySelector('[data-folder-slides]').disabled=!catalog.items.length;
+    editor.querySelector('[data-folder-slides]').onclick=()=>act(()=>slideshow(catalog.items.map(item=>location(item.id))));
+    editor.querySelector('[data-tag-name]').onchange=event=>{if(event.target.value)editor.querySelector('[data-name]').value=event.target.value;};
+    const tagName=editor.querySelector('[data-tag-name]'),nameInput=editor.querySelector('[data-name]');
+    const syncName=()=>{tagName.value=names.find(name=>name.toLowerCase()===nameInput.value.trim().toLowerCase())||'';};
+    nameInput.oninput=syncName;syncName();
+    editor.querySelector('[data-save-name]').onclick=()=>act(async()=>{const saved=await api('person',{value:{id:p.id,name:editor.querySelector('[data-name]').value.trim()}});person=saved.person_id||p.id;delete editor.dataset.person;await refresh();});
+    editor.querySelector('[data-merge-save]').onclick=()=>act(async()=>{const target=editor.querySelector('[data-merge]').value;if(!target)throw Error('Choose another person before merging.');const saved=await api('merge',{value:{source_id:p.id,target_id:target}});person=saved.person_id||target;delete editor.dataset.person;await refresh();});
   }
   async function slideshow(items){
     const dialog=document.createElement('dialog');dialog.className='mo-dialog mo-review-dialog';dialog.setAttribute('aria-label','Review media slideshow');ui.append(dialog);

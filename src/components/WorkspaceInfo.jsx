@@ -20,7 +20,7 @@ export function WorkspaceHelpContent({ tab, learningRate }) {
   </div>;
 }
 
-export default function WorkspaceInfo({ tab, learningRate }) {
+export default function WorkspaceInfo({ tab, learningRate, buttonText }) {
   const dialog = useRef(null), trigger = useRef(null), titleId = useId();
   const label = tab === "chats" ? "Chats" : appTabLabels[tab];
   // Routes change while panes stay mounted. Do not carry an open guide into
@@ -36,6 +36,7 @@ export default function WorkspaceInfo({ tab, learningRate }) {
     <button ref={trigger} type="button" className="workspace-info-button" aria-label={`${label} information`} title={`${label}: information, settings & examples`}
       aria-haspopup="dialog" onClick={() => dialog.current?.showModal()}>
       <svg viewBox="0 0 24 24" width="23" height="23" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="1.4" /><path d="M12 10v7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /><circle cx="12" cy="7" r="1" fill="currentColor" /></svg>
+      {buttonText && <span>{buttonText}</span>}
     </button>
     <dialog ref={dialog} className="workspace-info-dialog" aria-labelledby={titleId} onClick={closeOnBackdrop} onClose={() => trigger.current?.focus()}>
       <header className="workspace-info-heading"><h2 id={titleId}>{label} · information</h2><button type="button" autoFocus onClick={() => dialog.current?.close()} aria-label={`Close ${label} information`}>Close</button></header>

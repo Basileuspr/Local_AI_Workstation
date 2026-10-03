@@ -54,6 +54,16 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
   const documentInputRef = useRef(null);
   const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
   const [openTool, setOpenTool] = useState(null);
+  const [steerOpen, setSteerOpen] = useState(false), [steerDraft, setSteerDraft] = useState('');
+  const steerDialog = useRef(null);
+  const steeringJob = chatSubmissions.find(job => job.id === refs.generationRequestId && job.status === 'running'
+    && job.pane_id === pane.id && job.session_id === state.currentSessionId);
+  const canSteer = Boolean(steeringJob && !['saving', 'cancelling', 'compacting'].includes(steeringJob.stage) && refs.abortController && !refs.abortController.signal.aborted);
+  useEffect(() => {
+    if (steerOpen && active) steerDialog.current?.showModal();
+    else steerDialog.current?.close();
+  }, [steerOpen, active]);
+  useEffect(() => { setSteerOpen(false); setSteerDraft(''); }, [state.currentSessionId]);
   const [webActivity, setWebActivity] = useState({});
   const toolBarRef = useRef(null);
   useDismissiblePopup({ open: attachmentMenuOpen && active, container: attachmentMenuRef,
@@ -255,14 +265,14 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
     } finally {attaching.current=false;}
   }
 
-  function sendTextMessage(submittedText) {
+  function sendTextMessage(submittedText, { steerAfter = null, steerReceipt = null } = {}) {
     if (isUploading) { showToast("Wait for the attachment to finish saving before sending.", "error"); return; }
     const text = submittedText ?? textareaRef.current?.value.trim();
     if (!text) return;
     let submittedCanvas;
-    try { submittedCanvas = /\b(canvas|whiteboard)\b/i.test(text) ? canvasContext() : undefined; }
+    try { submittedCanvas = !steerAfter && /\b(canvas|whiteboard)\b/i.test(text) ? canvasContext() : undefined; }
     catch (failure) { showToast(failure.message, "error"); return; }
-    if (isEditCommand(text)) { void startChatEdit(text); return; }
+    if (!steerAfter && isEditCommand(text)) { void startChatEdit(text); return; }
     const sourceId = currentSessionRef.current;
     // Creating a blank chat is shared by rapid submissions. Navigating away
     // while it is created must not redirect the user when it resolves.
@@ -281,16 +291,23 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
     const target = sourceId ? Promise.resolve({ id: sourceId }) : refs.pendingChatCreation;
     // Attach a handler immediately, even if the job waits behind another reply.
     const prepared = target.then(session => ({ session }), error => ({ error }));
-    if (textareaRef.current.value.trim() === text) { textareaRef.current.value = ""; textareaRef.current.style.height = "44px"; }
+    if (!steerAfter && textareaRef.current.value.trim() === text) { textareaRef.current.value = ""; textareaRef.current.style.height = "44px"; }
     const followUpId = createMessageId();
-    chatSubmissionQueue.enqueue({ id: followUpId, label: text, session_id: sourceId, session_title: sessionTitle, model: selectedModel,
-      pane_id: pane.id, pane_label: pane.label, onError: error => showToast(error.message, "error"), run: async signal => {
+    const queued = chatSubmissionQueue.enqueue({ id: followUpId, label: text, session_id: sourceId, session_title: sessionTitle, model: selectedModel, afterId: steerAfter,
+      pane_id: pane.id, pane_label: pane.label, onError: error => {
+        if (steerAfter && currentSessionRef.current === sourceId) setSteerDraft(text);
+        showToast(error.message, "error");
+      }, run: async signal => {
       const { session, error } = await prepared;
       if (signal.aborted) return;
       if (error) { showToast(error.message, "error"); return; }
+      if (steerAfter && (!steerReceipt?.saved || steerReceipt.requestId !== steerAfter || steerReceipt.sessionId !== session.id)) {
+        throw new Error('The partial reply could not be saved. Your steering instruction was kept; copy it from Steer and send it after resolving the save error.');
+      }
       await runMessage(text, session.id, signal, submittedCanvas, followUpId);
     } });
     void prepared.then(({ session }) => { if (session) chatSubmissionQueue.setSession(followUpId, session.id); });
+    return queued;
   }
 
   async function runMessage(text, sessionId, signal, submittedCanvas, requestId) {
@@ -311,6 +328,8 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
     signal.addEventListener("abort", abort, { once: true });
     refs.abortController = abortController;
     refs.generationRequestId = requestId;
+    const saveReceipt = { requestId, sessionId, saved: false };
+    refs.replySaveReceipt = saveReceipt;
     refs.stopRequested = false;
     dispatch({ type: "SET_GENERATING", payload: true });
     let nextMemorySummary = memorySummary;
@@ -426,7 +445,7 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
               cursor.className = "cursor";
               contentEl.appendChild(cursor);
               const messagesEl = contentEl.closest(".chat-messages");
-              if (messagesEl && !refs.imageViewerOpen) messagesEl.scrollTop = messagesEl.scrollHeight;
+              if (messagesEl && messagesEl.dataset.followBottom !== 'false' && !refs.imageViewerOpen) messagesEl.scrollTop = messagesEl.scrollHeight;
             }
           }
           if (event.done) {done = true;responseCompleted = true;}
@@ -452,6 +471,7 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
           // replaces the empty assistant placeholder with rendered Markdown.
           document.querySelector(`[data-message-id="${assistantMsg.id}"] .message-markdown`)?.replaceChildren();
           saved = await api.appendSessionMessages(sessionId, fullResponse ? [{ ...assistantMsg, content: fullResponse }] : [], selectedModel);
+          saveReceipt.saved = true;
           nextMemorySummary = saved.memory_summary || "";
           nextSummarizedMessageCount = saved.summarized_message_count || 0;
           replySaved = Boolean(fullResponse);
@@ -501,6 +521,14 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
     showToast("Stopping generation...", "");
     void api.stopChat(requestId).catch(() => {});
     refs.abortController.abort();
+  }
+
+  function steerReply(event) {
+    event.preventDefault();
+    if (!canSteer || !steerDraft.trim()) return;
+    if (!sendTextMessage(steerDraft.trim(), { steerAfter: refs.generationRequestId, steerReceipt: refs.replySaveReceipt })) return;
+    stopGenerating(); setSteerOpen(false); setSteerDraft('');
+    showToast('Steering queued after saving the partial reply.', 'success');
   }
 
   function handleKeyDown(e) {
@@ -620,6 +648,8 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
         >
           &#x2191;
         </button>
+        {(steeringJob || steerDraft) && <button type="button" className="chat-steer-button" disabled={(!canSteer && !steerDraft) || isUploading}
+          title="Save the partial reply, then continue with a new instruction" onClick={() => setSteerOpen(true)}>Steer</button>}
         <button
           id={pane.domId("stop-btn")}
           title="Stop generating"
@@ -629,6 +659,16 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
           &#x25A0;
         </button>
       </div>
+      <dialog ref={steerDialog} className="chat-steer-dialog" aria-label="Steer reply" onCancel={event => { event.preventDefault(); setSteerOpen(false); }}>
+        <form onSubmit={steerReply}>
+          <h2>Steer reply</h2>
+          <p>The current reply will stop and its text will be saved. Your instruction runs next in this chat; queued messages stay queued.</p>
+          <label>New direction<textarea autoFocus aria-label="Steering instruction" value={steerDraft} maxLength={12000} onChange={event => setSteerDraft(event.target.value)} /></label>
+          {!canSteer && <p role="status">This reply has finished or is saving. Close this window and send a follow-up message.</p>}
+          <div><button type="submit" disabled={!canSteer || !steerDraft.trim() || isUploading}>Stop &amp; steer</button>
+            <button type="button" onClick={() => setSteerOpen(false)}>Cancel</button></div>
+        </form>
+      </dialog>
       <FreshFileInput
         ref={imageInputRef}
         className="hidden-input"

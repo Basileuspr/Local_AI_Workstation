@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { apiUrl } from '../api';
 import { sharedPollingObserver, readPollingJson } from '../polling';
-import { folderReviewDefaults, folderReviewExport, folderReviewModels, folderReviewRequest, folderReviewRunning } from '../folderReview';
+import { folderReviewDefaults, folderReviewExport, folderReviewModels, folderReviewRequest, folderReviewResponse, folderReviewRunning } from '../folderReview';
 import './FolderReview.css';
 
 export function FolderReviewFiles({ items = [] }) {
@@ -10,9 +10,20 @@ export function FolderReviewFiles({ items = [] }) {
     {item.analysis && <pre>{item.analysis}</pre>}
     {item.error && <p className="folder-review-warning">{item.error}</p>}
     {item.coverage?.reason && <p className="folder-review-warning">{item.coverage.reason}</p>}
+    {item.data_warnings?.map((warning, index) => <p className="folder-review-warning" key={index}>{warning}</p>)}
     {item.coverage?.batches_total > 0 && <p>{item.coverage.batches_completed} of {item.coverage.batches_total} text batches analyzed by the model.</p>}
     <h3>Metadata</h3><pre>{JSON.stringify(item.metadata, null, 2)}</pre>
   </details>)}</div>;
+}
+
+export function FolderReviewProcessing({ processing }) {
+  if (!processing?.context_limit) return null;
+  return <div className="folder-review-processing">
+    <span>Model context: {processing.context_limit.toLocaleString()} tokens · Text batches: {processing.text_batches_completed || 0}/{processing.text_batches_total || 0} · Compactions: {processing.compactions || 0}</span>
+    <span>Memory preparation checks: {processing.offload_preparations || 0}{processing.model_released && ' · Review model released'}{processing.model_release_deferred && ' · Model release deferred while other work owns the queue'}</span>
+    {processing.provider_retries > 0 && <span>Provider retries: {processing.provider_retries}</span>}
+    {processing.model_release_error && <p className="folder-review-warning">Model release could not be confirmed: {processing.model_release_error}</p>}
+  </div>;
 }
 
 export default function FolderReview({ active = true, models = [], defaultModel = '' }) {
@@ -28,7 +39,7 @@ export default function FolderReview({ active = true, models = [], defaultModel 
   useEffect(() => {
     if (!active) return;
     const poll = sharedPollingObserver('folder-review-status', {
-      read: opts => readPollingJson(apiUrl('/folder-review/status'), opts), active: value => Boolean(value?.active),
+      read: async opts => folderReviewResponse('/status', await readPollingJson(apiUrl('/folder-review/status'), opts)), active: value => Boolean(value?.active),
       interval: (value, context) => context.hidden ? null : context.failures ? 5000 : value?.active ? 1000 : 10000,
     });
     observer.current = poll;
@@ -91,9 +102,11 @@ export default function FolderReview({ active = true, models = [], defaultModel 
     {(error || connectionError || review?.error) && <p role="alert">{error || connectionError || review.error}</p>}
     {reviews.length > 0 && <label>Saved review<select value={reviewId} onChange={event => selectReview(event.target.value)}>{reviews.map(item => <option key={item.id} value={item.id}>{new Date(item.started_at).toLocaleString()} · {item.root} · {item.status.replaceAll('_', ' ')}</option>)}</select></label>}
     {review && <div className="folder-review-progress" role="status"><strong>{review.status.replaceAll('_', ' ')} · {review.processed} of {review.total} recorded entries processed</strong>
-      <span>{review.phase}{review.current_path && ` · ${review.current_path}`}{review.batches > 0 && ` · Text batch ${review.batch}/${review.batches}`}</span>
+      <span>{review.phase}{review.current_path && ` · ${review.current_path}`}{review.batches > 0 && ` · ${review.processing?.operation === 'compacting' ? 'Compaction' : 'Text'} batch ${review.batch}/${review.batches}`}</span>
       <span>{Object.entries(review.types || {}).map(([kind, count]) => `${count} ${kind}`).join(' · ')}</span>
       <span>{Object.entries(review.extensions || {}).map(([extension, count]) => `${extension}: ${count}`).join(' · ')}</span>
+      <FolderReviewProcessing processing={review.processing}/>
+      {review.data_warnings?.map((warning, index) => <p className="folder-review-warning" key={index}>{warning}</p>)}
       {!folderReviewRunning(review.status) && !review.inventory_complete && <p className="folder-review-warning">Folder inventory is incomplete. See the configured entry limit and recorded errors.</p>}
       {review.status === 'interrupted' && <p>App stopped before completion. Start a new review to read the remaining files.</p>}
     </div>}

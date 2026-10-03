@@ -21,6 +21,7 @@ import { orderImageDeletions } from "../bulkActions";
 import { isReviewUpload } from "../imageReview";
 import "./ImageLibrary.css";
 import { useImageDestinations } from "../ImageDestinations";
+import ImageReview from './ImageReview';
 
 export default function ImageGallery({ images, onOpen, onRemove, onDelete, onImagesRemoved, active = true, workspaceTarget, onNavigate }) {
   const iterate = useAnalyzeIterate();
@@ -73,7 +74,7 @@ export default function ImageGallery({ images, onOpen, onRemove, onDelete, onIma
   const selection = useSelection(shown, item => item.id, folder, filtered.slice(currentPage * pageSize, (currentPage + 1) * pageSize));
 
   const collections = [
-    ["general", "General Images"], ["workflows", "Workflow Images"], ["saved", "Saved Images"],
+    ["general", "General Images"], ["review", "REVIEW"], ["workflows", "Workflow Images"], ["saved", "Saved Images"],
     ["liked", "Liked Images"], ["disliked", "Disliked Images"], ["hidden", "Hidden Images"], ["locked", "Locked Images"],
   ];
   const title = selectedFolder?.name || collections.find(([id]) => id === folder)?.[1] || "Images";
@@ -112,6 +113,7 @@ export default function ImageGallery({ images, onOpen, onRemove, onDelete, onIma
       </div></details>}
     </div>
     {(error || library.error) && <p role="alert">{error || library.error}</p>}
+    {folder === 'review' && <ImageReview active={active} />}
     {folder === "workflows" && <WorkflowImageLibrary active={active} onFile={setFiling} onLock={lockImages} searchQuery={query} workspace />}
     {folder === "locked" && <LockedImages active={active} searchQuery={query} />}
     {active && locking && <LockedImages active pendingOnly pending={locking.items} onCancel={cancelLocking} onImported={result => setLocking(current => {

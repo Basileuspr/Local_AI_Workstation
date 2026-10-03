@@ -1,4 +1,5 @@
 import {useEffect, useRef, useState} from 'react';
+import {audioOutput} from '../audioOutput';
 import {AUDIO_ACCEPT, audioRequest, createAudioCapture, transcribeAudio} from '../audio';
 import {stopSpeech} from '../audioSpeech';
 import {downloadBlob} from '../downloadBlob';
@@ -42,6 +43,7 @@ export default function VoiceCloningPanel({active}) {
   const mounted = useRef(true), operation = useRef(false), inputPlayer = useRef(null), outputPlayer = useRef(null);
   const capture = useRef(null), recordingStarted = useRef(0), context = useRef(0), autoPlay = useRef(null);
   const referenceUrl = useAudioUrl(reference), outputUrl = useAudioUrl(result?.blob);
+  useEffect(() => {if(capturing)return audioOutput.holdCapture();},[capturing]);
   useEffect(() => {mounted.current = true; return () => {mounted.current = false; capture.current?.cancel();};}, []);
   useEffect(() => {
     if (!active) {inputPlayer.current?.pause(); outputPlayer.current?.pause(); return;}
@@ -62,9 +64,11 @@ export default function VoiceCloningPanel({active}) {
     autoPlay.current = null;
     const version = context.current;
     stopSpeech(); inputPlayer.current?.pause();
-    outputPlayer.current?.play().catch(() => {
+    const player=outputPlayer.current;if(!player)return;
+    const output=audioOutput.track(player);
+    output.ready.then(()=>{if(mounted.current && context.current===version && outputPlayer.current===player)return player.play();}).catch(() => {
       if (mounted.current && context.current === version) setPlaybackNotice('Your demo is ready. Press Play below to listen.');
-    });
+    }).finally(()=>output.release());
   }, [active,outputUrl,result]);
   useEffect(() => {
     if (!busy) return;

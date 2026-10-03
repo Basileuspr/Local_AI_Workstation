@@ -68,8 +68,13 @@ def sample(state,run_id,record_id):
 def action(state,payload):
     operation=payload.get('operation')
     if operation in ('capabilities','job','stop'): return request(operation,{} if operation=='stop' else None)
-    if operation=='catalog': return request('catalog',query={'person':payload.get('person',''),'scene':payload.get('scene',''),'rating':payload.get('rating',''),'query':str(payload.get('query',''))[:200],'offset':max(0,int(payload.get('offset',0))),
-        **{key:payload[key] for key in ('category','project','favorite','review_status') if key in payload}})
+    if operation=='catalog':
+        value=request('catalog',query={'person':payload.get('person',''),'scene':payload.get('scene',''),'rating':payload.get('rating',''),'query':str(payload.get('query',''))[:200],'offset':max(0,int(payload.get('offset',0))),
+            **{key:payload[key] for key in ('category','project','favorite','review_status') if key in payload}})
+        # Use the native Tags palette, including tags on unclassified videos.
+        names=[*value.get('available_tags',[]),*(tag['name'] for tag in media_actions.metadata(state.reports)['tags'])]
+        value['available_tags']=sorted({name.casefold():name for name in names}.values(),key=str.casefold)
+        return value
     if operation=='open':
         item=sample(state,payload.get('runId'),payload.get('recordId')); value=request('register',item)
         data=media_actions.metadata(state.reports); assigned=set(data['assignments'].get(item['digest'].upper(),[]))

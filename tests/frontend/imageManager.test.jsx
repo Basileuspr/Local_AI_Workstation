@@ -5,7 +5,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import SidebarNavigation from '../../src/components/SidebarNavigation';
 import { appTabs, appTabLabels } from '../../src/navigation';
 import { functionTargets, captureActions } from '../../src/functionButtons';
-import { confirmationFor, originalImage, imageSteps, imageUrl, updateImageFilters } from '../../src/imageManagerApi';
+import { confirmationFor, originalImage, imageSteps, imageUrl, updateImageFilters, imageVisibility } from '../../src/imageManagerApi';
 import { ImageManagerFilters } from '../../src/components/ImageManager';
 import { localImageUrl } from '../../src/chatImages';
 import { API_BASE } from '../../src/api';
@@ -54,10 +54,19 @@ describe('separate image manager integration', () => {
     expect(absent).toContain('Client &amp; 50% (no matches)');
   });
   it('selecting a tag clears untagged-only, and choosing untagged-only clears the tag', () => {
-    const filters = { tag: '', hide_tagged: true, search: 'photo', folder_id: 'source' };
+    const filters = { tag: '', hide_tagged: true, tagged_only: false, search: 'photo', folder_id: 'source' };
     const tagged = updateImageFilters(filters, 'tag', 'Done');
     expect(tagged).toEqual({ ...filters, tag: 'Done', hide_tagged: false });
     expect(updateImageFilters(tagged, 'hide_tagged', true)).toEqual(filters);
     expect(updateImageFilters(tagged, 'sort', 'name')).toEqual({ ...tagged, sort: 'name' });
+  });
+  it('shows tagged images including hidden ones and keeps tagged and untagged filters mutually exclusive', () => {
+    const filters = { tag: 'Trip', hide_tagged: true, tagged_only: false, search: 'photo', folder_id: 'source' };
+    const tagged = updateImageFilters(filters, 'tagged_only', true);
+    expect(tagged).toEqual({ ...filters, hide_tagged: false, tagged_only: true });
+    expect(imageVisibility(tagged, 'library')).toBe('all');
+    expect(imageVisibility(tagged, 'hidden')).toBe('hidden');
+    expect(imageVisibility(updateImageFilters(tagged, 'tagged_only', false), 'library')).toBe('visible');
+    expect(updateImageFilters(tagged, 'hide_tagged', true)).toEqual({ ...filters, tag: '' });
   });
 });

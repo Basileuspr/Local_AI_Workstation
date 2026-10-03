@@ -11,13 +11,13 @@ import './ImageManager.css';
 import {useRangeSelection} from '../useRangeSelection';
 import {preventSelectionText} from '../fileSelection';
 
-const emptyFilters = { search: '', folder_id: '', tag: '', format: '', month: '', favorite: false, hide_tagged: false, duplicates: false, digest: '', sort: 'date' };
+const emptyFilters = { search: '', folder_id: '', tag: '', format: '', month: '', favorite: false, hide_tagged: false, tagged_only: false, duplicates: false, digest: '', sort: 'date' };
 const emptyPage = { images: [], total: 0, offset: 0, months: [], formats: [], tags: [] };
 const emptyState = { folders: [], summary: { images: 0, bytes: 0, favorites: 0 }, functions: [], duplicates: [], receipts: [], plans: [] };
 const layouts = { month: 'Year / month', day: 'Year / month / day', format: 'Image format', folders: 'Keep relative folders' };
 
 export function ImageManagerFilters({ filters, page, folders, view, onFilter, onReset, pageSize = 48, onPageSize, density = 'comfortable', onDensity }) {
-  const extra = [filters.format, filters.month, filters.favorite && 'Favorites', filters.hide_tagged && 'Untagged only'].filter(Boolean);
+  const extra = [filters.format, filters.month, filters.favorite && 'Favorites', filters.hide_tagged && 'Untagged only', filters.tagged_only && 'Tagged images (including hidden)'].filter(Boolean);
   const tags = page.tags || [];
   return <>
     <div className="im-filters"><input aria-label="Search images or tags" placeholder="Search filenames or tags…" value={filters.search} onChange={event => onFilter('search', event.target.value)} maxLength={200}/>
@@ -25,7 +25,7 @@ export function ImageManagerFilters({ filters, page, folders, view, onFilter, on
       <select aria-label="Filter image tag" value={filters.tag} onChange={event => onFilter('tag', event.target.value)}><option value="">All tags</option>{filters.tag && !tags.includes(filters.tag) && <option value={filters.tag}>{filters.tag} (no matches)</option>}{tags.map(tag => <option key={tag} value={tag}>{tag}</option>)}</select>
       <select aria-label="Sort images" value={filters.sort} onChange={event => onFilter('sort', event.target.value)}>{Object.entries({ date: 'Newest first', name: 'Filename', size: 'Largest files', dimensions: 'Largest dimensions' }).map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select>
       <label className="im-page-size">Images per page<select aria-label="Images per page" value={pageSize} onChange={event => onPageSize?.(event.target.value)}>{images.IMAGE_PAGE_SIZES.map(size => <option value={size} key={size}>{size.toLocaleString()}</option>)}</select></label>
-      <label className="im-view-density">View density<select aria-label="Image Manager view density" value={density} onChange={event => onDensity?.(event.target.value)}><option value="comfortable">Comfortable</option><option value="compact">Compact</option></select></label>
+      <label className="im-view-density">View density<select aria-label="Image Manager view density" value={density} onChange={event => onDensity?.(event.target.value)}><option value="comfortable">Comfortable</option><option value="extra-comfortable">Extra comfortable</option><option value="compact">Compact</option></select></label>
       <button onClick={onReset}>Reset filters</button>
     </div>
     <details className="im-extra-filters"><summary>More filters{extra.length > 0 && ` · ${extra.join(' · ')}`}</summary><div className="im-controls">
@@ -117,7 +117,7 @@ export default function ImageManager({ active = true }) {
   useEffect(() => {
     if (!active) return;
     const controller = new AbortController();
-    const timer = setTimeout(() => images.request(`/images?${new URLSearchParams({ ...filters, visibility: view === 'hidden' ? 'hidden' : 'visible', offset, limit: pageSize })}`, 'GET', undefined, controller.signal).then(value => {
+    const timer = setTimeout(() => images.request(`/images?${new URLSearchParams({ ...filters, visibility: images.imageVisibility(filters, view), offset, limit: pageSize })}`, 'GET', undefined, controller.signal).then(value => {
       if (controller.signal.aborted) return;
       if (offset > 0 && offset >= value.total) setOffset(Math.floor(Math.max(0, value.total - 1) / pageSize) * pageSize);
       else setPage(value);
@@ -146,7 +146,7 @@ export default function ImageManager({ active = true }) {
     images.request(`/plans/${plan.id}`).then(value => { if (alive) setPlan(value); }).catch(error => { if (alive) setError(error.message); });
     return () => { alive = false; };
   }, [state.job?.id, state.job?.status]);
-  function filter(key, value) { setFilters(current => images.updateImageFilters(current, key, value)); setOffset(0); if (key === 'hide_tagged' || key === 'tag') setSelected([]); }
+  function filter(key, value) { setFilters(current => images.updateImageFilters(current, key, value)); setOffset(0); if (['hide_tagged', 'tag', 'tagged_only'].includes(key)) setSelected([]); }
   function changePageSize(value) {
     const size = images.imagePageSize(value);
     setPageSize(size); setOffset(0); images.saveImagePageSize(size);
@@ -176,7 +176,7 @@ export default function ImageManager({ active = true }) {
   }
   async function start(kind, payload) { const result = await images.task(kind, payload); await refresh(); return result; }
   const scope = { folder_ids: sourceIds, recursive, output_id: outputId, layout, mode };
-  async function annotate(body) { await images.request('/metadata', 'PATCH', { ids: selected, ...body }); if (body.hidden !== undefined || ((body.tags || body.add_tags) && filters.hide_tagged)) { setSelected([]); setOffset(0); } setRevision(v => v + 1); await refresh(); }
+  async function annotate(body) { await images.request('/metadata', 'PATCH', { ids: selected, ...body }); if (body.hidden !== undefined || ((body.tags || body.add_tags) && (filters.hide_tagged || filters.tagged_only))) { setSelected([]); setOffset(0); } setRevision(v => v + 1); await refresh(); }
   async function addExistingTag() {
     const count = selected.length;
     await annotate({ add_tags: [existingTag] });
@@ -186,6 +186,11 @@ export default function ImageManager({ active = true }) {
     const result = await images.request('/visibility/hide-tagged', 'POST', { folder_id: filters.folder_id });
     setSelected([]); setOffset(0); setRevision(v => v + 1); await refresh();
     setNotice(`${result.updated} tagged image${result.updated === 1 ? '' : 's'} hidden. Restore them from Hidden.`);
+  }
+  async function unhideImages() {
+    const result = await images.request('/visibility/unhide', 'POST', { folder_id: filters.folder_id });
+    setSelected([]); setOffset(0); setRevision(v => v + 1); await refresh();
+    setNotice(`${result.updated} image${result.updated === 1 ? '' : 's'} unhidden.`);
   }
   function toggleImage(id, event) { imageRange.toggle(id,event); }
   async function reviewFiles(action, ids) {
@@ -226,9 +231,12 @@ export default function ImageManager({ active = true }) {
     <div className="im-sticky-controls">
     <nav className="im-tabs" aria-label="Image Manager views">{['library', 'duplicates', 'hidden', 'organize', 'functions', 'history', 'trash'].map(id => <button key={id} aria-current={view === id ? 'page' : undefined} onClick={() => chooseView(id)}>{id[0].toUpperCase() + id.slice(1)}{['trash', 'hidden'].includes(id) ? ` (${state.summary[id] || 0})` : ''}</button>)}</nav>
       {['library', 'duplicates', 'hidden'].includes(view) && <>
-      <ImageManagerFilters filters={filters} page={page} folders={state.folders} view={view} onFilter={filter} onReset={() => { setFilters(emptyFilters); setOffset(0); }} pageSize={pageSize} onPageSize={changePageSize} density={density} onDensity={changeDensity}/>
+      <ImageManagerFilters filters={filters} page={page} folders={state.folders} view={view} onFilter={filter} onReset={() => { if (filters.tagged_only) setSelected([]); setFilters(emptyFilters); setOffset(0); }} pageSize={pageSize} onPageSize={changePageSize} density={density} onDensity={changeDensity}/>
       <div className="im-selection"><span title="Ctrl-click toggles files. Shift-click selects a range on the shown page. Ctrl+Shift adds a range.">{selected.length} selected · <span role="status">Showing {page.images.length} of {page.total} matches</span></span><button disabled={!page.images.length} onClick={() => setSelected(current => [...new Set([...current, ...page.images.map(image => image.id)])].slice(0, 1000))}>Select page</button>
         {view !== 'hidden' && <button disabled={disabled} title={`Hide every tagged image in ${filters.folder_id ? 'the chosen folder' : 'all catalog folders'}, across all pages and filters. Originals stay in place.`} onClick={() => perform(hideTagged)}>Hide tagged images</button>}
+        {view !== 'hidden' && <button aria-pressed={filters.tagged_only} title="Show images with tags, including hidden images, within the current filters" onClick={() => filter('tagged_only', !filters.tagged_only)}>Show tagged images</button>}
+        <button disabled={disabled || !state.summary.hidden} title={`Unhide every hidden image in ${filters.folder_id ? 'the chosen folder' : 'all catalog folders'}, across all pages and filters`} onClick={() => perform(unhideImages)}>Unhide images</button>
+        {(view === 'hidden' || filters.tagged_only) && <button disabled={disabled || !selected.length} onClick={() => perform(() => annotate({ hidden: false }))}>Unhide selected</button>}
         {selected.length > 0 && <><button onClick={() => setSelected([])}>Clear selection</button>
           <label className="im-existing-tag">Existing tag<select aria-label="Existing tag for selected images" value={existingTag} disabled={disabled || !page.tags.length} onChange={event => setSavedTag(event.target.value)}>
             <option value="">{page.tags.length ? 'Choose a saved tag' : 'No saved tags yet'}</option>{page.tags.map(tag => <option key={tag} value={tag}>{tag}</option>)}
@@ -236,7 +244,7 @@ export default function ImageManager({ active = true }) {
           <input aria-label="Selected image tags" value={tags} onChange={event => setTags(event.target.value)} placeholder="Tags, separated by commas" title="Replace tags on selected images; leave blank to clear them"/><button disabled={disabled} onClick={() => perform(() => annotate({ tags: tags.split(',').map(tag => tag.trim()).filter(Boolean) }))}>Set tags</button></>}
         <details className="im-more-actions"><summary>More actions</summary>
           <div className="im-controls"><button disabled={!selected.length} onClick={() => setView('organize')}>Organize selected</button><button disabled={disabled || !selected.length} onClick={() => perform(() => annotate({ favorite: true }))}>Favorite</button><button disabled={disabled || !selected.length} onClick={() => perform(() => annotate({ favorite: false }))}>Unfavorite</button>
-            {view === 'hidden' ? <button disabled={disabled || !selected.length} onClick={() => perform(() => annotate({ hidden: false }))}>Restore selected to library</button> : <button disabled={disabled || !selected.length} onClick={() => perform(() => annotate({ hidden: true }))}>Hide selected</button>}
+            {view !== 'hidden' && <button disabled={disabled || !selected.length} onClick={() => perform(() => annotate({ hidden: true }))}>Hide selected</button>}
             <button className="im-delete" disabled={disabled || !selected.length} onClick={() => perform(() => reviewFiles('delete', selected))}>Delete selected ({selected.length})</button>
           </div>
 
@@ -252,8 +260,8 @@ export default function ImageManager({ active = true }) {
         <label className="im-select"><input type="checkbox" aria-label={`Select ${image.relative}`} checked={selected.includes(image.id)} onMouseDown={preventSelectionText} onClick={event => toggleImage(image.id,event)} onChange={() => {}} /></label>
         <button className="im-delete im-delete-item" aria-label={`Delete ${image.relative}`} disabled={disabled} onClick={() => perform(() => reviewFiles('delete', [image.id]))}>Delete</button>
         </div>
-        <button className="im-image" onMouseDown={preventSelectionText} onClick={event => toggleImage(image.id,event)} aria-label={`Select image ${image.relative}`} aria-pressed={selected.includes(image.id)}><ImageThumbnail src={images.imageUrl(image)} alt={image.relative} /></button>
-        <button className="im-name" title={`${image.folder_path} / ${image.relative}`} onMouseDown={preventSelectionText} onClick={event => toggleImage(image.id,event)} aria-pressed={selected.includes(image.id)}>{image.favorite ? '★ ' : ''}{image.relative}</button><small>{image.width} × {image.height} · {image.format} · {images.bytesLabel(image.bytes)}</small><small>{image.date.slice(0, 10)} · {image.date_source}</small>{image.tags.length > 0 && <small className="im-tags">{image.tags.join(' · ')}</small>}<button className="im-preview-button" onClick={() => setPreview(image)} aria-label={`Preview ${image.relative}`}>Preview</button>
+        <button className="im-image" onMouseDown={preventSelectionText} onClick={event => toggleImage(image.id,event)} aria-label={`Select image ${image.relative}`} aria-pressed={selected.includes(image.id)}><ImageThumbnail src={images.imageUrl(image, density === 'extra-comfortable')} alt={image.relative} /></button>
+        <button className="im-name" title={`${image.folder_path} / ${image.relative}`} onMouseDown={preventSelectionText} onClick={event => toggleImage(image.id,event)} aria-pressed={selected.includes(image.id)}>{image.favorite ? '★ ' : ''}{image.relative}</button>{Boolean(image.hidden) && <small>Hidden</small>}<small>{image.width} × {image.height} · {image.format} · {images.bytesLabel(image.bytes)}</small><small>{image.date.slice(0, 10)} · {image.date_source}</small>{image.tags.length > 0 && <small className="im-tags">{image.tags.join(' · ')}</small>}<button className="im-preview-button" onClick={() => setPreview(image)} aria-label={`Preview ${image.relative}`}>Preview</button>
       </article>)}</div>
       {!page.total && <p className="im-empty">{state.summary.images ? 'No images match these filters.' : 'Add a source folder and scan it to browse your still images here.'}</p>}
       {page.total > pageSize && <div className="im-pagination"><button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - pageSize))}>Previous</button><span>{(page.offset || 0) + 1}–{(page.offset || 0) + page.images.length} of {page.total}</span><button disabled={offset + pageSize >= page.total} onClick={() => setOffset(offset + pageSize)}>Next</button></div>}

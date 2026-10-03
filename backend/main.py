@@ -123,6 +123,10 @@ from routes.local_files import router as local_files_router
 app.include_router(local_files_router)
 from routes.document_editor import router as document_editor_router
 app.include_router(document_editor_router)
+from routes.slicer import router as slicer_router
+from routes.app_integrations import router as integrations_router
+app.include_router(slicer_router)
+app.include_router(integrations_router)
 from routes.hash_auditor import router as hash_auditor_router
 app.include_router(hash_auditor_router)
 from routes.storage_libraries import router as storage_libraries_router

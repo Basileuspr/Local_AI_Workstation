@@ -44,11 +44,54 @@ def test_conversion_download_is_image_and_not_sidecar(converted):
         assert client.get('/workspaces/converted/not-an-id').status_code == 404
 
 
+def test_converter_accepts_and_downloads_an_image_larger_than_24_mb(converted, tmp_path):
+    source = tmp_path / "large-source.bmp"
+    Image.new("RGB", (3072, 3072), (12, 70, 220)).save(source, "BMP")
+    original = source.read_bytes()
+    assert len(original) > 24 * 1024 * 1024
+    app = FastAPI(); app.include_router(router)
+    with TestClient(app) as client, source.open("rb") as upload:
+        response = client.post("/workspaces/convert", files={"file": (source.name, upload, "image/bmp")}, data={"target": "png"})
+        assert response.status_code == 200, response.text
+        result = response.json()
+        assert (result["width"], result["height"]) == (3072, 3072)
+        downloaded = client.get("/workspaces/converted/" + result["id"])
+        assert downloaded.status_code == 200
+        assert downloaded.headers["content-type"] == "image/png"
+        with Image.open(io.BytesIO(downloaded.content)) as image:
+            assert image.size == (3072, 3072)
+            assert image.convert("RGB").getpixel((0, 0)) == (12, 70, 220)
+    assert source.read_bytes() == original
+
+
+def test_converter_accepts_exact_file_limit_and_rejects_one_byte_over(converted, monkeypatch):
+    # Exercise the upload read boundary with a small temporary limit.
+    monkeypatch.setattr(conversion, "MAX_BYTES", len(converted))
+    app = FastAPI(); app.include_router(router)
+    with TestClient(app) as client:
+        accepted = client.post("/workspaces/convert", files={"file": ("boundary.png", converted, "image/png")}, data={"target": "png"})
+        assert accepted.status_code == 200
+        rejected = client.post("/workspaces/convert", files={"file": ("too-large.png", converted + b"\0", "image/png")}, data={"target": "png"})
+        assert rejected.status_code == 400
+        assert "100 MB" in rejected.json()["detail"]
+    assert len(list(conversion.ROOT.glob("*.json"))) == 1
+
+
+def test_converter_explains_pixel_limit_separately_from_file_size(converted):
+    raw = io.BytesIO(); Image.new("1", (5000, 5000)).save(raw, "PNG")
+    app = FastAPI(); app.include_router(router)
+    with TestClient(app) as client:
+        response = client.post("/workspaces/convert", files={"file": ("too-many-pixels.png", raw.getvalue(), "image/png")}, data={"target": "png"})
+        assert response.status_code == 400
+        assert response.json()["detail"] == "Choose an image up to 24 megapixels."
+    assert not conversion.ROOT.exists()
+
+
 @pytest.mark.parametrize('dimensions,side', [((1200,600),256), ((30,8),24), ((8,6),16)])
 def test_ico_has_square_frames_and_transparent_padding_without_changing_source(converted, dimensions, side, tmp_path):
     raw = io.BytesIO(); Image.new('RGBA', dimensions, (255,0,0,255)).save(raw,'PNG')
     source = tmp_path / 'original.png'; source.write_bytes(raw.getvalue())
-    result = conversion.convert(source.read_bytes(), 'original.png', 'ico')
+    result = conversion.convert(source.read_bytes(), 'original.png', 'ico', icon_size=side)
     value, path = conversion.read(result['id'])
     assert result['format'] == 'ico' and value['name'] == 'original.ico'
     assert (value['width'],value['height']) == (side,side)
@@ -62,6 +105,21 @@ def test_ico_has_square_frames_and_transparent_padding_without_changing_source(c
             assert frame.getpixel((size[0]//2,size[1]//2))[0] > 240
             assert frame.getpixel((0,0))[3] == 0
     assert source.read_bytes() == raw.getvalue()
+
+
+def test_small_image_ico_defaults_to_all_windows_sizes_and_fill_can_remove_padding(converted):
+    raw = io.BytesIO(); Image.new('RGBA', (30, 8), (12, 70, 220, 255)).save(raw, 'PNG')
+    result = conversion.convert(raw.getvalue(), 'small.png', 'ico')
+    assert result['icon_sizes'] == list(conversion.ICON_SIZES)
+    with Image.open(conversion.read(result['id'])[1]) as icon:
+        assert icon.size == (256, 256)
+        assert icon.ico.sizes() == {(size, size) for size in conversion.ICON_SIZES}
+        assert icon.convert('RGBA').getpixel((0, 0))[3] == 0
+    result = conversion.convert(raw.getvalue(), 'filled.png', 'ico', icon_size=48, icon_fit='cover')
+    with Image.open(conversion.read(result['id'])[1]) as icon:
+        assert icon.size == (48, 48)
+        assert icon.convert('RGBA').getpixel((0, 0))[3] == 255
+    with pytest.raises(ValueError): conversion.convert(converted, 'bad.png', 'ico', icon_size=42)
 
 
 def test_ico_download_and_preview_are_usable_images(converted):

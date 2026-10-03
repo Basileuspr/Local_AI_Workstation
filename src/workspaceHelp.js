@@ -2,9 +2,25 @@ import {workspaceControls} from './workspaceControls';
 // Every workspace has an explicit guide. New routes must add one here too.
 // Keep instructions out of the work surface; WorkspaceInfo owns their presentation.
 const overview = {
+  university: {
+    purpose: 'Learn computing, local AI and the workstation’s tools through offline lessons with guided app practice, sample files, working notes and knowledge checks.',
+    example: 'Find Read a table and verify its totals, save the practice CSV, open Spreadsheets from the lesson and filter to stationery. Verify the 28-credit subtotal, return to your notes and complete the knowledge check.',
+  },
+  'agent-university': {
+    purpose: 'Learn to plan, supervise and evaluate workflows using the app’s actual tools, source boundaries, handoffs, result checks and recovery controls.',
+    example: 'Study Discover tools before planning, inspect a Dashboard tool contract, then draft its inputs, outputs, prerequisites and completion evidence. Work through the capstone to turn the practice brief into a checked summary, diagram and delivery package.',
+  },
+  'neural-network': {
+    purpose: 'Explore how a tiny neural network turns two input numbers into two output shares. Use the explanations and worked example below to understand each slider and activation option.',
+    example: 'Reset network, select Input 1 → Hidden 1, and change Weight from 0.8 to 0. Hidden 1’s weighted sum falls from 0.750 to 0.350 because Input 1’s contribution is removed. Reset again, then compare tanh, ReLU, and sigmoid with the same numbers.',
+  },
+  'break-room': {
+    purpose: 'Take a short break with Memory Match or help identify faces in images already analyzed in REVIEW / Image Manager.',
+    example: 'Click Help identify faces, compare a possible match, enter or choose a name, and answer Yes or No. Skip leaves it for later; Undo restores the last answer. Or find eight pairs in Memory Match.',
+  },
   'document-editor': {
     purpose: 'Write and edit rich documents with a Word-style ribbon and local Python DOCX import/export.',
-    example: 'Create a heading, write a paragraph, insert a table, choose A4 in Layout and Export .docx. To edit an existing file, use File → Open .docx, review the conversion limits and open the editable copy.',
+    example: 'Use Home → Styles to apply Title, headings or a custom paragraph style. Modify a style once to update all its paragraphs; Reset to style clears direct formatting while keeping links. Click a table for Table Layout and Table Design, or use Insert for pictures, page breaks, headers and numbering. Export .docx, then Download DOCX. The editing view is continuous; the DOCX reader calculates actual pages. Opening an existing file creates a supported editable copy after a conversion notice.',
   },
   'local-files': {
     purpose: 'Edit existing DOCX text, inspect SQLite databases, and sample or analyze videos locally.',
@@ -38,6 +54,14 @@ const overview = {
     purpose: "Record, transcribe, extract audio, read text aloud, or generate speech with a local voice model.",
     example: "Upload a meeting recording, enable Separate speakers, transcribe it, correct the speaker labels and text, then save the reviewed transcript.",
   },
+  slicer: {
+    purpose: 'Prepare a G-code file from a local STL using the installed CuraEngine and a matching printer profile, with local progress and cancellation controls.',
+    example: 'Refresh Cura readiness, choose an STL under 50 MiB and select the profile for your printer. Check the material, nozzle, layer height, infill and support settings, then Slice model. Download the completed G-code and inspect it in your printer software before printing.',
+  },
+  integrations: {
+    purpose: 'Use the Discord widget and explicit message sending, record Windows or embedded Spotify playback, and inspect phone-mirroring readiness.',
+    example: 'Open a Spotify link and press Play in its embedded player. Choose Embedded Spotify player as the recording source, start recording and confirm Audio signal received. Stop, listen to the preview, then save the recording locally. Use shared Sound output controls to adjust preview volume and its playback device.',
+  },
   images: {
     purpose: "Browse images saved in the app’s gallery.",
     example: "Find a generated image, open its preview, then send it to Editor to make a local adjustment.",
@@ -47,8 +71,8 @@ const overview = {
     example: "Use a fixed seed such as 42 and keep the model, prompt, dimensions, and steps the same while comparing two guidance values. The detailed scales below explain each setting.",
   },
   review: {
-    purpose: "Review image requests and their generated results.",
-    example: "Open a completed request, compare its images, and send the selected result to Editor for finishing.",
+    purpose: "Classify images with ratings, tags, captions, local face grouping, and optional scene analysis, then file them into Gallery folders.",
+    example: "Upload images, choose Review image, save a caption and tags, then use Add to folder. For face or scene grouping, open Review & classify and select available local models.",
   },
   "image-editor": {
     purpose: "Edit an image locally and preview the changes.",

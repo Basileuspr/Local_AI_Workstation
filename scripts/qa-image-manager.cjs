@@ -121,13 +121,13 @@ app.whenReady().then(async () => {
   await until(async () => (await api('/state')).job?.status === 'complete' && (await api('/images')).total === 1, 'saved hiding survives rescan');
   await click('Hidden (2)');
   await until(() => js("document.querySelectorAll('.im-grid article').length===2"), 'hidden view');
-  await click('Select page'); await click('Restore selected to library');
+  await click('Select page'); await click('Unhide selected');
   await until(async () => (await api('/images?visibility=hidden')).total === 0, 'restore tagged images');
   await click('Library'); await until(() => js("document.querySelectorAll('.im-grid article').length===3"), 'restored library');
   await js("document.querySelector('.im-image').click()"); await click('Hide selected');
   await until(() => js("document.querySelectorAll('.im-grid article').length===2"), 'hide selected image');
   await click('Hidden (1)'); await until(() => js("document.querySelectorAll('.im-grid article').length===1"), 'one hidden image');
-  await click('Select page'); await click('Restore selected to library');
+  await click('Select page'); await click('Unhide selected');
   await until(async () => (await api('/images?visibility=hidden')).total === 0, 'restore selected image');
   await click('Library'); await until(() => js("document.querySelectorAll('.im-grid article').length===3"), 'all images restored');
   assert.equal(fs.readdirSync(source, { withFileTypes: true }).filter(entry => entry.isFile()).length, 4, 'Hiding never moves originals');

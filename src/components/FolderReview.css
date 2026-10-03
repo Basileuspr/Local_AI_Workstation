@@ -15,3 +15,4 @@
 .folder-review-report pre { max-height: 600px; overflow-y: auto; }
 .folder-review-warning, .folder-review-workspace [role=alert] { color: var(--warning, #e8b867); }
 .folder-review-help { color: var(--text-dim); line-height: 1.6; }
+.folder-review-processing { display: flex; flex-direction: column; gap: 6px; overflow-wrap: anywhere; }

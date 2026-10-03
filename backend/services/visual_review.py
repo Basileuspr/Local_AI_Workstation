@@ -18,6 +18,7 @@ from PIL import Image, ImageOps
 from config import settings
 from services import image_vault
 from services import review_metadata
+from services.visual_review_names import name_key, named
 
 ROOT = settings.data_dir / 'visual_review'
 LOCK = threading.RLock()
@@ -51,6 +52,7 @@ def database():
                 CREATE TABLE IF NOT EXISTS reviews(digest TEXT PRIMARY KEY, rating TEXT, caption TEXT DEFAULT '', tags TEXT DEFAULT '[]');
                 CREATE TABLE IF NOT EXISTS source_reviews(source TEXT, id TEXT, digest TEXT, value TEXT NOT NULL,
                   PRIMARY KEY(source,id,digest));
+                CREATE TABLE IF NOT EXISTS face_feedback(face_id TEXT PRIMARY KEY, value TEXT NOT NULL);
             ''')
             if 'stamp' not in {row['name'] for row in db.execute('PRAGMA table_info(sources)')}:
                 db.execute("ALTER TABLE sources ADD COLUMN stamp TEXT DEFAULT ''")
@@ -165,8 +167,10 @@ def open_item(source, identifier):
         else: raise ValueError('Open this source once while available before reviewing its saved metadata.')
         public(digest)
     value=review(source,identifier)
+    classification=result(digest)
     return {'digest':digest,'name':name,'review':value,'media':media_record(source,identifier,value),
-            'classification':result(digest), 'available_tags':tag_names(source)}
+            'classification':classification, 'available_tags':tag_names(source),
+            'person_tags':list(dict.fromkeys(face['name'] for face in classification['faces'] if named(face['name'])))}
 
 
 def result(digest):
@@ -209,7 +213,7 @@ def saved_review(db, source, identifier, digest, favorite=None):
 
 def library_review(item, names):
     return {**review_metadata.metadata(item), 'caption': item.get('annotations', {}).get('caption', ''),
-            'tags': [names[tag] for tag in item.get('tag_ids', []) if tag in names]}
+            'tags': [names[tag] for tag in item.get('manual_tag_ids', item.get('tag_ids', [])) if tag in names]}
 
 
 def catalog(source, person='', scene='', offset=0, limit=48, rating='', query='', category='', project='', favorite=None, review_status=''):
@@ -261,8 +265,10 @@ def catalog(source, person='', scene='', offset=0, limit=48, rating='', query=''
             if query and query.casefold() not in ' '.join(searchable).casefold(): continue
             items.append({**{key:row[key] for key in ('source','id','digest','name','stamp')}, 'classification':info, 'review':metadata,
                           'media':{**media,**metadata}})
-        return {'items':items[offset:offset+limit], 'total':len(items),
-                'people':sorted(groups.values(), key=lambda group:(group['name'].casefold(),group['id'])), 'scenes':scenes}
+        value={'items':items[offset:offset+limit], 'total':len(items),
+               'people':sorted(groups.values(), key=lambda group:(group['name'].casefold(),group['id'])), 'scenes':scenes}
+    value['available_tags']=tag_names(source)
+    return value
 
 
 def normalized(vector):
@@ -320,11 +326,21 @@ def recompute(db, identifier):
 
 
 def rename_person(identifier, name):
-    name = name.strip()
+    name = ' '.join(name.split())
     if not name or len(name)>120: raise ValueError('Use a person label of 1 to 120 characters.')
     with database() as db:
-        if not db.execute('UPDATE people SET name=? WHERE id=?', (name,identifier)).rowcount: raise ValueError('Person group no longer exists.')
-    return {'ok':True}
+        if not db.execute('SELECT 1 FROM people WHERE id=?', (identifier,)).fetchone(): raise ValueError('Person group no longer exists.')
+        matches=[row for row in db.execute('SELECT id,name,count FROM people ORDER BY count DESC,id')
+                 if row['id']!=identifier and name_key(row['name'])==name_key(name)]
+        target=matches[0]['id'] if matches else identifier
+        if matches:
+            name=' '.join(matches[0]['name'].split())
+        db.execute('UPDATE people SET name=? WHERE id=?', (name,target))
+        merged=0
+        for other in [identifier, *(row['id'] for row in matches)]:
+            if other!=target:
+                _merge_people(db,other,target); merged+=1
+        return {'ok':True,'person_id':target,'name':name,'merged':merged}
 
 
 def pending_ids(source,faces=True,model=''):
@@ -348,20 +364,33 @@ def pending_ids(source,faces=True,model=''):
 
 def correct_face(identifier, person_id=None, exclude=False, name=None):
     if name is not None:
-        name = name.strip()
+        name = ' '.join(name.split())
         if not name or len(name)>120: raise ValueError('Use a person label of 1 to 120 characters.')
         if person_id or exclude: raise ValueError('A new name is only used when separating a face into a new person.')
     with database() as db:
-        row = db.execute('SELECT * FROM faces WHERE id=?', (identifier,)).fetchone()
-        if not row: raise ValueError('Face no longer exists.')
-        public(row['digest'])
-        if person_id and not db.execute('SELECT 1 FROM people WHERE id=?', (person_id,)).fetchone(): raise ValueError('Choose an existing person group.')
-        if exclude and not person_id: person_id = row['person_id']
-        if not person_id:
-            person_id = uuid4().hex
-            db.execute('INSERT INTO people VALUES (?,?,?,0)', (person_id,name or unnamed_person(db),row['embedding']))
-        db.execute('UPDATE faces SET person_id=?,excluded=?,uncertain=0 WHERE id=?', (person_id,int(exclude),identifier))
-        recompute(db,row['person_id']); recompute(db,person_id)
+        return _correct_face(db, identifier, person_id, exclude, name)
+
+
+def _correct_face(db, identifier, person_id=None, exclude=False, name=None):
+    """Share the correction transaction with the Break Room answer and undo."""
+    row = db.execute('SELECT * FROM faces WHERE id=?', (identifier,)).fetchone()
+    if not row: raise ValueError('Face no longer exists.')
+    public(row['digest'])
+    if person_id and not db.execute('SELECT 1 FROM people WHERE id=?', (person_id,)).fetchone(): raise ValueError('Choose an existing person group.')
+    if exclude and not person_id: person_id = row['person_id']
+    if not person_id and name:
+        matches=[person['id'] for person in db.execute('SELECT id,name FROM people ORDER BY count DESC,id')
+                 if name_key(person['name'])==name_key(name)]
+        if matches:
+            person_id=matches[0]
+            for other in matches[1:]: _merge_people(db,other,person_id)
+            # A legacy duplicate may have been the face's previous group.
+            row=db.execute('SELECT * FROM faces WHERE id=?',(identifier,)).fetchone()
+    if not person_id:
+        person_id = uuid4().hex
+        db.execute('INSERT INTO people VALUES (?,?,?,0)', (person_id,name or unnamed_person(db),row['embedding']))
+    db.execute('UPDATE faces SET person_id=?,excluded=?,uncertain=0 WHERE id=?', (person_id,int(exclude),identifier))
+    recompute(db,row['person_id']); recompute(db,person_id)
     return {'ok':True,'person_id':person_id}
 
 
@@ -369,10 +398,17 @@ def merge_people(source_id, target_id):
     if source_id == target_id: raise ValueError('Choose two different groups.')
     with database() as db:
         if db.execute('SELECT COUNT(*) FROM people WHERE id IN (?,?)', (source_id,target_id)).fetchone()[0] != 2: raise ValueError('Person group no longer exists.')
-        # A group merge is an explicit user correction, not an automatic guess.
-        db.execute('UPDATE faces SET person_id=?,uncertain=0 WHERE person_id=?', (target_id,source_id))
-        db.execute('DELETE FROM people WHERE id=?', (source_id,)); recompute(db,target_id)
-    return {'ok':True}
+        target=db.execute('SELECT name FROM people WHERE id=?',(target_id,)).fetchone()['name']
+        others=[row['id'] for row in db.execute('SELECT id,name FROM people')
+                if row['id']!=target_id and (row['id']==source_id or (named(target) and name_key(row['name'])==name_key(target)))]
+        for other in others: _merge_people(db,other,target_id)
+    return {'ok':True,'person_id':target_id,'name':target}
+
+
+def _merge_people(db, source_id, target_id):
+    # Saving an existing name or choosing Merge is an explicit user correction.
+    db.execute('UPDATE faces SET person_id=?,uncertain=0 WHERE person_id=?', (target_id,source_id))
+    db.execute('DELETE FROM people WHERE id=?', (source_id,)); recompute(db,target_id)
 
 
 def set_scenes(digest, labels, model='manual'):

@@ -299,7 +299,6 @@ export class MediaOrganizer extends HTMLElement {
     this.$('#mo-move').hidden = all;
     this.$('#mo-all-videos').setAttribute('aria-pressed', String(all));
     this.$('.mo-title h1').textContent = all ? 'Every folder, one timeline.' : 'From scattered to sorted.';
-    this.$('.mo-title p').textContent = all ? 'Choose a year to browse videos across all saved scans.' : 'Choose your folders. Review the plan. Find every moment by date.';
     this.$('#mo-scan').innerHTML = `${icon('scan')} ${this.busy ? 'Working…' : all ? 'Scan another folder' : 'Scan & preview'}`;
     if(all){
       this.$('#mo-move').disabled=true;

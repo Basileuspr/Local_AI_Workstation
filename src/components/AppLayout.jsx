@@ -6,6 +6,7 @@ import { useStore } from "../useStore";
 import ResizableDivider from "./ResizableDivider";
 import { AppearanceDialog } from "./AppearanceSettings";
 import DisclosurePanel from "./DisclosurePanel";
+import AppUpdateCheck from './AppUpdateCheck';
 import WorkspaceInfo from "./WorkspaceInfo";
 import { WorkspaceInfoContext } from "../workspaceInfoContext";
 import { appTabLabels } from "../navigation";
@@ -183,6 +184,7 @@ export default function AppLayout({ activeTab, sidebar, children, onRefresh, ref
           </>}
         </DisclosurePanel>
         <WorkspaceInfo tab={activeTab} learningRate={loraLearningRate} />
+        <AppUpdateCheck />
       </div>
       <StartupNotice />
       {pinNotice && <p className="chat-pin-notice" role="status">{pinNotice}</p>}

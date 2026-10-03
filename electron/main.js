@@ -142,11 +142,48 @@ function trustedDesktop(event) {
 }
 
 const viewerBrowser = createViewerBrowser({WebContentsView, session, dialog, getWindow:()=>mainWindow});
+const linkedContent = require('./linkedContent').createLinkedContent({WebContentsView, session, getWindow:()=>mainWindow});
+ipcMain.handle('sound-output:open-settings', async event => {
+    if (!trustedDesktop(event) || process.platform !== 'win32') return {error:'Windows Sound settings require the trusted Windows desktop app.'};
+    try {await shell.openExternal('ms-settings:sound');return {opened:true};}
+    catch {return {error:'Could not open Windows Sound settings. Open Settings → System → Sound in Windows.'};}
+});
+const playbackCapture = require('./playbackCapture');
+ipcMain.handle('linked-content:open', async (event, value) => {
+    if (!trustedDesktop(event)) return {error:'Desktop access required.'};
+    try { return await linkedContent.open(value); } catch (error) { return {error:error.message}; }
+});
+ipcMain.handle('linked-content:place', (event, value) => { if (trustedDesktop(event)) linkedContent.place(value); });
+ipcMain.handle('linked-content:close', event => { if (trustedDesktop(event)) linkedContent.close(); });
+ipcMain.handle('playback-capture:arm', (event, value) => {
+    if (!trustedDesktop(event) || process.platform !== 'win32') return {error:'Playback capture requires the Windows desktop app.'};
+    try {
+        const source = value?.source || 'system';
+        if (source === 'spotify' && !linkedContent.spotifyAudioFrame()) return {error:'Open the embedded Spotify player and press Play before recording that source.'};
+        playbackCapture.grantPlayback(event.sender, {source}); return {ready:true};
+    } catch (error) { return {error:error.message}; }
+});
+ipcMain.handle('playback-capture:status', event => {
+    if (!trustedDesktop(event)) return {supported:false,error:'Playback capture requires the Windows desktop app.'};
+    return {...playbackCapture.playbackCaptureStatus(event.sender), spotify_ready: Boolean(linkedContent.spotifyAudioFrame())};
+});
+ipcMain.handle('playback-capture:cancel', event => { if (trustedDesktop(event)) playbackCapture.revokePlayback(event.sender); });
+const saveConvertedImage = require('./convertedImages').createConvertedImageSaver({
+    getResponse: id => fetch(`http://127.0.0.1:${CONFIG.backendPort}/workspaces/converted/${id}`, {
+        headers: {'X-LAW-Session': sessionToken}, redirect:'error', signal:AbortSignal.timeout(30000)}),
+    showDialog: options => dialog.showSaveDialog(mainWindow, options),
+    downloads: () => app.getPath('downloads'),
+});
+ipcMain.handle('converted-image:save', async (event, id) => {
+    if (!trustedDesktop(event)) return {error:'Desktop access is required to save a converted image.'};
+    try { return await saveConvertedImage(id); } catch (error) { return {error:error.message}; }
+});
 const meshRepair = createMeshRepair({dialog, getWindow: () => mainWindow,
     onProgress: value => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('mesh-repair:progress', value); },
 });
 registerMeshRepairIpc({ipcMain, service: meshRepair, trustedDesktop});
 require('./modelEditor').registerModelEditorIpc({ipcMain, dialog, getWindow: () => mainWindow, trustedDesktop});
+require('./paintFiles').registerPaintIpc({ipcMain, dialog, getWindow: () => mainWindow, trustedDesktop, BrowserWindow});
 const tabCapture = createTabCapture({ BrowserWindow, screen, clipboard, ClipboardItem, getWindow: () => mainWindow, mediaManager, viewerBrowser });
 for (const action of ['start','state','place','navigate','inspect','source','command','clearData']) {
     ipcMain.handle(`viewer-browser:${action}`, async (event,value)=>{
@@ -863,6 +900,11 @@ async function createWindow() {
 
     guardNavigation(mainWindow.webContents);
     installAudioPermissions(mainWindow.webContents, useViteDev ? CONFIG.viteDevUrl : null);
+    playbackCapture.installPlaybackCapture(mainWindow.webContents, require('electron').desktopCapturer, useViteDev ? CONFIG.viteDevUrl : null, {getSpotifyFrame: linkedContent.spotifyAudioFrame});
+    mainWindow.webContents.on('did-start-navigation', (_event, _url, _inPlace, isMainFrame) => {
+        if (isMainFrame) { linkedContent.hide(); playbackCapture.revokePlayback(mainWindow.webContents); }
+    });
+    mainWindow.once('closed', () => linkedContent.close());
     mainWindow.webContents.on("did-start-navigation", (_event, _url, _inPlace, isMainFrame) => { if (isMainFrame) {mediaManager.hide();viewerBrowser.hide();} });
     mainWindow.webContents.on("render-process-gone", async (_event, details) => {
         mediaManager.hide();

@@ -1,4 +1,10 @@
 export const chatHelp = [
+  ['Transcript navigation', [
+    ['Pin / Unpin', 'Save a message pin with this conversation. Pinning does not change the message or send it to the model again.'],
+    ['Pinned', 'Open the list of pinned messages and choose one to jump to its original position in the transcript.'],
+    ['Top / Bottom', 'Jump to either end of this chat. Reading older messages pauses automatic following of streamed text; Bottom resumes it.'],
+    ['Steer', 'During a supported active chat reply, enter a new direction. Stop & steer saves the partial reply, runs your instruction next, and preserves queued prompts and the composer draft.'],
+  ]],
   ['Models', [
     ['Chat model', 'Select the installed Ollama model used for your next message. Changing it keeps the conversation; earlier replies are not regenerated. Model size and architecture affect speed, memory use and capabilities.'],
     ['Model status', 'Shows connection and request readiness. A listed model can still fail to load if the runtime is unavailable or memory is exhausted. Status updates automatically when the service becomes available.'],

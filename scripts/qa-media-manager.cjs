@@ -26,6 +26,7 @@ async function until(predicate, label, timeout = 15000) {
 const checked = [];
 const resultFile = process.env.LAW_MEDIA_MANAGER_QA_RESULT || path.join(work, "result.json");
 const startupOnly = process.argv.includes("--startup-only");
+const refreshOnly = process.argv.includes("--refresh-only");
 console.log(`Media Manager QA result: ${resultFile}`);
 app.whenReady().then(async () => {
     backend = http.createServer((_request, response) => {
@@ -59,7 +60,7 @@ app.whenReady().then(async () => {
     await win.loadURL("app://local/index.html");
     // Chromium does not load lazy images in hidden native views, even after
     // scrolling. Show the disposable window without taking keyboard focus.
-    if (!startupOnly) win.showInactive();
+    if (!startupOnly && !refreshOnly) win.showInactive();
     const host = source => win.webContents.executeJavaScript(source);
     await until(() => host("!!document.querySelector('[data-media-manager-tab]')"), "React tab");
     assert.equal(win.contentView.children.length, 0, "Lazy launch");
@@ -80,6 +81,12 @@ app.whenReady().then(async () => {
     assert.equal(await media("document.querySelector('media-organizer')?.dataset.mediaManagerReady"), "true");
     assert.ok(await media("!!document.querySelector('#mo-source') && !!document.querySelector('#mo-results')"));
     checked.push("real Python server serves all module imports and the Media Manager page initializes");
+    await media("document.querySelector('media-organizer').refresh()");
+    assert.deepEqual(await manager.refresh(), { ready: true });
+    assert.equal(await media("document.querySelector('#mo-status').hidden"), true);
+    assert.equal(await media("document.querySelector('#mo-phase').textContent"), "Ready when you are");
+    assert.ok(await media("!!document.querySelector('.mo-review > summary')"));
+    checked.push("empty startup and repeated refresh complete without a reconnecting error");
     if (startupOnly) {
         const originalBounds = view.getBounds();
         await host("document.querySelector('[aria-label=\"Open timer\"]').click()");
@@ -100,10 +107,12 @@ app.whenReady().then(async () => {
         fs.writeFileSync(resultFile, JSON.stringify({ ok: true, checked, reports: "temporary only" }, null, 2));
         return;
     }
-    await host("[...document.querySelectorAll('button')].find(b=>b.textContent==='Enter Media Manager').click()");
-    await until(()=>media("document.activeElement?.id==='mo-source'"), 'Enter Media Manager focuses source field');
-    await until(()=>host("document.querySelector('.media-manager-access').textContent.includes('Media Manager focused')"), 'entry confirmation');
-    checked.push('Enter Media Manager performs visible input focus and reports success');
+    if (!refreshOnly) {
+        await host("[...document.querySelectorAll('button')].find(b=>b.textContent==='Enter Media Manager').click()");
+        await until(()=>media("document.activeElement?.id==='mo-source'"), 'Enter Media Manager focuses source field');
+        await until(()=>host("document.querySelector('.media-manager-access').textContent.includes('Media Manager focused')"), 'entry confirmation');
+        checked.push('Enter Media Manager performs visible input focus and reports success');
+    }
 
     const source = path.join(work, "source"); fs.mkdirSync(source);
     const video = path.join(source, "VID_20200615_120000.mp4");
@@ -112,9 +121,40 @@ app.whenReady().then(async () => {
     await media(`document.querySelector('#mo-source').value=${JSON.stringify(source)}; document.querySelector('#mo-destination').value=${JSON.stringify(path.join(work, "archive"))}; document.querySelector('#mo-scan').click()`);
     await until(() => media("document.querySelectorAll('.mo-media-grid .mo-media-card').length === 1"), "scanned media", 25000);
     // Thumbnails are lazy: exercise the same viewport entry as a person scrolling.
-    await media("document.querySelector('#mo-results img').scrollIntoView({block:'center'})");
-    await until(() => media("[...document.querySelectorAll('#mo-results img')].some(img=>img.naturalWidth > 0)"), "thumbnail");
-    checked.push("real synthetic MP4 scan and thumbnail through unchanged module UI");
+    if (!refreshOnly) {
+        await media("document.querySelector('#mo-results img').scrollIntoView({block:'center'})");
+        await until(() => media("[...document.querySelectorAll('#mo-results img')].some(img=>img.naturalWidth > 0)"), "thumbnail");
+        checked.push("real synthetic MP4 scan and thumbnail through unchanged module UI");
+    }
+    if (refreshOnly) {
+        const runId = await media("document.querySelector('media-organizer').data.uiRunId");
+        assert.deepEqual(await manager.refresh(), { ready: true });
+        assert.equal(await media("document.querySelector('#mo-move').disabled"), false);
+        await media("document.querySelector('media-organizer').load('all-scans')");
+        assert.equal(await media("document.querySelector('.mo-title h1').textContent"), "Every folder, one timeline.");
+        assert.equal(await media("document.querySelector('.mo-flow').hidden"), true);
+        assert.equal(await media("document.querySelectorAll('#mo-results .mo-media-card').length"), 1);
+        assert.deepEqual(await manager.refresh(), { ready: true });
+        await media(`document.querySelector('media-organizer').load(${JSON.stringify(runId)})`);
+        assert.equal(await media("document.querySelector('.mo-flow').hidden"), false);
+        assert.equal(await media("document.querySelector('#mo-move').disabled"), false);
+        await media("document.querySelector('media-organizer').newScan()");
+        assert.equal(await media("document.querySelector('#mo-phase').textContent"), "Ready when you are");
+        assert.equal(await media("document.querySelector('#mo-move').disabled"), true);
+        await media(`document.querySelector('media-organizer').load(${JSON.stringify(runId)})`);
+        const reloaded = new Promise(resolve => view.webContents.once('did-finish-load', resolve));
+        view.webContents.reload(); await reloaded;
+        await until(() => media(`document.querySelector('media-organizer')?.data?.uiRunId===${JSON.stringify(runId)}`), "saved scan restored after reload");
+        assert.deepEqual(await manager.refresh(), { ready: true });
+        assert.equal(await media("document.querySelector('#mo-status').classList.contains('mo-error')"), false);
+        checked.push("scan completion, saved and aggregate scopes, new scan and reload update the current layout without null element errors");
+        const url = view.webContents.getURL();
+        manager.dispose();
+        await until(async () => { try { await fetch(url); return false; } catch { return true; } }, "child server exits after refresh checks");
+        assert.ok(fs.existsSync(video), "Scan preserves source");
+        fs.writeFileSync(resultFile, JSON.stringify({ ok: true, checked, reports: "temporary only" }, null, 2));
+        return;
+    }
     await media("document.querySelector('#mo-add-custom-folder').click();document.querySelector('#mo-custom-name').value='Desktop QA folder';document.querySelector('#mo-custom-save').click()");
     await until(()=>media("!document.querySelector('#mo-custom-dialog').open"),'managed folder created');
     assert.ok(fs.statSync(path.join(work,'runs','managed-media','Custom Folders','Desktop QA folder')).isDirectory());

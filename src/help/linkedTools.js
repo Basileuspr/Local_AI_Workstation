@@ -1,0 +1,43 @@
+export const linkedToolHelp = {
+  slicer: [['Model and printer', [
+    ['Refresh Cura readiness', 'Checks the installed CuraEngine and lists available printer profiles. Slice model becomes available only when the engine is ready and a model is selected.'],
+    ['Choose STL', 'Choose a nonempty local STL no larger than 50 MiB. The source file is preserved; other model formats need conversion before slicing.'],
+    ['Printer profile', 'Choose the profile that matches your printer. Check its build volume, extruder, nozzle and material settings before using the resulting G-code.'],
+    ['Generic printer confirmation', 'Enables the generic profile only after you confirm a 220 × 220 × 250 mm build volume, one extruder, 1.75 mm filament and generic G-code.'],
+    ['Material', 'Select PLA, PETG or ABS to set the workspace’s preset nozzle and bed temperatures. Check that those settings match the selected printer and filament.'],
+    ['Generic printer has a heated bed', 'Sets whether the generic printer uses a heated bed. This option is shown only for the generic printer profile.'],
+  ]], ['Slicing and output', [
+    ['Layer height (mm)', 'Sets the thickness of each printed layer, from 0.06 to 0.6 mm. Smaller layers generally need more layers for the same model height.'],
+    ['Nozzle diameter (mm)', 'Sets the nozzle diameter from 0.2 to 1.2 mm. Enter the size of the nozzle installed on the selected printer.'],
+    ['Infill (%)', 'Sets internal fill density from 0 to 100 percent. Zero requests no internal infill; larger values request denser infill.'],
+    ['Generate supports', 'Requests support structures from CuraEngine. Inspect their placement in your printer software before printing.'],
+    ['Slice model', 'Starts a local background slicing job with the selected settings. The job card shows its phase, progress, elapsed time and any error. Changing tabs does not stop the job.'],
+    ['Stop slicing', 'Requests cancellation of the active slicing job. Wait for its status to leave queued, running or stopping before starting another job.'],
+    ['Download G-code', 'Downloads the completed job’s G-code file. Review it in the software for your printer; this workspace exports the file without sending it to a printer.'],
+  ]]],
+  integrations: [['Connections and Discord', [
+    ['Read active processes', 'Refreshes matching Discord, Spotify or phone-tool processes and phone-tool readiness. A running process does not confirm that playback, account access or recording is available.'],
+    ['Discord / Spotify / Phone / scrcpy', 'Switch between the Discord widget and message tools, Spotify player and recording tools, or phone-tool readiness information.'],
+    ['Server ID / Open Discord widget', 'Enter a Discord server ID whose Server Widget is enabled, then open its official widget. The widget displays available member and invite information.'],
+    ['Connection / Webhook URL / Bot token', 'Choose a webhook or bot connection and enter its required credentials. Bot sending also requires a channel ID. Credentials stay in the open workspace.'],
+    ['Message / Embed title / Embed description', 'Prepare the message and optional embed, then inspect the Discord message preview before sending. Editing the preview fields does not send anything.'],
+    ['Attach files / Remove', 'Choose the files to send with the message or remove a pending attachment. Removing an attachment leaves its source file intact.'],
+    ['Send to Discord', 'Explicitly sends the prepared message and selected attachments through the chosen connection. Automatic mentions are disabled.'],
+    ['Phone / scrcpy readiness', 'Shows whether the supplied Windows release and separate source checkout are available. Opening this tab does not connect a device or start mirroring.'],
+  ]], ['Spotify and playback recording', [
+    ['Spotify link / Open Spotify player', 'Open a supported Spotify link in the official embedded player, then press Play in that player. Opening the link alone does not start playback.'],
+    ['Recording source', 'Windows playback requests audio on the Windows default output, including other apps and notifications. Embedded Spotify player requests audio from this app’s open Spotify player only.'],
+    ['Check recording requirements', 'Checks desktop capture support and whether the embedded player is open. It does not confirm an audio signal; start recording and check the live level meter.'],
+    ['Start playback recording', 'Use the Windows desktop app with an unlocked desktop and an actively playing, unmuted source. For Windows playback, send the source to the Windows default output. Microphone access and transcription models are not required to record.'],
+    ['Playback audio level', 'Confirms whether audio is arriving. If No audio detected appears, check playback, mute and output routing. If the meter is unavailable, listen to the preview after stopping.'],
+    ['Stop recording / Discard current recording', 'Stop creates a playable preview; Discard removes the current capture and keeps the previous recording. Cancel opening cancels a pending capture request.'],
+    ['Recording limits', 'Recording continues when you change workspaces and stops at five minutes or 64 MB, or when the source ends. Silence warnings identify recordings without a detected signal.'],
+    ['Download playback recording / Save recording locally', 'Listen to the preview, then download its file or save it in local application storage. Saving and transcription are separate actions.'],
+    ['Transcribe recording', 'Uses the installed Audio transcription runtime and model on CPU. The resulting transcript remains editable; recording itself does not require this model.'],
+  ]], ['Shared sound settings', [
+    ['Playback volume / Mute playback', 'Controls app previews and generated speech. Changes are saved automatically and shared with Settings, Audio and both chats. Recording and saved file levels stay unchanged.'],
+    ['Output device / Refresh devices', 'Routes app preview playback to the chosen output. Refresh updates the available devices; a disconnected saved device falls back to System default until it reconnects.'],
+    ['Test sound', 'Plays a short local tone through the chosen app output. Unmute and raise the volume first. Test sound is disabled while audio recording or processing is active.'],
+    ['Windows Sound settings', 'Opens Windows sound controls. Spotify’s embedded player and installed Windows voices use Windows output settings; the app output selector changes preview routing.'],
+  ]]],
+};

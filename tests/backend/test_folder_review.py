@@ -194,6 +194,8 @@ def test_cancellation_closes_provider_before_releasing_queue_and_keeps_results(t
         yield {'detail': 'Model ready'}
     monkeypatch.setattr(service, 'prepare_runtime', prepare)
     monkeypatch.setattr(service, 'prepare_chat_model', handoff)
+    async def context_limit(model): return service.settings.num_ctx
+    monkeypatch.setattr(service, 'model_limit', context_limit)
     root = tmp_path / 'source'; root.mkdir(); (root / 'a.txt').write_text('First'); (root / 'b.txt').write_text('Second')
     manager = service.FolderReview(tmp_path / 'reports/db.sqlite3')
     async def execute():
@@ -207,8 +209,12 @@ def test_cancellation_closes_provider_before_releasing_queue_and_keeps_results(t
             try: await asyncio.Future()
             finally: exited.set()
         monkeypatch.setattr(manager, 'call_model', model)
+        async def offload(key, model):
+            assert exited.is_set() and local_queue.active is manager._queue_job
+            manager.record_processing(key, model_released=True)
+        monkeypatch.setattr(manager, 'release_model', offload)
         started = await manager.start(str(root), 'test-model', OPTIONS)
-        await running.wait()
+        await asyncio.wait_for(running.wait(), 5)
         with pytest.raises(RuntimeError, match='already running'):
             await manager.start(str(root), 'other-model', OPTIONS)
         await manager.cancel(started['id']); await manager._task
@@ -297,3 +303,495 @@ def test_folder_review_blocks_maintenance_even_between_inference_requests(tmp_pa
         def done(self): return False
     manager._task = Running()
     assert maintenance_gate.workers_busy()
+
+
+def review_provider(monkeypatch, *, ignore_release=False):
+    """Run real admission, runtime preparation and streaming against a local fake provider."""
+    from services import chat_model_runtime, context_awareness, image_generation
+    from services.gpu_coordination import GpuCoordinator
+    local_queue = RequestQueue(GpuCoordinator())
+    monkeypatch.setattr(service, 'queue', local_queue)
+    monkeypatch.setattr(chat_model_runtime, 'queue', local_queue)
+    monkeypatch.setattr(context_awareness, '_limits', {})
+    loaded, payloads, offloads, parks = ['other:latest'], [], [], []
+    def park():
+        assert local_queue.active is not None
+        parks.append(local_queue.active.kind)
+    monkeypatch.setattr(image_generation.manager, 'park_for_chat', park)
+    def handle(request):
+        assert local_queue.active is not None or request.url.path == '/api/show'
+        if request.url.path == '/api/show':
+            return httpx.Response(200, json={'model_info': {'fixture.context_length': 4096}})
+        if request.url.path == '/api/ps':
+            return httpx.Response(200, json={'models': [{'name': name} for name in loaded]})
+        body = json.loads(request.content)
+        if request.url.path == '/api/generate':
+            name = chat_model_runtime.canonical_model(body['model'])
+            if body.get('keep_alive') == 0:
+                offloads.append(body)
+                if name in loaded and not (ignore_release and name == 'fixture-review:latest'):
+                    loaded.remove(name)
+            else:
+                loaded.append(name)
+            return httpx.Response(200, json={'done': True})
+        assert request.url.path == '/api/chat'
+        payloads.append(body)
+        return httpx.Response(200, content=b'{"message":{"content":"Observed fixture facts."}}\n{"done":true,"eval_count":4}\n')
+    original = httpx.AsyncClient
+    monkeypatch.setattr(service.httpx, 'AsyncClient', lambda **kwargs: original(transport=httpx.MockTransport(handle), **kwargs))
+    return local_queue, loaded, payloads, offloads, parks
+
+
+def test_full_pipeline_offloads_batches_and_compacts_with_model_context_budget(tmp_path, monkeypatch):
+    local_queue, loaded, payloads, offloads, parks = review_provider(monkeypatch)
+    root = tmp_path / 'source'; root.mkdir()
+    source = ('Fact 漢字 😀 "\\\x01"\n' * 500) + 'FINAL SOURCE FACT'
+    (root / 'facts.txt').write_text(source, encoding='utf-8')
+    (root / 'second.md').write_text('# Fixture\nAdditional fixture facts.')
+    before = {path.name: path.read_bytes() for path in root.iterdir()}
+    manager = service.FolderReview(tmp_path / 'reports/db.sqlite3')
+    async def execute():
+        review = await manager.start(str(root), 'fixture-review', {**OPTIONS, 'batch_chars': 6000})
+        await manager._task
+        return manager.get(review['id']), manager.entries(review['id'])['items']
+    review, entries = asyncio.run(execute())
+    assert review['status'] == 'completed'
+    source_prompts = [payload['messages'][1]['content'] for payload in payloads
+                      if payload['messages'][1]['content'].startswith('Review source file "facts.txt"')]
+    assert len(source_prompts) > len(list(reader.text_batches(source, 6000)))
+    assert ''.join(json.loads(prompt.split('\n', 1)[1])['source'] for prompt in source_prompts) == source
+    for payload in payloads:
+        assert payload['options']['num_ctx'] == 4096
+        upper_bound = sum(len(message['content'].encode('utf-8')) for message in payload['messages'])
+        assert upper_bound + payload['options']['num_predict'] + 192 <= 4096
+        assert payload['messages'][0]['content'] == service.SYSTEM
+    progress = review['processing']
+    assert progress['context_limit'] == 4096
+    assert progress['text_batches_completed'] == progress['text_batches_total'] > 2
+    assert progress['compactions'] >= 2
+    assert progress['offload_preparations'] == len(payloads) == len(parks)
+    assert 'compact' in parks and 'compact' in {job.kind for job in local_queue.jobs}
+    assert [call['model'] for call in offloads] == ['other:latest', 'fixture-review']
+    assert progress['model_released'] and not loaded and local_queue.active is None
+    assert all(item['status'] == 'reviewed' for item in entries)
+    assert {path.name: path.read_bytes() for path in root.iterdir()} == before
+    assert service.FolderReview(manager.database).get(review['id'])['processing'] == progress
+
+
+def test_offload_verification_failure_is_recorded_without_losing_findings(tmp_path, monkeypatch):
+    local_queue, _, _, _, _ = review_provider(monkeypatch, ignore_release=True)
+    root = tmp_path / 'source'; root.mkdir(); (root / 'facts.txt').write_text('A neutral fixture fact.')
+    manager = service.FolderReview(tmp_path / 'reports/db.sqlite3')
+    async def execute():
+        review = await manager.start(str(root), 'fixture-review', OPTIONS)
+        await manager._task
+        return manager.get(review['id'])
+    result = asyncio.run(execute())
+    assert result['status'] == 'failed' and result['counts']['reviewed'] == 1
+    assert 'Observed fixture facts.' in result['report']
+    assert not result['processing']['model_released']
+    assert 'still reports' in result['processing']['model_release_error']
+    assert local_queue.active is None
+
+
+def test_between_batch_cleanup_does_not_unload_another_running_job(tmp_path, monkeypatch):
+    from services.gpu_coordination import GpuCoordinator
+    local_queue = RequestQueue(GpuCoordinator())
+    monkeypatch.setattr(service, 'queue', local_queue)
+    manager = service.FolderReview(tmp_path / 'reports/db.sqlite3')
+    key = 'fixture'
+    with manager.connect() as db:
+        db.execute("INSERT INTO reviews(id,root,model,options,status,phase,started_at) VALUES(?,?,?,?,?,?,?)",
+                   (key, str(tmp_path), 'fixture-review', '{}', 'running', 'fixture', service.now()))
+    manager._processing = {'offload_preparations': 1, 'model_released': False}
+    async def offload(key, model):
+        assert local_queue.active.kind == 'analysis'
+        manager.record_processing(key, model_released=True, model_release_deferred=False)
+    monkeypatch.setattr(manager, 'release_model', offload)
+    async def execute():
+        other = local_queue.enqueue('chat', 'Other fixture job', model='other')
+        assert local_queue.try_start(other)
+        await manager.release_if_idle(key, 'fixture-review')
+        assert local_queue.active is other
+        assert manager.get(key)['processing']['model_release_deferred']
+        assert not manager.get(key)['processing']['model_released']
+        local_queue.finish(other)
+        await manager.release_if_idle(key, 'fixture-review')
+        assert manager.get(key)['processing']['model_released']
+        assert local_queue.active is None
+    asyncio.run(execute())
+
+
+def test_too_small_context_rejects_instructions_without_silently_truncating(tmp_path):
+    manager = service.FolderReview(tmp_path / 'reports/db.sqlite3')
+    manager._context_limit = 512
+    with pytest.raises(RuntimeError, match='cannot fit'):
+        manager.bounded_batches('Fixture source', 6000, lambda batch: manager.source_prompt('facts.txt', 'text', batch))
+
+
+def test_model_offload_requires_review_queue_ownership(tmp_path):
+    manager = service.FolderReview(tmp_path / 'reports/db.sqlite3')
+    with pytest.raises(ValueError, match='active queue admission'):
+        asyncio.run(manager.release_model('fixture', 'fixture-review'))
+
+
+def test_existing_saved_reports_gain_processing_column_without_data_loss(tmp_path):
+    manager = service.FolderReview(tmp_path / 'reports/db.sqlite3')
+    with manager.connect() as db:
+        db.execute("INSERT INTO reviews(id,root,model,options,status,phase,started_at,report) VALUES(?,?,?,?,?,?,?,?)",
+                   ('saved', str(tmp_path), '', '{}', 'completed', 'Review complete', service.now(), 'Existing fixture report.'))
+        db.execute('ALTER TABLE reviews DROP COLUMN processing')
+        db.execute('ALTER TABLE reviews DROP COLUMN overview')
+    restored = service.FolderReview(manager.database).get('saved')
+    assert restored['report'] == 'Existing fixture report.' and restored['processing'] == {}
+    assert restored['overview'] == ''
+
+
+@pytest.mark.parametrize('failure_stage', ['source', 'compaction'])
+def test_partial_batch_findings_survive_failure_and_restart(tmp_path, failure_stage):
+    root = tmp_path / 'source'; root.mkdir()
+    path = root / 'facts.txt'; path.write_text('A neutral fixture line.\n' * 50)
+    before = path.read_bytes()
+    calls = 0
+    async def summarize(prompt):
+        nonlocal calls
+        calls += 1
+        if (failure_stage == 'source' and calls == 2) or prompt.startswith('Combine'):
+            raise RuntimeError('Fixture provider stopped')
+        return f'Saved finding {calls}.'
+    manager = service.FolderReview(tmp_path / 'reports/db.sqlite3', summarize)
+    async def execute():
+        started = await manager.start(str(root), 'fixture-model', OPTIONS)
+        await asyncio.wait_for(manager._task, 5)
+        return started['id']
+    key = asyncio.run(execute())
+    result = manager.get(key)
+    item = manager.entries(key)['items'][0]
+    assert result['status'] == 'failed' and result['counts']['not_reviewed'] == 1
+    assert item['coverage']['partial'] and not item['coverage']['model_analysis']
+    assert item['coverage']['batches_completed'] == (1 if failure_stage == 'source' else 3)
+    assert 'Saved finding 1.' in result['report'] and 'Source lines 1-' in item['analysis']
+    assert 'file review did not finish' in item['analysis']
+    assert item['metadata']['sha256'] == reader.hashlib.sha256(before).hexdigest()
+    # Simulate a process exit before it could commit terminal state/report.
+    manager.update(key, status='running', report='')
+    restored = service.FolderReview(manager.database)
+    recovered = restored.get(key)
+    assert recovered['status'] == 'interrupted' and recovered['report_ready']
+    assert 'Saved finding 1.' in recovered['report'] and 'no inference was restarted' in recovered['report']
+    assert path.read_bytes() == before and restored.status()['active'] is None
+
+
+def test_cancellation_during_model_loading_joins_provider_before_offload(tmp_path, monkeypatch):
+    local_queue, _, payloads, _, _ = review_provider(monkeypatch)
+    root = tmp_path / 'source'; root.mkdir(); (root / 'facts.txt').write_text('Fixture fact.')
+    manager = service.FolderReview(tmp_path / 'reports/db.sqlite3')
+    async def execute():
+        entered, exited = asyncio.Event(), asyncio.Event()
+        async def prepare(*args, **kwargs):
+            entered.set()
+            try:
+                await asyncio.Future()
+                yield {'detail': 'Never reached'}
+            finally:
+                exited.set()
+        original = manager.release_model
+        async def release(key, model):
+            assert exited.is_set() and local_queue.active is manager._queue_job
+            await original(key, model)
+        monkeypatch.setattr(service, 'prepare_chat_model', prepare)
+        monkeypatch.setattr(manager, 'release_model', release)
+        started = await manager.start(str(root), 'fixture-review', OPTIONS)
+        await asyncio.wait_for(entered.wait(), 5)
+        await manager.cancel(started['id'])
+        await asyncio.wait_for(manager._task, 5)
+        assert exited.is_set() and local_queue.active is None and not payloads
+        return manager.get(started['id'])
+    result = asyncio.run(execute())
+    assert result['status'] == 'cancelled' and result['processing']['model_released']
+
+
+def test_task_cancellation_joins_inventory_worker_before_readmission(tmp_path, monkeypatch):
+    root = tmp_path / 'source'; root.mkdir(); (root / 'facts.txt').write_text('Fixture fact.')
+    manager = service.FolderReview(tmp_path / 'reports/db.sqlite3')
+    entered, release, exited = threading.Event(), threading.Event(), threading.Event()
+    original = manager.inventory
+    def inventory(*args):
+        entered.set()
+        try:
+            assert release.wait(5)
+            manager.check()
+            original(*args)
+        finally:
+            exited.set()
+    monkeypatch.setattr(manager, 'inventory', inventory)
+    async def execute():
+        started = await manager.start(str(root), '', OPTIONS)
+        try:
+            assert await asyncio.to_thread(entered.wait, 5)
+            manager._task.cancel()
+            await asyncio.sleep(0)
+            assert manager.busy() and not exited.is_set()
+            with pytest.raises(RuntimeError, match='already running'):
+                await manager.start(str(root), '', OPTIONS)
+        finally:
+            release.set()
+        await asyncio.wait_for(manager._task, 5)
+        assert exited.is_set() and manager._active_id is None
+        assert manager.get(started['id'])['status'] == 'cancelled'
+        monkeypatch.setattr(manager, 'inventory', original)
+        second = await manager.start(str(root), '', OPTIONS)
+        await asyncio.wait_for(manager._task, 5)
+        assert manager.get(second['id'])['status'] == 'completed'
+    asyncio.run(execute())
+
+
+@pytest.mark.parametrize('fault', ['compose', 'commit'])
+def test_finalization_failure_releases_busy_state_and_recovers_report(tmp_path, monkeypatch, fault):
+    root = tmp_path / 'source'; root.mkdir(); (root / 'facts.txt').write_text('Retained fixture fact.')
+    manager = service.FolderReview(tmp_path / 'reports/db.sqlite3')
+    original_compose, original_update = manager.compose_report, manager.update
+    if fault == 'compose':
+        monkeypatch.setattr(manager, 'compose_report', lambda *args: (_ for _ in ()).throw(RuntimeError('Fixture report error')))
+    else:
+        def update(key, **values):
+            if 'report' in values:
+                raise service.sqlite3.OperationalError('Fixture report write failure')
+            return original_update(key, **values)
+        monkeypatch.setattr(manager, 'update', update)
+    async def execute():
+        started = await manager.start(str(root), '', OPTIONS)
+        await asyncio.wait_for(manager._task, 5)
+        return started['id']
+    key = asyncio.run(execute())
+    assert manager._active_id is None and not manager.busy() and manager._queue_job is None
+    state = manager.get(key, False)
+    assert state['status'] == 'failed' and state['report_ready'] and 'finalize' in state['error']
+    monkeypatch.setattr(manager, 'compose_report', original_compose)
+    monkeypatch.setattr(manager, 'update', original_update)
+    assert 'Retained fixture fact.' in manager.get(key)['report']
+    assert 'Retained fixture fact.' in service.FolderReview(manager.database).get(key)['report']
+
+
+def test_bad_saved_json_does_not_block_saved_findings_or_status(tmp_path):
+    root = tmp_path / 'source'; root.mkdir(); (root / 'facts.txt').write_text('Retained fixture fact.')
+    manager = service.FolderReview(tmp_path / 'reports/db.sqlite3')
+    async def execute():
+        started = await manager.start(str(root), '', OPTIONS)
+        await manager._task
+        return started['id']
+    key = asyncio.run(execute())
+    manager.update(key, options='not JSON', processing='{"context_limit":{},"model_release_error":[]}', status='running', report='')
+    with manager.connect() as db:
+        db.execute('UPDATE entries SET metadata=?,coverage=? WHERE review_id=?',
+                   ('[]', '{"batches_total":{},"reason":{},"partial":[]}', key))
+    restored = service.FolderReview(manager.database)
+    result, entry = restored.get(key), restored.entries(key)['items'][0]
+    assert result['status'] == 'interrupted' and result['options'] == {} and result['data_warnings']
+    assert 'context_limit' not in result['processing']
+    assert entry['metadata'] == {} and entry['data_warnings'] and 'batches_total' not in entry['coverage']
+    assert 'Retained fixture fact.' in result['report'] and 'Integrity notice:' in result['report']
+    assert restored.status()['reviews'][0]['id'] == key
+
+
+def test_changed_inventory_snapshot_is_not_reviewed(tmp_path, monkeypatch):
+    root = tmp_path / 'source'; root.mkdir(); path = root / 'facts.txt'; path.write_text('Initial fact.')
+    manager = service.FolderReview(tmp_path / 'reports/db.sqlite3')
+    original = manager.inventory
+    def inventory(*args):
+        original(*args)
+        path.write_text('Changed fixture facts with a new length.')
+    monkeypatch.setattr(manager, 'inventory', inventory)
+    async def execute():
+        started = await manager.start(str(root), '', OPTIONS)
+        await manager._task
+        return manager.get(started['id']), manager.entries(started['id'])['items'][0]
+    result, entry = asyncio.run(execute())
+    assert result['status'] == 'completed_with_gaps' and entry['status'] == 'unreadable'
+    assert 'changed since the folder inventory' in entry['error'] and not entry['analysis']
+    assert path.read_text() == 'Changed fixture facts with a new length.'
+
+
+@pytest.mark.parametrize('temporary', [True, False])
+def test_provider_transport_retry_is_bounded_and_preserves_request(tmp_path, monkeypatch, temporary):
+    original_client, payloads = httpx.AsyncClient, []
+    def handle(request):
+        payloads.append(json.loads(request.content))
+        if len(payloads) == 1:
+            if temporary:
+                return httpx.Response(503, json={'error': 'Fixture unavailable'})
+            return httpx.Response(400, json={'error': 'Invalid fixture request'})
+        return httpx.Response(200, content=b'{"message":{"content":"Complete fixture summary"},"done":true}\n')
+    monkeypatch.setattr(service.httpx, 'AsyncClient', lambda **kwargs: original_client(transport=httpx.MockTransport(handle), **kwargs))
+    manager = service.FolderReview(tmp_path / 'reports/db.sqlite3')
+    if temporary:
+        assert asyncio.run(manager.call_model('fixture', 'Entire source', 900)) == 'Complete fixture summary'
+        assert len(payloads) == 2 and payloads[0] == payloads[1]
+    else:
+        with pytest.raises(httpx.HTTPStatusError):
+            asyncio.run(manager.call_model('fixture', 'Entire source', 900))
+        assert len(payloads) == 1
+
+
+@pytest.mark.parametrize('body,match', [
+    (b'{broken}\n', 'invalid JSON'),
+    (b'[]\n', 'non-object'),
+    (b'{"message":{"content":[]},"done":true}\n', 'invalid message'),
+    (b'{"message":{"content":"partial"}}\n{"message":[],"done":true}\n', 'invalid message'),
+    (b'{"message":{"content":"text"},"done":"true"}\n', 'completion flag'),
+    (b'{"message":{"content":"partial"}}\n', 'incomplete'),
+    (b'{"message":{"content":"limit"},"done":true,"done_reason":"length"}\n', 'output limit'),
+    (b'{"message":{"content":"text"},"done":true,"eval_count":[]}\n', 'usage counts'),
+    (b'{"message":{"content":"' + b'x' * 32001 + b'"},"done":true}\n', 'response limit'),
+    (b'x' * (256 * 1024 + 1), 'line exceeded'),
+], ids=['bad-json', 'non-object', 'bad-content', 'bad-message', 'bad-done', 'incomplete', 'output-limit', 'bad-count', 'long-summary', 'long-line'])
+def test_malformed_or_oversized_provider_output_is_not_accepted(tmp_path, monkeypatch, body, match):
+    original_client, calls = httpx.AsyncClient, []
+    def handle(request):
+        calls.append(request.url.path)
+        return httpx.Response(200, content=body)
+    monkeypatch.setattr(service.httpx, 'AsyncClient', lambda **kwargs: original_client(transport=httpx.MockTransport(handle), **kwargs))
+    manager = service.FolderReview(tmp_path / 'reports/db.sqlite3')
+    with pytest.raises(RuntimeError, match=match):
+        asyncio.run(manager.call_model('fixture', 'Entire source', 900))
+    assert calls == ['/api/chat']
+
+
+def test_docx_expansion_is_bounded_before_parser_and_text_cap_reports_coverage(tmp_path, monkeypatch):
+    import docx
+    import io
+    import zipfile
+    package = io.BytesIO()
+    with zipfile.ZipFile(package, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr('word/document.xml', 'x' * 10000)
+    with monkeypatch.context() as patch:
+        patch.setattr(reader, 'DOCX_MAX_EXPANDED_BYTES', 1000)
+        patch.setattr(docx, 'Document', lambda *args: pytest.fail('Oversized package reached XML parser'))
+        with pytest.raises(ValueError, match='expanded size'):
+            reader.extract(package.getvalue(), 'fixture.docx', 1000)
+    document = docx.Document(); document.add_paragraph('First fixture paragraph.')
+    document.add_paragraph('Second fixture paragraph.')
+    table = document.add_table(rows=1, cols=2)
+    table.cell(0, 0).text = 'Left'; table.cell(0, 1).text = 'Right'
+    package = io.BytesIO(); document.save(package)
+    full = reader.extract(package.getvalue(), 'fixture.docx', 1000)
+    partial = reader.extract(package.getvalue(), 'fixture.docx', 10)
+    assert full['text'] == 'First fixture paragraph.\nSecond fixture paragraph.\nLeft | Right'
+    assert partial['text'] == full['text'][:10] and partial['coverage']['partial']
+    assert partial['coverage']['original_characters'] == len(full['text'])
+
+
+def test_invalid_loaded_model_list_cannot_claim_verified_offload(tmp_path, monkeypatch):
+    original_client = httpx.AsyncClient
+    local_queue, _, _, _, _ = review_provider(monkeypatch)
+    manager = service.FolderReview(tmp_path / 'reports/db.sqlite3')
+    monkeypatch.setattr(service.httpx, 'AsyncClient', lambda **kwargs: original_client(transport=httpx.MockTransport(
+        lambda request: httpx.Response(200, json={})), **kwargs))
+    async def execute():
+        job = local_queue.enqueue('analysis', 'Fixture release')
+        assert local_queue.try_start(job)
+        manager._queue_job = job
+        try:
+            with pytest.raises(RuntimeError, match='loaded-model list'):
+                await manager.release_model('fixture', 'fixture-review')
+            assert not manager._processing.get('model_released')
+        finally:
+            local_queue.finish(job)
+    asyncio.run(execute())
+
+
+def test_task_cancellation_joins_runtime_offloading_before_releasing_queue(tmp_path, monkeypatch):
+    local_queue, _, payloads, _, _ = review_provider(monkeypatch)
+    root = tmp_path / 'source'; root.mkdir(); (root / 'facts.txt').write_text('Fixture fact.')
+    manager = service.FolderReview(tmp_path / 'reports/db.sqlite3')
+    entered, release, exited = threading.Event(), threading.Event(), threading.Event()
+    def park():
+        entered.set()
+        try:
+            assert release.wait(5)
+        finally:
+            exited.set()
+    async def prepare(kind):
+        await asyncio.to_thread(park)
+    monkeypatch.setattr(service, 'prepare_runtime', prepare)
+    async def execute():
+        started = await manager.start(str(root), 'fixture-review', OPTIONS)
+        try:
+            assert await asyncio.to_thread(entered.wait, 5)
+            manager._task.cancel()
+            await asyncio.sleep(0)
+            assert manager.busy() and not exited.is_set() and local_queue.active is manager._queue_job
+        finally:
+            release.set()
+        await asyncio.wait_for(manager._task, 5)
+        assert exited.is_set() and local_queue.active is None and not payloads
+        assert manager.get(started['id'])['status'] == 'cancelled'
+    asyncio.run(execute())
+
+
+def test_simultaneous_first_requests_share_one_review_owner(tmp_path, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from dataclasses import replace
+    monkeypatch.setattr(service, '_manager', None)
+    monkeypatch.setattr(service, 'settings', replace(service.settings, data_dir=tmp_path))
+    created, barrier = [], threading.Barrier(4)
+    def construct(database):
+        time.sleep(0.02)
+        created.append(object())
+        return created[-1]
+    monkeypatch.setattr(service, 'FolderReview', construct)
+    def read():
+        barrier.wait(timeout=5)
+        return service.manager()
+    with ThreadPoolExecutor(max_workers=4) as workers:
+        owners = list(workers.map(lambda _: read(), range(4)))
+    assert len(created) == 1 and all(owner is created[0] for owner in owners)
+
+
+def test_failed_admission_does_not_create_busy_or_orphaned_review(tmp_path):
+    root = tmp_path / 'source'; root.mkdir(); (root / 'facts.txt').write_text('Fixture fact.')
+    manager = service.FolderReview(tmp_path / 'reports/db.sqlite3')
+    with manager.connect() as db:
+        db.execute("CREATE TRIGGER block_start BEFORE INSERT ON reviews BEGIN SELECT RAISE(ABORT, 'Fixture admission failure'); END")
+    async def execute():
+        with pytest.raises(service.sqlite3.IntegrityError, match='admission failure'):
+            await manager.start(str(root), '', OPTIONS)
+        assert manager._active_id is None and not manager.busy() and manager.status()['reviews'] == []
+        with manager.connect() as db:
+            db.execute('DROP TRIGGER block_start')
+        started = await manager.start(str(root), '', OPTIONS)
+        await manager._task
+        assert manager.get(started['id'])['status'] == 'completed'
+    asyncio.run(execute())
+
+
+def test_transport_retry_stops_after_two_attempts_and_cancel_prevents_retry(tmp_path, monkeypatch):
+    original_client, calls = httpx.AsyncClient, []
+    manager = service.FolderReview(tmp_path / 'reports/db.sqlite3')
+    def handle(request):
+        calls.append(request)
+        raise httpx.ReadError('Fixture connection closed', request=request)
+    monkeypatch.setattr(service.httpx, 'AsyncClient', lambda **kwargs: original_client(transport=httpx.MockTransport(handle), **kwargs))
+    with pytest.raises(httpx.ReadError):
+        asyncio.run(manager.call_model('fixture', 'Entire source', 900))
+    assert len(calls) == 2
+    calls.clear()
+    async def cancelled(model, prompt, tokens):
+        manager._cancel.set()
+        raise httpx.ReadError('Fixture connection closed')
+    monkeypatch.setattr(manager, 'stream_model', cancelled)
+    with pytest.raises(service.QueueCancelled):
+        asyncio.run(manager.call_model('fixture', 'Entire source', 900))
+    assert not calls
+
+
+def test_model_stream_total_byte_limit_is_enforced(tmp_path):
+    manager = service.FolderReview(tmp_path / 'reports/db.sqlite3')
+    # Small individual lines still cannot exceed the whole-response cap.
+    line = b'{"padding":"' + b'x' * 2000 + b'"}\n'
+    response = httpx.Response(200, content=line * (4 * 1024 ** 2 // len(line) + 1))
+    async def read():
+        async for _ in manager.response_lines(response):
+            pass
+    with pytest.raises(RuntimeError, match='stream exceeded its byte limit'):
+        asyncio.run(read())

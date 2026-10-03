@@ -12,6 +12,7 @@ import {
 import { responseStyles } from "../responseStyle";
 import CustomProfileControls from "./CustomProfileControls";
 import VoiceOutputSettings from './VoiceOutputSettings';
+import SoundOutputSettings from './SoundOutputSettings';
 import AppearanceSettings from "./AppearanceSettings";
 
 export default function SettingsPanel() {
@@ -100,6 +101,7 @@ export default function SettingsPanel() {
     <div id={pane.domId("settings-panel")} className="visible" ref={panel}>
       <div id={pane.domId("settings-inner")}>
         <AppearanceSettings />
+        <SoundOutputSettings/>
         <VoiceOutputSettings/>
         <div className="roleplay-area">
           <div className="settings-top-actions">

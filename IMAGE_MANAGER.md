@@ -39,6 +39,9 @@ inside **Snapshots**.
    **Untagged only** temporarily displays only images with no catalog tags, before pagination.
    Newly tagged selections disappear while this filter is on. View tabs, filters
    and tagging/selection controls stay visible as you scroll through images.
+   **View density** offers **Compact**, **Comfortable**, and **Extra comfortable**.
+   Extra comfortable uses larger cards and 300-pixel-high thumbnails with higher
+   resolution previews. Your density choice is saved between app sessions.
    Click an image or filename to select/deselect it; use **Preview** for the
    larger view. Favorites and tags change catalog metadata
    only, without writing to originals. Setting tags replaces the selected images'
@@ -47,8 +50,13 @@ inside **Snapshots**.
    in the folder filter (or all catalog folders), across all pages and independent
    of selection, search, date and format filters. **Hide selected** hides just the
    selection. Hidden status survives filter resets, rescans and app restarts.
-   Open **Hidden**, select images and click **Restore selected to library** to
-   bring them back. These actions only change catalog metadata; originals remain
+   **Show tagged images** toggles a view of tagged images, including hidden ones,
+   within the current filters. Hidden images have a **Hidden** label.
+   **Unhide images** brings back every hidden image in the folder filter (or all
+   catalog folders), across pages and independent of the other filters.
+   Open **Hidden** or turn on **Show tagged images**, select images and click
+   **Unhide selected** to bring back just those images.
+   These actions only change catalog metadata; originals remain
    in place. Newly tagged images can be hidden by clicking the saved action again.
 3. Open a preview to show its original in Explorer, open it in Image Editor,
    explicitly save a copy to Gallery, or add a removable pending chat attachment.

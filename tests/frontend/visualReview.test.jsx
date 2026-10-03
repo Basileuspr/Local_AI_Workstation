@@ -4,8 +4,17 @@ import {afterEach,expect,it,vi} from 'vitest';
 import VisualReview from '../../src/components/VisualReview';
 import FaceClassification from '../../src/components/FaceClassification';
 import ReviewTags,{tagList} from '../../src/components/ReviewTags';
+import PersonNameEditor from '../../src/components/PersonNameEditor';
 import {reviewRequest,reviewImageUrl} from '../../src/visualReview';
 afterEach(()=>vi.unstubAllGlobals());
+it('uses saved name tags as person suggestions and lets an unchanged duplicate name be combined',()=>{
+  const html=renderToStaticMarkup(<PersonNameEditor personId="p1" name="Alex" label="Person name" names={['Trip','Alex','Alex','Jordan']} canMerge act={()=>{}} onRename={()=>{}}/>);
+  expect(html).toContain('<datalist');
+  expect(html).toContain('list=');
+  expect(html).toContain('<option value="Jordan"');
+  expect(html.match(/<datalist[^>]*>(.*?)<\/datalist>/)[1].match(/<option value="Alex"/g)).toHaveLength(1);
+  expect(html).toContain('<button type="submit">Save name</button>');
+});
 it('gives every detected face its own name field without selecting the thumbnail first',()=>{
   const faces=[{id:'f1',person_id:'p1',name:'Person 1'},{id:'f2',person_id:'p2',name:'Person 2'}];
   const html=renderToStaticMarkup(<FaceClassification classification={{faces,faces_done:true}} act={()=>{}} onRename={()=>{}} onCorrect={()=>{}}/>);

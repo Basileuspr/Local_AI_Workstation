@@ -1,7 +1,8 @@
 import { createContext, useContext, useReducer, useRef, useCallback, useLayoutEffect } from "react";
 import { applyAppearance, defaultAppearance, normalizeAppearance } from "./appearance";
 import { defaultRoleplayConfig, mergeRoleplayConfig,roleplayFromCharacter } from "./roleplayPrompt";
-import { defaultImageSettings, defaultVoiceOutput, normalizeVoiceOutput, loadPreferences } from "./preferences";
+import { defaultImageSettings, defaultVoiceOutput, normalizeVoiceOutput, defaultSoundOutput, normalizeSoundOutput, loadPreferences } from "./preferences";
+import {audioOutput} from './audioOutput';
 import { loadStartupNavigation } from "./navigation";
 import { orderModels } from "./modelOrder";
 
@@ -64,6 +65,7 @@ const initialState = {
   roleplay: defaultRoleplayConfig,
   imageSettings: defaultImageSettings,
   voiceOutput: defaultVoiceOutput,
+  soundOutput: defaultSoundOutput,
   customProfiles: [],
   activeCustomProfileId: "",
   activeLoraProjectId: "",
@@ -259,6 +261,14 @@ export function reducer(state, action) {
         memorySummary: saved.memory_summary || "", summarizedMessageCount: saved.summarized_message_count || 0 };
     }
 
+    case "MESSAGE_PIN_SAVED": {
+      const saved = action.payload;
+      if (state.currentSessionId !== saved.id) return state;
+      return { ...state, conversationHistory: state.conversationHistory.map(message =>
+        message.id === saved.message_id ? { ...message, pinned: saved.pinned } : message),
+        sessionRevision: state.sessionRevision === saved.previous_revision ? saved.revision : state.sessionRevision };
+    }
+
     case "CHECKLIST_ITEM_SAVED": {
       const saved = action.payload;
       if (state.currentSessionId !== saved.id) return state;
@@ -362,6 +372,9 @@ export function reducer(state, action) {
 
     case "SET_VOICE_OUTPUT":
       return { ...state, voiceOutput: normalizeVoiceOutput({ ...state.voiceOutput, ...action.payload }) };
+
+    case "SET_SOUND_OUTPUT":
+      return { ...state, soundOutput: normalizeSoundOutput({ ...state.soundOutput, ...action.payload }) };
 
     case "SET_IMAGE_SETTINGS":
       return updateActiveCustomProfile({
@@ -507,6 +520,12 @@ export function reducer(state, action) {
 export function StoreProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, undefined, createInitialState);
   useLayoutEffect(() => { applyAppearance(state.appearance); }, [state.appearance]);
+  useLayoutEffect(() => {audioOutput.configure(state.soundOutput);},[state.soundOutput]);
+  useLayoutEffect(() => {
+    const stopDevices=audioOutput.listen();
+    const stopPlayers=audioOutput.bindDocument(document,payload=>dispatch({type:'SET_SOUND_OUTPUT',payload}));
+    return ()=>{stopDevices();stopPlayers();audioOutput.stopTest();};
+  },[]);
   // Refs for things that need to survive across renders without causing re-renders
   const refs = useRef({
     abortController: null,
@@ -536,8 +555,12 @@ export function ChatStoreProvider({ children }) {
     selectedModel: parent.selectedModel, activeSidebarTab: "chats", currentSessionId: null,
     conversationHistory: [], sessionTitle: "New Chat", memorySummary: "", summarizedMessageCount: 0 }));
   const dispatch = useCallback(action => {
+    if(action.type === 'RESET_PREFERENCES') {
+      parentDispatch({type:'SET_SOUND_OUTPUT',payload:defaultSoundOutput});
+      localDispatch(action);return;
+    }
     if (["SHOW_TOAST", "SET_SESSIONS", "SESSION_TITLE_UPDATED", "SET_SESSION_IMAGES", "SET_KB_DOCUMENTS", "OPEN_INDEX_ENTRY", "OPEN_KNOWLEDGE_NODE",
-      "OPEN_IMAGE_WORKFLOW", "OPEN_ITERATIVE_SCENE", "SET_ACTIVE_LORA_PROJECT", "SET_APPEARANCE", "RESET_APPEARANCE", "SET_STARTUP_BEHAVIOR"].includes(action.type)
+      "OPEN_IMAGE_WORKFLOW", "OPEN_ITERATIVE_SCENE", "SET_ACTIVE_LORA_PROJECT", "SET_APPEARANCE", "RESET_APPEARANCE", "SET_STARTUP_BEHAVIOR", "SET_SOUND_OUTPUT"].includes(action.type)
       || action.type === "SET_SIDEBAR_TAB") parentDispatch(action);
     else localDispatch(action);
   }, [parentDispatch]);
@@ -545,7 +568,7 @@ export function ChatStoreProvider({ children }) {
   const state = { ...local, connected: parent.connected, serviceStatus: parent.serviceStatus,
     modelsError: parent.modelsError, models: orderModels(parent.models, local.modelOrder),
     sessions: parent.sessions, kbDocuments: parent.kbDocuments, sessionImages: parent.sessionImages,
-    appearance: parent.appearance, startupBehavior: parent.startupBehavior, activeSidebarTab: parent.activeSidebarTab };
+    appearance: parent.appearance, soundOutput: parent.soundOutput, startupBehavior: parent.startupBehavior, activeSidebarTab: parent.activeSidebarTab };
   return <StoreContext.Provider value={state}><DispatchContext.Provider value={dispatch}>
     <RefsContext.Provider value={refs.current}>{children}</RefsContext.Provider>
   </DispatchContext.Provider></StoreContext.Provider>;

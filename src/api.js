@@ -129,6 +129,14 @@ export async function saveSession(
   return await res.json();
 }
 
+export async function pinMessage(sessionId, messageId, pinned) {
+  const response = await fetch(apiUrl(`/sessions/${encodeURIComponent(sessionId)}/messages/${encodeURIComponent(messageId)}/pin`), {
+    method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pinned }),
+  });
+  if (!response.ok) await sessionSaveError(response, "Could not save the message pin");
+  return response.json();
+}
+
 export async function updateChecklistItem(sessionId, messageId, { lineIndex, checked, expectedContent }) {
   const response = await fetch(apiUrl(`/sessions/${encodeURIComponent(sessionId)}/messages/${encodeURIComponent(messageId)}/checklist`), {
     method: "PATCH",

@@ -23,6 +23,7 @@ from services.session_store import (
     public_session,
     update_session,
     update_session_metadata,
+    pin_message,
     update_checklist_item,
     edit_message_checklist,
     SessionConflict,
@@ -83,6 +84,11 @@ class ChecklistItemRequest(BaseModel):
     line_index: int = Field(ge=0, strict=True)
     checked: bool = Field(strict=True)
     expected_content: str
+
+
+class PinMessageRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+    pinned: bool = Field(strict=True)
 
 
 class ChecklistEditItem(BaseModel):
@@ -268,6 +274,17 @@ def append_session_messages(session_id: str, request: UpdateSessionRequest):
     if session is None:
         raise HTTPException(404, "The original chat is no longer available")
     return public_session(session)
+
+
+@router.patch("/{session_id}/messages/{message_id}/pin")
+def patch_message_pin(session_id: str, message_id: str, request: PinMessageRequest):
+    try:
+        result = pin_message(session_id, message_id, pinned=request.pinned)
+    except ValueError as error:
+        raise HTTPException(400, str(error))
+    if result is None:
+        raise HTTPException(404, "Message not found")
+    return result
 
 
 @router.patch("/{session_id}/messages/{message_id}/checklist")

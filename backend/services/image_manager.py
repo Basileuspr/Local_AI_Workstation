@@ -21,6 +21,7 @@ from pathlib import Path
 from PIL import Image, ImageOps
 from config import settings
 from . import image_manager_trash
+from . import visual_review_names
 
 EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff", ".avif", ".gif"}
 FORMATS = {"JPEG", "PNG", "WEBP", "BMP", "TIFF", "AVIF", "GIF"}
@@ -202,7 +203,7 @@ class ImageManager:
             raise ValueError("The image changed since its scan. Scan the folder again.")
         return record, path
 
-    def query(self, *, folder_id="", search="", tag="", format="", month="", favorite=False, hide_tagged=False, visibility="visible", duplicates=False, digest="", sort="date", offset=0, limit=48):
+    def query(self, *, folder_id="", search="", tag="", format="", month="", favorite=False, hide_tagged=False, tagged_only=False, visibility="visible", duplicates=False, digest="", sort="date", offset=0, limit=48):
         if sort not in ("date", "name", "size", "dimensions") or offset < 0 or not 1 <= limit <= 1000:
             raise ValueError("Invalid image page or sort order.")
         where = ["i.available=1"]
@@ -215,29 +216,41 @@ class ImageManager:
             if value:
                 where.append(f"i.{field}=?"); params.append(value)
         if search:
-            where.append("(i.relative LIKE ? OR i.tags LIKE ?)"); params.extend([f"%{search}%"] * 2)
-        if not isinstance(tag, str) or len(tag) > 60:
-            raise ValueError("Choose a tag of up to 60 characters.")
+            where.append("(i.relative LIKE ? OR i.filter_tags LIKE ?)"); params.extend([f"%{search}%"] * 2)
+        if not isinstance(tag, str) or len(tag) > 120:
+            raise ValueError("Choose a tag or person name of up to 120 characters.")
         if tag:
-            where.append("EXISTS (SELECT 1 FROM json_each(i.tags) t WHERE t.value=?)"); params.append(tag)
+            where.append("EXISTS (SELECT 1 FROM json_each(i.filter_tags) t WHERE t.value=?)"); params.append(tag)
         if month:
             where.append("substr(i.date,1,7)=?"); params.append(month)
         if favorite:
             where.append("i.favorite=1")
         if hide_tagged:
-            where.append("json_array_length(i.tags)=0")
+            where.append("json_array_length(i.filter_tags)=0")
+        if tagged_only:
+            where.append("json_array_length(i.filter_tags)>0")
         if duplicates:
             where.append("i.sha256 IN (SELECT sha256 FROM images WHERE available=1 AND sha256 IS NOT NULL GROUP BY sha256 HAVING COUNT(*)>1)")
         ordering = {"date": "i.date DESC", "name": "i.relative COLLATE NOCASE", "size": "i.bytes DESC", "dimensions": "(i.width*i.height) DESC"}[sort]
         predicate = " AND ".join(where)
         with self.database() as db:
-            total = db.execute(f"SELECT COUNT(*) FROM images i WHERE {predicate}", params).fetchone()[0]
-            rows = db.execute(f"SELECT i.*,f.path AS folder_path FROM images i JOIN folders f ON f.id=i.folder_id WHERE {predicate} ORDER BY {ordering},i.id LIMIT ? OFFSET ?", [*params, limit, offset]).fetchall()
+            table, linked = visual_review_names.image_table(db)
+            if len(tag) > 60 and not any(person['name'] == tag for entry in linked.values() for person in entry['people']):
+                raise ValueError("Choose a saved person name or a tag of up to 60 characters.")
+            total = db.execute(f"SELECT COUNT(*) FROM {table} i WHERE {predicate}", params).fetchone()[0]
+            rows = db.execute(f"SELECT i.*,f.path AS folder_path FROM {table} i JOIN folders f ON f.id=i.folder_id WHERE {predicate} ORDER BY {ordering},i.id LIMIT ? OFFSET ?", [*params, limit, offset]).fetchall()
             months = [row[0] for row in db.execute("SELECT DISTINCT substr(date,1,7) FROM images WHERE available=1 ORDER BY 1 DESC")]
             formats = [row[0] for row in db.execute("SELECT DISTINCT format FROM images WHERE available=1 ORDER BY 1")]
             # Catalog-wide choices must not shrink with pagination or other filters.
-            tags = [row[0] for row in db.execute("SELECT DISTINCT t.value FROM images i, json_each(i.tags) t WHERE i.available=1 AND t.type='text' AND t.value<>'' ORDER BY t.value COLLATE NOCASE,t.value")]
-        images = [{**dict(row), "tags": json.loads(row["tags"]), "signature": json.loads(row["signature"])} for row in rows]
+            tags = [row[0] for row in db.execute(f"SELECT DISTINCT t.value FROM {table} i, json_each(i.filter_tags) t WHERE i.available=1 AND t.type='text' AND t.value<>'' ORDER BY t.value COLLATE NOCASE,t.value")]
+        images = []
+        for row in rows:
+            item = dict(row)
+            item['tags'] = json.loads(item.pop('filter_tags'))
+            entry = linked.get(item['id'])
+            item['person_tags'] = [person['name'] for person in entry['people']] if entry and entry['stamp'] == item['signature'] else []
+            item['signature'] = json.loads(item['signature'])
+            images.append(item)
         return {"images": images, "total": total, "offset": offset, "months": months, "formats": formats, "tags": tags}
 
     def metadata(self, identifiers, *, favorite=None, tags=None, add_tags=None, hidden=None):
@@ -278,10 +291,22 @@ class ImageManager:
         with self.database() as db:
             if folder_id and not db.execute("SELECT id FROM folders WHERE id=?", (folder_id,)).fetchone():
                 raise ValueError("Choose a registered image folder.")
-            predicate = "available=1 AND hidden=0 AND json_array_length(tags)>0"
+            table, _ = visual_review_names.image_table(db)
+            predicate = "available=1 AND hidden=0 AND json_array_length(filter_tags)>0"
             if folder_id:
                 predicate += " AND folder_id=?"
-            result = db.execute("UPDATE images SET hidden=1 WHERE " + predicate, (folder_id,) if folder_id else ())
+            result = db.execute(f"UPDATE images SET hidden=1 WHERE id IN (SELECT id FROM {table} WHERE " + predicate + ")", (folder_id,) if folder_id else ())
+            return {"ok": True, "updated": result.rowcount}
+
+    def unhide_images(self, folder_id=""):
+        # Restore the whole folder across pages without changing files or tags.
+        with self.database() as db:
+            if folder_id and not db.execute("SELECT id FROM folders WHERE id=?", (folder_id,)).fetchone():
+                raise ValueError("Choose a registered image folder.")
+            predicate = "available=1 AND hidden=1"
+            if folder_id:
+                predicate += " AND folder_id=?"
+            result = db.execute("UPDATE images SET hidden=0 WHERE " + predicate, (folder_id,) if folder_id else ())
             return {"ok": True, "updated": result.rowcount}
 
     def duplicates(self, folder_ids=None):

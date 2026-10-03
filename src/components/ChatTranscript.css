@@ -1,0 +1,18 @@
+.chat-transcript-tools { display: flex; gap: 6px; flex: 0 0 auto; padding: 5px 16px; border-bottom: 1px solid var(--border); align-items: center; }
+.chat-transcript-tools button, .chat-pinned-messages button { border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-primary); border-radius: 6px; padding: 5px 9px; font-size: 12px; cursor: pointer; }
+.chat-transcript-tools button:disabled { opacity: .45; cursor: default; }
+.chat-transcript-tools button:last-child { margin-left: auto; }
+.chat-pinned-messages { flex: 0 0 auto; display: grid; gap: 5px; padding: 8px 16px; max-height: 170px; overflow: auto; border-bottom: 1px solid var(--border); }
+.chat-pinned-messages button { text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.message-wrapper.message-pinned { border-left: 3px solid var(--accent); }
+.message-pin-btn { background: transparent; color: var(--text-secondary); border: 1px solid var(--border); border-radius: 5px; padding: 3px 8px; cursor: pointer; font-size: 12px; }
+.message-pin-btn[aria-pressed="true"] { color: var(--accent); }
+.message-pin-btn:disabled { opacity: .5; cursor: default; }
+.chat-steer-button { padding: 8px; border: 1px solid var(--border); color: var(--accent); background: var(--bg-card); border-radius: 6px; cursor: pointer; }
+.chat-steer-dialog { width: min(520px, 92vw); margin: auto; padding: 22px; border: 1px solid var(--border); border-radius: 10px; color: var(--text); background: var(--bg-surface); }
+.chat-steer-dialog::backdrop { background: #0009; }
+.chat-steer-dialog form, .chat-steer-dialog label { display: grid; gap: 12px; }
+.chat-steer-dialog textarea { width: 100%; min-height: 120px; background: var(--bg-input); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 10px; }
+.chat-steer-dialog form > div { display: flex; gap: 8px; }
+.chat-steer-dialog button { padding: 8px 12px; border: 1px solid var(--border); color: var(--text); background: var(--bg-card); border-radius: 6px; }
+.chat-context-summary { color: var(--text-dim); font-size: 11px; white-space: nowrap; }

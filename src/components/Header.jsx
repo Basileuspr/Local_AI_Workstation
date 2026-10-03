@@ -137,6 +137,9 @@ export default function Header({ onSessionRenamed, onCompactMemory }) {
           <span className="status-text" id={pane.domId("status-text")} role="status" aria-live="polite">{chatStatus.label}</span>
         </span>
       </div>
+      <span className="chat-context-summary" title="Estimated prompt tokens / effective context window. Open Chat options for reserves and last-request counts.">
+        Context ~{formatTokenEstimate(contextUsage.promptTokens)} / {formatTokenEstimate(contextUsage.windowTokens)}
+      </span>
       {contextStatus.className !== "healthy" && <span className={`chat-context-warning ${contextStatus.className}`}
         title={`Estimated prompt context: ${Math.round(contextUsage.promptTokens)} of ${Math.round(contextUsage.usableInputTokens)} usable tokens.`}>
         {contextStatus.label}
@@ -172,6 +175,9 @@ export default function Header({ onSessionRenamed, onCompactMemory }) {
               <div className="chat-context-status">{selectedModel || "No model selected"} · ~{formatTokenEstimate(contextUsage.inputBudgetRemaining)} input tokens available
                 {contextUsage.summarizationOccurred ? ` · ${summarizedMessageCount} messages summarized` : " · No summary"}</div>
               <details><summary>Context budget details</summary>
+                <p>Effective request window: {contextUsage.windowTokens.toLocaleString()} tokens.
+                  {selectedModelInfo?.trained_context_length ? ` Model metadata limit: ${selectedModelInfo.trained_context_length.toLocaleString()} tokens.` : ' Model metadata limit is unknown; the application fallback applies.'}
+                  {' '}The smaller of the configured application limit and known model limit is used. Counts before a reply are estimates.</p>
                 <dl>{[["Configured window",contextUsage.windowTokens],["System estimate",contextUsage.systemTokens],["Summary estimate",contextUsage.summaryTokens],["Recent messages estimate",contextUsage.unsummarizedTokens],["Output reserve",contextUsage.outputReserve],["Other reserves",contextUsage.fixedReserve-contextUsage.outputReserve]].map(([name,value])=><div key={name}><dt>{name}</dt><dd>{value} tokens</dd></div>)}</dl>
                 {(() => { const record = [...conversationHistory].reverse().find(message => message.context_usage || message.influence_receipt?.context_usage);
                   const usage = record?.context_usage || record?.influence_receipt?.context_usage;

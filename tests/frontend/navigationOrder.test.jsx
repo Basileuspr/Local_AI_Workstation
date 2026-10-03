@@ -14,7 +14,7 @@ describe('app-wide navigation priority', () => {
   });
   it('reorders sections and their tabs without changing canonical navigation or caller data', () => {
     const order = normalizeNavigationOrder(), prior = JSON.stringify(order);
-    const reordered = { ...order, sections: reorderIds(order.sections, 4, 0), tabs: { ...order.tabs, workspace: reorderIds(order.tabs.workspace, 2, 0) } };
+    const reordered = { ...order, sections: reorderIds(order.sections, order.sections.indexOf('viewers'), 0), tabs: { ...order.tabs, workspace: reorderIds(order.tabs.workspace, 2, 0) } };
     const sections = orderedSections(reordered);
     expect(sections[0].id).toBe('viewers');
     expect(sections.find(section => section.id === 'workspace').items[0].id).toBe('knowledge');

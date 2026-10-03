@@ -55,9 +55,13 @@
 .vr-inspect .vr-faces button { width:96px; }
 .vr-person-card { width:164px; min-width:0; padding:8px; border:1px solid var(--border); border-radius:7px; }
 .vr-person-card > button { width:100%; }
+.vr-person-card .vr-folder-open { color:var(--accent); font-size:11px; }
+.vr-folder-heading { margin:16px 0 12px; }
 .vr-person-name { display:flex; flex-direction:column; gap:6px; margin-top:8px; }
 .visual-review .vr-person-name label,.visual-review-dialog .vr-person-name label { display:flex; flex-direction:column; gap:4px; margin:0; font-size:11px; }
 .vr-person-name input { box-sizing:border-box; width:100%; min-width:0; }
+.vr-person-name select { width:100%; min-width:0; }
+.vr-person-tag-select { min-width:0; }
 .vr-person-name button,.vr-inspect .vr-person-card > button,.vr-inspect .vr-person-name button { width:100%; }
 .vr-inspect .vr-person-card { flex:1 1 130px; }
 @media (max-width:720px) { .vr-inspect { grid-template-columns:1fr; gap:0; } .visual-review-dialog .vr-image { max-height:30vh; } }

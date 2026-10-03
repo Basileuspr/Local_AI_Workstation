@@ -1,7 +1,17 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("workstationDesktop", {
+    openSoundSettings: () => ipcRenderer.invoke('sound-output:open-settings'),
+    openLinkedContent: value => ipcRenderer.invoke('linked-content:open', value),
+    placeLinkedContent: value => ipcRenderer.invoke('linked-content:place', value),
+    closeLinkedContent: () => ipcRenderer.invoke('linked-content:close'),
+    requestPlaybackCapture: value => ipcRenderer.invoke('playback-capture:arm', value),
+    playbackCaptureStatus: () => ipcRenderer.invoke('playback-capture:status'),
+    saveConvertedImage: id => ipcRenderer.invoke('converted-image:save', id),
+    cancelPlaybackCapture: () => ipcRenderer.invoke('playback-capture:cancel'),
     save3DEditorFile: request => ipcRenderer.invoke('model-editor:save', request),
+    savePaintFile: request => ipcRenderer.invoke('paint:save', request),
+    printPaint: request => ipcRenderer.invoke('paint:print', request),
     request3DTextureCamera: () => ipcRenderer.invoke('model-editor:camera-start'),
     end3DTextureCamera: () => ipcRenderer.invoke('model-editor:camera-stop'),
     ...(process.platform === 'win32' ? {

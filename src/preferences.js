@@ -4,6 +4,15 @@ import { defaultAppearance, normalizeAppearance } from "./appearance";
 export const PREFERENCES_STORAGE_KEY = "local-ai-workstation-preferences-v1";
 export const LEGACY_ROLEPLAY_STORAGE_KEY = "local-ai-workstation-roleplay";
 
+export const defaultSoundOutput = {volume:1, muted:false, deviceId:'', deviceLabel:''};
+export function normalizeSoundOutput(value = {}) {
+  value = value && typeof value === 'object' ? value : {};
+  const volume = typeof value.volume === 'number' && Number.isFinite(value.volume) ? Math.min(1, Math.max(0, value.volume)) : 1;
+  const deviceId = typeof value.deviceId === 'string' && value.deviceId.length <= 512 && !/[\u0000-\u001f]/.test(value.deviceId) && value.deviceId !== 'default' ? value.deviceId : '';
+  return {volume, muted:value.muted === true, deviceId,
+    deviceLabel:deviceId && typeof value.deviceLabel === 'string' ? value.deviceLabel.slice(0,200) : ''};
+}
+
 export const defaultVoiceOutput = {
   autoSpeak: false, referenceId: '', referenceName: '', referenceText: '',
   engine: 'chatterbox-turbo', language: 'English', acceleration: 'auto',
@@ -59,6 +68,7 @@ const DEFAULT_PREFERENCES = {
   roleplay: defaultRoleplayConfig,
   imageSettings: defaultImageSettings,
   voiceOutput: defaultVoiceOutput,
+  soundOutput: defaultSoundOutput,
   customProfiles: [],
   activeCustomProfileId: "",
   activeLoraProjectId: "",
@@ -82,6 +92,7 @@ export function loadPreferences() {
         roleplay: mergeRoleplayConfig(saved.roleplay),
         imageSettings: { ...defaultImageSettings, ...(saved.imageSettings || {}) },
         voiceOutput: normalizeVoiceOutput(saved.voiceOutput),
+        soundOutput: normalizeSoundOutput(saved.soundOutput),
         customProfiles: Array.isArray(saved.customProfiles) ? saved.customProfiles : [],
         activeCustomProfileId: saved.activeCustomProfileId || "",
       };
@@ -126,6 +137,7 @@ export function pickPreferences(state) {
     roleplay: state.roleplay,
     imageSettings: state.imageSettings,
     voiceOutput: normalizeVoiceOutput(state.voiceOutput),
+    soundOutput: normalizeSoundOutput(state.soundOutput),
     customProfiles: state.customProfiles,
     activeCustomProfileId: state.activeCustomProfileId,
     activeLoraProjectId: state.activeLoraProjectId,

@@ -4,11 +4,12 @@ import io
 import json
 import re
 import zipfile
-from typing import Literal
+from typing import Annotated, Literal
 from fastapi import APIRouter, HTTPException, Response
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 from services import visual_review as store
+from services import face_help
 from services.visual_classification import classifier, capabilities
 from services.review_metadata import ReviewFields
 
@@ -17,6 +18,7 @@ router=APIRouter(prefix='/visual-review',tags=['visual-review'])
 
 async def call(function,*args,**kwargs):
     try: return await run_in_threadpool(function,*args,**kwargs)
+    except face_help.StaleAnswer as error: raise HTTPException(409,str(error)) from error
     except (ValueError,OSError,KeyError) as error: raise HTTPException(422,str(error)) from error
 
 
@@ -61,6 +63,48 @@ class Merge(BaseModel):
 class Scenes(BaseModel):
     digest: str
     labels: list[str]=Field(max_length=34)
+
+
+HelpSource = Literal['all', 'library', 'image-manager']
+FaceId = Annotated[str, Field(pattern=r'^[a-f0-9]{32}$')]
+
+
+class HelpQuestions(BaseModel):
+    source: HelpSource = 'all'
+    skip_ids: list[FaceId] = Field(default_factory=list, max_length=5000)
+    include_answered: bool = False
+
+
+class HelpAnswer(BaseModel):
+    source: HelpSource = 'all'
+    face_id: FaceId
+    version: str = Field(pattern=r'^[a-f0-9]{64}:[a-f0-9]{0,32}$')
+    decision: Literal['yes', 'no', 'not-face']
+    name: str = Field(default='', max_length=120)
+    person_id: FaceId | None = None
+    suggestion_id: FaceId | None = None
+
+
+class HelpUndo(BaseModel):
+    source: HelpSource = 'all'
+    face_id: FaceId
+    undo_id: FaceId
+
+
+@router.post('/help/questions')
+async def help_questions(request: HelpQuestions):
+    return await call(face_help.questions, request.source, request.skip_ids, request.include_answered)
+
+
+@router.post('/help/answer')
+async def help_answer(request: HelpAnswer):
+    return await call(face_help.answer, request.source, request.face_id, request.version,
+                      request.decision, request.name, request.person_id, request.suggestion_id)
+
+
+@router.post('/help/undo')
+async def help_undo(request: HelpUndo):
+    return await call(face_help.undo, request.source, request.face_id, request.undo_id)
 
 
 @router.get('/capabilities')

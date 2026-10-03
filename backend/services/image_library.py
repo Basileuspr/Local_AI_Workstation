@@ -15,6 +15,7 @@ from PIL import Image, UnidentifiedImageError
 from config import settings
 from services import storage_libraries as storage
 from services import review_metadata
+from services import visual_review_names
 
 ROOT = settings.data_dir / "image_library"
 LOCK = threading.RLock()
@@ -92,18 +93,22 @@ def public_index():
     from services import image_vault
     with LOCK:
         index = read_index()
-        return {**index, "images": [decorate(item) for item in index["images"] if not image_vault.is_locked(item["sha256"])]}
+        value = {**index, "images": [decorate(item, include_names=False) for item in index["images"] if not image_vault.is_locked(item["sha256"])]}
+    return visual_review_names.library_index(value)
 
 
-def decorate(item):
+def decorate(item, *, include_names=True):
     # All old direct uploads came from Image Review. Apply that separation to
     # existing records too, without rewriting user files just to list them.
     manual = review_metadata.metadata(item)
     record = media_record(item)
-    return {**item, **{key: manual[key] for key in ('schema_version', 'category', 'project', 'favorite', 'review_status')},
+    value = {**item, **{key: manual[key] for key in ('schema_version', 'category', 'project', 'favorite', 'review_status')},
             **{key: record[key] for key in ('media_id', 'media_type', 'path', 'file_state', 'metadata')}, "review_only": item.get("review_only", False) or item.get("origin", {}).get("kind") in {"upload", "review"},
             "tag_ids": item.get("tag_ids", []), "annotations": item.get("annotations", {}),
             "url": f"/image-library/images/{item['id']}/content"}
+    if include_names:
+        value = visual_review_names.library_index({**read_index(), 'images': [value]})['images'][0]
+    return value
 
 
 def media_record(item):
@@ -174,9 +179,23 @@ def edit_image(item_id, *, rating=None, folder_ids=None, set_rating=False, hidde
             if not isinstance(caption, str) or len(caption) > 10000: raise ValueError("Captions must be at most 10,000 characters")
             item.setdefault("annotations", {})["caption"] = caption
         if tag_ids is not None:
-            if len(tag_ids) > 100 or any(value not in {tag["id"] for tag in index["tags"]} for value in tag_ids):
+            display = visual_review_names.library_index(index)
+            choices = {tag['id']: tag for tag in display['tags']}
+            if len(tag_ids) > 100 or any(value not in choices for value in tag_ids):
                 raise ValueError("Choose up to 100 existing image tags")
-            item["tag_ids"] = list(dict.fromkeys(tag_ids))
+            attached = next(image['person_tag_ids'] for image in display['images'] if image['id'] == item_id)
+            existing = {tag['id'] for tag in index['tags']}
+            selected = []
+            for value in dict.fromkeys(tag_ids):
+                # Saving notes must not turn a linked face name into a manual
+                # tag that survives moving that face to a different person.
+                if value in attached and value not in item.get('tag_ids', []):
+                    continue
+                if value not in existing:
+                    index['tags'].append({'id': value, 'name': choices[value]['name']})
+                    existing.add(value)
+                selected.append(value)
+            item["tag_ids"] = selected
         if folder_ids is not None:
             known = {folder["id"] for folder in index["folders"]}
             if any(value not in known for value in folder_ids): raise ValueError("Folder no longer exists")
@@ -192,21 +211,35 @@ def tag(name, tag_id=None):
     if not name or len(name) > 80: raise ValueError("Tag names need 1–80 characters")
     with LOCK:
         index = read_index()
-        if any(item["name"].casefold() == name.casefold() and item["id"] != tag_id for item in index["tags"]):
-            raise ValueError("An image tag already has that name")
-        if tag_id:
-            item = next((item for item in index["tags"] if item["id"] == identity(tag_id)), None)
-            if not item: raise ValueError("Image tag no longer exists")
-            item["name"] = name
-        else:
-            item = {"id": uuid.uuid4().hex, "name": name}; index["tags"].append(item)
-        save_index(index)
-        return item
+        linked = next((tag for tag in visual_review_names.library_index(index)['tags']
+                       if tag['id'] == tag_id and tag.get('person_id')), None) if tag_id else None
+        if not linked:
+            return _tag(index, name, tag_id)
+    # Release the library lock before changing the face catalog.
+    from services import visual_review
+    result = visual_review.rename_person(linked['person_id'], name)
+    return {'id': result['person_id'], 'name': result['name'], 'person_id': result['person_id']}
+
+
+def _tag(index, name, tag_id):
+    # Caller holds LOCK; ordinary manual tags retain their existing behavior.
+    if any(item["name"].casefold() == name.casefold() and item["id"] != tag_id for item in index["tags"]):
+        raise ValueError("An image tag already has that name")
+    if tag_id:
+        item = next((item for item in index["tags"] if item["id"] == identity(tag_id)), None)
+        if not item: raise ValueError("Image tag no longer exists")
+        item["name"] = name
+    else:
+        item = {"id": uuid.uuid4().hex, "name": name}; index["tags"].append(item)
+    save_index(index)
+    return item
 
 
 def delete_tag(tag_id):
     with LOCK:
         index = read_index()
+        if any(tag['id'] == tag_id and tag.get('person_id') for tag in visual_review_names.library_index(index)['tags']):
+            raise ValueError('This name tag follows a person. Change its face grouping in Review & classify.')
         index["tags"] = [item for item in index["tags"] if item["id"] != identity(tag_id)]
         for image in index["images"]: image["tag_ids"] = [value for value in image.get("tag_ids", []) if value != tag_id]
         save_index(index)

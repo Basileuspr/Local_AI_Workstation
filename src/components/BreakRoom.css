@@ -1,0 +1,9 @@
+.break-room { display: flex; flex-direction: column; align-items: center; }
+.break-room .learning-heading { width: min(100%, 650px); }
+.match-status { margin: 4px 0 20px; line-height: 1.6; color: var(--text-dim); }
+.match-board { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; width: min(100%, 440px); }
+.learning-workspace .match-card { aspect-ratio: 1; font-size: 32px; border: 1px solid var(--border-active); background: var(--bg-card); color: var(--text-dim); }
+.learning-workspace .match-card.revealed { color: var(--accent); background: var(--accent-dim); }
+.learning-workspace .match-card.matched { border-color: var(--green); color: var(--green); opacity: .85; }
+.match-actions { display: flex; gap: 12px; margin: 24px 0; }
+@media (max-width: 500px) { .match-board { gap: 8px; } .learning-workspace .match-card { font-size: 25px; } }

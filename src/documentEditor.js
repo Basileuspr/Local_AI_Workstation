@@ -8,9 +8,13 @@ import Image from '@tiptap/extension-image';
 import { TableKit } from '@tiptap/extension-table';
 import Subscript from '@tiptap/extension-subscript';
 import Superscript from '@tiptap/extension-superscript';
+import { PAGE_DETAIL_DEFAULTS, PAGINATION_OPTIONS } from './documentPageLayout';
+import { DocumentTableProperties, DocumentTableView, DocumentTableCell, DocumentTableHeader } from './documentTables';
+import { DocumentStyles, DOCUMENT_FONTS } from './documentStyles';
+import { DocumentReferences, Bookmark, TableOfContents, safeDocumentLink, normalizeReferences } from './documentReferences';
 
-export const DOCUMENT_FONTS = ['Aptos', 'Arial', 'Calibri', 'Cambria', 'Comic Sans MS', 'Consolas', 'Courier New', 'Georgia', 'Tahoma', 'Times New Roman', 'Trebuchet MS', 'Verdana'];
-export const DEFAULT_PAGE = { paper: 'Letter', orientation: 'portrait', top: 1, bottom: 1, left: 1, right: 1 };
+export { DOCUMENT_FONTS };
+export const DEFAULT_PAGE = { paper: 'Letter', orientation: 'portrait', top: 1, bottom: 1, left: 1, right: 1, ...PAGE_DETAIL_DEFAULTS };
 export const PAPER_SIZES = { Letter: [8.5, 11], A4: [8.2677, 11.6929], Legal: [8.5, 14] };
 export const EMPTY_DOCUMENT = { type: 'doc', content: [{ type: 'paragraph' }] };
 export const PLANNED_RIBBONS = {
@@ -18,7 +22,6 @@ export const PLANNED_RIBBONS = {
   Draw: 'Pens, ink, lasso selection, drawing canvas and ink-to-math.',
   Outlining: 'Full outline editing, promote/demote and document restructuring. Heading navigation is available in View.',
   Design: 'Themes, style sets, page colors, watermarks and page borders.',
-  References: 'Table of contents, footnotes, endnotes, citations, bibliography, captions, index and cross-references.',
   Mailings: 'Mail merge, recipients, envelopes and labels.',
   Developer: 'Content controls, XML mapping, templates and document protection. VBA, COM and Word add-ins are not part of this Python editor.',
 };
@@ -27,14 +30,18 @@ const ParagraphLayout = Extension.create({
   name: 'paragraphLayout',
   addGlobalAttributes() {
     return [{ types: ['paragraph', 'heading'], attributes: {
-      indent: { default: 0, parseHTML: el => Number(el.dataset.indent) || 0,
-        renderHTML: attrs => ({ 'data-indent': attrs.indent, style: `margin-left: ${attrs.indent * 0.25}in` }) },
-      spaceBefore: { default: 0, parseHTML: el => Number(el.dataset.spaceBefore) || 0,
-        renderHTML: attrs => ({ 'data-space-before': attrs.spaceBefore, style: `margin-top: ${attrs.spaceBefore}pt` }) },
-      spaceAfter: { default: 8, parseHTML: el => el.dataset.spaceAfter === undefined ? 8 : Number(el.dataset.spaceAfter),
-        renderHTML: attrs => ({ 'data-space-after': attrs.spaceAfter, style: `margin-bottom: ${attrs.spaceAfter}pt` }) },
-      lineSpacing: { default: 1.15, parseHTML: el => Number(el.dataset.lineSpacing) || 1.15,
-        renderHTML: attrs => ({ 'data-line-spacing': attrs.lineSpacing, style: `line-height: ${attrs.lineSpacing}` }) },
+      ...Object.fromEntries(PAGINATION_OPTIONS.map(([key]) => {
+        const attribute = 'data-' + key.replace(/[A-Z]/g, letter => '-' + letter.toLowerCase());
+        return [key, { default: null,
+          parseHTML: el => el.hasAttribute(attribute) ? el.getAttribute(attribute) === 'true' : null,
+          renderHTML: attrs => attrs[key] === null ? {} : { [attribute]: String(attrs[key]) },
+        }];
+      })),
+      ...Object.fromEntries([['indent', 'margin-left', 'in', .25], ['spaceBefore', 'margin-top', 'pt', 1], ['spaceAfter', 'margin-bottom', 'pt', 1], ['lineSpacing', 'line-height', '', 1]].map(([key, property, unit, scale]) => {
+        const attribute = 'data-' + key.replace(/[A-Z]/g, letter => '-' + letter.toLowerCase());
+        return [key, { default: null, parseHTML: el => el.hasAttribute(attribute) ? Number(el.getAttribute(attribute)) : null,
+          renderHTML: attrs => attrs[key] == null ? {} : { [attribute]: attrs[key], style: `${property}:${attrs[key] * scale}${unit}` } }];
+      })),
     } }];
   },
 });
@@ -52,17 +59,21 @@ const LocalImage = Image.extend({
 export function documentExtensions() {
   return [StarterKit.configure({ heading: { levels: [1, 2, 3] }, blockquote: false, code: false, codeBlock: false, horizontalRule: false,
     link: { openOnClick: false, autolink: false, linkOnPaste: false, protocols: ['http', 'https', 'mailto'],
-      isAllowedUri: url => /^(https?:\/\/|mailto:)[^\s<>]+$/i.test(url) } }),
+      isAllowedUri: safeDocumentLink } }),
   TextStyleKit.configure({ backgroundColor: false, lineHeight: false }),
-  TextAlign.configure({ types: ['heading', 'paragraph'] }), Highlight.configure({ multicolor: true }),
-  LocalImage.configure({ allowBase64: true }), TableKit.configure({ table: { resizable: false } }),
-  Subscript, Superscript, ParagraphLayout, PageBreak];
+  TextAlign.configure({ types: ['heading', 'paragraph'], defaultAlignment: null }), Highlight.configure({ multicolor: true }),
+  LocalImage.configure({ allowBase64: true }), TableKit.configure({ table: { resizable: true, cellMinWidth: 24, View: DocumentTableView }, tableCell: false, tableHeader: false }),
+  DocumentTableCell, DocumentTableHeader, DocumentTableProperties,
+  Subscript, Superscript, ParagraphLayout, PageBreak, DocumentStyles, DocumentReferences, Bookmark, TableOfContents];
 }
 
 export function resetDocumentContent(editor, content) {
   const previous = editor.state;
-  editor.view.updateState(EditorState.create({ schema: previous.schema,
-    doc: previous.schema.nodeFromJSON(content), plugins: previous.plugins }));
+  let state = EditorState.create({ schema: previous.schema, doc: previous.schema.nodeFromJSON(content), plugins: previous.plugins });
+  const normalized = normalizeReferences(state);
+  // Construct the normalized state afresh, keeping import/recovery outside Undo.
+  if (normalized) state = EditorState.create({ schema: state.schema, doc: normalized.doc, plugins: previous.plugins });
+  editor.view.updateState(state);
 }
 
 // Paste only the supported formatting. Remote images never enter the document.
@@ -72,7 +83,7 @@ export function cleanDocumentPaste(html) {
   doc.querySelectorAll('*').forEach(el => {
     for (const attr of [...el.attributes]) if (/^on/i.test(attr.name)) el.removeAttribute(attr.name);
     if (el.tagName === 'IMG' && !/^data:image\/(png|jpeg|webp);base64,/.test(el.getAttribute('src') || '')) el.remove();
-    if (el.tagName === 'A' && !/^(https?:\/\/|mailto:)[^\s<>]+$/i.test(el.getAttribute('href') || '')) el.removeAttribute('href');
+    if (el.tagName === 'A' && !safeDocumentLink(el.getAttribute('href') || '')) el.removeAttribute('href');
     if (el.style.fontFamily && !DOCUMENT_FONTS.includes(el.style.fontFamily.replaceAll('"', '').replaceAll("'", ''))) el.style.fontFamily = '';
     if (el.style.fontSize) {
       const match = el.style.fontSize.match(/^(\d+(?:\.\d+)?)(px|pt)$/);
@@ -88,11 +99,17 @@ export function documentMatches(doc, query, matchCase = false) {
   const matches = [], pattern = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), matchCase ? 'gu' : 'giu');
   doc.descendants((node, pos) => {
     if (!node.isTextblock) return;
-    // leafText occupies one position, preserving offsets across hard breaks.
-    const text = node.textBetween(0, node.content.size, '', '\n');
+    // Point bookmarks have a model position but no text. Map actual character
+    // offsets so a bookmark inside a word does not break counts or find results.
+    let text = ''; const positions = [];
+    node.descendants((child, offset) => {
+      const value = child.isText ? child.text : child.type.name === 'hardBreak' ? '\n' : '';
+      for (let i = 0; i < value.length; i++) positions.push(pos + 1 + offset + i);
+      text += value;
+    });
     for (const match of text.matchAll(pattern)) {
       if (matches.length >= 10000) break;
-      matches.push({ from: pos + 1 + match.index, to: pos + 1 + match.index + match[0].length });
+      matches.push({ from: positions[match.index], to: positions[match.index + match[0].length - 1] + 1 });
     }
     return false;
   });
@@ -102,7 +119,7 @@ export function documentMatches(doc, query, matchCase = false) {
 export function documentStats(doc) {
   let text = '', paragraphs = 0, pictures = 0;
   doc.descendants(node => {
-    if (node.isTextblock) { text += node.textBetween(0, node.content.size, '', '\n') + '\n'; paragraphs++; }
+    if (node.isTextblock) { text += node.textBetween(0, node.content.size, '', leaf => leaf.type.name === 'hardBreak' ? '\n' : '') + '\n'; paragraphs++; }
     if (node.type.name === 'image') pictures++;
   });
   return { words: text.trim() ? text.trim().split(/\s+/u).length : 0, characters: text.replace(/\n$/, '').length, paragraphs, pictures };

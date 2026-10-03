@@ -1,6 +1,7 @@
 import {generateClonedVoice, stopClonedVoice} from './voiceCloning';
 import {characterFileUrl} from './characterResources';
 import {registerSpeechStopper, stopSpeech} from './audioSpeech';
+import {audioOutput} from './audioOutput';
 
 export const chatSpeechOwner = (sessionId, messageId) => `chat:${sessionId}:${messageId}`;
 
@@ -28,6 +29,7 @@ export function createChatSpeech({generate = generateClonedVoice, cancel = stopC
   const publish = value => {snapshot = value; listeners.forEach(listener => listener());};
   function release(op) {
     if (op.audio) {
+      op.output?.release();
       op.audio.onended = null; op.audio.onerror = null;
       op.audio.pause(); op.audio.removeAttribute?.('src'); op.audio.load?.();
     }
@@ -69,9 +71,12 @@ export function createChatSpeech({generate = generateClonedVoice, cancel = stopC
         requestId:op.requestId, signal:op.controller.signal});
       if (operation !== op) return;
       op.url = createUrl(result.blob); op.audio = audio(op.url);
+      op.output = audioOutput.track(op.audio);
       op.audio.onended = () => {if (operation === op) {operation = null; release(op); publish({owner:null,status:'idle',error:'',warnings:[]});}};
       op.audio.onerror = () => {if (operation === op) {operation = null; release(op); fail('Generated speech could not be played. Press Speak to try again.');}};
       publish({owner, status:'playing', error:'', warnings:result.processing?.warnings || []});
+      await op.output.ready;
+      if(operation!==op)return;
       await op.audio.play();
     } catch (error) {
       if (operation !== op) return;

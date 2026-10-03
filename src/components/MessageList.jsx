@@ -20,6 +20,7 @@ import { chatImage } from "../chatImages";
 import { ConvertedAttachment } from "./FileConverter";
 import WebImageReader from "./WebImageReader";
 import {ReplyInfluences} from './ChatInfluences';
+import './ChatTranscript.css';
 
 function summarizeContent(message) {
   const content = String(message.content || "");
@@ -57,11 +58,37 @@ export default function MessageList({ onNewChat, onSessionSaved }) {
   const [copiedIndex, setCopiedIndex] = useState(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState("");
   const messageNodes = useRef(new Map());
+  const transcript = useRef(null);
+  const pinRequests = useRef(new Set());
+  const [pinBusy, setPinBusy] = useState([]);
+  const [pinsOpen, setPinsOpen] = useState(false);
   const { uploadFiles } = useChatUploads({ onNewChat, onSessionSaved });
 
   const { conversationHistory, scrollTargetMessageId } = state;
   const problem = describeStatus(state.serviceStatus);
   const { currentSessionId } = state;
+  const pinnedMessages = conversationHistory.filter(message => message.pinned === true);
+  useEffect(() => {
+    setPinsOpen(false);
+    if (transcript.current) transcript.current.dataset.followBottom = 'true';
+  }, [currentSessionId]);
+  function scrollToEnd(end) {
+    const node = transcript.current;
+    if (!node) return;
+    node.dataset.followBottom = end === 'bottom' ? 'true' : 'false';
+    node.scrollTo({ top: end === 'bottom' ? node.scrollHeight : 0, behavior: 'instant' });
+  }
+  async function togglePin(message) {
+    if (!currentSessionId || !message.id || pinRequests.current.has(message.id)) return;
+    const sessionId = currentSessionId;
+    pinRequests.current.add(message.id); setPinBusy([...pinRequests.current]);
+    try {
+      const saved = await api.pinMessage(sessionId, message.id, !message.pinned);
+      dispatch({ type: 'MESSAGE_PIN_SAVED', payload: saved });
+      void Promise.resolve(onSessionSaved?.()).catch(() => {});
+    } catch (error) { showToast(error.message || 'Could not save the message pin', 'error'); }
+    finally { pinRequests.current.delete(message.id); setPinBusy([...pinRequests.current]); }
+  }
   useEffect(() => {
     if (!pane.focused) return;
     chatSpeech.configure({sessionId:currentSessionId,active:state.activeSidebarTab === 'chats',preferences:state.voiceOutput});
@@ -97,7 +124,8 @@ export default function MessageList({ onNewChat, onSessionSaved }) {
     const timer = window.setTimeout(() => {
       const node = messageNodes.current.get(scrollTargetMessageId);
       if (node) {
-        node.scrollIntoView({ behavior: "smooth", block: "center" });
+        if (transcript.current) transcript.current.dataset.followBottom = 'false';
+        node.scrollIntoView({ behavior: "instant", block: "center" });
         setHighlightedMessageId(scrollTargetMessageId);
         window.setTimeout(() => setHighlightedMessageId(""), 1500);
       }
@@ -177,8 +205,25 @@ export default function MessageList({ onNewChat, onSessionSaved }) {
   }
 
   return (
+    <>
+    <div className="chat-transcript-tools" aria-label="Chat navigation">
+      <button type="button" disabled={!conversationHistory.length} onClick={() => scrollToEnd('top')} aria-label="Scroll to top of chat">↑ Top</button>
+      <button type="button" disabled={!conversationHistory.length} onClick={() => scrollToEnd('bottom')} aria-label="Scroll to bottom of chat">↓ Bottom</button>
+      <button type="button" disabled={!pinnedMessages.length} aria-expanded={pinsOpen} aria-controls={pane.domId('pinned-messages')}
+        onClick={() => setPinsOpen(value => !value)}>Pinned ({pinnedMessages.length})</button>
+    </div>
+    {pinsOpen && <nav id={pane.domId('pinned-messages')} className="chat-pinned-messages" aria-label="Pinned messages">
+      {pinnedMessages.map(message => <button type="button" key={message.id} onClick={() => {
+        dispatch({ type: 'SET_SCROLL_TARGET', payload: message.id }); setPinsOpen(false);
+      }}>{message.role === 'user' ? 'You' : message.role === 'assistant' ? 'AI' : 'Info'} · {String(message.content || 'Image / attachment').replace(/\s+/g, ' ').slice(0, 100)}</button>)}
+    </nav>}
     <div
+      ref={transcript}
       id={pane.domId("messages")} className="chat-messages"
+      onScroll={event => {
+        const node = event.currentTarget;
+        node.dataset.followBottom = String(node.scrollHeight - node.scrollTop - node.clientHeight < 64);
+      }}
       onDragEnter={(e) => {
         e.preventDefault();
         setDragActive(true);
@@ -248,7 +293,7 @@ export default function MessageList({ onNewChat, onSessionSaved }) {
             const messageId = message.id || `legacy-${index}`;
             return (
               <div
-              className={`message-wrapper ${highlightedMessageId === messageId ? "message-target" : ""}`}
+              className={`message-wrapper ${message.pinned ? 'message-pinned' : ''} ${highlightedMessageId === messageId ? "message-target" : ""}`}
               key={messageId}
               data-message-id={messageId}
               ref={(node) => {
@@ -293,6 +338,10 @@ export default function MessageList({ onNewChat, onSessionSaved }) {
                 </div>
               </div>
               <div className="message-actions">
+                <button type="button" className="message-pin-btn" aria-pressed={message.pinned === true}
+                  disabled={!currentSessionId || !message.id || pinBusy.includes(message.id) || (state.isGenerating && index === conversationHistory.length - 1)}
+                  title={message.pinned ? 'Remove this message from pinned messages' : 'Pin this message in this conversation'}
+                  onClick={() => togglePin(message)}>{message.pinned ? 'Unpin' : 'Pin'}</button>
                 {message.role === 'assistant' && message.content && <ChatSpeak message={{...message,id:messageId}} sessionId={currentSessionId} active={state.activeSidebarTab === 'chats'} streaming={state.isGenerating && index === conversationHistory.length - 1}/>}
                 <button
                   className={`copy-btn ${copiedIndex === index ? "copied" : ""}`}
@@ -318,5 +367,6 @@ export default function MessageList({ onNewChat, onSessionSaved }) {
       <ImageViewer images={imagePreview ? [imagePreview] : []} selectedId={imagePreview?.id} onSelect={() => {}} onClose={() => setImagePreview(null)} active={["chats", "knowledge"].includes(state.activeSidebarTab)} />
       <DocumentViewer artifact={documentPreview} onClose={() => setDocumentPreview(null)} active={["chats", "knowledge"].includes(state.activeSidebarTab)} />
     </div>
+    </>
   );
 }

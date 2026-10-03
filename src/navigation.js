@@ -1,7 +1,12 @@
 export const NAVIGATION_STORAGE_KEY = "local-ai-workstation-navigation-v1";
 export const REFRESH_NAVIGATION_KEY = "local-ai-workstation-refresh-navigation-v1";
-export const appTabs = ["shortcuts", "audio", "browser", "3d-viewer", "local-files", "document-editor", "js-viewer", "spreadsheets", "canvas", "converter", "packager", "hash-auditor", "folder-review", "gif-maker", "markdown", "html-viewer", "css-viewer", "chats", "images", "generate", "library", "knowledge", "tools", "dashboard", "queue", "review", "image-editor", "image-manager", "media-manager", "workflows", "lora", "faces", "characters", "character-parts"];
+export const appTabs = ["shortcuts", "audio", "browser", "3d-viewer", "local-files", "document-editor", "js-viewer", "spreadsheets", "canvas", "converter", "packager", "hash-auditor", "folder-review", "gif-maker", "markdown", "html-viewer", "css-viewer", "chats", "images", "generate", "library", "knowledge", "tools", "dashboard", "queue", "review", "image-editor", "image-manager", "media-manager", "workflows", "lora", "faces", "characters", "character-parts", "university", "agent-university", "neural-network", "break-room"];
 export const appTabLabels = { shortcuts: "Shortcut Registry", audio: "Audio", spreadsheets: "Spreadsheets", canvas: "Canvas", converter: "File Converter", packager: "Packager", "hash-auditor": "Hash Auditor", "folder-review": "Folder Review", "gif-maker": "GIF Maker", browser: "Browser", "3d-viewer": "3D Viewer & Editor", "local-files": "Local Files", "document-editor": "Document Editor", "js-viewer": "JavaScript Viewer", markdown: "Markdown Viewer", "html-viewer": "HTML Viewer", "css-viewer": "CSS / Styling", chats: "Chat", images: "Image Gallery", generate: "Generate", library: "Index", knowledge: "Knowledge", tools: "Functions", dashboard: "Dashboard", queue: "Prompt Queue", review: "Image Review", "image-editor": "Image Editor", "image-manager": "Image Manager", "media-manager": "Media Manager", workflows: "Image Workflows", lora: "LoRA", faces: "Faces", characters: "Character Creator", "character-parts": "Character Parts" };
+
+Object.assign(appTabLabels, { university: 'University', 'agent-university': 'Agent University', 'neural-network': 'Neural Network', 'break-room': 'Break Room' });
+
+appTabs.push('slicer', 'integrations');
+Object.assign(appTabLabels, {slicer: '3D Slicer', integrations: 'Linked applications'});
 
 export function resolveActiveTab(tab) {
   return appTabs.includes(tab) ? tab : "chats";

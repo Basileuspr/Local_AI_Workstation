@@ -102,7 +102,7 @@ export const fileToolHelp = {
     ['Copy Canvas', 'Copies the artwork area without the surrounding controls. Canvas state is saved on this device.'],
   ]]],
   converter: [['Image conversion', [
-    ['Choose / drop images', 'Accepts still images up to 20 MB and 24 megapixels each. Original files are preserved.'],
+    ['Choose / drop images', 'Accepts still images up to 100 MB and 24 megapixels each. File size and pixel dimensions are separate limits. Original files are preserved.'],
     ['Output format', 'Choose PNG, JPG, WebP, BMP, TIFF or ICO. JPG and BMP replace transparency with white.'],
     ['ICO size', 'Choose a square size from 16 to 256 pixels. ICO preserves supported transparency.'],
     ['Convert / Save', 'Creates and saves converted copies. Chat can also convert an attached image through an explicit request.'],
@@ -125,10 +125,12 @@ export const fileToolHelp = {
   'folder-review': [['Review controls', [
     ['Folder / text model', 'Select the folder and a local text model. File contents go to the configured Ollama service; source files are not edited or executed.'],
     ['Start Folder Review', 'Reviews files individually and combines the findings into a saved report.'],
-    ['Batch size and coverage limits', 'Divides long text into contiguous batches. Entry limits, skips and unreadable PDF pages are recorded in the report. PDFs are inspected up to 500 pages.'],
+    ['Batch size and coverage limits', 'Divides long text into contiguous batches and automatically reduces their size to fit the model context. All readable text within the file limits is included. Entry limits, skips and unreadable PDF pages are recorded in the report. PDFs are inspected up to 500 pages.'],
+    ['Compaction and memory', 'Compacts batch findings into per-file analyses and a folder overview, while retaining the full per-file report. Releases image-model GPU memory before inference, unloads other Ollama models, and verifies release of the review model after completion. Progress shows batch, compaction and memory preparation counts.'],
     ['File coverage', 'Python receives static source analysis; other supported text gets summaries. Word contributes paragraphs and tables; PDFs contribute native text only. Images contribute metadata, not pixels.'],
     ['Skipped files', 'Credential files, links, cloud placeholders, dependency/tooling folders and report storage are excluded. Unsupported binaries receive filesystem metadata only.'],
-    ['Stop', 'Keeps completed findings. Switching tabs and refreshing preserves saved results; restarting the app interrupts active work.'],
+    ['Stop and recovery', 'Keeps completed file and source-batch findings, including when later compaction fails. Cancellation waits for model preparation and CPU offloading to exit. A restart marks active work interrupted and rebuilds reports from saved findings without restarting inference. Invalid saved data is flagged.'],
+    ['Provider fallback', 'Temporary connection/HTTP failures get one retry with the same model and complete request. Invalid, unfinished, empty or oversized responses remain explicit failures. The workspace shows retry counts.'],
     ['Report / Copy / Save Markdown', 'Review per-file references, hashes and text coverage before using a model summary. Reports can contain content from your chosen folder.'],
   ]]],
 };

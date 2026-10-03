@@ -18,9 +18,10 @@ app.whenReady().then(async()=>{
   const base=`http://127.0.0.1:${port}`;
   backend=spawn(path.join(root,'venv/Scripts/python.exe'),['-m','uvicorn','visualReview_backend:app','--app-dir','tests/fixtures','--host','127.0.0.1','--port',String(port)],{cwd:root,windowsHide:true,env:{...process.env,PYTHONPATH:path.join(root,'backend'),LAW_DATA_DIR:path.join(work,'data'),LAW_SESSION_TOKEN:token}});
   let log='';backend.stderr.on('data',data=>{log+=data;});
-  const request=async(route,body)=>{const response=await fetch(base+route,{method:body?'POST':'GET',headers:{'Content-Type':'application/json','x-law-session':token},body:body?JSON.stringify(body):undefined});const data=await response.json();if(!response.ok)throw Error(JSON.stringify(data));return data;};
+  const request=async(route,body,method)=>{const response=await fetch(base+route,{method:method||(body?'POST':'GET'),headers:{'Content-Type':'application/json','x-law-session':token},body:body?JSON.stringify(body):undefined});const data=await response.json();if(!response.ok)throw Error(JSON.stringify(data));return data;};
   let ids;for(let i=0;i<300;i++){try{ids=(await request('/fixture/items')).ids;break;}catch{await sleep(100);}}
   assert.equal(ids?.length,2,'Fixture startup: '+log);
+  await request('/image-manager/metadata',{ids:[ids[0]],tags:['Keep','Saved name']},'PATCH');
   const hashes=()=>Object.fromEntries(fs.readdirSync(path.join(work,'photos')).map(name=>[name,createHash('sha256').update(fs.readFileSync(path.join(work,'photos',name))).digest('hex')]));
   const before=hashes();
   ipcMain.on('app:connection',event=>{event.returnValue={base,token};});
@@ -43,6 +44,8 @@ app.whenReady().then(async()=>{
   assert.equal(await js("document.querySelector('[aria-label=\"Filter classified person\"]').value"),'');
   let catalog=await request('/visual-review/catalog?source=image-manager');
   const ada=catalog.people.find(p=>p.name==='Ada Fixture');assert(ada);assert.equal(ada.count,2);
+  assert((await request('/image-manager/images?tag=Ada+Fixture')).total===2);
+  assert(await js("[...document.querySelector('[aria-label=\"Name for Ada Fixture\"]').list.options].some(option=>option.value==='Saved name')"));
   checks.push('A catalog face can be named directly without opening its photos; saving trims whitespace and updates the whole group');
   await edit('[aria-label="Name for Ada Fixture"]','Draft kept through refresh');
   await click('Refresh classifications');await until("document.querySelector('.vr-results').getAttribute('aria-busy')==='false'",'refresh');
@@ -74,6 +77,22 @@ app.whenReady().then(async()=>{
   catalog=await request('/visual-review/catalog?source=image-manager');
   assert.deepEqual(catalog.people.map(p=>p.name).sort(),['Ada Fixture','River Fixture']);
   for(const id of ids){const item=await request('/visual-review/open',{source:'image-manager',ids:[id]});assert.deepEqual(item.classification.faces.map(f=>f.name).sort(),['Ada Fixture','River Fixture']);}
+  await js("document.querySelector('[aria-label=\"Show photos of River Fixture\"]').click()");
+  await click('Rename person');
+  await edit('[aria-label="Person group name"]','  ada  Fixture  ');
+  await js("(()=>{const input=document.querySelector('[aria-label=\"Person group name from Tags\"]');input.value='Ada Fixture';input.dispatchEvent(new Event('change',{bubbles:true}));})()");
+  await until("document.querySelector('[aria-label=\"Person group name\"]').value==='Ada Fixture'",'choose saved name tag');
+  await js("document.querySelector('[aria-label=\"Person group name\"]').closest('form').requestSubmit()");
+  await until("document.querySelector('[aria-label=\"Filter classified person\"]').value===\""+ada.id+"\"&&document.querySelector('.vr-results').getAttribute('aria-busy')==='false'",'combined person folder');
+  catalog=await request('/visual-review/catalog?source=image-manager');
+  assert.equal(catalog.people.length,1);assert.equal(catalog.people[0].name,'Ada Fixture');assert.equal(catalog.people[0].count,2);
+  const page=await request('/image-manager/images?tag=Ada+Fixture');
+  assert.equal(page.total,2);assert(!page.tags.includes('River Fixture'));assert(page.tags.includes('Keep')&&page.tags.includes('Saved name'));
+  assert.equal(await js("document.querySelectorAll('.vr-results > button').length"),2);
+  await capture('combined-person-folder.png');
+  await click('Back to people folders');
+  await until("document.querySelectorAll('.vr-people .vr-person-card').length===1",'one combined folder');
+  checks.push('Saving an existing name combines the groups and keeps the surviving folder open; the name tag filter covers all photos, removes the old linked name, and preserves manual tags');
   assert.deepEqual(hashes(),before);assert.equal(errors.length,0,errors.join('\n'));
   checks.push('Names survive full renderer reload and are stored on both photos by the real backend; blank names are blocked, Escape cancels a name draft, and original image hashes are unchanged');
   fs.writeFileSync(path.join(work,'report.json'),JSON.stringify({ok:true,checks},null,2));

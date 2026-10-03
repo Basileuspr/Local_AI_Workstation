@@ -350,3 +350,42 @@ Engine: [Faster Whisper](https://github.com/SYSTRAN/faster-whisper).
 Speaker engine and published model sources:
 [sherpa-onnx speaker diarization](https://k2-fsa.github.io/sherpa/onnx/speaker-diarization/models.html),
 [TitaNet embeddings](https://github.com/k2-fsa/sherpa-onnx/releases/tag/speaker-recongition-models).
+
+## Spotify playback recording
+
+Linked applications → Spotify offers two explicit recording sources. **Windows
+playback** captures system audio on the Windows playback output, including other
+apps and notifications. Play Spotify, keep it unmuted, and check Windows Sound
+settings → Volume mixer so Spotify and this app use the same default output.
+**Embedded Spotify player** captures only the player opened in this workspace;
+open its link and press Play inside the player before recording. It does not
+capture the separate Spotify desktop app. Recording requires the Windows desktop
+app; microphone access and Whisper model setup are not recording requirements.
+
+**Check recording requirements** checks the desktop capture APIs and whether an
+embedded player is loaded. It does not establish that Spotify is playing or that
+Windows can open an output device. **Start playback recording** opens the selected
+audio source and displays a live signal meter. **Stop recording** creates an
+in-memory preview; silent recordings are labeled. **Discard current recording**
+preserves the previous clip. Capture continues across workspace changes and stops
+at five minutes or 64 MB. Save, download, and transcription remain explicit actions.
+
+Windows may report `NotReadableError` / “Could not start audio source” for system
+playback. The UI explains the output-device checks and offers embedded-player
+capture as a separate source. No audio-device settings are changed automatically.
+Native capture uses a short, one-request permission lease that remains valid for
+Chromium's final media check and is revoked after opening. Only audio enters the
+recorder; the required temporary video track is stopped immediately.
+
+Validation uses generated audio and an icon in disposable test windows:
+
+```powershell
+node scripts/build-playback-downloads-qa.mjs
+.\node_modules\.bin\electron.cmd scripts/qa-playback-downloads.cjs
+```
+
+This checks the production recorder, live signal detection, decoded audio, lease
+revocation, and the production converted-image Save As handler with identical ICO
+bytes. It does not access a live Spotify account or the microphone. On this
+machine, the system-loopback test still reported a Windows audio-source startup
+failure; embedded-player capture passed with a generated tone.

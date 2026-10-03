@@ -13,7 +13,7 @@ from services import image_vault, session_store
 
 ROOT = settings.data_dir / "artifacts" / "conversions"
 FORMATS = {"png": ("PNG", "image/png"), "jpg": ("JPEG", "image/jpeg"), "webp": ("WEBP", "image/webp"), "bmp": ("BMP", "image/bmp"), "tiff": ("TIFF", "image/tiff"), "ico": ("ICO", "image/vnd.microsoft.icon")}
-MAX_BYTES = 20 * 1024 * 1024
+MAX_BYTES = 100 * 1024 * 1024
 ICON_SIZES = (16, 24, 32, 48, 64, 128, 256)
 
 
@@ -25,9 +25,11 @@ def conversion_target(text):
     return {"jpeg": "jpg", "tif": "tiff"}.get(match[1], match[1]) if match else None
 
 
-def convert(raw, name, target, quality=92, session_id=None):
+def convert(raw, name, target, quality=92, session_id=None, icon_size=256, icon_fit='contain'):
     if target not in FORMATS: raise ValueError("Choose PNG, JPG, WebP, BMP, TIFF, or ICO.")
-    if not raw or len(raw) > MAX_BYTES: raise ValueError("Choose an image up to 20 MB.")
+    if not raw or len(raw) > MAX_BYTES: raise ValueError("Choose an image up to 100 MB.")
+    if icon_size not in ICON_SIZES or icon_fit not in ('contain', 'cover'):
+        raise ValueError('Choose a standard icon size and Fit or Fill.')
     digest = hashlib.sha256(raw).hexdigest(); image_vault.require_public(digest)
     try:
         with Image.open(io.BytesIO(raw)) as original:
@@ -39,9 +41,10 @@ def convert(raw, name, target, quality=92, session_id=None):
             output = io.BytesIO(); options = {"quality": quality} if target in ("jpg", "webp") else {}
             if target == "ico":
                 # Square, transparent padding preserves the complete image.
-                # Bound the largest frame and avoid enlarging source pixels.
-                side = max(size for size in ICON_SIZES if size <= max(16, max(image.size)))
-                image.thumbnail((side, side), Image.Resampling.LANCZOS)
+                # Create the chosen size, including when the source is smaller.
+                side = icon_size
+                image = (ImageOps.contain(image, (side, side), Image.Resampling.LANCZOS) if icon_fit == 'contain'
+                         else ImageOps.fit(image, (side, side), Image.Resampling.LANCZOS))
                 canvas = Image.new("RGBA", (side, side), (0, 0, 0, 0))
                 canvas.alpha_composite(image, ((side - image.width) // 2, (side - image.height) // 2))
                 image = canvas
@@ -58,6 +61,7 @@ def convert(raw, name, target, quality=92, session_id=None):
     destination = storage.resolve(ROOT / f"{ident}.{target}", create=True)
     destination.write_bytes(data)
     result = {"id": ident, "kind": "converted-image", "name": name + "." + target, "format": target, "size": len(data), "width": image.width, "height": image.height}
+    if target == 'ico': result['icon_sizes'] = [size for size in ICON_SIZES if size <= icon_size]
     storage.resolve(ROOT / f"{ident}.json", create=True).write_text(json.dumps({**result, "source_hash": digest, "session_id": session_id}), encoding="utf-8")
     return result
 

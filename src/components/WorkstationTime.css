@@ -1,5 +1,35 @@
 .workstation-time { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; margin-left: auto; }
-.workstation-clock { color: var(--text-dim); font: 12px var(--font-body); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Larger clock fonts must leave the neighboring header controls reachable. */
+#main .workspace-navigation:has(> .workstation-time) { flex-wrap: wrap; }
+.styled-clock, .workspace-navigation .workstation-clock { color: var(--clock-text); background: var(--clock-background); border: 1px solid var(--clock-border); border-radius: 10px; font: var(--clock-weight) var(--clock-size) var(--clock-font); font-variant-numeric: tabular-nums; white-space: nowrap; padding: 6px 10px; line-height: 1.3; }
+.styled-clock.clock-plain { border-color: transparent; border-radius: 4px; padding: 4px 6px; }
+.styled-clock.clock-glow { text-shadow: 0 0 10px currentColor; box-shadow: inset 0 0 12px color-mix(in srgb, var(--clock-text) 12%, transparent); }
+.styled-clock.clock-terminal { border-radius: 2px; border-left: 3px solid var(--clock-text); }
+.clock-face { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.clock-face .clock-time-value { font: inherit; }
+.clock-face .clock-date-value { font: 10px var(--clock-font); }
+.workspace-navigation .workstation-clock { cursor: pointer; }
+.workspace-navigation .workstation-clock:hover { outline: 1px solid var(--border-active); outline-offset: 2px; }
+.clock-style-dialog { margin: auto; width: min(540px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); padding: 20px; overflow: auto; color: var(--text); background: var(--bg-surface); border: 1px solid var(--border-active); border-radius: 12px; box-shadow: 0 20px 80px #0006; }
+.clock-style-dialog::backdrop { background: #0009; }
+.clock-style-dialog header { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+.clock-style-dialog h2 { font-size: 20px; }
+.clock-style-dialog header p { margin-top: 5px; font-size: 12px; line-height: 1.5; color: var(--text-dim); }
+.clock-preview { display: flex; align-items: center; justify-content: center; min-height: 86px; margin: 18px 0; padding: 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-sidebar); }
+.clock-style-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.clock-style-fields > label { display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
+.clock-style-dialog :is(select,button) { padding: 8px 10px; min-width: 0; border: 1px solid var(--border-active); border-radius: 6px; background: var(--bg-input); color: var(--text); font: 13px var(--font-body); }
+.clock-style-dialog button { cursor: pointer; }
+.clock-style-dialog :is(button,select,input):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.clock-color-fields { border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin: 18px 0; }
+.clock-color-fields legend { padding: 0 5px; font-size: 13px; }
+.clock-check { display: flex; align-items: center; gap: 7px; font-size: 12px; }
+.clock-color-fields > .clock-check { margin-bottom: 12px; }
+.clock-color-input { display: flex; align-items: center; gap: 8px; }
+.clock-color-input input[type=color] { flex: 0 0 42px; width: 42px; height: 32px; padding: 2px; border: 1px solid var(--border-active); border-radius: 4px; background: var(--bg-input); cursor: pointer; }
+.clock-color-input .clock-color-hex { min-width: 0; width: 100%; height: 32px; padding: 5px 6px; border: 1px solid var(--border-active); border-radius: 4px; background: var(--bg-input); color: var(--text); font: 12px var(--font-mono); }
+.clock-checks { display: flex; flex-direction: column; gap: 9px; }
+.clock-style-dialog footer { margin-top: 18px; }
 .workspace-navigation .workstation-timer-trigger { padding: 7px 10px; font-variant-numeric: tabular-nums; color: var(--text); }
 .workspace-navigation .workspace-options { margin-left: 0; }
 .floating-timer { position: fixed; right: 24px; bottom: 96px; width: min(300px, calc(100vw - 16px)); max-height: calc(100dvh - 16px); overflow: auto; z-index: 500; border: 1px solid var(--border-active); border-radius: 12px; background: var(--bg-surface); color: var(--text); box-shadow: 0 8px 30px #0008; font: 13px var(--font-body); }
@@ -34,3 +64,4 @@
   .workspace-navigation .workspace-options { margin-left: auto; }
   .floating-timer { right: 8px; bottom: 84px; }
 }
+@media (max-width: 380px) { .clock-style-fields { grid-template-columns: 1fr; } }

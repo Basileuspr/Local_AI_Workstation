@@ -184,7 +184,7 @@ def difference(old, new):
 
 def atomic_write(path, text):
     pending = path.with_suffix(path.suffix + ".pending")
-    pending.write_text(text, encoding="utf-8")
+    pending.write_text(text, encoding="utf-8", newline="\n")
     os.replace(pending, path)
 
 
@@ -291,7 +291,7 @@ def main():
             record = build_record(value)
             value["build_identity"] = {key: item for key, item in record.items()
                                        if key not in {"source_files", "dependencies", "environment"}}
-        with (destination / "snapshots" / (value["id"] + ".json")).open("x", encoding="utf-8") as handle:
+        with (destination / "snapshots" / (value["id"] + ".json")).open("x", encoding="utf-8", newline="\n") as handle:
             json.dump(value, handle, indent=2, ensure_ascii=False)
             handle.write("\n")
         if args.build:

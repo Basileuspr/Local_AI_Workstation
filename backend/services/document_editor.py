@@ -1,4 +1,4 @@
-"""Phase-one rich document conversion, entirely in memory using python-docx.
+"""Rich document conversion, entirely in memory using python-docx.
 
 Imports are normalized editable copies, never edits to the original package.
 No Word, COM, subprocesses, filesystem paths, external links or AI are used.
@@ -21,20 +21,24 @@ from docx.text.paragraph import Paragraph
 from docx.text.run import Run
 from lxml import etree
 from PIL import Image
+from services.document_page_layout import (DEFAULT_PAGE_DETAILS, PAGINATION, validate_page_details,
+                                           write_page_details, read_page_details)
+from services.document_tables import table_grid, write_table, read_table
+from services.document_styles import FONTS, style_catalog, write_styles, StyleReader
+from services.document_references import (valid_name, HEADING_ID, ReferenceWriter, ReferenceReader,
+                                          validate_references, internal_link, missing_links)
 
 MAX_FILE = 24 * 1024**2
 MAX_MODEL = 32 * 1024**2
 PAPERS = {'Letter': (8.5, 11), 'A4': (8.2677, 11.6929), 'Legal': (8.5, 14)}
-FONTS = ['Aptos', 'Arial', 'Calibri', 'Cambria', 'Comic Sans MS', 'Consolas',
-         'Courier New', 'Georgia', 'Tahoma', 'Times New Roman', 'Trebuchet MS', 'Verdana']
-DEFAULT_LAYOUT = {'paper': 'Letter', 'orientation': 'portrait', 'top': 1, 'bottom': 1, 'left': 1, 'right': 1}
+DEFAULT_LAYOUT = {'paper': 'Letter', 'orientation': 'portrait', 'top': 1, 'bottom': 1, 'left': 1, 'right': 1, **DEFAULT_PAGE_DETAILS}
 ALIGN = {'left': WD_ALIGN_PARAGRAPH.LEFT, 'center': WD_ALIGN_PARAGRAPH.CENTER,
          'right': WD_ALIGN_PARAGRAPH.RIGHT, 'justify': WD_ALIGN_PARAGRAPH.JUSTIFY}
 SUPPORTED = {'doc', 'paragraph', 'heading', 'text', 'hardBreak', 'pageBreak',
-             'bulletList', 'orderedList', 'listItem', 'table', 'tableRow', 'tableCell', 'tableHeader', 'image'}
+             'bulletList', 'orderedList', 'listItem', 'table', 'tableRow', 'tableCell', 'tableHeader', 'image', 'bookmark', 'tableOfContents'}
 MARKS = {'bold', 'italic', 'underline', 'strike', 'subscript', 'superscript', 'textStyle', 'highlight', 'link'}
 COPY_NOTICE = ('This is an editable copy. Export creates a new DOCX containing the supported content. '
-               'The original file is unchanged. Pagination, themes, custom styles and advanced Word features are not reproduced exactly.')
+               'The original file is unchanged. Named paragraph styles retain supported formatting; pagination, themes and advanced Word features are not reproduced exactly.')
 
 
 def number(value, low, high, default):
@@ -65,13 +69,15 @@ def font_size(value):
 
 
 def safe_link(value):
-    return isinstance(value, str) and len(value) <= 2048 and bool(re.fullmatch(r'(?:https?://|mailto:)[^\s\x00-\x1f<>]+', value, re.I))
+    return isinstance(value, str) and len(value) <= 2048 and (bool(re.fullmatch(r'(?:https?://|mailto:)[^\s\x00-\x1f<>]+', value, re.I)) or
+                                                           (value.startswith('#') and valid_name(value[1:])))
 
 
 def layout_model(value):
     if not isinstance(value, dict):
         raise ValueError('Invalid page settings.')
     layout = {**DEFAULT_LAYOUT, **value}
+    validate_page_details(layout)
     if not isinstance(layout['paper'], str) or layout['paper'] not in PAPERS or layout['orientation'] not in ('portrait', 'landscape'):
         raise ValueError('Unsupported paper size or orientation.')
     width, height = PAPERS[layout['paper']]
@@ -109,8 +115,8 @@ def image_bytes(src):
 
 def validate_model(doc):
     counts = {'nodes': 0, 'text': 0, 'images': 0}
-    children = {'doc': {'paragraph', 'heading', 'bulletList', 'orderedList', 'table', 'image', 'pageBreak'},
-                'paragraph': {'text', 'hardBreak'}, 'heading': {'text', 'hardBreak'},
+    children = {'doc': {'paragraph', 'heading', 'bulletList', 'orderedList', 'table', 'image', 'pageBreak', 'tableOfContents'},
+                'paragraph': {'text', 'hardBreak', 'bookmark'}, 'heading': {'text', 'hardBreak', 'bookmark'},
                 'bulletList': {'listItem'}, 'orderedList': {'listItem'},
                 'listItem': {'paragraph', 'heading', 'bulletList', 'orderedList'},
                 'table': {'tableRow'}, 'tableRow': {'tableCell', 'tableHeader'},
@@ -136,6 +142,11 @@ def validate_model(doc):
             if counts['text'] > 1_000_000 or re.search(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', node['text']):
                 raise ValueError('Document text is too long or contains unsupported control characters.')
         if kind in ('paragraph', 'heading'):
+            sid = attrs.get('styleId')
+            if sid is not None and (not isinstance(sid, str) or sid not in styles):
+                raise ValueError('A paragraph refers to an unknown style.')
+            if any(attrs.get(key) is not None and not isinstance(attrs[key], bool) for key in PAGINATION):
+                raise ValueError('Paragraph page-break controls must be true, false or inherited.')
             if attrs.get('textAlign') not in (None, *ALIGN):
                 raise ValueError('Invalid paragraph alignment.')
             for key, low, high, default in [('indent', 0, 6, 0), ('spaceBefore', 0, 72, 0),
@@ -145,12 +156,8 @@ def validate_model(doc):
             raise ValueError('Only heading levels 1–3 are supported.')
         if kind == 'orderedList':
             number(attrs.get('start'), 1, 10000, 1)
-        if kind in ('tableCell', 'tableHeader') and (attrs.get('colspan', 1) != 1 or attrs.get('rowspan', 1) != 1):
-            raise ValueError('Merged cells are outside the first editor phase.')
         if kind == 'table':
-            sizes = [len(row.get('content', [])) for row in content if isinstance(row, dict)]
-            if not sizes or len(sizes) > 100 or not 1 <= sizes[0] <= 12 or len(set(sizes)) != 1:
-                raise ValueError('Tables must be rectangular with 1–12 columns and at most 100 rows.')
+            table_grid(node)
         if kind == 'image':
             counts['images'] += 1
             if counts['images'] > 20:
@@ -166,6 +173,8 @@ def validate_model(doc):
             if not isinstance(ma, dict):
                 raise ValueError('Invalid formatting attributes.')
             if mark['type'] == 'textStyle':
+                if ma.get('fontWeight') not in (None, 'normal', 'bold') or ma.get('fontStyle') not in (None, 'normal', 'italic'):
+                    raise ValueError('Invalid direct text emphasis.')
                 if ma.get('fontFamily') and ma['fontFamily'] not in FONTS:
                     raise ValueError('Choose a supported font from the ribbon.')
                 if ma.get('fontSize'):
@@ -175,14 +184,16 @@ def validate_model(doc):
             if mark['type'] == 'highlight' and ma.get('color'):
                 color(ma['color'])
             if mark['type'] == 'link' and not safe_link(ma.get('href')):
-                raise ValueError('Links must use http, https or mailto.')
+                raise ValueError('Links must use http, https, mailto or a valid document bookmark.')
         for child in content:
             if not isinstance(child, dict) or not isinstance(child.get('type'), str) or child['type'] not in children.get(kind, set()):
                 raise ValueError('Invalid document nesting.')
             visit(child, depth + 1)
     if not isinstance(doc, dict) or doc.get('type') != 'doc':
         raise ValueError('The editor requires a document.')
+    styles = style_catalog(doc)
     visit(doc)
+    validate_references(doc)
 
 
 def _element(tag, **attrs):
@@ -199,9 +210,8 @@ def export_docx(model, layout):
     document.core_properties.author = ''
     document.core_properties.last_modified_by = ''
     document.core_properties.title = ''
-    normal = document.styles['Normal']
-    normal.font.name, normal.font.size = 'Calibri', Pt(12)
-    normal.paragraph_format.space_after, normal.paragraph_format.line_spacing = Pt(8), 1.15
+    styles = write_styles(document, style_catalog(model))
+    references = ReferenceWriter(model, style_catalog(model))
     section = document.sections[0]
     section.page_width, section.page_height = Inches(width), Inches(height)
     from docx.enum.section import WD_ORIENT
@@ -209,6 +219,7 @@ def export_docx(model, layout):
     for key in ('top', 'bottom', 'left', 'right'):
         setattr(section, key + '_margin', Inches(layout[key]))
     usable = width - layout['left'] - layout['right']
+    write_page_details(document, layout)
 
     def numbering(kind, start):
         root = document.part.numbering_part.element
@@ -228,18 +239,25 @@ def export_docx(model, layout):
 
     def paragraph(parent, node, num=None, depth=0):
         attrs = node.get('attrs') or {}
-        p = parent.add_paragraph(style=f'Heading {attrs.get("level", 1)}' if node['type'] == 'heading' else 'Normal')
+        sid = attrs.get('styleId') or (f'heading-{attrs.get("level", 1)}' if node['type'] == 'heading' else 'normal')
+        p = parent.add_paragraph(style=styles[sid])
+        if id(node) in references.ids: references.bookmark(p, references.ids[id(node)])
         fmt = p.paragraph_format
-        p.alignment = ALIGN.get(attrs.get('textAlign'), WD_ALIGN_PARAGRAPH.LEFT)
-        fmt.space_before = Pt(attrs.get('spaceBefore') or 0)
-        fmt.space_after = Pt(attrs.get('spaceAfter') if attrs.get('spaceAfter') is not None else 8)
-        fmt.line_spacing = attrs.get('lineSpacing') or 1.15
+        if attrs.get('textAlign') is not None: p.alignment = ALIGN[attrs['textAlign']]
+        if attrs.get('spaceBefore') is not None: fmt.space_before = Pt(attrs['spaceBefore'])
+        if attrs.get('spaceAfter') is not None: fmt.space_after = Pt(attrs['spaceAfter'])
+        if attrs.get('lineSpacing') is not None: fmt.line_spacing = attrs['lineSpacing']
+        for key, attribute in PAGINATION.items():
+            if attrs.get(key) is not None:
+                setattr(fmt, attribute, attrs[key])
         if num is not None:
             np = p._p.get_or_add_pPr().get_or_add_numPr()
             np.get_or_add_ilvl().val, np.get_or_add_numId().val = min(depth, 8), num
-        elif attrs.get('indent'):
+        elif attrs.get('indent') is not None:
             fmt.left_indent = Inches(attrs['indent'] * 0.25)
         for child in node.get('content', []):
+            if child['type'] == 'bookmark':
+                references.bookmark(p, child['attrs']['name']); continue
             if child['type'] == 'hardBreak':
                 p.add_run().add_break(); continue
             run = p.add_run(child['text'])
@@ -256,10 +274,19 @@ def export_docx(model, layout):
                 elif name == 'highlight':
                     run._r.get_or_add_rPr().append(_element('shd', val='clear', fill=color(ma.get('color') or '#FFFF00')[1:]))
                 elif name == 'link':
-                    relation = p.part.relate_to(ma['href'], RT.HYPERLINK, is_external=True)
-                    link = OxmlElement('w:hyperlink'); link.set(qn('r:id'), relation)
-                    p._p.remove(run._r); link.append(run._r); p._p.append(link)
-                    run.font.color.rgb = RGBColor.from_string('0563C1'); run.underline = True
+                    if ma['href'].startswith('#'):
+                        internal_link(p, run, ma['href'][1:])
+                    else:
+                        relation = p.part.relate_to(ma['href'], RT.HYPERLINK, is_external=True)
+                        link = OxmlElement('w:hyperlink'); link.set(qn('r:id'), relation)
+                        p._p.remove(run._r); link.append(run._r); p._p.append(link)
+                        run.font.color.rgb = RGBColor.from_string('0563C1'); run.underline = True
+            # Explicit Off overrides inherited emphasis, independent of mark order.
+            for mark in child.get('marks', []):
+                if mark['type'] != 'textStyle': continue
+                ma = mark.get('attrs') or {}
+                if ma.get('fontWeight'): run.bold = ma['fontWeight'] == 'bold'
+                if ma.get('fontStyle'): run.italic = ma['fontStyle'] == 'italic'
         return p
 
     def write(parent, nodes, available=usable, depth=0):
@@ -285,20 +312,9 @@ def export_docx(model, layout):
                 picture = p.add_run().add_picture(BytesIO(raw), width=Inches(min(available, (attrs.get('width') or 480) / 96)))
                 picture._inline.docPr.set('descr', attrs.get('alt') or '')
             elif kind == 'table':
-                rows = node['content']; columns = len(rows[0]['content'])
-                table = parent.add_table(rows=len(rows), cols=columns)
-                table.style = 'Table Grid'
-                for r, row in enumerate(rows):
-                    for c, cell_node in enumerate(row['content']):
-                        cell = table.cell(r, c)
-                        initial = cell.paragraphs[0]._p
-                        write(cell, cell_node.get('content') or [{'type': 'paragraph'}], available / columns, depth)
-                        cell._tc.remove(initial)
-                        if cell._tc[-1].tag != qn('w:p'): cell.add_paragraph()
-                        if cell_node['type'] == 'tableHeader':
-                            cell._tc.get_or_add_tcPr().append(_element('shd', val='clear', fill='E8EEF7'))
-                            for p in cell.paragraphs:
-                                for run in p.runs: run.bold = True
+                write_table(parent, node, available, lambda cell, content, cell_width: write(cell, content, cell_width, depth))
+            elif kind == 'tableOfContents':
+                references.contents(parent, attrs)
     write(document, model.get('content', []))
     if not document.paragraphs and not document.tables:
         document.add_paragraph()
@@ -343,9 +359,9 @@ def import_docx(raw):
     warnings = [COPY_NOTICE]
     def warn(message):
         if message not in warnings: warnings.append(message)
-    if any(re.search(r'word/(header|footer|footnotes|endnotes|comments)', name) for name in names):
-        warn('Headers, footers, page numbers, notes and comments are not imported in this phase.')
-    if document.element.xpath('.//w:ins | .//w:del | .//w:sdt | .//w:fldChar | .//w:pict | .//w:object | .//w:altChunk'):
+    if any(re.search(r'word/(footnotes|endnotes|comments)', name) for name in names):
+        warn('Notes and comments are not imported in this phase.')
+    if document.element.xpath('.//w:ins | .//w:del | .//w:fldChar | .//w:pict | .//w:object | .//w:altChunk'):
         warn('Tracked changes, content controls, fields, legacy drawings and embedded objects may be omitted or reduced to visible text. Review the copy against the original.')
     if len(document.sections) > 1:
         warn('Only the first section’s page settings are used. Section breaks and columns are not retained.')
@@ -356,7 +372,7 @@ def import_docx(raw):
     paper = min(PAPERS, key=lambda name: abs(PAPERS[name][0] - dims[0]) + abs(PAPERS[name][1] - dims[1]))
     if max(abs(PAPERS[paper][i] - dims[i]) for i in (0, 1)) > .03:
         warn('Custom paper size was approximated with the nearest supported paper size.')
-    layout = {'paper': paper, 'orientation': 'landscape' if landscape else 'portrait'}
+    layout = {**read_page_details(document, warn), 'paper': paper, 'orientation': 'landscape' if landscape else 'portrait'}
     for key in ('top', 'bottom', 'left', 'right'):
         value = getattr(section, key + '_margin')
         original = value.inches if value is not None else 1
@@ -367,11 +383,16 @@ def import_docx(raw):
         layout = {**layout, 'top': 1, 'bottom': 1, 'left': 1, 'right': 1}
         warn('Margins were reset to one inch to leave usable writing space.')
 
+    style_reader = StyleReader(document, warn)
+    references = ReferenceReader(warn)
+
     def run_marks(run):
         marks = []
         for name in ('bold', 'italic', 'underline', 'strike', 'subscript', 'superscript'):
             if getattr(run.font, name): marks.append({'type': name})
         attrs = {}
+        if run.bold is False: attrs['fontWeight'] = 'normal'
+        if run.italic is False: attrs['fontStyle'] = 'normal'
         if run.font.name:
             if run.font.name in FONTS: attrs['fontFamily'] = run.font.name
             else: warn('Some fonts are unavailable in the ribbon and use the document default.')
@@ -388,27 +409,51 @@ def import_docx(raw):
         return marks
 
     def paragraph(p):
-        style = p.style.name if p.style else 'Normal'
-        kind, attrs = 'paragraph', {}
-        if style.startswith('Heading ') and style[-1:].isdigit():
-            kind, attrs['level'] = 'heading', min(3, int(style[-1]))
+        style = style_reader.read(p.style)
+        kind, attrs = 'paragraph', {'styleId': style['id']}
+        if style['level']:
+            kind, attrs['level'] = 'heading', style['level']
         fmt = p.paragraph_format
-        attrs['textAlign'] = next((key for key, val in ALIGN.items() if val == p.alignment), 'left')
-        attrs['indent'] = min(6, max(0, round(fmt.left_indent.inches / .25))) if fmt.left_indent else 0
+        for key, attribute in PAGINATION.items():
+            value, ancestor = getattr(fmt, attribute), p.style
+            visited = set()
+            while value is None and ancestor is not None and ancestor.style_id not in visited:
+                visited.add(ancestor.style_id)
+                value = getattr(ancestor.paragraph_format, attribute)
+                ancestor = ancestor.base_style
+            attrs[key] = value
+        attrs['textAlign'] = next((key for key, val in ALIGN.items() if val == p.alignment), None)
+        attrs['indent'] = min(6, max(0, fmt.left_indent.inches / .25)) if fmt.left_indent is not None else None
         for key, val, default in [('spaceBefore', fmt.space_before, 0), ('spaceAfter', fmt.space_after, 8)]:
-            attrs[key] = min(72, max(0, val.pt)) if val is not None else default
-        attrs['lineSpacing'] = min(3, max(1, fmt.line_spacing)) if isinstance(fmt.line_spacing, float) else 1.15
+            attrs[key] = min(72, max(0, val.pt)) if val is not None else None
+        attrs['lineSpacing'] = min(3, max(1, fmt.line_spacing)) if isinstance(fmt.line_spacing, float) else None
+        if fmt.line_spacing is not None and not isinstance(fmt.line_spacing, float):
+            attrs['lineSpacing'] = 1.15; warn('Fixed or minimum paragraph line spacing was approximated with multiple-line spacing.')
         output, content = [], []
         def flush(force=False):
-            if content or force:
+            if content or force or attrs.get('referenceId'):
                 output.append({'type': kind, 'attrs': dict(attrs), 'content': list(content)}); content.clear()
+                attrs.pop('referenceId', None)
         for child in p._p:
             if child.tag == qn('w:pPr'): continue
+            if child.tag == qn('w:bookmarkStart'):
+                name = references.bookmark(child)
+                if name:
+                    if HEADING_ID.fullmatch(name) and not content and not attrs.get('referenceId'):
+                        attrs['referenceId'] = name
+                    elif HEADING_ID.fullmatch(name):
+                        warn('An extra heading destination was omitted. Review internal links.')
+                    else: content.append({'type': 'bookmark', 'attrs': {'name': name}})
+                continue
             link = None
             if child.tag == qn('w:hyperlink'):
                 relation = p.part.rels.get(child.get(qn('r:id')))
-                if relation and relation.is_external and safe_link(relation.target_ref): link = relation.target_ref
-                else: warn('Internal or unsupported hyperlinks were reduced to text.')
+                anchor = child.get(qn('w:anchor'))
+                if relation and relation.is_external and safe_link(relation.target_ref):
+                    link = relation.target_ref
+                    if anchor and '#' not in link and safe_link(link + '#' + anchor): link += '#' + anchor
+                elif not child.get(qn('r:id')) and valid_name(anchor): link = '#' + anchor
+                else: warn('Unsupported hyperlinks were reduced to text.')
                 runs = child.findall(qn('w:r'))
             elif child.tag == qn('w:r'): runs = [child]
             else:
@@ -466,12 +511,31 @@ def import_docx(raw):
         return ('bulletList' if form == 'bullet' else 'orderedList', level, np.numId.val,
                 max(1, min(10000, int(start.get(qn('w:val'), '1')))) if start is not None else 1)
 
+    def inner_content(parent, container=None, depth=0):
+        if depth > 20: raise ValueError('Unsupported content-control nesting.')
+        if container is None:
+            container = document.element.body if parent is document else parent._element
+        for child in container:
+            if child.tag == qn('w:p'): yield Paragraph(child, parent)
+            elif child.tag == qn('w:tbl'): yield Table(child, parent)
+            elif child.tag == qn('w:sdt'):
+                toc = references.contents(child, parent is document and depth == 0)
+                if toc: yield toc
+                else:
+                    warn('Content controls and external tables of contents were reduced to supported visible content; their live fields are not retained.')
+                    content = child.find(qn('w:sdtContent'))
+                    if content is not None: yield from inner_content(parent, content, depth + 1)
+            elif child.tag == qn('w:bookmarkStart'):
+                warn('Bookmarks outside text paragraphs were omitted. Review internal links.')
+
     def blocks(parent):
         result, stack = [], []
-        for obj in parent.iter_inner_content():
+        for obj in inner_content(parent):
             if isinstance(obj, Paragraph):
                 parts, info = paragraph(obj), list_info(obj)
                 if info and all(part['type'] in ('paragraph', 'heading') for part in parts):
+                    if parts and parts[0]['type'] == 'heading':
+                        parts[0]['type'] = 'paragraph'; parts[0]['attrs'].pop('level', None)
                     kind, level, identifier, start = info
                     level = min(level, len(stack))
                     stack = stack[:level + 1]
@@ -485,30 +549,14 @@ def import_docx(raw):
                     stack = []; result.extend(parts)
             elif isinstance(obj, Table):
                 stack = []
-                if len(obj.rows) > 100 or len(obj.columns) > 12:
-                    raise ValueError('A table exceeds the 100-row / 12-column editing limit.')
-                if obj._tbl.xpath('.//w:gridSpan | .//w:vMerge | .//w:tbl'):
-                    warn('Merged cells were expanded and nested tables flattened. Table widths, borders and shading use the editor defaults.')
-                rows, seen = [], set()
-                for row in obj.rows:
-                    cells = []
-                    for cell in row.cells:
-                        if cell._tc in seen: contents = [{'type': 'paragraph'}]
-                        else:
-                            seen.add(cell._tc); contents = blocks(cell)
-                            flat = []
-                            for item in contents:
-                                if item['type'] == 'table':
-                                    for nested_row in item['content']:
-                                        for nested_cell in nested_row['content']: flat.extend(nested_cell['content'])
-                                elif item['type'] != 'pageBreak': flat.append(item)
-                            contents = flat
-                        cells.append({'type': 'tableCell', 'content': contents or [{'type': 'paragraph'}]})
-                    rows.append({'type': 'tableRow', 'content': cells})
-                result.append({'type': 'table', 'content': rows})
+                result.append(read_table(obj, blocks, warn))
+            elif isinstance(obj, dict):
+                stack = []; result.append(obj)
         return result
     if len(document.element.xpath('.//w:p | .//w:r | .//w:tc')) > 20000:
         raise ValueError('Document exceeds 20,000 paragraphs, runs or cells.')
-    model = {'type': 'doc', 'content': blocks(document) or [{'type': 'paragraph'}]}
+    content = blocks(document) or [{'type': 'paragraph'}]
+    model = {'type': 'doc', 'attrs': {'styles': list(style_reader.catalog.values())}, 'content': content}
     validate_model(model)
+    if missing_links(model): warn('Some internal links have missing destinations. Use References → Check internal links to review them.')
     return {'document': model, 'layout': layout, 'warnings': warnings}

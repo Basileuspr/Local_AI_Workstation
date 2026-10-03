@@ -11,6 +11,8 @@ const groups = [
     { id: "hash-auditor", label: "Hash Auditor" },
     { id: "folder-review", label: "Folder Review" },
     { id: "audio", label: "Audio" },
+    { id: "slicer", label: "3D Slicer" },
+    { id: "integrations", label: "Linked applications" },
   ] },
   { id: "images", label: "Images", icon: "image", items: [
     { id: "images", label: "Gallery", title: "Image Gallery" },
@@ -27,6 +29,12 @@ const groups = [
     { id: "faces", label: "Faces" },
     { id: "character-parts", label: "Character Parts" },
     { id: "lora", label: "LoRA" },
+  ] },
+  { id: "learning", label: "Learning & Breaks", icon: "chat", items: [
+    { id: "university", label: "University" },
+    { id: "agent-university", label: "Agent University" },
+    { id: "neural-network", label: "Neural Network" },
+    { id: "break-room", label: "Break Room" },
   ] },
   { id: "viewers", label: "Viewers", icon: "chat", items: [
     { id: "browser", label: "Browser" },

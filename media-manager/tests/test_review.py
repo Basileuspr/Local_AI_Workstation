@@ -55,6 +55,16 @@ class ReviewTests(unittest.TestCase):
         with self.assertRaises(ValueError):review.request('../sessions')
         with self.assertRaises(ValueError):review.NoRedirect().redirect_request(None,None,None,None,None,None)
 
+    def test_person_name_choices_include_tags_on_unclassified_videos(self):
+        media_actions.tag_action(self.state,{'action':'create','name':'Last, First'})
+        media_actions.tag_action(self.state,{'action':'create','name':'Trip'})
+        metadata_path=self.state.reports/'ui-metadata.json';before=metadata_path.read_bytes()
+        with patch.object(review,'request',return_value={'items':[],'people':[],'available_tags':['trip','Ada']}) as bridge:
+            result=review.action(self.state,{'operation':'catalog'})
+        self.assertEqual(result['available_tags'],['Ada','Last, First','Trip'])
+        self.assertEqual(bridge.call_args.args,('catalog',))
+        self.assertEqual(metadata_path.read_bytes(),before)
+
     def test_foundation_fields_cross_the_bridge_without_clearing_existing_tags(self):
         value={'review':{'rating':'liked','caption':'Caption','tags':['Trip']},'classification':{'faces':[],'scenes':[]}}
         with patch.object(review,'request',return_value=value):

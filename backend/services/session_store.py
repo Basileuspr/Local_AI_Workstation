@@ -450,13 +450,13 @@ def update_session(
 
     _check_revision(session, expected_revision)
 
-    # Narrow checklist saves own this history. Whole-chat saves from older clients
-    # may omit it, and must not erase it when keeping the same message.
+    # Narrow checklist and pin saves own these fields. Whole-chat saves from
+    # older clients must not erase them when keeping the same message.
     previous_messages = {message.get("id"): message for message in session["messages"] if isinstance(message, dict)}
     for message in messages:
         previous = previous_messages.get(message.get("id")) if isinstance(message, dict) else None
         if previous:
-            for field in ("checklist_history", "checklist_editable"):
+            for field in ("checklist_history", "checklist_editable", "pinned"):
                 if field in previous:
                     message[field] = previous[field]
     session["messages"] = messages
@@ -494,6 +494,28 @@ def update_session(
 
     _save_session(session)
     return session
+
+
+@_serialized
+def pin_message(session_id, message_id, *, pinned):
+    """Change one presentation flag under the session lock, retaining all content."""
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", session_id or ""):
+        raise ValueError("Invalid session ID")
+    if type(pinned) is not bool:
+        raise ValueError("Pinned must be a boolean")
+    session = get_session(session_id)
+    if session is None:
+        return None
+    for message in session["messages"]:
+        if message.get("id") == message_id:
+            previous_revision = session["revision"]
+            if message.get("pinned", False) != pinned:
+                message["pinned"] = pinned
+                session["updated_at"] = datetime.now().isoformat()
+                _save_session(session)
+            return {"id": session_id, "message_id": message_id, "pinned": pinned,
+                    "previous_revision": previous_revision, "revision": session["revision"]}
+    return None
 
 
 @_serialized

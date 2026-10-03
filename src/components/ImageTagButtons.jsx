@@ -11,7 +11,7 @@ export default function ImageTagButtons({ tags, selected = [], onToggle, onChang
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const selection = useSelection(tags), batch = useBatchAction();
+  const selection = useSelection(tags.filter(tag=>!tag.person_id)), batch = useBatchAction();
   const filtered = sortNamedItems(tags).filter(tag => tag.name.toLowerCase().includes(query.toLowerCase()));
   async function run(action) {
     if (busy || disabled) return;
@@ -30,10 +30,10 @@ export default function ImageTagButtons({ tags, selected = [], onToggle, onChang
       <div className="prompt-phrase-actions"><button disabled={busy || !draft.name.trim()}>Save tag</button><button type="button" disabled={busy} onClick={() => setDraft(null)}>Cancel</button></div>
     </form>}
     {!!tags.length && <div className="image-tag-tools"><input type="search" aria-label={filtering ? "Find tag filters" : "Find image tags"} placeholder="Find tags…" value={query} onChange={event => setQuery(event.target.value)} /><button type="button" onClick={() => setManaging(value => !value)}>{managing ? "Done editing tags" : "Edit tags"}</button>{filtering && selected.length > 0 && <button type="button" onClick={() => onToggle(null)}>Clear tag filters</button>}</div>}
-    {managing && <BulkActions selection={selection} items={filtered} label="image tags" batch={batch} disabled={busy || disabled} actions={[{ label: "Delete selected tags", danger: true, onClick: items => batch.run({ items, selection, action: tag => api.deleteTag(tag.id), verb: "Deleted tags:", confirm: `Delete ${items.length} tag(s) and remove their assignments from images? Images and captions will be kept.`, after: onChanged }) }]} />}
+    {managing && <BulkActions selection={selection} items={filtered.filter(tag=>!tag.person_id)} label="image tags" batch={batch} disabled={busy || disabled} actions={[{ label: "Delete selected tags", danger: true, onClick: items => batch.run({ items, selection, action: tag => api.deleteTag(tag.id), verb: "Deleted tags:", confirm: `Delete ${items.length} tag(s) and remove their assignments from images? Images and captions will be kept.`, after: onChanged }) }]} />}
     <div className="image-tag-list">{filtered.map(tag => <div className="image-tag-item" key={tag.id}>
-      {managing && <SelectionCheckbox selection={selection} item={tag} label={`tag ${tag.name}`} disabled={busy || batch.busy} />}
-      <button type="button" aria-pressed={selected.includes(tag.id)} disabled={disabled || busy || batch.busy} onClick={() => run(() => onToggle(tag.id))}>{tag.name}</button>
+      {managing && !tag.person_id && <SelectionCheckbox selection={selection} item={tag} label={`tag ${tag.name}`} disabled={busy || batch.busy} />}
+      <button type="button" aria-pressed={selected.includes(tag.id)} title={tag.person_id&&!filtering?'This name follows the face group in Review & classify':undefined} disabled={disabled || busy || batch.busy || (tag.person_id&&!filtering&&selected.includes(tag.id))} onClick={() => run(() => onToggle(tag.id))}>{tag.name}</button>
       {managing && <button type="button" aria-label={`Rename tag ${tag.name}`} disabled={busy || !!draft} onClick={() => setDraft({ ...tag })}>Edit</button>}
     </div>)}</div>
     {error && <p role="alert">{error}</p>}

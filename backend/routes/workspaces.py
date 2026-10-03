@@ -104,9 +104,11 @@ async def create_package(files: list[UploadFile] = File(...), entries: str = For
 
 
 @router.post("/convert")
-async def convert_image(file: UploadFile = File(...), target: str = Form(...), quality: int = Form(92, ge=1, le=100)):
+async def convert_image(file: UploadFile = File(...), target: str = Form(...), quality: int = Form(92, ge=1, le=100),
+                        icon_size: int = Form(256), icon_fit: str = Form('contain')):
     raw = await file.read(image_conversion.MAX_BYTES + 1)
-    try: return await run_in_threadpool(image_conversion.convert, raw, file.filename or "image", target, quality)
+    try: return await run_in_threadpool(image_conversion.convert, raw, file.filename or "image", target, quality,
+                                      icon_size=icon_size, icon_fit=icon_fit)
     except ValueError as exc: raise HTTPException(400, str(exc)) from exc
 
 
