@@ -15,6 +15,8 @@ import { clampLayoutValue, DIVIDER_SIZE, loadWorkspaceLayout, saveWorkspaceLayou
 import "./ChatWorkspace.css";
 import { WINDOW_LAYOUT_EVENT } from '../windowRendering';
 import WorkstationTime from './WorkstationTime';
+import SoundMixerActivity from './SoundMixerActivity';
+import WorkspaceFind from './WorkspaceFind';
 import { FloatingToolBoundsContext } from '../floatingToolBounds';
 import { useDismissiblePopup } from '../useDismissiblePopup';
 
@@ -171,6 +173,8 @@ export default function AppLayout({ activeTab, sidebar, children, onRefresh, ref
           onClick={toggleNavigation}>☰</button>
         <span>{titles[activeTab] || "Local AI Workstation"}</span>
         <WorkstationTime onOverlayChange={setFloatingToolBounds} inert={drawerOpen} />
+        <SoundMixerActivity activeTab={activeTab}/>
+        <WorkspaceFind activeTab={activeTab} pinnedTab={pinnedTab} onOpen={closeNavigation}/>
         <DisclosurePanel label="Workspace options" className="workspace-options" title="Side pane, appearance, and refresh">
           {close => <>
             <ChatPinControls activeTab={activeTab} />
@@ -186,6 +190,7 @@ export default function AppLayout({ activeTab, sidebar, children, onRefresh, ref
         <WorkspaceInfo tab={activeTab} learningRate={loraLearningRate} />
         <AppUpdateCheck />
       </div>
+      <div id="workspace-find-slot" />
       <StartupNotice />
       {pinNotice && <p className="chat-pin-notice" role="status">{pinNotice}</p>}
       <FloatingToolBoundsContext.Provider value={floatingToolBounds}><NavigationOpenContext.Provider value={drawerOpen || modalOpen || resizing}><div ref={panes}

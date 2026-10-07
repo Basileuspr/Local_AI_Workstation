@@ -9,6 +9,8 @@ import FreshFileInput from "./FreshFileInput";
 import { MAX_IMAGE_STEPS, MAX_IMAGE_GUIDANCE } from "../imageGenerationLimits";
 import ImageGenerationSizing from "./ImageGenerationSizing";
 import {useImageRemoval} from './ImageRemovalControls';
+import ScenePlanner from './ScenePlanner';
+import ActionMenu from './ActionMenu';
 
 const LAST_SCENE = "law-last-iterative-scene-v1";
 const Field = ({label, children}) => <label className="workflow-field"><span>{label}</span>{children}</label>;
@@ -141,6 +143,15 @@ export default function SceneStudio({ active, sceneToOpen, onSceneOpened }) {
     setNotice(action === "restore" ? "Original state, source and seed restored. Generate creates a new result." : "Selected frame is now the source. Edit only the details that change, then generate.");
     setExecution(null);
   }
+  async function proposeScene(input, signal) {
+    if (actionLock.current) throw new Error('Another scene action is running. Try again when it finishes.');
+    actionLock.current=true; setBusy(true);
+    try {
+      await persist();
+      if (signal.aborted) throw new Error('Planning stopped.');
+      return await api.planScene(current.current,input,signal);
+    } finally {actionLock.current=false; setBusy(false);}
+  }
   const models = catalog?.providers.find(item => item.id === "local-sdxl");
   const scene = draft?.scene, state = scene?.state;
   return <section className="image-workflows scene-studio" aria-label="Iterative scenes">
@@ -150,8 +161,11 @@ export default function SceneStudio({ active, sceneToOpen, onSceneOpened }) {
     <fieldset className="workflow-toolbar" disabled={busy}>
       <select aria-label="Saved iterative scene" value={draft?.id || ""} onChange={e => run(() => load(e.target.value))}><option value="" disabled>Choose a scene</option>{library.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
       <button onClick={() => run(async () => { accept(await api.create("scene")); setFrames([]); setRuns([]); setExecution(null); await refreshLibrary(); })}>+ New iterative scene</button>
-      {draft && <><button onClick={() => run(async () => { await refreshLibrary(); setNotice("Scene saved."); })}>{saving ? "Saving…" : dirty ? "Save scene" : "Saved"}</button><button onClick={() => run(async () => { if (!dirty || window.confirm("Discard unsaved edits and reload the saved scene?")) { if (savingTask.current) await savingTask.current; await load(draft.id); } }, false)}>Reload saved</button></>}
-      <button onClick={() => run(async () => { setCatalog(await api.catalog()); setCharacters((await faces.listCharacters()).characters); await refreshLibrary(); })}>Refresh models and characters</button>
+      {draft && <button onClick={() => run(async () => { await refreshLibrary(); setNotice("Scene saved."); })}>{saving ? "Saving…" : dirty ? "Save scene" : "Saved"}</button>}
+      <ActionMenu label="Scene options" actions={[
+        draft && {label:'Reload saved', disabled:busy, onClick:() => run(async () => { if (!dirty || window.confirm("Discard unsaved edits and reload the saved scene?")) { if (savingTask.current) await savingTask.current; await load(draft.id); } }, false)},
+        {label:'Refresh models and characters', disabled:busy, onClick:() => run(async () => { setCatalog(await api.catalog()); setCharacters((await faces.listCharacters()).characters); await refreshLibrary(); })},
+      ]}/>
     </fieldset>
     {!draft ? <div className="workflow-empty"><h2>Keep the scene between frames</h2></div> : <div className="workflow-layout">
       <fieldset className="workflow-editor" disabled={busy}>
@@ -172,6 +186,11 @@ export default function SceneStudio({ active, sceneToOpen, onSceneOpened }) {
         <details className="workflow-card"><summary>Advanced scene state</summary><button onClick={() => setAdvanced(JSON.stringify(state, null, 2))}>Read current fields</button><textarea aria-label="Scene state JSON" className="scene-json" rows={16} value={advanced} onChange={e => setAdvanced(e.target.value)} /><button onClick={() => run(async () => { const saved = await api.save({...current.current, scene:{...current.current.scene, state:JSON.parse(advanced)}}); accept(saved); })}>Apply JSON state</button></details>
       </fieldset>
       <aside className="workflow-inspector">
+        <ScenePlanner key={draft.id} workflow={draft} active={active} busy={busy || dirty || saving || runIsActive(execution)} onPropose={proposeScene}
+          onApply={(planId,selected) => run(async () => {
+            accept(await api.applyScenePlan(current.current,planId,selected));
+            setNotice('Reviewed visual actions applied. Check the scene fields, then generate when ready.');
+          })} />
         <fieldset className="workflow-card" disabled={busy}><h2>{scene.source_asset_id ? "Continue from a source" : "Create the first frame"}</h2>
           {scene.source_asset_id && <><ProtectedImage className="scene-source" src={api.assetUrl(draft.id, scene.source_asset_id)} alt="Source for next frame" /><button type="button" onClick={()=>changeScene({source_asset_id:null,parent_frame:null})}>Remove source image</button></>}
           <Field label="Starting image"><FreshFileInput type="file" accept="image/png,image/jpeg,image/webp" onChange={e => { const file = e.target.files?.[0]; e.target.value = ""; if (file) run(async () => { const saved = await api.upload(current.current, file); accept(saved); const hash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", await file.arrayBuffer()))).map(b => b.toString(16).padStart(2,"0")).join(""); changeScene({source_asset_id:hash, parent_frame:null}); await persist(); }); }} /></Field>

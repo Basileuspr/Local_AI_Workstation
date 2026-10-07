@@ -1,4 +1,4 @@
-"""Curated, stable tool names and human/LLM descriptions. Discovery only.
+"""Curated, stable tool names and human/LLM descriptions.
 
 Add tools here; HTTP input schemas are taken from the application's OpenAPI
 document by tool_registry.py, never maintained as a second set of models.
@@ -23,6 +23,19 @@ class Tool:
 
 
 TOOLS = (
+    *(Tool('media.'+name, 'REVIEW: '+name.replace('_',' '), 'Review', 'review', description,
+           'Registered media metadata or a reviewed transfer receipt.', method, '/visual-review/workflow/coordinator/'+name,
+           effects=effects, requirements=('Registered media IDs',)+(('Human-approved, single-use reviewed plan and destination preset',) if name in ('copy','move') else ()),
+           notes='Bounded coordinator contract. No arbitrary paths, shell commands, plan approval or deletion.')
+      for name,method,description,effects in (
+        ('list','GET','List a bounded page of registered images and videos.',()),
+        ('list_unreviewed','GET','List registered media still awaiting review.',()),
+        ('get_metadata','GET','Read metadata by stable media ID.',()),
+        ('add_tag','POST','Add a tag without replacing existing tags.',('writes_app_data','reversible_metadata')),
+        ('set_classification','POST','Set the manually reviewed category.',('writes_app_data','reversible_metadata')),
+        ('copy','POST','Copy files using an exact human-approved plan.',('writes_files',)),
+        ('move','POST','Move files using an exact human-approved plan.',('writes_files','moves_source_files')),
+      )),
     Tool('linked_app_processes', 'Read linked application processes', 'System', 'integrations',
          'Read process names, IDs and executable paths for Cura, Discord, Spotify and scrcpy, plus supplied scrcpy readiness.',
          'Technical process metadata and local integration readiness.', 'GET', '/integrations/status'),
@@ -214,7 +227,7 @@ TOOLS = (
          "Inspect queued and running workstation jobs.", "Queue snapshot including job IDs and progress.", "GET", "/queue"),
     Tool("queue_cancel", "Cancel a queued or running job", "System", "queue",
          "Request cancellation of a specific workstation job by ID.", "Cancellation result.", "POST", "/queue/{job_id}/cancel",
-         effects=("cancels_work",), notes="Confirm the exact job before a future executor calls this tool."),
+         effects=("cancels_work",), notes="Review the exact job before the coordinator calls this tool."),
     Tool("lora_projects", "List LoRA projects", "Training", "lora",
          "Find local LoRA training projects.", "Training project summaries.", "GET", "/lora/projects"),
     Tool("lora_adapters", "List LoRA adapters", "Training", "lora",
@@ -246,8 +259,13 @@ TOOLS = (
          "Inspect JavaScript source in the viewer.", "Readable JavaScript source.", requirements=("Interactive workspace",)),
     Tool("css_viewer_ui", "View CSS", "Viewers", "css-viewer",
          "Inspect styles in the CSS workspace.", "Readable CSS source and styling workspace.", requirements=("Interactive workspace",)),
+    Tool("sound_mixer_ui", "Mix local sound", "Audio", "sound-mixer",
+         "Mix app audio channels and local tracks, explicitly enable a microphone, and record a processed mix.", "A local mix recording or exported mixer settings.", effects=("writes_files",), requirements=("Interactive workspace", "Explicit microphone/recording controls")),
+    Tool("styling_library_ui", "Browse styling examples", "Viewers", "styling-library",
+         "Browse offline HTML and CSS previews for buttons, forms, layouts, effects, typography and animations.",
+         "Copyable HTML and CSS or a self-contained example file.", requirements=("Interactive workspace",)),
     Tool("spreadsheet_ui", "Work with spreadsheets", "Files", "spreadsheets",
          "Open CSV or TSV files, filter and sort rows, and attach selected table context to chat.", "An interactive table for review and chat context.", requirements=("Interactive workspace",)),
     Tool("canvas_ui", "Use the canvas", "Viewers", "canvas",
-         "Arrange and edit content in the interactive canvas workspace.", "Canvas content.", requirements=("Interactive workspace",)),
+         "Draw and edit raster artwork in Paint; stage the current image with Use in chat.", "Editable artwork or an exported image.", effects=("writes_files",), requirements=("Interactive workspace", "Explicit save/export")),
 )

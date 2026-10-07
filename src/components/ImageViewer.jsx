@@ -5,6 +5,7 @@ import { useImageDestinations } from "../ImageDestinations";
 import ImageItemActions from "./ImageItemActions";
 import ImageSeedControls from "./ImageSeedControls";
 import {useImageRemoval} from "./ImageRemovalControls";
+import { imagePreviewUrl } from "../imageSources";
 
 export function adjacentImageId(images, selectedId, direction) {
   const index = images.findIndex(image => image.id === selectedId);
@@ -17,9 +18,10 @@ export default function ImageViewer({ images, selectedId, onSelect, onClose, onO
   const refs = useRefs();
   const destinations = useImageDestinations();
   const [sending, setSending] = useState(false), [actionError, setActionError] = useState("");
-  const [failedId, setFailedId] = useState(null);
+  const [failedSource, setFailedSource] = useState(null), [retry, setRetry] = useState(0);
   const index = images.findIndex(image => image.id === selectedId);
   const image = images[index];
+  const source = image ? `${image.id}:${image.url}` : null;
   const open = active && !!image;
   const removal = useImageRemoval(onRemove ? images : [], chosen => {
     onRemove(chosen);
@@ -65,8 +67,8 @@ export default function ImageViewer({ images, selectedId, onSelect, onClose, onO
       </header>
       <div className="image-viewer-stage">
         {!previewOnly && <button type="button" className="image-viewer-arrow previous" aria-label="Previous image" disabled={images.length < 2} onClick={() => step(-1)}>‹</button>}
-        {renderImage ? renderImage(image) : failedId === image.id ? <p role="alert">This image could not be loaded. You can still browse the other images.</p>
-          : <ProtectedImage key={image.id} src={image.url} alt={image.name} rotateView={!previewOnly} onError={() => setFailedId(image.id)} />}
+        {renderImage ? renderImage(image) : failedSource === source ? <div role="alert"><p>This image could not be loaded. You can still browse the other images.</p><button type="button" onClick={() => { setFailedSource(null); setRetry(value => value + 1); }}>Reload image</button></div>
+          : <ProtectedImage key={`${source}:${retry}`} src={imagePreviewUrl(image.url, {retry})} alt={image.name} rotateView={!previewOnly} onError={() => setFailedSource(source)} />}
         {!previewOnly && <button type="button" className="image-viewer-arrow next" aria-label="Next image" disabled={images.length < 2} onClick={() => step(1)}>›</button>}
       </div>
       {!previewOnly && <>

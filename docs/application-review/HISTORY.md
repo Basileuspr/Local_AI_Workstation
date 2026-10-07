@@ -7,10 +7,10 @@
 Git author and commit dates are recorded metadata, not proof of deployment or original implementation time. A first-observed snapshot establishes that source was present by that timestamp. File modification times are not used as introduction dates. Commit subjects describe intent; changed paths provide supporting scope. No historical user data is copied into this record.
 
 First source observation: **2026-10-02T10:40:26.579945-06:00** (America/Denver).
-Latest source observation: **2026-10-03T04:01:43.423973-06:00**.
-App version: **1.0.1-dev**. Branch: ``. HEAD: `5a2cc374c5072666b63d56c666f65abb71a2ff77`.
+Latest source observation: **2026-10-07T17:48:30.052660-06:00**.
+App version: **1.0.1-dev**. Branch: ``. HEAD: `7cb4951fe4590446fe6bd08f349036979dd9ff24`.
 
-Latest captured build: `1.0.1-dev+20261003T100143-423973Z.5a2cc374.a5ef3338380b.dirty`. Dirty at capture: True.
+Latest captured build: `1.0.1-dev+20261007T234830-052660Z.7cb4951f.dc365a79dbe8.dirty`. Dirty at capture: True.
 
 ## Uncommitted feature observations
 
@@ -135,6 +135,22 @@ Source version 1.0.1-dev; HEAD `5a2cc37`. Compared with previous observation: 10
 Snapshot: [metadata JSON](snapshots/2026-10-03T100143-423973Z.json). Hashes prove source differences, not feature correctness or measured speed improvements.
 
 Build identifier: `1.0.1-dev+20261003T100143-423973Z.5a2cc374.a5ef3338380b.dirty`. Dirty at capture: True. Capture UTC: 2026-10-03T10:01:43.423973+00:00.
+
+### 2026-10-07T17:47:16.043421-06:00 · Production build source capture
+
+Source version 1.0.1-dev; HEAD `7cb4951`. Compared with previous observation: 185 added, 173 changed, 35 removed source/document files.
+
+Snapshot: [metadata JSON](snapshots/2026-10-07T234716-043421Z.json). Hashes prove source differences, not feature correctness or measured speed improvements.
+
+Build identifier: `1.0.1-dev+20261007T234716-043421Z.7cb4951f.99ad586c378d.dirty`. Dirty at capture: True. Capture UTC: 2026-10-07T23:47:16.043421+00:00.
+
+### 2026-10-07T17:48:30.052660-06:00 · Production build source capture
+
+Source version 1.0.1-dev; HEAD `7cb4951`. Compared with previous observation: 0 added, 1 changed, 0 removed source/document files.
+
+Snapshot: [metadata JSON](snapshots/2026-10-07T234830-052660Z.json). Hashes prove source differences, not feature correctness or measured speed improvements.
+
+Build identifier: `1.0.1-dev+20261007T234830-052660Z.7cb4951f.dc365a79dbe8.dirty`. Dirty at capture: True. Capture UTC: 2026-10-07T23:48:30.052660+00:00.
 
 ## Committed local source history
 
@@ -768,7 +784,7 @@ Author date: 2026-09-25T14:07:13-06:00. Commit date: 2026-09-25T14:07:13-06:00. 
 
 ### 2026-09-25T15:55:08-06:00 · bbcd1d5 · Create Word documents in chat with local preview and downloads
 
-Author date: 2026-09-25T15:55:01-06:00. Commit date: 2026-09-25T15:55:08-06:00. 12 in-scope changed paths.
+Author date: 2026-09-25T15:55:01-06:00. Commit date: 2026-09-25T15:55:08-06:00. 13 in-scope changed paths.
 
 <details><summary>Changed source/document paths</summary>
 
@@ -776,6 +792,7 @@ Author date: 2026-09-25T15:55:01-06:00. Commit date: 2026-09-25T15:55:08-06:00. 
 - `backend/maintenance.py`
 - `backend/routes/artifacts.py`
 - `backend/services/chat_documents.py`
+- `docs/CHAT_DOCUMENTS.md`
 - `src/api.js`
 - `src/components/DocumentViewer.jsx`
 - `src/components/InputBar.jsx`
@@ -789,10 +806,11 @@ Author date: 2026-09-25T15:55:01-06:00. Commit date: 2026-09-25T15:55:08-06:00. 
 
 ### 2026-09-25T16:54:14-06:00 · 09d1e59 · Support clipboard screenshot attachments in chat
 
-Author date: 2026-09-25T16:54:01-06:00. Commit date: 2026-09-25T16:54:14-06:00. 4 in-scope changed paths.
+Author date: 2026-09-25T16:54:01-06:00. Commit date: 2026-09-25T16:54:14-06:00. 5 in-scope changed paths.
 
 <details><summary>Changed source/document paths</summary>
 
+- `docs/CHAT_CLIPBOARD.md`
 - `src/chatClipboard.js`
 - `src/components/InputBar.jsx`
 - `src/useChatUploads.js`
@@ -893,7 +911,7 @@ Author date: 2026-09-25T20:20:37-06:00. Commit date: 2026-09-25T20:20:37-06:00. 
 
 ### 2026-09-25T20:36:43-06:00 · b506010 · Add local workspace tools and protect converted image privacy
 
-Author date: 2026-09-25T20:36:43-06:00. Commit date: 2026-09-25T20:36:43-06:00. 56 in-scope changed paths.
+Author date: 2026-09-25T20:36:43-06:00. Commit date: 2026-09-25T20:36:43-06:00. 57 in-scope changed paths.
 
 <details><summary>Changed source/document paths</summary>
 
@@ -906,6 +924,7 @@ Author date: 2026-09-25T20:36:43-06:00. Commit date: 2026-09-25T20:36:43-06:00. 
 - `backend/services/image_library.py`
 - `backend/services/image_workflows/exports.py`
 - `backend/services/knowledge_base.py`
+- `docs/WORKSPACE_IMPROVEMENTS.md`
 - `electron/compatibility.js`
 - `electron/desktopFunctions.js`
 - `electron/main.js`
@@ -1258,7 +1277,7 @@ Author date: 2026-09-28T22:51:26-06:00. Commit date: 2026-09-28T22:51:26-06:00. 
 
 ### 2026-10-02T10:43:47-06:00 · 8c01ac0 · Improve chat reliability, Knowledge editing, and workspace tools
 
-Author date: 2026-10-02T10:43:47-06:00. Commit date: 2026-10-02T10:43:47-06:00. 207 in-scope changed paths.
+Author date: 2026-10-02T10:43:47-06:00. Commit date: 2026-10-02T10:43:47-06:00. 208 in-scope changed paths.
 
 <details><summary>Changed source/document paths</summary>
 
@@ -1302,6 +1321,7 @@ Author date: 2026-10-02T10:43:47-06:00. Commit date: 2026-10-02T10:43:47-06:00. 
 - `backend/services/tool_catalog.py`
 - `backend/services/tool_registry.py`
 - `backend/services/voice_cloning.py`
+- `docs/SHORTCUT_REGISTRY.md`
 - `docs/application-review/README.md`
 - `docs/application-review/benchmarks/session-metadata.json`
 - `docs/application-review/changes/R01-build-identity.md`
@@ -1474,7 +1494,7 @@ Author date: 2026-10-02T10:43:47-06:00. Commit date: 2026-10-02T10:43:47-06:00. 
 
 ### 2026-10-02T17:59:21-06:00 · 5a2cc37 · Add document and 3D editors with workspace and media updates
 
-Author date: 2026-10-02T17:59:21-06:00. Commit date: 2026-10-02T17:59:21-06:00. 554 in-scope changed paths.
+Author date: 2026-10-02T17:59:21-06:00. Commit date: 2026-10-02T17:59:21-06:00. 558 in-scope changed paths.
 
 <details><summary>Changed source/document paths</summary>
 
@@ -1564,6 +1584,10 @@ Author date: 2026-10-02T17:59:21-06:00. Commit date: 2026-10-02T17:59:21-06:00. 
 - `backend/services/video_analysis.py`
 - `backend/services/visual_classification.py`
 - `backend/services/visual_review.py`
+- `docs/BROWSER_SECURITY.md`
+- `docs/LOCAL_FILES.md`
+- `docs/SHORTCUT_REGISTRY.md`
+- `docs/THREE_D_VIEWER.md`
 - `docs/application-review/review.json`
 - `electron/appShutdown.js`
 - `electron/audioPermissions.js`
@@ -2032,5 +2056,211 @@ Author date: 2026-10-02T17:59:21-06:00. Commit date: 2026-10-02T17:59:21-06:00. 
 - `tests/frontend/workspaceLayout.test.jsx`
 - `tests/frontend/workstationTimer.test.jsx`
 - `vite.config.mjs`
+
+</details>
+
+### 2026-10-03T04:12:23-06:00 · 7cb4951 · Add linked apps, learning workspaces and document editing updates
+
+Author date: 2026-10-03T04:12:23-06:00. Commit date: 2026-10-03T04:12:23-06:00. 197 in-scope changed paths.
+
+<details><summary>Changed source/document paths</summary>
+
+- `AUDIO.md`
+- `DOCUMENT_EDITOR.md`
+- `FOLDER_REVIEW.md`
+- `IMAGE_MANAGER.md`
+- `PROJECT_STATUS.md`
+- `README.md`
+- `RELEASES.md`
+- `REMAINING_TASKS.md`
+- `VISUAL_REVIEW.md`
+- `backend/main.py`
+- `backend/routes/app_integrations.py`
+- `backend/routes/image_manager.py`
+- `backend/routes/sessions.py`
+- `backend/routes/slicer.py`
+- `backend/routes/visual_review.py`
+- `backend/routes/workspaces.py`
+- `backend/services/app_integrations.py`
+- `backend/services/document_editor.py`
+- `backend/services/document_page_layout.py`
+- `backend/services/document_references.py`
+- `backend/services/document_styles.py`
+- `backend/services/document_tables.py`
+- `backend/services/ernie_image.py`
+- `backend/services/face_help.py`
+- `backend/services/folder_review.py`
+- `backend/services/folder_review_reader.py`
+- `backend/services/image_conversion.py`
+- `backend/services/image_generation.py`
+- `backend/services/image_library.py`
+- `backend/services/image_manager.py`
+- `backend/services/linked_apps.py`
+- `backend/services/session_store.py`
+- `backend/services/slicer.py`
+- `backend/services/tool_catalog.py`
+- `backend/services/visual_review.py`
+- `backend/services/visual_review_names.py`
+- `docs/application-review/review.json`
+- `electron/audioPermissions.js`
+- `electron/convertedImages.js`
+- `electron/linkedContent.js`
+- `electron/main.js`
+- `electron/paintFiles.js`
+- `electron/playbackCapture.js`
+- `electron/preload.js`
+- `electron/tabCapture.js`
+- `media-manager/frontend/organizer.js`
+- `media-manager/frontend/review.js`
+- `media-manager/media_organizer/review.py`
+- `media-manager/tests/test_review.py`
+- `scripts/build-playback-downloads-qa.mjs`
+- `scripts/build-remaining-tasks-qa.mjs`
+- `scripts/build-sound-output-qa.mjs`
+- `scripts/capture-app-review.py`
+- `scripts/qa-clock-style.mjs`
+- `scripts/qa-face-names.cjs`
+- `scripts/qa-image-manager-tags.cjs`
+- `scripts/qa-image-manager.cjs`
+- `scripts/qa-linked-apps.mjs`
+- `scripts/qa-media-manager.cjs`
+- `scripts/qa-playback-capture.cjs`
+- `scripts/qa-playback-downloads.cjs`
+- `scripts/qa-sound-output.cjs`
+- `scripts/qa-verboa-performance.py`
+- `scripts/qa_remaining_tasks.py`
+- `scripts/qa_slicer.py`
+- `src/App.jsx`
+- `src/api.js`
+- `src/audioOutput.js`
+- `src/audioSpeech.js`
+- `src/chatSpeech.js`
+- `src/chatSubmissionQueue.js`
+- `src/clockAppearance.js`
+- `src/components/AppIntegrations.jsx`
+- `src/components/AppLayout.jsx`
+- `src/components/AppUpdateCheck.css`
+- `src/components/AppUpdateCheck.jsx`
+- `src/components/AudioWorkspace.jsx`
+- `src/components/BreakRoom.css`
+- `src/components/BreakRoom.jsx`
+- `src/components/CanvasPaintWorkspace.jsx`
+- `src/components/ChatTranscript.css`
+- `src/components/ClockStyleDialog.jsx`
+- `src/components/DocumentEditor.css`
+- `src/components/DocumentEditor.jsx`
+- `src/components/DocumentPageSettings.jsx`
+- `src/components/DocumentReferenceControls.jsx`
+- `src/components/DocumentStyleControls.jsx`
+- `src/components/DocumentTableControls.jsx`
+- `src/components/FaceClassification.jsx`
+- `src/components/FaceHelp.css`
+- `src/components/FaceHelp.jsx`
+- `src/components/FileConverter.jsx`
+- `src/components/FolderReview.css`
+- `src/components/FolderReview.jsx`
+- `src/components/Header.jsx`
+- `src/components/ImageGallery.jsx`
+- `src/components/ImageManager.css`
+- `src/components/ImageManager.jsx`
+- `src/components/ImageReview.jsx`
+- `src/components/ImageTagButtons.jsx`
+- `src/components/InputBar.jsx`
+- `src/components/Learning.css`
+- `src/components/LearningUniversity.jsx`
+- `src/components/LinkedApps.css`
+- `src/components/MessageList.jsx`
+- `src/components/NeuralNetwork.css`
+- `src/components/NeuralNetworkVisualizer.jsx`
+- `src/components/PaintIcon.jsx`
+- `src/components/PersonNameEditor.jsx`
+- `src/components/PersonTagSelect.jsx`
+- `src/components/SettingsPanel.jsx`
+- `src/components/Slicer.jsx`
+- `src/components/SoundOutputSettings.css`
+- `src/components/SoundOutputSettings.jsx`
+- `src/components/VisualReview.css`
+- `src/components/VisualReview.jsx`
+- `src/components/VoiceCloningPanel.jsx`
+- `src/components/WorkspaceInfo.jsx`
+- `src/components/WorkstationTime.css`
+- `src/components/WorkstationTime.jsx`
+- `src/convertedImages.js`
+- `src/documentEditor.js`
+- `src/documentPageLayout.js`
+- `src/documentReferences.js`
+- `src/documentStyles.js`
+- `src/documentTables.js`
+- `src/faceHelp.js`
+- `src/folderReview.js`
+- `src/functionButtons.js`
+- `src/help/chat.js`
+- `src/help/fileTools.js`
+- `src/help/linkedTools.js`
+- `src/help/neuralNetwork.js`
+- `src/imageManagerApi.js`
+- `src/learning/agentLessons.js`
+- `src/learning/foundationPractice.js`
+- `src/learning/samples.js`
+- `src/learning/universityLessons.js`
+- `src/learningCourses.js`
+- `src/memoryMatch.js`
+- `src/navigation.js`
+- `src/navigationOrder.js`
+- `src/neuralNetwork.js`
+- `src/paintDocument.js`
+- `src/paintFiles.js`
+- `src/paintPersistence.js`
+- `src/paintPixels.js`
+- `src/paintShapes.js`
+- `src/playbackRecording.js`
+- `src/preferences.js`
+- `src/useStore.jsx`
+- `src/workspaceControls.js`
+- `src/workspaceHelp.js`
+- `tests/backend/test_app_integrations.py`
+- `tests/backend/test_document_editor.py`
+- `tests/backend/test_document_page_layout.py`
+- `tests/backend/test_document_references.py`
+- `tests/backend/test_document_styles.py`
+- `tests/backend/test_document_tables.py`
+- `tests/backend/test_ernie_image_generation.py`
+- `tests/backend/test_face_help.py`
+- `tests/backend/test_folder_review.py`
+- `tests/backend/test_image_manager.py`
+- `tests/backend/test_message_pins.py`
+- `tests/backend/test_slicer.py`
+- `tests/backend/test_visual_review_names.py`
+- `tests/backend/test_workspace_tools.py`
+- `tests/fixtures/faceHelp.config.mjs`
+- `tests/fixtures/faceHelp.html`
+- `tests/fixtures/faceHelp.jsx`
+- `tests/fixtures/faceHelp_backend.py`
+- `tests/fixtures/linkedApps.html`
+- `tests/fixtures/linkedApps.jsx`
+- `tests/fixtures/playbackDownloads.html`
+- `tests/fixtures/playbackDownloads.jsx`
+- `tests/fixtures/remainingTasks.html`
+- `tests/fixtures/remainingTasks.jsx`
+- `tests/fixtures/soundOutput.html`
+- `tests/fixtures/soundOutput.jsx`
+- `tests/frontend/audioOutput.test.js`
+- `tests/frontend/clockAppearance.test.jsx`
+- `tests/frontend/convertedImages.test.js`
+- `tests/frontend/documentPageLayout.test.js`
+- `tests/frontend/documentReferences.test.js`
+- `tests/frontend/documentStyles.test.js`
+- `tests/frontend/documentTables.test.js`
+- `tests/frontend/faceHelp.test.jsx`
+- `tests/frontend/fileConverter.test.jsx`
+- `tests/frontend/folderReview.test.jsx`
+- `tests/frontend/imageManager.test.jsx`
+- `tests/frontend/learningCourses.test.jsx`
+- `tests/frontend/linkedApps.test.js`
+- `tests/frontend/navigationOrder.test.jsx`
+- `tests/frontend/playbackRecording.test.js`
+- `tests/frontend/remainingTasks.test.jsx`
+- `tests/frontend/sidebarNavigationSizing.test.js`
+- `tests/frontend/visualReview.test.jsx`
 
 </details>

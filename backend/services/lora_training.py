@@ -10,7 +10,9 @@ import threading
 import uuid
 from pathlib import Path
 
-from services import lora_store
+import psutil
+
+from services import lora_store, lora_recovery
 from services.app_logging import get_logger
 from services.gpu_coordination import gpu_coordinator
 
@@ -25,10 +27,98 @@ class LoRATrainingManager:
         self._run_id: str | None = None
         self._gpu_owner: str | None = None
         self._cancelled_run_ids: set[str] = set()
+        self._recovery_owner = "lora:restart-recovery"
+        self._recovery_blocked = False
+
+    def reconcile_restarted_runs(self, stop_project_id: str | None = None) -> dict:
+        """Recover dead runs; retain GPU ownership until orphan death is verified.
+
+        Called before serving requests and deliberately retried by recovery.
+        Project writes precede lock removal, so a full disk leaves retryable
+        evidence instead of claiming that reconciliation succeeded.
+        """
+        from services.request_queue import queue
+        with self._lock:
+            if self._run_id:
+                if stop_project_id:
+                    raise ValueError("Wait for the current training monitor to finish before recovering another run")
+                return {"recovered": [], "recovery_required": self._recovery_blocked}
+            workers, blocked = lora_recovery.find_workers()
+            orphans = workers
+            if orphans or blocked:
+                if gpu_coordinator.current_owner() != self._recovery_owner:
+                    if not gpu_coordinator.acquire(self._recovery_owner):
+                        raise ValueError("GPU ownership could not be reserved for LoRA recovery")
+                self._recovery_blocked = True
+            if stop_project_id:
+                if blocked:
+                    raise ValueError("Previous LoRA worker ownership could not be verified; retry recovery after it becomes accessible")
+                for process, project_id, run_id in orphans:
+                    if project_id == stop_project_id:
+                        lora_recovery.stop_worker(process, project_id, run_id)
+                workers, blocked = lora_recovery.find_workers()
+                orphans = workers
+                if orphans or blocked:
+                    if gpu_coordinator.current_owner() != self._recovery_owner:
+                        if not gpu_coordinator.acquire(self._recovery_owner):
+                            raise ValueError("GPU ownership could not be reserved for LoRA recovery")
+                    self._recovery_blocked = True
+
+            live_projects = {project_id for _, project_id, _ in orphans}
+            recovered = []
+            adapters = None
+            # Hold the store's short state lock to avoid overwriting a queue
+            # admission or user edit while inspecting the persisted run.
+            with lora_store._project_lock:
+                for path in lora_store.PROJECTS_DIR.glob("*/project.json"):
+                    project_id = path.parent.name
+                    if queue.find(kind="training", project_id=project_id):
+                        continue
+                    try:
+                        project = lora_store._load(project_id, reconcile_queue=False)
+                    except ValueError:
+                        logger.warning("Cannot reconcile unreadable LoRA project %s", project_id)
+                        continue
+                    training = project.get("training") or {}
+                    active = training.get("status") in lora_store.ACTIVE_TRAINING_STATES
+                    if project_id in live_projects or (blocked and active):
+                        project["training"] = {**training, "recovery_required": True,
+                            "phase": "Previous training worker still owns the GPU" if not blocked else "Previous worker ownership could not be verified",
+                            "error": "Recover the previous run before starting training. Saved images, checkpoints and adapters are preserved."}
+                        # Even a mismatched/older live run must freeze its dataset.
+                        if not active:
+                            project["training"]["status"] = "running"
+                        lora_store._save(project)
+                    elif active or training.get("recovery_required"):
+                        if adapters is None:
+                            adapters = lora_store.list_adapters()
+                        completed = next((adapter for adapter in adapters
+                            if adapter.get("project_id") == project_id and training.get("run_id")
+                            and adapter.get("run_id") == training["run_id"]), None)
+                        if completed:
+                            project["adapter"] = completed
+                        message = "Completed adapter recovered after backend restart" if completed else "Training interrupted when the backend stopped"
+                        project["training"] = {**training,
+                            "status": "completed" if completed else "interrupted",
+                            "recovery_required": False, "recovered_at": lora_store._now(),
+                            "phase": message,
+                            "error": None if completed else "Start training again to begin a new run. Saved images, checkpoints and completed adapters are preserved.",
+                            "logs": [*(training.get("logs") or []), message][-120:]}
+                        lora_store._save(project)
+                        recovered.append(project_id)
+
+            if not workers and not blocked:
+                # No current or external worker remains. Never unlock on the
+                # basis of missing in-memory state alone.
+                lora_store.TRAINING_LOCK_PATH.unlink(missing_ok=True)
+            if not orphans and not blocked:
+                gpu_coordinator.release(self._recovery_owner)
+                self._recovery_blocked = False
+            return {"recovered": recovered, "recovery_required": bool(orphans or blocked)}
 
     def is_active(self) -> bool:
         with self._lock:
-            return bool(self._process and self._process.poll() is None)
+            return self._recovery_blocked or bool(self._process and self._process.poll() is None)
 
     def active_project_id(self) -> str | None:
         with self._lock:
@@ -36,7 +126,7 @@ class LoRATrainingManager:
 
     def is_run_pending(self, run_id: str) -> bool:
         with self._lock:
-            return self._run_id == run_id
+            return bool(run_id and self._run_id == run_id)
 
     def start(self, project_id: str, models: list[dict], run_id: str | None = None, cancellation_event=None) -> dict:
         with self._lock:
@@ -47,7 +137,7 @@ class LoRATrainingManager:
             if not preflight["valid"]:
                 raise ValueError("; ".join(preflight["errors"]))
             if lora_store.TRAINING_LOCK_PATH.exists():
-                raise ValueError("The GPU is reserved by a previous training process; restart the backend if it is no longer running")
+                raise ValueError("The GPU is reserved by a previous training process; recover the previous run before starting training")
 
             if cancellation_event is not None and cancellation_event.is_set():
                 raise ValueError("Training request cancelled")
@@ -65,7 +155,7 @@ class LoRATrainingManager:
                 from services.image_generation import manager as image_manager
                 image_manager.unload_for_training()
                 lora_store.TRAINING_LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
-                lora_store.TRAINING_LOCK_PATH.write_text(json.dumps({"project_id": project_id, "run_id": run_id}), encoding="utf-8")
+                lora_store._atomic_write(lora_store.TRAINING_LOCK_PATH, {"project_id": project_id, "run_id": run_id})
                 lock_written = True
                 training = {
                     "status": "starting",
@@ -74,6 +164,7 @@ class LoRATrainingManager:
                     "memory": None,
                     "prepared": 0,
                     "run_id": run_id,
+                    "recovery_required": False,
                     "epoch": 0,
                     "epochs": int(project["settings"].get("epochs", 0)),
                     "step": 0,
@@ -99,6 +190,15 @@ class LoRATrainingManager:
                     errors="replace",
                     creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
                 )
+                try:
+                    worker_created_at = psutil.Process(process.pid).create_time()
+                except psutil.NoSuchProcess:
+                    worker_created_at = None  # The monitor can still drain a finished child.
+                lora_store._atomic_write(lora_store.TRAINING_LOCK_PATH, {
+                    "project_id": project_id, "run_id": run_id,
+                    "worker_pid": process.pid,
+                    "worker_created_at": worker_created_at,
+                })
                 self._process, self._project_id, self._run_id, self._gpu_owner = process, project_id, run_id, gpu_owner
                 if cancellation_event is not None and cancellation_event.is_set():
                     self._cancelled_run_ids.add(run_id)
@@ -108,6 +208,11 @@ class LoRATrainingManager:
             except Exception as exc:
                 if process and process.poll() is None:
                     process.terminate()
+                    try:
+                        process.wait(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait()
                 if lock_written:
                     lora_store.TRAINING_LOCK_PATH.unlink(missing_ok=True)
                 gpu_coordinator.release(gpu_owner)
@@ -187,10 +292,14 @@ class LoRATrainingManager:
                     for cache in run_dir.glob("input-cache-*"):
                         if cache.is_dir() and not cache.is_symlink():
                             shutil.rmtree(cache, ignore_errors=True)
+            # Persistence can fail after child death (e.g. a full disk). Keep
+            # the lock for startup/status reconciliation in that case.
             try:
-                lora_store.TRAINING_LOCK_PATH.unlink(missing_ok=True)
-            except OSError:
-                logger.warning("Could not remove LoRA training lock")
+                training = lora_store.get_project(project_id).get("training") or {}
+                if training.get("status") not in lora_store.ACTIVE_TRAINING_STATES:
+                    lora_store.TRAINING_LOCK_PATH.unlink(missing_ok=True)
+            except (OSError, ValueError):
+                logger.warning("Could not finalize LoRA training lock")
             with self._lock:
                 if self._run_id == run_id:
                     gpu_owner = self._gpu_owner

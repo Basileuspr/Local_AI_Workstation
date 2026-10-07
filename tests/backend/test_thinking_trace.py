@@ -159,12 +159,18 @@ def test_chat_records_all_channels_and_keeps_answers_visible(client, monkeypatch
     client_type = httpx.AsyncClient
     monkeypatch.setattr(main.httpx, 'AsyncClient', lambda **kwargs: client_type(transport=httpx.MockTransport(handler), **kwargs))
     response = client.post('/chat', json={'model': model, 'use_memory': False,
-                           'messages': [{'role': 'user', 'content': 'Hi'}], 'options': {'num_predict': 256}})
+                           'messages': [{'role': 'user', 'content': 'Hi'}],
+                           'options': {'num_predict': 256, 'num_ctx': 8192}})
     events = [json.loads(line[6:]) for line in response.text.splitlines() if line.startswith('data: ')]
     assert expected_answer in ''.join(event.get('token', '') for event in events)
     assert expected_trace in main.THINKING_LOG_PATH.read_text(encoding='utf-8')
     assert captured[0].get('think') == traces.thinking_setting(info)
-    if model == 'renamed-model': assert captured[0]['options']['num_predict'] == 8448
+    if model == 'renamed-model':
+        # The reasoning reserve must fit the context window alongside the prompt.
+        assert captured[0]['options']['num_predict'] == 4096
+        from services.context_awareness import payload_usage
+        sent = captured[0]
+        assert payload_usage(sent)['estimated_prompt_tokens'] + sent['options']['num_predict'] + 512 <= sent['options']['num_ctx']
 
 
 def test_canvas_capture_uses_same_full_trace_adapter():

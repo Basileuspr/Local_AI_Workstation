@@ -1,0 +1,11 @@
+.chat-tool-settings, .chat-tool-review { border: 1px solid var(--border); border-radius: 7px; padding: 12px; margin: 10px 0; min-width: 0; }
+.chat-tool-settings p, .chat-tool-review p, .custom-profile-hint { color: var(--text-dim); font-size: 11px; line-height: 1.5; margin: 7px 0; }
+.chat-tool-settings details { margin-top: 7px; }
+.chat-tool-settings details label { padding: 5px 0; }
+.chat-tool-settings input { margin-right: 7px; }
+.chat-tool-review { background: var(--bg-card); }
+.chat-tool-review pre { padding: 9px; margin: 8px 0; background: var(--bg-input); border-radius: 5px; font: 11px var(--font-mono); }
+.chat-tool-review button { padding: 6px 10px; margin-right: 7px; border: 1px solid var(--border); border-radius: 5px; color: var(--text); background: var(--bg-input); cursor: pointer; }
+.chat-tool-review button:last-child { border-color: var(--accent); color: var(--accent); }
+.chat-tool-review button:disabled { opacity: .5; cursor: not-allowed; }
+.chat-tool-review button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

@@ -1,0 +1,20 @@
+.action-menu { display: inline-flex; flex: 0 0 auto; }
+.action-menu-trigger { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.action-menu-trigger[aria-expanded="true"] { color: var(--accent); border-color: var(--accent); }
+.action-menu-panel {
+  position: fixed; inset: auto; margin: 0; box-sizing: border-box;
+  width: min(270px, calc(100vw - 16px)); padding: 5px;
+  overflow: auto; overscroll-behavior: contain; border: 1px solid var(--border-active, var(--border));
+  border-radius: 7px; background: var(--bg-surface); color: var(--text); box-shadow: 0 8px 24px #0005;
+}
+.action-menu-panel:popover-open { display: flex; flex-direction: column; gap: 2px; }
+.action-menu-panel > button {
+  flex: 0 0 auto; width: 100%; min-height: 32px; padding: 7px 9px;
+  border: 0; border-radius: 4px; background: transparent; color: var(--text);
+  text-align: left; font: 12px var(--font-body); white-space: normal; cursor: pointer;
+}
+.action-menu-panel > button:hover:not(:disabled) { background: var(--accent-dim); }
+.action-menu-panel > button:disabled { opacity: .45; cursor: default; }
+.action-menu-panel > button.action-menu-danger { color: var(--red, #ef8080); }
+.action-menu :focus-visible, .action-menu-panel > button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+@media (pointer: coarse) { .action-menu-panel > button { min-height: 40px; } }

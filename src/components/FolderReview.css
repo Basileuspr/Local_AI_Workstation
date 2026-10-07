@@ -1,4 +1,5 @@
-.folder-review-workspace { padding: 24px; max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+.folder-review-workspace { flex: 1; min-height: 0; min-width: 0; overflow: auto; width: 100%; padding: 24px; max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+.folder-review-workspace > * { flex-shrink: 0; }
 .folder-review-workspace label { display: flex; flex-direction: column; gap: 6px; }
 .folder-review-workspace input, .folder-review-workspace select { background: var(--bg-input); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 9px; min-width: 0; }
 .folder-review-workspace button, .folder-review-workspace a { padding: 8px 12px; border-radius: 6px; }

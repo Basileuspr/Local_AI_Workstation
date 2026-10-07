@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { previewDocument } from "../codePreview";
 import {downloadBlob} from '../downloadBlob';
+import ActionMenu from './ActionMenu';
 import "./Tools.css";
 
 const SAMPLE = '<main><h1>Style preview</h1><p>Edit CSS to change this page, or supply your own HTML.</p><button>Example button</button><section class="card"><h2>A sample card</h2><p>Spacing, colors, borders, and typography.</p></section></main>';
@@ -9,7 +10,7 @@ export default function CodeViewer({ kind, incoming }) {
   const [source, setSource] = useState(styling ? 'body { background: #f0f4fa; }\n.card { padding: 24px; margin-top: 20px; border-radius: 12px; background: white; }\nbutton { background: #356ad8; color: white; padding: 12px 20px; border: 0; border-radius: 6px; }' : "");
   const [html, setHTML] = useState(SAMPLE), [preview, setPreview] = useState(null), [error, setError] = useState("");
   const [origin,setOrigin] = useState(null), [notice,setNotice] = useState('');
-  useEffect(()=>{if(incoming){setSource(incoming.text);setOrigin(incoming);setPreview(null);setError('');setNotice('');}},[incoming]);
+  useEffect(()=>{if(incoming){setSource(incoming.text);if(styling && typeof incoming.html === 'string')setHTML(incoming.html);setOrigin(incoming);setPreview(null);setError('');setNotice('');}},[incoming,styling]);
   async function read(file) {
     if (!file) return;
     try {
@@ -20,11 +21,12 @@ export default function CodeViewer({ kind, incoming }) {
   return <section className="tools-workspace" onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); void read(event.dataTransfer.files[0]); }}>
     <header className="tools-heading"><h1>{styling ? "CSS / Styling Viewer" : `${label} Viewer`}</h1>{origin && <p>From {origin.url}{origin.truncated?' · Partial source (inspection size limit)':''}</p>}</header>
     <div className="tools-toolbar">
-      <button onClick={() => input.current.click()}>Open {label} file</button>
+      <ActionMenu label="File actions" title={`${label} file actions`} actions={[
+        {label:`Open ${label} file`, onClick:() => input.current.click()},
+        {label:'Copy source', disabled:!source, onClick:async() => {try{await navigator.clipboard.writeText(source);setNotice('Source copied.');}catch(failure){setError(failure.message);}}},
+      ]}/>
       <input ref={input} type="file" hidden accept={javascript?'.js,.mjs,.cjs,text/javascript':styling ? ".css,text/css" : ".html,.htm,text/html"} onChange={event => { void read(event.target.files[0]); event.target.value = ""; }} />
-      <button onClick={() => setPreview(null)} aria-pressed={preview === null}>Source</button>
-      {!javascript && <button onClick={() => setPreview(previewDocument(styling ? html : source, styling ? source : ""))} aria-pressed={preview !== null}>Preview</button>}
-      <button disabled={!source} onClick={async()=>{try{await navigator.clipboard.writeText(source);setNotice('Source copied.');}catch(failure){setError(failure.message);}}}>Copy source</button>
+      {!javascript && <button type="button" onClick={() => setPreview(preview !== null ? null : previewDocument(styling ? html : source, styling ? source : ""))} aria-pressed={preview !== null}>{preview !== null ? 'Edit source' : 'Preview'}</button>}
       <button disabled={!source} onClick={()=>downloadBlob(new Blob([source],{type:'text/plain;charset=utf-8'}),`page-source.${kind}`)}>Save source</button>
     </div>
     {error && <p role="alert">{error}</p>}

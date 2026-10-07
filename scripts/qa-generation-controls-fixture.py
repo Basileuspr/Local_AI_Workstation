@@ -12,7 +12,7 @@ import time
 import uuid
 
 root = Path(sys.argv[1]).resolve()
-for name, folder in (("LAW_DATA_DIR", "data"), ("LAW_LOG_DIR", "logs"), ("LAW_MODELS_DIR", "models")):
+for name, folder in (("LAW_DATA_DIR", "data"), ("LAW_LOG_DIR", "logs"), ("LAW_MODELS_DIR", "models"), ("LAW_IMAGE_MANAGER_DIR", "image-catalog")):
     os.environ[name] = str(root / folder)
 token = secrets.token_hex(24)
 os.environ["LAW_SESSION_TOKEN"] = token
@@ -51,11 +51,13 @@ class Manager:
     def runtime_status(self): return {"ready": True, "device": "Synthetic CPU fixture"}
     def cancel(self, _): return True
     def generation_progress(self, _): return None
-    def generate(self, cancellation_event=None, **values):
+    def generate(self, cancellation_event=None, on_gpu_complete=None, **values):
         log("generation.jsonl", values)
         for _ in range(10):
             if cancellation_event.is_set(): raise image_generation.ImageGenerationCancelled("Stopped")
             time.sleep(.08)
+        if on_gpu_complete:
+            on_gpu_complete()
         filename = uuid.uuid4().hex + ".png"
         image_generation.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
         Image.new("RGB", (values["width"], values["height"]), ((values["seed"] or 0) % 256, 90, 150)).save(image_generation.OUTPUT_DIR / filename)

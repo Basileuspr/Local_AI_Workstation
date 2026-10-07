@@ -39,7 +39,7 @@ describe("workspace information", () => {
   it('explains chat models, settings and the actual tool-call boundary individually', () => {
     const chat = renderToStaticMarkup(<WorkspaceHelpContent tab="chats" />);
     for (const name of ['Chat model', 'Send', 'Attach / paste', 'Response length', 'Temperature', 'Top P', 'Top K', 'Repeat Penalty', 'System Prompt', 'Durable Memory', 'Tool registry', 'Canvas', '/docx']) expect(chat).toContain(`<dt>${name}</dt>`);
-    expect(chat).toContain('Automatic tool execution is not connected');
+    expect(chat).toContain('Enable Local model tool use');
     expect(chat).toContain('before chat history');
   });
   it('documents direct face naming and persistent Browser logins', () => {
@@ -61,7 +61,7 @@ describe("workspace information", () => {
   it("retains Generate and LoRA scales and shows the actual learning-rate comparison", () => {
     const generate = renderToStaticMarkup(<WorkspaceHelpContent tab="generate" />);
     expect(generate).toContain('guidance 5 vs 20');
-    expect(generate).toContain('RESET DEFAULT');
+    expect(generate).toContain('Tab options → Reset defaults');
     const lora = renderToStaticMarkup(<WorkspaceHelpContent tab="lora" learningRate={0.00005} />);
     expect(lora).toContain('5e-5');
     expect(lora).toContain('0.5');

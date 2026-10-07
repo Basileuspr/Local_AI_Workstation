@@ -5,6 +5,7 @@ import uuid
 from services.request_queue import queue, QueueCancelled, prepare_runtime
 
 import asyncio
+from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, File, HTTPException, UploadFile, Request
 from fastapi.responses import FileResponse
@@ -15,8 +16,22 @@ from starlette.concurrency import run_in_threadpool
 from services import lora_store, lora_vision
 from services.image_generation import discover_models
 from services.lora_training import manager
+from services.app_logging import get_logger
 
-router = APIRouter(prefix="/lora", tags=["lora"])
+logger = get_logger("backend.lora")
+
+
+@asynccontextmanager
+async def lifespan(app):
+    try:
+        await run_in_threadpool(manager.reconcile_restarted_runs)
+    except (OSError, ValueError):
+        # Keep the saved run/lock retryable when persistence or ownership fails.
+        logger.exception("LoRA restart reconciliation needs a retry")
+    yield
+
+
+router = APIRouter(prefix="/lora", tags=["lora"], lifespan=lifespan)
 active_analysis_tasks: dict[str, asyncio.Task] = {}
 
 
@@ -372,9 +387,30 @@ async def enqueue_training(project_id: str, analyze_first=False):
 @router.get("/projects/{project_id}/training")
 def training_status(project_id: str):
     try:
-        return lora_store.get_project(project_id).get("training") or {"status": "draft"}
+        training = lora_store.get_project(project_id).get("training") or {"status": "draft"}
+        if ((training.get("status") in lora_store.ACTIVE_TRAINING_STATES or training.get("recovery_required"))
+                and not queue.find(kind="training", project_id=project_id)
+                and not manager.is_run_pending(training.get("run_id"))):
+            try:
+                manager.reconcile_restarted_runs()
+            except (OSError, ValueError) as exc:
+                return {**training, "recovery_required": True, "error": f"Recovery could not finish: {exc}. Retry recovery."}
+            training = lora_store.get_project(project_id).get("training") or {}
+        return training
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/projects/{project_id}/recover")
+async def recover_training(project_id: str):
+    try:
+        await run_in_threadpool(lora_store.get_project, project_id)
+        if queue.find(kind="training", project_id=project_id) or manager.active_project_id() == project_id:
+            raise ValueError("This backend still owns the run; use Cancel safely")
+        await run_in_threadpool(manager.reconcile_restarted_runs, project_id)
+        return (await run_in_threadpool(lora_store.get_project, project_id))["training"]
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.post("/projects/{project_id}/cancel")

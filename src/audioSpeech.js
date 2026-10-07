@@ -23,6 +23,7 @@ audioOutput.subscribe(()=>{
   const output=audioOutput.getPreferences();
   if(snapshot.owner && snapshot.status!=='idle' && (output.muted || output.volume===0))stopSpeech(snapshot.owner);
 });
+audioOutput.mixer.subscribe(()=>{if(snapshot.owner && snapshot.status!=='idle' && audioOutput.mixer.effectiveVolume('speech')===0)stopSpeech(snapshot.owner);});
 export function pauseSpeech() { globalThis.speechSynthesis?.pause(); publish({...snapshot, status:'paused'}); }
 export function resumeSpeech() { globalThis.speechSynthesis?.resume(); publish({...snapshot, status:'speaking'}); }
 export function speakText(text, owner, preferences = voicePreferences()) {
@@ -42,7 +43,7 @@ export function speakText(text, owner, preferences = voicePreferences()) {
     if (!chunks.length) { publish({owner:null, status:'idle', error:''}); return; }
     const utterance = new globalThis.SpeechSynthesisUtterance(chunks.shift());
     utterance.voice = voice; utterance.lang = voice.lang; utterance.rate = preferences.rate;
-    const output=audioOutput.getPreferences();utterance.volume=output.muted ? 0 : output.volume;
+    utterance.volume=audioOutput.mixer.effectiveVolume('speech');
     utterance.onend = next;
     utterance.onerror = event => { if (token === generation) { generation++; synth.cancel(); fail(`Voice playback failed (${event.error || 'unknown error'}). Try another installed voice.`); } };
     synth.speak(utterance);

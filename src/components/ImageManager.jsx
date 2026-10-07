@@ -1,6 +1,7 @@
 import ImageThumbnail from "./ImageThumbnail";
 import ImageManagerTools from './ImageManagerTools';
 import VisualReview from './VisualReview';
+import ActionMenu from './ActionMenu';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useImageDestinations } from '../ImageDestinations';
@@ -37,10 +38,10 @@ export function ImageManagerFilters({ filters, page, folders, view, onFilter, on
   </>;
 }
 
-function Dialog({ title, children, onClose }) {
+function Dialog({ title, children, onClose, className = '' }) {
   const ref = useRef(null);
   useEffect(() => { ref.current.showModal(); }, []);
-  return createPortal(<dialog ref={ref} className="im-dialog" onCancel={onClose} aria-label={title}>
+  return createPortal(<dialog ref={ref} className={`im-dialog ${className}`} onCancel={event => { event.preventDefault(); onClose(); }} aria-label={title}>
     <header><h2>{title}</h2><button onClick={onClose} aria-label="Close dialog">✕</button></header>{children}
   </dialog>, document.body);
 }
@@ -238,18 +239,20 @@ export default function ImageManager({ active = true }) {
         <button disabled={disabled || !state.summary.hidden} title={`Unhide every hidden image in ${filters.folder_id ? 'the chosen folder' : 'all catalog folders'}, across all pages and filters`} onClick={() => perform(unhideImages)}>Unhide images</button>
         {(view === 'hidden' || filters.tagged_only) && <button disabled={disabled || !selected.length} onClick={() => perform(() => annotate({ hidden: false }))}>Unhide selected</button>}
         {selected.length > 0 && <><button onClick={() => setSelected([])}>Clear selection</button>
+          <details className="im-selected-tags"><summary>Tag selected images</summary><div className="im-controls">
           <label className="im-existing-tag">Existing tag<select aria-label="Existing tag for selected images" value={existingTag} disabled={disabled || !page.tags.length} onChange={event => setSavedTag(event.target.value)}>
             <option value="">{page.tags.length ? 'Choose a saved tag' : 'No saved tags yet'}</option>{page.tags.map(tag => <option key={tag} value={tag}>{tag}</option>)}
           </select></label><button disabled={disabled || !existingTag} title="Add this tag to selected images, keeping their other tags" onClick={() => perform(addExistingTag)}>Add tag</button>
-          <input aria-label="Selected image tags" value={tags} onChange={event => setTags(event.target.value)} placeholder="Tags, separated by commas" title="Replace tags on selected images; leave blank to clear them"/><button disabled={disabled} onClick={() => perform(() => annotate({ tags: tags.split(',').map(tag => tag.trim()).filter(Boolean) }))}>Set tags</button></>}
-        <details className="im-more-actions"><summary>More actions</summary>
-          <div className="im-controls"><button disabled={!selected.length} onClick={() => setView('organize')}>Organize selected</button><button disabled={disabled || !selected.length} onClick={() => perform(() => annotate({ favorite: true }))}>Favorite</button><button disabled={disabled || !selected.length} onClick={() => perform(() => annotate({ favorite: false }))}>Unfavorite</button>
-            {view !== 'hidden' && <button disabled={disabled || !selected.length} onClick={() => perform(() => annotate({ hidden: true }))}>Hide selected</button>}
-            <button className="im-delete" disabled={disabled || !selected.length} onClick={() => perform(() => reviewFiles('delete', selected))}>Delete selected ({selected.length})</button>
-          </div>
-
-
-        </details>
+          <input aria-label="Selected image tags" value={tags} onChange={event => setTags(event.target.value)} placeholder="Tags, separated by commas" title="Replace tags on selected images; leave blank to clear them"/><button disabled={disabled} onClick={() => perform(() => annotate({ tags: tags.split(',').map(tag => tag.trim()).filter(Boolean) }))}>Set tags</button>
+          </div></details>
+          <ActionMenu label="Selection options" actions={[
+            {label:'Organize selected', onClick:() => setView('organize')},
+            {label:'Favorite', disabled, onClick:() => perform(() => annotate({favorite:true}))},
+            {label:'Unfavorite', disabled, onClick:() => perform(() => annotate({favorite:false}))},
+            view !== 'hidden' && {label:'Hide selected', disabled, onClick:() => perform(() => annotate({hidden:true}))},
+            {label:`Delete selected (${selected.length})`, danger:true, disabled, onClick:() => perform(() => reviewFiles('delete',selected))},
+          ]}/>
+        </>}
       </div>
       </>}
     </div>
@@ -299,6 +302,6 @@ export default function ImageManager({ active = true }) {
         await start('trash', { review_id: fileReview.id, confirmation: fileReview.confirmation }); setFileReview(null); setSelected([]); setTrashSelected([]);
       })}>{fileReview.action === 'delete' ? 'Delete reviewed files' : fileReview.action === 'purge' ? 'Permanently delete reviewed files' : 'Restore reviewed files'}</button></footer>
     </Dialog>}
-    {toolsOpen && <ImageManagerTools Dialog={Dialog} folders={state.folders} selected={selected} folderId={filters.folder_id} outputId={outputId} job={state.job} disabled={disabled} chooseOutput={() => choose('output')} start={payload => start('image-tools', payload)} onClose={() => setToolsOpen(false)}/>}
+    {toolsOpen && <ImageManagerTools Dialog={Dialog} folders={state.folders} selected={selected} folderId={filters.folder_id} outputId={outputId} job={state.job} disabled={disabled} chooseSource={() => choose('source')} chooseOutput={() => choose('output')} scan={payload => start('scan', payload)} start={payload => start('image-tools', payload)} onClose={() => setToolsOpen(false)}/>}
   </section>;
 }

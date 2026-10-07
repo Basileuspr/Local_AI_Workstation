@@ -110,6 +110,28 @@ def test_checklist_request_tells_provider_about_clickable_markdown(chat_client):
     assert {'role': 'system', 'content': CHECKLIST_INSTRUCTION} in captured[0]['messages']
 
 
+def test_chat_boundary_budgets_large_history_and_keeps_uploaded_images(chat_client, monkeypatch):
+    from test_chat_context_budget import picture
+    from services.context_awareness import payload_usage
+    from services import image_vault
+    monkeypatch.setattr(image_vault, 'is_locked', lambda *_: False)
+    client, captured, _, _ = chat_client
+    messages = []
+    for i in range(20):
+        messages.extend([{'role': 'user', 'content': 'Old question. ' * 300}, {'role': 'assistant', 'content': 'Old answer. ' * 300}])
+    messages.append({'role': 'user', 'content': 'Compare these three images.', 'images': [picture(color=c) for c in ('red', 'green', 'blue')]})
+    before = json.dumps(messages)
+    response = client.post('/chat', json={'model': 'test-local', 'messages': messages, 'use_memory': False, 'options': {'num_predict': 1024}})
+    events = [json.loads(line[6:]) for line in response.text.splitlines() if line.startswith('data: ')]
+    assert not any(event.get('error') for event in events), events
+    assert events[-1]['done']
+    assert any(event.get('notice', {}).get('kind') == 'context_budget' for event in events)
+    assert len(captured) == 4
+    assert all(payload_usage(sent)['estimated_prompt_tokens'] + sent['options']['num_predict'] + 512 <= sent['options']['num_ctx'] for sent in captured)
+    assert json.dumps(messages) == before
+    assert events[-1]['context_usage']['application_trimming']
+
+
 def test_canvas_receipt_uses_final_instructions_and_overridden_options():
     from services.chat_canvas import CanvasContext, stream_canvas
     captured = []

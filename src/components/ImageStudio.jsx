@@ -18,6 +18,7 @@ import ImageSeedControls from "./ImageSeedControls";
 import ImageOutputFolder from "./ImageOutputFolder";
 import SaveImagePrompts from "./SaveImagePrompts";
 import GenerateReference from './GenerateReference';
+import ActionMenu from './ActionMenu';
 import { readReferenceImage, referenceComparison } from '../generationReference';
 import { generationViewerImages } from "../generationHistory";
 import "./ImageStudio.css";
@@ -30,7 +31,7 @@ export default function ImageStudio({ active = true }) {
   const destinations = useImageDestinations();
   const { models, loras, runtime, catalogError, connectionError, loraError, isGenerating,
     result, setResult, batch, requests, generate, generateBatch, removeImages, stop: handleStop, clear: clearGeneration,
-    referenceImage, setReferenceImage, referenceStrength, setReferenceStrength, referenceFit, setReferenceFit, isSubmitting } = useImageGeneration();
+    referenceImage, setReferenceImage, referenceStrength, setReferenceStrength, referenceFit, setReferenceFit, isSubmitting, refreshModels } = useImageGeneration();
   const [promptTokens, setPromptTokens] = useState(null);
   const [editingRequest, setEditingRequest] = useState(false);
   const [copying, setCopying] = useState(false);
@@ -94,12 +95,15 @@ export default function ImageStudio({ active = true }) {
       return undefined;
     }
     let cancelled = false;
+    const controller = new AbortController();
+    setPromptTokens(null);
     const timer = setTimeout(async () => {
       try {
         const tokenStatus = await api.getImagePromptTokens({
           modelId: settings.modelId,
           prompt: settings.prompt,
           negativePrompt: settings.negativePrompt,
+          signal: controller.signal,
         });
         if (!cancelled) setPromptTokens(tokenStatus);
       } catch {
@@ -108,6 +112,7 @@ export default function ImageStudio({ active = true }) {
     }, 300);
     return () => {
       cancelled = true;
+      controller.abort();
       clearTimeout(timer);
     };
   }, [active, settings.modelId, settings.prompt, settings.negativePrompt]);
@@ -149,8 +154,11 @@ export default function ImageStudio({ active = true }) {
           <h1>Generate Image</h1>
         </div>
         <div className="image-studio-header-actions">
-          <button type="button" className="image-clear-btn" aria-label="Clear Generate tab" onClick={handleClear}
-            disabled={submittingReference || copying} title="Clear prompts, selections, reference image, previews and batch settings">Clear tab</button>
+          <ActionMenu label="Tab options" actions={[
+            {label:'Clear Generate tab', disabled:submittingReference || copying, title:'Clear prompts, selections, reference image, previews and batch settings', onClick:handleClear},
+            {label:'Reset defaults', disabled:submittingReference, title:'Clear prompts and selections, and restore generation defaults', onClick:handleReset},
+            {label:'Jump to Chat', onClick:() => dispatch({type:'SET_SIDEBAR_TAB',payload:'chats'})},
+          ]}/>
           <span className={`image-runtime ${runtime?.ready ? "ready" : "not-ready"}`}>
             {runtime?.ready ? runtime.device : "CUDA unavailable"}
           </span>
@@ -158,6 +166,7 @@ export default function ImageStudio({ active = true }) {
         </div>
       </header>
       {catalogError && <p role="alert">{catalogError}</p>}
+      {catalogError && <button type="button" onClick={refreshModels}>Reload image models</button>}
       {connectionError && <p role="status">{connectionError}</p>}
       <div className="image-studio-layout">
         <form className="image-studio-controls" aria-label="Image generation controls" onSubmit={handleGenerate}>
@@ -165,7 +174,7 @@ export default function ImageStudio({ active = true }) {
             onStrength={setReferenceStrength} fit={referenceFit} onFit={setReferenceFit} steps={settings.steps} onBusyChange={setReadingReference}
             onSettings={setImageSettings} prompt={settings.prompt} onPrompt={prompt => setImageSettings({prompt})} />
           <label>Image Model
-            <select value={settings.modelId} onChange={(event) => setImageSettings({ modelId: event.target.value, loraId: "" })} disabled={models.length === 0}>
+            <select aria-label="Image model" value={settings.modelId} onChange={(event) => setImageSettings({ modelId: event.target.value, loraId: "" })} disabled={models.length === 0}>
               <option value="">{models.length === 0 ? "No supported image models installed" : "Select an image model"}</option>
               {models.map((model) => <option value={model.id} key={model.id}>{model.name} ({model.pipeline})</option>)}
             </select>
@@ -175,7 +184,7 @@ export default function ImageStudio({ active = true }) {
             <button type="button" onClick={() => setImageSettings(selectedModel.recommended_settings)}>Use Verboa settings</button>
           </div>}
           <label>LoRA Adapter (optional)
-            <select value={settings.loraId || ""} onChange={(event) => setImageSettings({ loraId: event.target.value })}>
+            <select aria-label="Image LoRA adapter" value={settings.loraId || ""} onChange={(event) => setImageSettings({ loraId: event.target.value })}>
               <option value="">None (base model only)</option>
               {missingLora && <option value={settings.loraId}>Selected LoRA unavailable or incompatible</option>}
               {compatibleLoras.map((adapter) => <option value={adapter.id} key={adapter.id}>{adapter.name} ({adapter.id.slice(0, 8)})</option>)}
@@ -228,8 +237,6 @@ export default function ImageStudio({ active = true }) {
           <button className="image-generate-btn" type="submit" disabled={submittingReference || !settings.modelId || !settings.prompt.trim() || !runtime?.ready}>{isSubmitting ? "Submitting…" : isGenerating ? "Queue image" : "Generate"}</button>
           <button className="image-generate-btn" type="button" disabled={submittingReference || !settings.modelId || !runtime?.ready} onClick={() => setEditingRequest(true)}>Edit Image Request Before Send</button>
           {isGenerating && <button className="image-stop-btn" type="button" onClick={handleStop}>Stop all image requests</button>}
-          <button className="image-reset-btn" type="button" disabled={submittingReference} onClick={handleReset} title="Clear prompts and selections, and restore generation defaults">RESET DEFAULT</button>
-          <button type="button" className="generate-shortcut" onClick={() => dispatch({ type: "SET_SIDEBAR_TAB", payload: "chats" })}>Jump to Chat →</button>
         </form>
         <div className="image-studio-output">
           <ImageGenerationStatus active={active} />

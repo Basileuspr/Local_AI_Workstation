@@ -20,7 +20,7 @@ from zoneinfo import ZoneInfo
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs" / "application-review"
 EXTENSIONS = {".py", ".js", ".jsx", ".cjs", ".mjs", ".css", ".html", ".json", ".ps1", ".txt", ".md", ".ini", ".toml", ".svg"}
-ROOT_FILES = {"package.json", "package-lock.json", "vite.config.mjs", "vitest.config.mjs", "pytest.ini", "README.md", "PROJECT_STATUS.md", "ARCHITECTURE.md", "docs/application-review/README.md", "docs/application-review/review.json", "docs/application-review/reader-template.html"}
+ROOT_FILES = {"package.json", "package-lock.json", "vite.config.mjs", "vitest.config.mjs", "pytest.ini", "README.md", "ARCHITECTURE.md", "docs/application-review/README.md", "docs/application-review/review.json", "docs/application-review/reader-template.html"}
 ROOT_FILES.update({"docs/application-review/benchmarks/session-metadata.json",
                    "docs/application-review/changes/R02-session-metadata.md",
                    "docs/application-review/changes/R01-build-identity.md",
@@ -43,6 +43,12 @@ def included(name):
         return False
     if path.suffix.lower() not in EXTENSIONS and name not in ROOT_FILES:
         return False
+    # Guides now live under docs/. Keep generated review records and private
+    # local handoffs out of this additional source-document inventory.
+    if name.startswith("docs/") and not name.startswith("docs/application-review/"):
+        return path.suffix.lower() == ".md" and not any(
+            marker in path.name.upper() for marker in ("HANDOFF", "ARCHITECTURE_CURRENT", "ROADMAP_ORIGINAL")
+        )
     return (name in ROOT_FILES or (len(path.parts) == 1 and (name.startswith("requirements") or path.suffix == ".md"))
             or name.startswith(("src/", "backend/", "electron/", "tests/", "scripts/", "media-manager/frontend/", "media-manager/tests/", "media-manager/media_organizer/"))
             or name in {"media-manager/package.json", "media-manager/README.md"})

@@ -12,6 +12,7 @@ import { DEFAULT_PARTS, runActive, newSelection, filterSelections, coverage, foc
 import FreshFileInput from "./FreshFileInput";
 import ProtectedImage from "../ImagePrivacy";
 import MediaCardActions from "./MediaCardActions";
+import ActionMenu from './ActionMenu';
 import CharacterSilhouette from "./CharacterSilhouette";
 import CharacterRegionEditor from "./CharacterRegionEditor";
 import CharacterFocus from "./CharacterFocus";
@@ -179,11 +180,11 @@ export default function CharacterStudio({ active, openDataset }) {
 
   return <div className="character-studio">
     <header className="character-header"><div><span className="character-eyebrow">Training image curation</span><h1>Character Parts</h1></div></header>
-    {dataset && <section className="character-exports" aria-label="Export character media"><div className="character-actions">
-      <button disabled={disabled || !selected.size} onClick={() => exportMedia("selected")}>Export Selected Media ({selected.size})</button>
-      <button disabled={disabled || !acceptedCount} onClick={() => exportMedia("approved")}>Export Approved Media ({acceptedCount})</button>
-      <button disabled={disabled || !rejectedCount} onClick={() => exportMedia("rejected")}>Export Reject Media ({rejectedCount})</button>
-    </div></section>}
+    {dataset && <section className="character-exports" aria-label="Export character media"><ActionMenu label="Export media" actions={[
+      {label:`Export Selected Media (${selected.size})`, disabled:disabled || !selected.size, onClick:() => exportMedia('selected')},
+      {label:`Export Approved Media (${acceptedCount})`, disabled:disabled || !acceptedCount, onClick:() => exportMedia('approved')},
+      {label:`Export Reject Media (${rejectedCount})`, disabled:disabled || !rejectedCount, onClick:() => exportMedia('rejected')},
+    ]}/></section>}
     {error && <p className="character-error" role="alert">{error}</p>}{notice && <p className="character-notice" role="status">{notice}</p>}
     <div className="character-datasets"><label>Character dataset<select value={datasetId} disabled={disabled || running} onChange={event => setDatasetId(event.target.value)}><option value="">Choose a dataset</option>{datasets.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
       <form onSubmit={event => { event.preventDefault(); guard(async () => { const data = await api.create(newName); await refreshList(); setDatasetId(data.id); setNewName(""); }); }}><label>New dataset name<input value={newName} maxLength={120} disabled={disabled || running} onChange={event => setNewName(event.target.value)} placeholder="Character name or training set" /></label><button disabled={disabled || running || !newName.trim()}>Create dataset</button></form>

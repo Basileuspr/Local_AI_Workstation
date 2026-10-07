@@ -61,4 +61,12 @@
 .im-tools-sources img { width:64px; height:48px; object-fit:contain; }
 .im-tools-sources span { min-width:0; overflow-wrap:anywhere; }
 .im-tools-sources small { display:block; opacity:.7; }
+.im-tools-dialog[open] { display:flex; flex-direction:column; overflow:hidden; max-height:90dvh; padding:0; }
+.im-tools-dialog > header { flex:none; margin:0; padding:18px 22px; border-bottom:1px solid var(--border-color,#374151); }
+.im-tools-body { min-height:0; overflow:auto; padding:0 22px 18px; }
+.im-tools-body > label { margin:14px 0; }
+.im-tools-dialog > footer { flex:none; display:block; margin:0; padding:12px 22px 18px; border-top:1px solid var(--border-color,#374151); }
+.im-tools-dialog > footer p { margin:0 0 8px; }
+.im-tools-actions { display:flex; justify-content:flex-end; flex-wrap:wrap; gap:10px; }
+@media (max-width:500px) { .im-tools-dialog > header, .im-tools-dialog > footer { padding:12px; }.im-tools-body { padding:0 12px 12px; }.im-tools-actions { justify-content:stretch; }.im-tools-actions button { flex:1 1 auto; } }
 .im-dialog fieldset { margin:14px 0; border:1px solid var(--border); border-radius:7px; }

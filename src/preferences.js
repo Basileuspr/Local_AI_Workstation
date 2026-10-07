@@ -1,5 +1,6 @@
 import { defaultRoleplayConfig, mergeRoleplayConfig } from "./roleplayPrompt";
 import { defaultAppearance, normalizeAppearance } from "./appearance";
+import {defaultMixerSettings, normalizeMixerSettings} from './mixerSettings';
 
 export const PREFERENCES_STORAGE_KEY = "local-ai-workstation-preferences-v1";
 export const LEGACY_ROLEPLAY_STORAGE_KEY = "local-ai-workstation-roleplay";
@@ -65,10 +66,13 @@ const DEFAULT_PREFERENCES = {
   knowledgeScopes: {},
   summaryModel: "",
   useKnowledgeBase: false,
+  toolUseEnabled: false,
+  chatToolIds: ['system_stats', 'runtime_status', 'chat_models', 'knowledge_list', 'knowledge_search', 'knowledge_read'],
   roleplay: defaultRoleplayConfig,
   imageSettings: defaultImageSettings,
   voiceOutput: defaultVoiceOutput,
   soundOutput: defaultSoundOutput,
+  soundMixer: defaultMixerSettings,
   customProfiles: [],
   activeCustomProfileId: "",
   activeLoraProjectId: "",
@@ -93,6 +97,7 @@ export function loadPreferences() {
         imageSettings: { ...defaultImageSettings, ...(saved.imageSettings || {}) },
         voiceOutput: normalizeVoiceOutput(saved.voiceOutput),
         soundOutput: normalizeSoundOutput(saved.soundOutput),
+        soundMixer: normalizeMixerSettings(saved.soundMixer),
         customProfiles: Array.isArray(saved.customProfiles) ? saved.customProfiles : [],
         activeCustomProfileId: saved.activeCustomProfileId || "",
       };
@@ -134,10 +139,13 @@ export function pickPreferences(state) {
     knowledgeScopes: state.knowledgeScopes,
     summaryModel: state.summaryModel,
     useKnowledgeBase: state.useKnowledgeBase,
+    toolUseEnabled: state.toolUseEnabled === true,
+    chatToolIds: state.chatToolIds,
     roleplay: state.roleplay,
     imageSettings: state.imageSettings,
     voiceOutput: normalizeVoiceOutput(state.voiceOutput),
     soundOutput: normalizeSoundOutput(state.soundOutput),
+    soundMixer: normalizeMixerSettings(state.soundMixer),
     customProfiles: state.customProfiles,
     activeCustomProfileId: state.activeCustomProfileId,
     activeLoraProjectId: state.activeLoraProjectId,

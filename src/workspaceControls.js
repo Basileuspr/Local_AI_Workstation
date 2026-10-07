@@ -9,6 +9,13 @@ import {neuralNetworkHelp} from './help/neuralNetwork';
 import {linkedToolHelp} from './help/linkedTools';
 
 export const workspaceControls = {
+  'info-center': [['Explore features', [
+    ['Search features and use cases', 'Search by a task, feature name, example, or control. Multiple words narrow the results together. Escape clears the search text.'],
+    ['Category / Clear filters', 'Limit the directory to one navigation category or clear the filters to see every feature again.'],
+    ['Use it to / Try this', 'Read practical reasons to use each feature and a concrete example to help you get started.'],
+    ['Show controls & detailed guide', 'Expand the same control guide available inside that workspace without leaving the Info Center.'],
+    ['Open', 'Switch to the selected workspace. Returning to Info Center keeps your current search and category.'],
+  ]]],
   university: [['Learning controls', [
     ['Lessons', 'Choose a lesson and work through its concepts and exercise. Lesson notes and passed checks are saved on this device.'],
     ['Find a lesson / Topic', 'Search titles, concepts and workspace names, or select a topic group. Filtering keeps your current lesson and notes in place. Clear filters restores the whole list.'],

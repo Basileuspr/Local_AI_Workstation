@@ -142,7 +142,7 @@ def ensure_dirs() -> None:
         path.mkdir(parents=True, exist_ok=True)
 
 
-def _load(project_id: str) -> dict:
+def _load(project_id: str, *, reconcile_queue: bool = True) -> dict:
     path = _project_path(project_id)
     if not path.exists():
         raise ValueError("LoRA project not found")
@@ -162,7 +162,7 @@ def _load(project_id: str) -> dict:
     project.setdefault("images", [])
     project.setdefault("training", {})
     training = project["training"]
-    if training.get("status") == "queued":
+    if reconcile_queue and training.get("status") == "queued" and not training.get("recovery_required"):
         from services.request_queue import queue
         if not training.get("queue_id") or not queue.find(job_id=training["queue_id"]):
             project["training"] = {**training, "status": "interrupted", "phase": "Queue ended when the backend restarted", "error": "Submit training again to start a new queue request."}

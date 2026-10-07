@@ -334,6 +334,10 @@ export default function MessageList({ onNewChat, onSessionSaved }) {
                     onView={chatWorkspace ? item => chatWorkspace.setPin({ kind: "document", artifactId: item.id }) : setDocumentPreview}
                     besideChat={!!chatWorkspace} />)}
                   {(message.artifacts || []).filter(artifact => artifact.kind === "converted-image").map(artifact => <ConvertedAttachment key={artifact.id} artifact={artifact} />)}
+                  {!!message.tool_activity?.length && <details className="chat-tool-history"><summary>Tool activity</summary>
+                    <ul>{message.tool_activity.filter(item => item.status !== 'validating').map((item, toolIndex) =>
+                      <li key={toolIndex}>{item.name || item.tool_id}: {item.status}</li>)}</ul>
+                  </details>}
                   {message.canvas_applied && <button type="button" onClick={() => dispatch({ type: "SET_SIDEBAR_TAB", payload: "canvas" })}>Open Canvas</button>}
                 </div>
               </div>

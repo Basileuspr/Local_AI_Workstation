@@ -6,6 +6,7 @@ import { ImageGenerationProvider } from "../ImageGenerationContext";
 import { chatModelChoice } from "../chatModelChoices";
 import { reconcileChatModel } from "../modelCatalog";
 import * as api from "../api";
+import { recentTurnStart } from '../contextMemory';
 import Header from "./Header";
 import SettingsPanel from "./SettingsPanel";
 import MessageList from "./MessageList";
@@ -78,14 +79,14 @@ function SecondChatSession({ active, primarySessionId, targetSessionId, onSelect
       dispatch({ type: "SET_SELECTED_MODEL", payload: reconcileChatModel(state.models, state.selectedModel) });
   }, [state.models, state.selectedModel, state.isGenerating, dispatch]);
   async function compact() {
-    const snapshot = current.current, until = snapshot.conversationHistory.length - 4;
+    const snapshot = current.current, until = recentTurnStart(snapshot.conversationHistory);
     const messages = snapshot.conversationHistory.slice(snapshot.summarizedMessageCount, until);
     if (until <= 0 || !messages.length) return;
     try {
       const result = await api.compactMemory({ model: snapshot.summaryModel || snapshot.selectedModel, sessionId: snapshot.currentSessionId,
         previousSummary: snapshot.memorySummary, messages, targetTokens: 700, exclusiveModel: true });
       const saved = await api.updateSessionMetadata(snapshot.currentSessionId, { memorySummary: result.summary || snapshot.memorySummary,
-        summarizedMessageCount: until, expectedRevision: snapshot.sessionRevision });
+        summarizedMessageCount: result.summary?.trim() ? until : snapshot.summarizedMessageCount, expectedRevision: snapshot.sessionRevision });
       dispatch({ type: "SESSION_METADATA_SAVED", payload: saved, expectedRevision: snapshot.sessionRevision });
     } catch (error) { dispatch({ type: "SHOW_TOAST", payload: { message: error.message || "Could not compact Chat B", type: "error" } }); }
   }

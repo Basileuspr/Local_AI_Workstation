@@ -50,6 +50,9 @@ html, body {
     font-size: 14px;
 }
 
+/* Workspace content owns scrolling; keep focus/scrollIntoView inside the app. */
+#root { position: fixed; inset: 0; overflow: clip; }
+
 #app {
     display: flex;
     height: 100vh;
@@ -1299,7 +1302,7 @@ html, body {
 }
 .custom-profile-toolbar {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-columns: minmax(0, 1fr) repeat(3, auto);
     align-items: center;
     gap: 7px;
 }
@@ -1587,7 +1590,7 @@ html, body {
 
 @media (max-width: 760px) {
     :is(#header, #header-secondary) { padding: 10px 12px; gap: 8px; }
-    .custom-profile-toolbar { grid-template-columns: minmax(0, 1fr) auto; }
+    .custom-profile-toolbar { grid-template-columns: repeat(3, 1fr); }
     .custom-profile-toolbar select { grid-column: 1 / -1; }
     .image-studio-header { align-items: flex-start; flex-direction: column; }
 }

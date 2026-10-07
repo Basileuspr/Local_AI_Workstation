@@ -5,8 +5,9 @@ export const appTabLabels = { shortcuts: "Shortcut Registry", audio: "Audio", sp
 
 Object.assign(appTabLabels, { university: 'University', 'agent-university': 'Agent University', 'neural-network': 'Neural Network', 'break-room': 'Break Room' });
 
-appTabs.push('slicer', 'integrations');
-Object.assign(appTabLabels, {slicer: '3D Slicer', integrations: 'Linked applications'});
+appTabs.push('slicer', 'integrations', 'styling-library', 'sound-mixer', 'info-center');
+appTabLabels['info-center'] = 'Info Center';
+Object.assign(appTabLabels, {slicer: '3D Slicer', integrations: 'Linked applications', 'styling-library': 'Styling Library', 'sound-mixer':'Sound Mixer'});
 
 export function resolveActiveTab(tab) {
   return appTabs.includes(tab) ? tab : "chats";

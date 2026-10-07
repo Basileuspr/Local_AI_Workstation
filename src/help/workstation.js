@@ -27,9 +27,10 @@ export const workstationHelp = {
   ]], ['Custom buttons and captures', [
     ['New button / destination', 'Creates a shortcut to an allowlisted tool or workspace. User-created buttons are stored on this device and sorted alphabetically.'],
     ['Edit / remove button', 'Changes or removes only the selected custom shortcut.'],
-    ['Copy tab', 'Captures the tab’s current content at maximized window size while retaining its selections and scroll position. The capture is copied for explicit use.'],
+    ['Tab to capture / Capture tab', 'Select a workspace, then capture its current content at maximized window size while retaining its selections and scroll position. Changing the selector does not capture anything. The capture is copied for explicit use.'],
   ]], ['Function Builder', [
-    ['Template / steps', 'Choose a template or add supported actions in order. THEN runs the next step after the previous one.'],
+    ['Function template / Use template', 'Choose a template and press Use template to open an editable draft, or create a function and add supported actions in order. THEN runs the next step after the previous one.'],
+    ['Function options', 'Edit, duplicate or remove a saved function. Choosing a template or editing a function never runs it.'],
     ['Application / window', 'Select the fixed app launcher or a program shortcut. Match any title is appropriate only when one matching app window exists.'],
     ['Accessible field / button', 'Targets a control exposed by the application. Use a clipboard step when an accessible control is unavailable.'],
     ['Point at target', 'Within five seconds, hover over the intended field or button. Keep the same window size and layout for playback; pointer steps cannot confirm the app accepted an action.'],
@@ -50,7 +51,7 @@ export const workstationHelp = {
     ['Software specs / logs', 'Reports app versions, source layout, model catalogs and registered APIs. Log exports can contain paths and errors; credentials are redacted.'],
     ['Compatibility', 'Checks detected runtime requirements. A feature can be listed as available without verifying every workload or model.'],
   ]], ['Tool registry and maintenance', [
-    ['Tool registry / filters', 'Browse tool requirements, outputs, effects and API schemas. Automatic model tool execution is not connected; registry entries do not grant tools to chat.'],
+    ['Tool registry / filters', 'Browse tool requirements, outputs, effects and API schemas. Enable Local model tool use in Chat options and select up to 16 tools. Read tools can execute; actions that change data require review. Interactive and uploaded-file tools use their workspaces.'],
     ['Copy catalog / download', 'Exports the full catalog for review. Individual item TXT and Copy use the selected tool.'],
     ['Check / prepare maintenance', 'Runs only when requested. Prepared updates require a reviewed proposal and explicit approval; proposals expire after ten minutes.'],
     ['GitHub review / validate / commit / publish', 'Each step runs separately on the selected source snapshot. Validate checks isolated tests, dependencies, the build and outgoing content; commit and publish use the validated selection.'],
@@ -58,11 +59,12 @@ export const workstationHelp = {
     ['Storage libraries / Create', 'Creates an app-owned folder on a chosen drive. Reattach an existing app library using its parent and folder name; unrelated folders are not adopted.'],
     ['Use for new files', 'Changes the default for new managed media, documents, character files and datasets. Existing files and projects stay where they are.'],
     ['Library scope', 'Chats, settings, indexes, audit records, encrypted vaults and models keep their existing locations. Reconnect an unavailable library to access its files.'],
+    ['App data options', 'Contains SAVE METADATA, IMPORT BACK-UP and reset. Backup export and interrupted-operation recovery stay visible. Import and reset still require reviewing their confirmation dialogs.'],
     ['SAVE METADATA', 'Exports counts, storage totals and basic numeric settings from original app data. It excludes personal content and external library totals and cannot restore app data.'],
     ['EXPORT BACK-UP', 'Creates a verified private ZIP of app data, media, LoRA artifacts and desktop preferences, including locked images and registered library files. Reconnect libraries and finish active jobs first.'],
     ['Backup exclusions', 'Installed base models, app code, external files/logs and unsaved edits are not included. Save edits and retain those items separately.'],
-    ['IMPORT BACK-UP', 'Verifies a full backup and replaces current data after confirmation, retaining current data and preferences in recovery storage. Managed library files restore into original app data; external libraries remain on disk.'],
-    ['Reset app data', 'Permanently clears the listed app data and preferences after confirmation. It keeps installed base models and external files; external library registrations are removed. It creates no automatic backup.'],
+    ['IMPORT BACK-UP', 'Verifies a full backup and replaces current app data after confirmation, retaining current data and preferences in recovery storage. Image Manager and Media Manager keep their current independent catalogs, even if the backup has no catalog or an older one. Managed library files restore into original app data; external originals must remain at their saved locations.'],
+    ['Reset app data', 'Permanently clears the listed app data and preferences after confirmation. Image Manager keeps its folders, catalog, tags, favorites, hidden state and recoverable external Trash automatically, like Media Manager. No export or import is needed to keep using external images. Images inside app data are removed. Installed base models and external files remain; storage library registrations are removed. It creates no automatic backup.'],
   ]], ['PC Bridge', [
     ['Start bridge / address', 'Start explicitly on both PCs each session. Use a private LAN or VPN address; address changes require pairing again. This delegates tasks without pooling GPU memory.'],
     ['Create invitation / pair', 'Use the other PC’s invitation to approve delegation in both directions. Keep the invitation private.'],

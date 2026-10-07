@@ -7,8 +7,11 @@ function prepareBuild(root = path.resolve(__dirname, "..")) {
   const python = process.env.LAW_PYTHON || [path.join(root, "venv", "Scripts", "python.exe"),
     path.join(root, "venv", "bin", "python")].find(file => fs.existsSync(file));
   if (!python) throw new Error("Build capture requires the project Python environment. Complete setup or set LAW_PYTHON.");
+  // Keep source verification intact when a live audit reader holds its output
+  // open on Windows. Callers may capture that reader in a separate folder.
+  const output = process.env.LAW_BUILD_REVIEW_DIR ? ["--output-dir", path.resolve(root, process.env.LAW_BUILD_REVIEW_DIR)] : [];
   const result = spawnSync(python, ["-B", path.join(root, "scripts", "capture-app-review.py"), "--build",
-    "--note", "Production build source capture"], { cwd: root, stdio: "inherit", windowsHide: true, shell: false });
+    "--note", "Production build source capture", ...output], { cwd: root, stdio: "inherit", windowsHide: true, shell: false });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error("Source capture failed; the production build was stopped.");
 }

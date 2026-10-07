@@ -4,6 +4,7 @@ import { downloadBlob } from "../downloadBlob";
 import { SOFTWARE_GROUPS, formatSoftwareSpecs } from "../softwareSpecs";
 import { rendererBuild, buildIdentityLines } from "../buildIdentity";
 import ApplicationMaintenance from './ApplicationMaintenance';
+import ActionMenu from './ActionMenu';
 
 export default function SoftwareSpecs() {
   const [snapshot, setSnapshot] = useState(null), [groups, setGroups] = useState(SOFTWARE_GROUPS.map(([id]) => id));
@@ -27,9 +28,11 @@ export default function SoftwareSpecs() {
   return <><ApplicationMaintenance /><section className="dashboard-card software-specs"><h2>App software specs</h2>
     <div className="software-spec-groups">{SOFTWARE_GROUPS.map(([id, label]) => <label key={id}><input type="checkbox" checked={groups.includes(id)} onChange={event => setGroups(value => event.target.checked ? [...value, id] : value.filter(item => item !== id))} />{label}</label>)}</div>
     <div className="software-spec-actions"><button disabled={busy} onClick={() => act(refresh)}>Refresh software specs</button>
-      <button disabled={busy || !groups.length} onClick={() => act(async () => { const value = await refresh(); await navigator.clipboard.writeText(formatSoftwareSpecs(value, groups)); setNotice("Selected software specs copied."); })}>Copy app specs</button>
-      <button disabled={busy || !groups.length} onClick={() => act(async () => { const value = await refresh(); downloadBlob(new Blob([formatSoftwareSpecs(value, groups)], { type: "text/plain" }), "workstation-software-specs.txt"); setNotice("Software specs download started."); })}>Export specs</button>
-      <button disabled={busy} onClick={() => act(async () => { const response = await fetch(apiUrl("/system/logs/export")); if (!response.ok) throw new Error("Could not export app logs."); downloadBlob(await response.blob(), "workstation-app-logs.zip"); setNotice("App log ZIP download started."); })}>Export app logs (ZIP)</button></div>
+      <ActionMenu label="Copy & export" actions={[
+        {label:'Copy app specs', disabled:busy || !groups.length, onClick:() => act(async () => { const value = await refresh(); await navigator.clipboard.writeText(formatSoftwareSpecs(value, groups)); setNotice("Selected software specs copied."); })},
+        {label:'Export specs', disabled:busy || !groups.length, onClick:() => act(async () => { const value = await refresh(); downloadBlob(new Blob([formatSoftwareSpecs(value, groups)], {type:'text/plain'}), 'workstation-software-specs.txt'); setNotice("Software specs download started."); })},
+        {label:'Export app logs (ZIP)', disabled:busy, onClick:() => act(async () => { const response = await fetch(apiUrl('/system/logs/export')); if (!response.ok) throw new Error("Could not export app logs."); downloadBlob(await response.blob(), 'workstation-app-logs.zip'); setNotice("App log ZIP download started."); })},
+      ]}/></div>
     {busy && <p role="status">Reading app records…</p>}{error && <p role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}
     {snapshot && <><p className="dashboard-note">Version {snapshot.build?.package_version || snapshot.build?.app_version || "unavailable"} · Build {snapshot.build?.build_id || "unrecorded"}</p>
       {buildIdentityLines(snapshot).filter(line => line.includes("differ") || line.includes("rebuild") || line.includes("Rebuild")).map(line => <p role="status" key={line}>{line}</p>)}

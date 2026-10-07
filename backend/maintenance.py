@@ -29,6 +29,7 @@ CATEGORIES = {
     "trash": "Trash", "knowledge_base": "Knowledge base", "web": "Web data",
     "thinking": "Thinking history", "logs": "App logs",
     "hash_auditor": "Hash Auditor inventory",
+    "image_manager": "Image Manager catalog / previews",
     "folder_review": "Folder Review reports",
     "face_datasets": "Face datasets", "face_bank": "Face bank", "character_datasets": "Character parts",
 }
@@ -78,7 +79,7 @@ def inventory(root=None):
         group = groups[CATEGORIES.get(relative.parts[0], "Other app data")]
         group["files"] += 1
         group["bytes"] += size
-    return {
+    report = {
         "format": "local-workstation-metadata-inventory-v1",
         "created_at": datetime.now(timezone.utc).isoformat(),
         "content_backup": False, "inventory": groups,
@@ -86,6 +87,26 @@ def inventory(root=None):
                      "chunk_overlap": settings.chunk_overlap, "ocr_timeout_seconds": settings.ocr_timeout_seconds},
         "excludes": ["chat text", "prompts", "file names and paths", "images", "model and training artifacts", "user-created buttons"],
     }
+    if (root / MARKER).exists():
+        pending = reset_state(root)
+        report['reset_pending'] = True
+        report['keep_image_manager'] = pending.get('keep_image_manager', False)
+    return report
+
+
+def reset_state(root):
+    marker = root / MARKER
+    if not marker.exists():
+        return {}
+    if is_link(marker) or marker.stat().st_size > 4096:
+        raise ValueError('Reset recovery marker is unsafe.')
+    try:
+        value = json.loads(marker.read_bytes())
+        if not isinstance(value, dict) or type(value.get('keep_image_manager', False)) is not bool:
+            raise ValueError()
+        return value
+    except (ValueError, TypeError):
+        raise ValueError('Reset recovery marker is invalid.') from None
 
 
 def archive_path(value, root):
@@ -151,10 +172,18 @@ def write_atomic(path, value):
 def backup_sources(root):
     """Flatten managed libraries into a portable data tree for existing restore."""
     from services.storage_libraries import Libraries, DATABASE, owned_unit, no_links
+    from services.image_manager_storage import ensure_catalog
+    image_catalog = ensure_catalog(root)
     store = Libraries(root)
     registry = {DATABASE.as_posix() + suffix for suffix in ('', '-journal', '-wal', '-shm')}
     result = {relative: root / relative for relative, _ in scan(root)
               if relative.as_posix() not in registry | {'.backend.lock'}}
+    if (image_catalog / 'catalog.sqlite3').is_file():
+        # Backups may include a copy, but import never replaces this live store.
+        result = {relative: source for relative, source in result.items() if relative.parts[0] != 'image_manager'}
+        for relative, _ in scan(image_catalog):
+            if relative.name not in {'.backend.lock', 'catalog.sqlite3-shm'} and not relative.name.startswith('catalog-migration-'):
+                result[Path('image_manager') / relative] = image_catalog / relative
     for record in store.records()[0]:
         library = store.library_root(record) / 'files'  # Refuse incomplete offline backups.
         for relative, _ in scan(library):
@@ -233,28 +262,56 @@ def export_backup(destination, desktop_storage, root=None):
         raise
 
 
-def reset_data(archive=None, sha256=None, confirmation=None, root=None, keep_marker=False):
+def reset_data(archive=None, sha256=None, confirmation=None, root=None, keep_marker=False, keep_image_manager=False):
     if confirmation != "RESET": raise ValueError("Confirm permanent deletion from the reviewed reset dialog.")
     root = checked_root(root)
     if import_journal(root).exists(): raise ValueError("Recover the interrupted import before resetting.")
     if archive is not None: verify_archive(archive, sha256, root)
     scan(root)  # Validate every target before the first mutation.
+    from services.image_manager_storage import ensure_catalog
+    ensure_catalog(root)
+    if type(keep_image_manager) is not bool:
+        raise ValueError('Choose whether to keep the external Image Manager catalog.')
+    previous = reset_state(root)
+    if previous and previous.get('keep_image_manager', False) != keep_image_manager:
+        raise ValueError('Retry the interrupted reset with its original Image Manager retention choice.')
     root.mkdir(parents=True, exist_ok=True)
     marker = root / MARKER
-    write_atomic(marker, {"version": 2, "sanitize": True})
+    retained, retained_counts = None, None
+    marker_value = {"version": 2, "sanitize": True}
+    if keep_image_manager:
+        from services.image_manager_maintenance import STAGE, stage_catalog
+        if not previous:
+            if (root / STAGE).exists():
+                raise ValueError('Unexpected Image Manager retention staging; nothing was reset.')
+            previous = {"version": 3, "sanitize": True, "keep_image_manager": True, "image_manager_preparing": True}
+            write_atomic(marker, previous)
+        retained, digest, retained_counts = stage_catalog(root, previous, is_link)
+        marker_value = {"version": 3, "sanitize": True, "keep_image_manager": True,
+                        "image_manager_sha256": digest}
+    write_atomic(marker, marker_value)
     # The marker blocks backend startup after interruption. Do not serve a
     # partly cleared vault on a retry.
     try:
         for target in list(root.iterdir()):
-            if target.name == MARKER: continue
+            if target.name == MARKER or (retained is not None and target == retained.parent): continue
             if is_link(target) or target.resolve().parent != root:
                 raise ValueError("A reset target changed; cleanup stopped.")
             if target.is_dir(): shutil.rmtree(target)
             else: target.unlink()
+        if retained is not None:
+            from services.image_manager_maintenance import CATALOG, checksum
+            if is_link(retained) or checksum(retained) != marker_value['image_manager_sha256']:
+                raise ValueError('Retained Image Manager catalog changed; reset remains stopped.')
+            destination = root / CATALOG
+            destination.parent.mkdir()
+            retained.rename(destination)
+            retained.parent.rmdir()
+            ensure_catalog(root)  # Complete migration after a legacy reset retry.
         if not keep_marker: marker.unlink()
     except (OSError, ValueError):
         raise RuntimeError("Reset is incomplete. The backend remains stopped. Close programs using app data, then retry Reset.") from None
-    return {"ok": True}
+    return {"ok": True, **({'image_manager_retained': retained_counts} if keep_image_manager else {})}
 
 
 def main():
@@ -279,7 +336,8 @@ def main():
             # Keep another desktop backend from opening the data mid-snapshot.
             with acquire(root):
                 result = export_backup(request["destination"], request["desktop_storage"], root)
-        elif request.get("action") == "reset": result = reset_data(request.get("archive"), request.get("sha256"), request.get("confirmation"), keep_marker=True)
+        elif request.get("action") == "reset": result = reset_data(request.get("archive"), request.get("sha256"), request.get("confirmation"), keep_marker=True,
+                                                                  keep_image_manager=request.get('keep_image_manager', False))
         elif request.get("action") == "finish-reset":
             root = checked_root()
             scan(root)

@@ -23,13 +23,13 @@ def test_catalog_is_wired_to_real_routes_and_schemas(client):
     assert response.status_code == 200
     registry = response.json()
     assert registry["schema_version"] == "1.0"
-    assert registry["execution_enabled"] is False
+    assert registry["execution_enabled"] is True
     ids = [tool["id"] for tool in registry["tools"]]
     assert len(ids) == len(set(ids)) == len(TOOLS)
-    assert all(re.fullmatch(r"[a-z][a-z0-9_]{0,63}", value) for value in ids)
+    assert all(re.fullmatch(r"[a-z][a-z0-9_.]{0,79}", value) for value in ids)
     for tool in registry["tools"]:
         assert tool["name"] and tool["description"] and tool["output_description"]
-        assert not tool["llm_callable"]
+        assert tool["llm_callable"] == tool["execution"]["callable"]
         if tool["interface"] == "http":
             assert tool["availability"] == "registered", tool["id"]
             Draft202012Validator.check_schema(tool["input_schema"])

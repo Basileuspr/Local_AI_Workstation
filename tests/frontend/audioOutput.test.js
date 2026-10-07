@@ -86,7 +86,8 @@ describe('real playback routing',()=>{
     const {output,player}=fixture(), media=player(), first=output.track(media), second=output.track(media);
     await first.ready;first.release();output.configure({volume:.3});expect(media.volume).toBe(.3);
     second.release();output.configure({volume:.8});expect(media.volume).toBe(.3);
-    expect(media.removeEventListener).toHaveBeenCalledOnce();
+    expect(media.removeEventListener).toHaveBeenCalledWith('volumechange',expect.any(Function));
+    expect(media.removeEventListener).toHaveBeenCalledWith('play',expect.any(Function));
   });
   it('listens for device changes and removes its listener during cleanup',async()=>{
     const {output,mediaDevices}=fixture();const stop=output.listen();await output.refresh();

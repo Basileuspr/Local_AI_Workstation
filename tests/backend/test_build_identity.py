@@ -94,6 +94,24 @@ def test_capture_does_not_hash_its_generated_identity_or_invent_creation_dates()
     assert capture.included("RELEASES.md")
 
 
+@pytest.mark.parametrize("name", [
+    "docs/README.md", "docs/images/GENERATION.md",
+    "docs/workspace/STORAGE_AND_BACKUP.md", "docs/archive/PROJECT_STATUS.md",
+])
+def test_capture_tracks_relocated_documentation(name):
+    assert capture.included(name)
+
+
+@pytest.mark.parametrize("name", [
+    "docs/archive/SESSION_HANDOFF.md", "docs/archive/ARCHITECTURE_CURRENT.md",
+    "docs/archive/ROADMAP_ORIGINAL_7_SEGMENTS.md", "docs/application-review/AUDIT.md",
+    "docs/application-review/HISTORY.md", "docs/application-review/index.html",
+    "docs/application-review/snapshots/example.json",
+])
+def test_capture_excludes_private_and_generated_documentation(name):
+    assert not capture.included(name)
+
+
 def test_api_openapi_health_and_software_inventory_use_process_identity(monkeypatch, tmp_path):
     import main
     from fastapi.testclient import TestClient

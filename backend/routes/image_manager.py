@@ -1,10 +1,11 @@
 from typing import Literal
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Response
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from starlette.concurrency import run_in_threadpool
 from PIL import Image
 from services.image_manager import manager
+from services.image_manager_tools import LIMITS as IMAGE_TOOL_LIMITS
 
 router = APIRouter(prefix="/image-manager", tags=["image-manager"])
 
@@ -12,7 +13,7 @@ router = APIRouter(prefix="/image-manager", tags=["image-manager"])
 def call(function, *args, **kwargs):
     try:
         return function(*args, **kwargs)
-    except (ValueError, KeyError, TypeError, Image.DecompressionBombError) as error:
+    except (ValueError, KeyError, TypeError, Image.DecompressionBombError, Image.DecompressionBombWarning) as error:
         raise HTTPException(422, str(error)) from error
     except OSError as error:
         raise HTTPException(422, "An image folder or file is inaccessible. Check its location and permissions.") from error
@@ -27,22 +28,30 @@ class ImageToolsOptions(BaseModel):
     model_config = {"extra": "forbid"}
     format: Literal['png', 'jpg', 'webp'] = 'png'
     standardize: bool = False
-    width: int = Field(default=1024, ge=1, le=16384)
-    height: int = Field(default=1024, ge=1, le=16384)
+    width: int = Field(default=1024, ge=1, le=IMAGE_TOOL_LIMITS['max_image_side'])
+    height: int = Field(default=1024, ge=1, le=IMAGE_TOOL_LIMITS['max_image_side'])
     fit: Literal['contain', 'cover', 'stretch'] = 'contain'
     background: str = Field(default='#ffffff', pattern=r'^#[0-9a-fA-F]{6}$')
-    layout: Literal['none', 'vertical', 'horizontal', 'grid', 'gif'] = 'none'
-    columns: int = Field(default=1, ge=1, le=1000)
-    gap: int = Field(default=0, ge=0, le=256)
+    layout: Literal['none', 'vertical', 'horizontal', 'grid', 'balanced', 'gif'] = 'none'
+    columns: int = Field(default=0, ge=0, le=IMAGE_TOOL_LIMITS['max_stitched_side'])
+    gap: int = Field(default=0, ge=0, le=IMAGE_TOOL_LIMITS['max_gap'])
     frame_delay: int = Field(default=100, ge=20, le=10000)
     loop: int = Field(default=0, ge=-1, le=1000)
     reverse: bool = False
+    size_mode: Literal['exact', 'fit', 'pages'] = 'exact'
+    images_per_sheet: int = Field(default=60, ge=1)
+    order: Literal['filename', 'reverse', 'shuffle'] = 'filename'
+    shuffle_seed: int = Field(default=1, ge=0, le=2147483647)
+    trim_white: bool = False
+    orientation_size: bool = False
+    save_copies: bool = True
+    name_prefix: str = Field(default='', max_length=80, pattern=r'^[\w -]*$')
 
 
 class TaskRequest(BaseModel):
     kind: Literal["scan", "duplicates", "plan", "duplicate-plan", "function", "apply", "report", "trash", "image-tools"]
     folder_ids: list[str] = Field(default_factory=list, max_length=100)
-    ids: list[str] = Field(default_factory=list, max_length=1000)
+    ids: list[str] = Field(default_factory=list)
     recursive: bool = True
     output_id: str = ""
     layout: Literal["month", "day", "format", "folders"] = "month"
@@ -54,6 +63,12 @@ class TaskRequest(BaseModel):
     duplicate_members: Literal["extra", "all"] = "extra"
     duplicate_offset: int = Field(default=0, ge=0, le=100000)
     image_options: ImageToolsOptions | None = None
+
+    @model_validator(mode='after')
+    def bounded_transfer_selection(self):
+        if self.kind != 'image-tools' and len(self.ids) > 1000:
+            raise ValueError('Select up to 1,000 images for organization and transfer tasks.')
+        return self
 
 
 class FunctionRequest(BaseModel):
@@ -81,13 +96,15 @@ class HideTaggedRequest(BaseModel):
 
 
 class ImageToolsSourcesRequest(BaseModel):
-    ids: list[str] = Field(min_length=1, max_length=1000)
+    ids: list[str] = Field(default_factory=list)
+    folder_id: str = ''
+    recursive: bool = True
 
 
 @router.post('/image-tools/sources')
 def image_tools_sources(request: ImageToolsSourcesRequest):
     from services.image_manager_tools import sources
-    return call(sources, manager, request.ids)
+    return call(sources, manager, request.ids, folder_id=request.folder_id, recursive=request.recursive)
 
 
 class TrashReviewRequest(BaseModel):
@@ -135,12 +152,12 @@ async def thumbnail(identifier: str, large: bool = False):
         await run_in_threadpool(guard_path, original)
     except LockedImageError as error:
         raise HTTPException(403, "Image unavailable or locked") from error
-    target = await run_in_threadpool(call, manager.thumbnail, identifier, 1280 if large else 320)
+    data = await run_in_threadpool(call, manager.thumbnail, identifier, 1280 if large else 320)
     try:
         await run_in_threadpool(guard_path, original)
     except LockedImageError as error:
         raise HTTPException(403, "Image unavailable or locked") from error
-    return FileResponse(target, media_type="image/jpeg", headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
+    return Response(data, media_type="image/jpeg", headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
 
 
 @router.get("/images/{identifier}/file")

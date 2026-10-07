@@ -4,8 +4,9 @@ const { copyNativeImage } = require("./desktopFunctions");
 const TAB_LABELS = { shortcuts: "Shortcut Registry", audio: "Audio", spreadsheets: "Spreadsheets", canvas: "Canvas", converter: "File Converter", packager: "Packager", "hash-auditor": "Hash Auditor", "folder-review": "Folder Review", "gif-maker": "GIF Maker", browser: "Browser", "3d-viewer": "3D Viewer & Editor", "local-files": "Local Files", "document-editor": "Document Editor", "js-viewer": "JavaScript Viewer", markdown: "Markdown Viewer", "html-viewer": "HTML Viewer", "css-viewer": "CSS / Styling", chats: "Chat", images: "Image Gallery", generate: "Generate", library: "Index", knowledge: "Knowledge", tools: "Functions", dashboard: "Dashboard", queue: "Prompt Queue", review: "Image Review", "image-editor": "Image Editor", "image-manager": "Image Manager", "media-manager": "Media Manager", workflows: "Image Workflows", lora: "LoRA", faces: "Faces", characters: "Character Creator", "character-parts": "Character Parts" };
 
 Object.assign(TAB_LABELS, { university: 'University', 'agent-university': 'Agent University', 'neural-network': 'Neural Network', 'break-room': 'Break Room' });
+TAB_LABELS['info-center'] = 'Info Center';
 
-Object.assign(TAB_LABELS, {slicer: '3D Slicer', integrations: 'Linked applications'});
+Object.assign(TAB_LABELS, {slicer: '3D Slicer', integrations: 'Linked applications', 'styling-library': 'Styling Library', 'sound-mixer':'Sound Mixer'});
 
 function hasVisibleContent(image) {
   if (image.isEmpty()) return false;

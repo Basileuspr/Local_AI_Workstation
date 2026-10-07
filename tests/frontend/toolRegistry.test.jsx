@@ -48,7 +48,7 @@ describe("tool discovery", () => {
     expect(ui).not.toContain("API and input schema");
     expect(renderToStaticMarkup(<ToolRegistryDetails />)).toContain("No tools match");
     const hidden = renderToStaticMarkup(<ToolRegistry active={false} />);
-    expect(renderToStaticMarkup(<WorkspaceHelpContent tab="dashboard"/>)).toContain("Automatic model tool execution is not connected");
+    expect(renderToStaticMarkup(<WorkspaceHelpContent tab="dashboard"/>)).toContain("Enable Local model tool use");
     expect(hidden).toContain("Open Dashboard to load");
   });
   it("loads JSON and Markdown and reports HTTP errors", async () => {

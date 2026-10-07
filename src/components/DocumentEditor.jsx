@@ -11,7 +11,11 @@ import { TableLayoutRibbon, TableDesignRibbon, TableWidthFields, TableRangeField
 import { DEFAULT_STYLES, currentStyle, effectiveParagraph, effectiveText, toggleStyleEmphasis, applyParagraphStyle, saveParagraphStyle, removeParagraphStyle } from '../documentStyles';
 import { StylesRibbon, StylesPane, ParagraphStyleFields } from './DocumentStyleControls';
 import { documentReferences, goToReference, setDocumentLink, saveContents, removeContents } from '../documentReferences';
+import { noteSettings, saveNoteSettings, convertNotes } from '../documentNotes';
+import { NotesRibbon, NotesPane, NoteNumberFields, DocumentNotesPreview } from './DocumentNoteControls';
 import { ReferencesRibbon, ContentsFields, BookmarkFields, HyperlinkFields, InternalLinkCheck } from './DocumentReferenceControls';
+import { citationsIn, saveCitation, removeCitation, saveBibliography, removeBibliography } from '../documentCitations';
+import { CitationsRibbon, SourceManager, CitationFields, BibliographyFields } from './DocumentCitationControls';
 
 const TABS = ['File', 'Home', 'Diagram', 'Insert', 'Draw', 'Outlining', 'Design', 'Layout', 'References', 'Mailings', 'Review', 'View', 'Developer'];
 function Group({ name, children, className = '' }) {
@@ -54,6 +58,8 @@ function RichDocumentEditor({ active }) {
   const [layout, setLayout] = useState({ ...DEFAULT_PAGE }), [zoom, setZoom] = useState(85);
   const [storyPreview, setStoryPreview] = useState('default');
   const [stylesOpen, setStylesOpen] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false), [noteId, setNoteId] = useState('');
+  function openNote(id) { setNoteId(id); setNotesOpen(true); setStylesOpen(false); }
   const [revision, setRevision] = useState(0), [dirty, setDirty] = useState(false), [busy, setBusy] = useState(false);
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [draftStatus, setDraftStatus] = useState('');
   const [exported, setExported] = useState(null);
@@ -112,6 +118,13 @@ function RichDocumentEditor({ active }) {
     return () => { window.removeEventListener('beforeunload', warn); window.removeEventListener('keydown', keys); };
   }, [editor]);
 
+  useEffect(() => {
+    if (!editor) return;
+    const open = event => openNote(event.detail.id);
+    editor.view.dom.addEventListener('document-note-open', open);
+    return () => editor.view.dom.removeEventListener('document-note-open', open);
+  }, [editor]);
+
   async function task(work) {
     if (operationLock.current) return;
     operationLock.current = true;
@@ -126,6 +139,12 @@ function RichDocumentEditor({ active }) {
     editor.chain().focus().updateAttributes('paragraph', patch).updateAttributes('heading', patch).run();
   }
   function openDialog(kind, initial = {}) { setFields(initial); setDialog(kind); }
+  useEffect(() => {
+    if (!editor) return;
+    const open = event => { const item = citationsIn(editor.state.doc).citations.find(item => item.id === event.detail.id); if (item) openDialog('Edit citation', { ...item.node.attrs }); };
+    editor.view.dom.addEventListener('document-citation-open', open);
+    return () => editor.view.dom.removeEventListener('document-citation-open', open);
+  }, [editor]);
   function commitStyle() {
     try {
       const style = Object.fromEntries(Object.keys(DEFAULT_STYLES[0]).map(key => [key, fields[key]]));
@@ -143,13 +162,13 @@ function RichDocumentEditor({ active }) {
     resetDocumentContent(editor, EMPTY_DOCUMENT);
     setName('Untitled document'); setLayout({ ...DEFAULT_PAGE }); setDirty(false); setRevision(0); setNotice('New document');
     setDialog(null); setError(''); setExported(null); setDraftStatus(''); editorDraft('delete').catch(() => setDraftStatus('Previous recovery draft could not be cleared.'));
-    setReadOnly(false); setTab('Home'); editor.commands.focus();
+    setReadOnly(false); setNotesOpen(false); setNoteId(''); setTab('Home'); editor.commands.focus();
   }
   function replaceDocument(value, title) {
     // Reset the editor history so Undo cannot bring a previous file into this one.
     resetDocumentContent(editor, value.document);
     setName(title); setLayout({ ...DEFAULT_PAGE, ...value.layout }); setReadOnly(false); setDirty(true); setRevision(v => v + 1);
-    setPendingImport(null); setDialog(null); setRecovery(null); setExported(null); setTab('Home'); setNotice('Editable copy opened');
+    setNotesOpen(false); setNoteId(''); setPendingImport(null); setDialog(null); setRecovery(null); setExported(null); setTab('Home'); setNotice('Editable copy opened');
   }
   async function importDocument(file) {
     if (!file) return;
@@ -217,7 +236,7 @@ function RichDocumentEditor({ active }) {
   const hasPageDetails = layout.pageNumbers || PAGE_STORIES.some(key => layout[key]);
 
   return <section ref={surface} className={`document-editor ${showMarks ? 'de-show-marks' : ''}`} aria-label="Document Editor">
-    <header className="de-titlebar"><span className="de-logo" aria-hidden="true">D</span><div><h1>Document Editor <span>Phase 6</span></h1>
+    <header className="de-titlebar"><span className="de-logo" aria-hidden="true">D</span><div><h1>Document Editor <span>Phase 8</span></h1>
       <input aria-label="Document name" maxLength={120} value={name} disabled={busy || !!recovery} onChange={event => { setName(event.target.value); changed(); }}/></div>
       <div className="de-quick"><Button label="Undo (Ctrl+Z)" disabled={editDisabled || !editor.can().undo()} onClick={() => run('undo')}>↶</Button><Button label="Redo (Ctrl+Y)" disabled={editDisabled || !editor.can().redo()} onClick={() => run('redo')}>↷</Button>
         <button className="de-primary" disabled={busy || !!recovery} onClick={exportDocument}>Export .docx</button></div>
@@ -249,7 +268,7 @@ function RichDocumentEditor({ active }) {
           <div className="de-row">{['left', 'center', 'right', 'justify'].map((align, i) => <Button key={align} label={`Align ${align}`} active={pa.textAlign === align} disabled={editDisabled} onClick={() => editor.chain().focus().setTextAlign(align).run()}>{['≡←', '≡', '→≡', '☰'][i]}</Button>)}
             <select aria-label="Line spacing" value={pa.lineSpacing || 1.15} disabled={editDisabled} onChange={e => applyParagraph({ lineSpacing: Number(e.target.value) })}>{[...new Set([1, 1.15, 1.5, 2, 2.5, 3, pa.lineSpacing || 1.15])].sort((a, b) => a - b).map(n => <option key={n} value={n}>{Number(n.toFixed(3))} lines</option>)}</select></div>
         </Group>
-        <StylesRibbon editor={editor} disabled={editDisabled} open={stylesOpen} onToggle={() => setStylesOpen(!stylesOpen)} Group={Group} Button={Button}/>
+        <StylesRibbon editor={editor} disabled={editDisabled} open={stylesOpen} onToggle={() => { setNotesOpen(false); setStylesOpen(!stylesOpen); }} Group={Group} Button={Button}/>
         <Group name="Editing"><Button label="Find text (Ctrl+F)" onClick={() => setFindOpen(true)}>⌕ Find</Button><Button label="Find and replace (Ctrl+H)" onClick={() => setFindOpen(true)}>Replace</Button></Group>
       </>}
       {currentTab === 'Insert' && <>
@@ -268,7 +287,7 @@ function RichDocumentEditor({ active }) {
         <Group name="Paragraph spacing (points)"><label>Before<NumberControl label="Paragraph spacing before" min={0} max={72} value={pa.spaceBefore || 0} disabled={editDisabled} onCommit={n => applyParagraph({ spaceBefore: n })}/></label><label>After<NumberControl label="Paragraph spacing after" min={0} max={72} value={pa.spaceAfter ?? 8} disabled={editDisabled} onCommit={n => applyParagraph({ spaceAfter: n })}/></label></Group>
         <Group name="Paragraph pagination"><Button label="Paragraph line and page breaks" disabled={editDisabled} onClick={() => openDialog('Line and page breaks', Object.fromEntries(PAGINATION_OPTIONS.map(([key]) => [key, pa[key] ?? null])))}>Line and page breaks…</Button><span className="de-shortcut">Keep lines together · Keep with next</span></Group>
       </>}
-      {currentTab === 'References' && <ReferencesRibbon editor={editor} disabled={editDisabled} openDialog={openDialog} Group={Group} Button={Button}/>}
+      {currentTab === 'References' && <><CitationsRibbon editor={editor} disabled={editDisabled} openDialog={openDialog} Group={Group} Button={Button}/><NotesRibbon editor={editor} disabled={editDisabled} openDialog={openDialog} onOpen={openNote} Group={Group} Button={Button}/><ReferencesRibbon editor={editor} disabled={editDisabled} openDialog={openDialog} Group={Group} Button={Button}/></>}
       {currentTab === 'Review' && <><Group name="Proofing"><Button label="Show word count" onClick={() => setDialog('Word count')}>Word Count</Button><label><input type="checkbox" checked={spellcheck} onChange={e => setSpellcheck(e.target.checked)}/> Browser spelling</label></Group><Group name="Editing"><label><input type="checkbox" checked={readOnly} onChange={e => setReadOnly(e.target.checked)}/> Read only view</label></Group></>}
       {currentTab === 'View' && <>
         <Group name="Views"><Button label="Page-shaped view" active={view === 'page'} onClick={() => setView('page')}>▤ Page view</Button><Button label="Fit flowing view to workspace" active={view === 'flow'} onClick={() => setView('flow')}>▱ Web view</Button></Group>
@@ -295,9 +314,10 @@ function RichDocumentEditor({ active }) {
     <div className="de-work-area">{outline && <aside className="de-outline" aria-label="Document headings"><h2>Navigation</h2>{headings.length ? headings.map(item => <button key={item.pos} style={{ paddingLeft: 10 + (item.level - 1) * 12 }} onClick={() => goToReference(editor, item.name)}>{item.text}</button>) : <p>Apply a heading style to build an outline.</p>}{references.bookmarks.length > 0 && <><h2>Bookmarks</h2>{references.bookmarks.map(item => <button key={item.name} onClick={() => goToReference(editor, item.name)}>⌑ {item.name}</button>)}</>}</aside>}
       <div className={`de-scroll de-view-${view}`} ref={scroll}><div className="de-sheet-wrap" style={view === 'page' ? { zoom: zoom / 100, width: `${pageWidth}in` } : { zoom: zoom / 100 }}>
         {ruler && <div className="de-ruler" aria-label="Horizontal ruler in inches" style={{ paddingLeft: `${layout.left}in`, paddingRight: `${layout.right}in` }}><div>{Array.from({ length: Math.floor(pageWidth - layout.left - layout.right) + 1 }, (_, i) => <span key={i} style={{ left: `${i}in` }}>{i}</span>)}</div></div>}
-        <div className="de-paper" style={{ minHeight: view === 'page' ? `${pageHeight}in` : '65vh', padding: view === 'page' ? `${layout.top}in ${layout.right}in ${layout.bottom}in ${layout.left}in` : '32px' }}><PageStorySample layout={layout} variant={sampleVariant} position="header"/><EditorContent editor={editor}/><PageStorySample layout={layout} variant={sampleVariant} position="footer"/></div>
+        <div className="de-paper" style={{ minHeight: view === 'page' ? `${pageHeight}in` : '65vh', padding: view === 'page' ? `${layout.top}in ${layout.right}in ${layout.bottom}in ${layout.left}in` : '32px' }}><PageStorySample layout={layout} variant={sampleVariant} position="header"/><EditorContent editor={editor}/><DocumentNotesPreview editor={editor} onOpen={openNote}/><PageStorySample layout={layout} variant={sampleVariant} position="footer"/></div>
       </div></div>
-      {stylesOpen && <StylesPane editor={editor} disabled={editDisabled} onClose={() => setStylesOpen(false)}
+      {notesOpen && <NotesPane editor={editor} id={noteId} onSelect={setNoteId} onClose={() => setNotesOpen(false)} disabled={editDisabled}/>}
+      {stylesOpen && !notesOpen && <StylesPane editor={editor} disabled={editDisabled} onClose={() => setStylesOpen(false)}
         onCreate={() => openDialog('Create paragraph style', { ...currentStyle(editor), id: `style-${crypto.randomUUID().slice(0, 16)}`, name: '', apply: true })}
         onEdit={style => openDialog('Modify paragraph style', { ...style })} onDelete={style => openDialog('Delete paragraph style', { ...style })}/>}
     </div>
@@ -317,6 +337,20 @@ function RichDocumentEditor({ active }) {
     }}><ContentsFields fields={fields} setFields={setFields}/></Dialog>}
     {dialog === 'Remove table of contents' && <Dialog title={dialog} action="Remove contents" onClose={() => setDialog(null)} onSubmit={() => { removeContents(editor); setDialog(null); }}><p>Remove the generated contents block? Your headings and text are kept. You can undo this change.</p></Dialog>}
     {dialog === 'Check internal links' && <Dialog title={dialog} onClose={() => setDialog(null)}><InternalLinkCheck editor={editor} onClose={() => setDialog(null)}/></Dialog>}
+    {dialog === 'Note numbering' && <Dialog title={dialog} onClose={() => setDialog(null)} onSubmit={() => {
+      try { saveNoteSettings(editor, Object.fromEntries(['footnote', 'endnote'].map(kind => [kind, { format: fields[kind].format, start: Number(fields[kind].start) }]))); setDialog(null); }
+      catch (failure) { setFields({ ...fields, invalid: failure.message }); }
+    }}><NoteNumberFields fields={fields} setFields={setFields}/></Dialog>}
+    {dialog === 'Convert notes' && <Dialog title={dialog} action="Convert all" onClose={() => setDialog(null)} onSubmit={() => { convertNotes(editor, fields.kind); setDialog(null); }}><label>Convert all notes to<select value={fields.kind} onChange={event => setFields({ kind: event.target.value })}><option value="endnote">Endnotes</option><option value="footnote">Footnotes</option></select></label><p>Keep each note's text and reference position. Numbers update in document order. Undo restores the previous kinds.</p></Dialog>}
+    {dialog === 'Notes limit' && <Dialog title={dialog} onClose={() => setDialog(null)}><p>{fields.message}</p></Dialog>}
+    {dialog === 'Manage sources' && <Dialog title={dialog} onClose={() => setDialog(null)}><SourceManager editor={editor} disabled={editDisabled}/></Dialog>}
+    {['Insert citation', 'Edit citation'].includes(dialog) && <Dialog title={dialog} action={dialog === 'Insert citation' ? 'Insert citation' : 'Save citation'} onClose={() => setDialog(null)} onSubmit={editDisabled ? null : () => {
+      try { saveCitation(editor, fields, fields.id || null); setDialog(null); } catch (failure) { setFields({ ...fields, invalid: failure.message }); }
+    }}><CitationFields editor={editor} fields={fields} setFields={setFields} disabled={editDisabled}/>{dialog === 'Edit citation' && <button type="button" disabled={editDisabled} onClick={() => { removeCitation(editor, fields.id); setDialog(null); }}>Delete citation</button>}</Dialog>}
+    {dialog === 'Bibliography' && <Dialog title={dialog} action="Apply bibliography" onClose={() => setDialog(null)} onSubmit={() => {
+      try { saveBibliography(editor, fields); setDialog(null); } catch (failure) { setFields({ ...fields, invalid: failure.message }); }
+    }}><BibliographyFields fields={fields} setFields={setFields}/></Dialog>}
+    {dialog === 'Remove bibliography' && <Dialog title={dialog} action="Remove bibliography" onClose={() => setDialog(null)} onSubmit={() => { removeBibliography(editor); setDialog(null); }}><p>Remove the bibliography block? Your sources, citations and paragraph text stay in the document. Undo restores the block.</p></Dialog>}
     {dialog === 'Picture description' && <Dialog title={dialog} onClose={() => setDialog(null)} onSubmit={() => { editor.chain().focus().updateAttributes('image', { alt: fields.alt }).run(); setDialog(null); }}><label>Alt text<textarea autoFocus maxLength={2000} value={fields.alt} onChange={e => setFields({ alt: e.target.value })}/></label></Dialog>}
     {dialog === 'Insert symbol' && <Dialog title={dialog} onClose={() => setDialog(null)} action="Insert" onSubmit={() => { editor.chain().focus().insertContent({ type: 'text', text: fields.symbol }).run(); setDialog(null); }}><label>Symbol<input autoFocus required maxLength={16} value={fields.symbol} onChange={e => setFields({ symbol: e.target.value })}/></label><div className="de-symbols">{'© ® ™ ° ± × ÷ ≤ ≥ ≠ ∞ α β γ Δ π Ω → ← ✓'.split(' ').map(symbol => <button type="button" key={symbol} onClick={() => setFields({ symbol })}>{symbol}</button>)}</div></Dialog>}
     {dialog === 'Open editable copy' && pendingImport && <Dialog title={dialog} action="Open editable copy" onClose={() => { setDialog(null); setPendingImport(null); }} onSubmit={() => replaceDocument(pendingImport, pendingImport.name)}><p><strong>{pendingImport.name}</strong></p>{pendingImport.warnings.map(warning => <p key={warning}>{warning}</p>)}{dirty && <p className="de-warning">Opening this copy replaces your current working draft. Export the current document first if you need to keep it.</p>}</Dialog>}

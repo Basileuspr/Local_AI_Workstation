@@ -21,6 +21,7 @@ class Session:
     lock: object = field(default_factory=threading.Lock)
     cancel: object = field(default_factory=threading.Event)
     progress: str = ''
+    source_signature: list | None = None
 
     @property
     def directory(self): return Path(self.temporary.name)
@@ -41,6 +42,7 @@ def open_file(path):
     with _lock:
         if len(_sessions) >= 4: raise ValueError('Close an existing local file before opening another.')
         item = Session(uuid4().hex, path, spec['id'], tempfile.TemporaryDirectory(prefix='law-local-file-'))
+        info=path.stat(); item.source_signature=[info.st_size,info.st_mtime_ns,info.st_dev,info.st_ino]
         _sessions[item.id] = item
     try:
         with item.lock:

@@ -1,0 +1,8 @@
+{
+  "max_image_side": 2147483647,
+  "max_stitched_side": 2147483647,
+  "fit_canvas_side": 65535,
+  "fit_canvas_pixels": 64000000,
+  "max_gif_bytes": 134217728,
+  "max_gap": 256
+}

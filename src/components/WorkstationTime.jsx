@@ -4,6 +4,7 @@ import { clampTimerPosition, durationFields, durationFromFields, formatCountdown
 import { WINDOW_LAYOUT_EVENT } from "../windowRendering";
 import { clockAppearanceVariables, loadClockAppearance, saveClockAppearance } from '../clockAppearance';
 import ClockStyleDialog, { ClockFace } from './ClockStyleDialog';
+import {audioOutput} from '../audioOutput';
 import "./WorkstationTime.css";
 
 export default function WorkstationTime({ onOverlayChange, inert = false }) {
@@ -27,15 +28,11 @@ export default function WorkstationTime({ onOverlayChange, inert = false }) {
   }, []);
   useEffect(() => saveTimer(timer), [timer]);
   useEffect(() => saveClockAppearance(clockAppearance), [clockAppearance]);
-  useEffect(() => () => { void audio.current?.close().catch(() => {}); }, []);
 
   function prepareSound(enabled = timer.sound) {
     if (!enabled) return;
     try {
-      const Audio = window.AudioContext || window.webkitAudioContext;
-      if (!Audio) return;
-      audio.current ||= new Audio();
-      void audio.current.resume().catch(() => {});
+      void audioOutput.mixer.liveInput('alerts').then(value=>{audio.current=value;}).catch(()=>{});
     } catch { /* The visible completion indicator remains available without audio. */ }
   }
   useEffect(() => { if (timer.status === "running") prepareSound(); }, [timer.status, timer.sound]);
@@ -44,14 +41,14 @@ export default function WorkstationTime({ onOverlayChange, inert = false }) {
     setTimer(current => ({ ...current, status: "finished", remainingMs: 0, deadline: null }));
     if (sounded.current === timer.deadline) return;
     sounded.current = timer.deadline;
-    if (!timer.sound || audio.current?.state !== "running") return;
+    if (!timer.sound || audio.current?.context.state !== "running") return;
     try {
-      const context = audio.current;
+      const {context,input} = audio.current;
       for (let i = 0; i < 3; i++) {
         const oscillator = context.createOscillator(), gain = context.createGain(), start = context.currentTime + i * .4;
         oscillator.frequency.value = 880; gain.gain.setValueAtTime(0, start);
         gain.gain.linearRampToValueAtTime(.12, start + .02); gain.gain.exponentialRampToValueAtTime(.001, start + .25);
-        oscillator.connect(gain); gain.connect(context.destination); oscillator.start(start); oscillator.stop(start + .3);
+        oscillator.connect(gain); gain.connect(input); oscillator.start(start); oscillator.stop(start + .3);
         oscillator.onended = () => { oscillator.disconnect(); gain.disconnect(); };
       }
     } catch { /* Audio errors must not interrupt countdown completion. */ }

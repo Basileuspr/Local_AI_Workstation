@@ -4,6 +4,7 @@ export function createLocalAdapter(base = '', token = document.querySelector('me
   async function request(path, body) {
     const response = await fetch(`${base}/api/${path}`, {
       method: body === undefined ? 'GET' : 'POST',
+      cache: 'no-store',
       headers: { 'X-Organizer-Token': token, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });

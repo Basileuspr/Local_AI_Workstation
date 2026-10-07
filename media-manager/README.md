@@ -28,6 +28,18 @@ Batch actions accept up to 1,000 files and keep per-file operation logs.
 
 ## Private storage
 
+Duplicate previews keep a visible video area when playback controls expand,
+and Previous/Next copy keeps the viewer in playback mode. Failed loads expose
+Retry video playback and an error message. Unsupported codecs can be opened
+with a desktop player using Show in folder; browsing never transcodes media.
+
+The workspace refreshes saved scans and file availability while idle, when
+returning to the tab, and with Refresh library. Checks continue while a viewer
+is open, preserving playback unless that copy moved or became unavailable.
+Missing copies disappear from the duplicate grid; an open viewer reports the
+missing file and can navigate to remaining copies. Restoring the file at its
+recorded path and refreshing makes it available again.
+
 Desktop launch passes an explicit reports directory. Existing users retain
 their original Desktop/Media Organizer/runs data in place; fresh installations
 use the workstation's user-data directory under media-manager/runs. Existing

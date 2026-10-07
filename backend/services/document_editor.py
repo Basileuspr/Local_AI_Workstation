@@ -27,6 +27,8 @@ from services.document_tables import table_grid, write_table, read_table
 from services.document_styles import FONTS, style_catalog, write_styles, StyleReader
 from services.document_references import (valid_name, HEADING_ID, ReferenceWriter, ReferenceReader,
                                           validate_references, internal_link, missing_links)
+from services.document_notes import NoteWriter, NoteReader, validate_notes, validate_note_node
+from services.document_citations import CitationWriter, CitationReader, validate_citations
 
 MAX_FILE = 24 * 1024**2
 MAX_MODEL = 32 * 1024**2
@@ -35,7 +37,7 @@ DEFAULT_LAYOUT = {'paper': 'Letter', 'orientation': 'portrait', 'top': 1, 'botto
 ALIGN = {'left': WD_ALIGN_PARAGRAPH.LEFT, 'center': WD_ALIGN_PARAGRAPH.CENTER,
          'right': WD_ALIGN_PARAGRAPH.RIGHT, 'justify': WD_ALIGN_PARAGRAPH.JUSTIFY}
 SUPPORTED = {'doc', 'paragraph', 'heading', 'text', 'hardBreak', 'pageBreak',
-             'bulletList', 'orderedList', 'listItem', 'table', 'tableRow', 'tableCell', 'tableHeader', 'image', 'bookmark', 'tableOfContents'}
+             'bulletList', 'orderedList', 'listItem', 'table', 'tableRow', 'tableCell', 'tableHeader', 'image', 'bookmark', 'tableOfContents', 'documentNote', 'documentCitation', 'documentBibliography'}
 MARKS = {'bold', 'italic', 'underline', 'strike', 'subscript', 'superscript', 'textStyle', 'highlight', 'link'}
 COPY_NOTICE = ('This is an editable copy. Export creates a new DOCX containing the supported content. '
                'The original file is unchanged. Named paragraph styles retain supported formatting; pagination, themes and advanced Word features are not reproduced exactly.')
@@ -115,8 +117,8 @@ def image_bytes(src):
 
 def validate_model(doc):
     counts = {'nodes': 0, 'text': 0, 'images': 0}
-    children = {'doc': {'paragraph', 'heading', 'bulletList', 'orderedList', 'table', 'image', 'pageBreak', 'tableOfContents'},
-                'paragraph': {'text', 'hardBreak', 'bookmark'}, 'heading': {'text', 'hardBreak', 'bookmark'},
+    children = {'doc': {'paragraph', 'heading', 'bulletList', 'orderedList', 'table', 'image', 'pageBreak', 'tableOfContents', 'documentBibliography'},
+                'paragraph': {'text', 'hardBreak', 'bookmark', 'documentNote', 'documentCitation'}, 'heading': {'text', 'hardBreak', 'bookmark', 'documentNote', 'documentCitation'},
                 'bulletList': {'listItem'}, 'orderedList': {'listItem'},
                 'listItem': {'paragraph', 'heading', 'bulletList', 'orderedList'},
                 'table': {'tableRow'}, 'tableRow': {'tableCell', 'tableHeader'},
@@ -141,6 +143,9 @@ def validate_model(doc):
             counts['text'] += len(node['text'])
             if counts['text'] > 1_000_000 or re.search(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', node['text']):
                 raise ValueError('Document text is too long or contains unsupported control characters.')
+        if kind == 'documentNote':
+            validate_note_node(attrs)
+            visit(attrs['body'], depth + 1)
         if kind in ('paragraph', 'heading'):
             sid = attrs.get('styleId')
             if sid is not None and (not isinstance(sid, str) or sid not in styles):
@@ -194,6 +199,8 @@ def validate_model(doc):
     styles = style_catalog(doc)
     visit(doc)
     validate_references(doc)
+    validate_notes(doc)
+    validate_citations(doc)
 
 
 def _element(tag, **attrs):
@@ -201,6 +208,36 @@ def _element(tag, **attrs):
     for key, value in attrs.items():
         node.set(qn('w:' + key), str(value))
     return node
+
+
+def write_text_run(p, child):
+    run = p.add_run(child['text'])
+    for mark in child.get('marks', []):
+        name, ma = mark['type'], mark.get('attrs') or {}
+        if name in ('bold', 'italic', 'underline'):
+            setattr(run, name, True)
+        elif name in ('strike', 'subscript', 'superscript'):
+            setattr(run.font, name, True)
+        elif name == 'textStyle':
+            if ma.get('fontFamily'): run.font.name = ma['fontFamily']
+            if ma.get('fontSize'): run.font.size = Pt(font_size(ma['fontSize']))
+            if ma.get('color'): run.font.color.rgb = RGBColor.from_string(color(ma['color'])[1:])
+        elif name == 'highlight':
+            run._r.get_or_add_rPr().append(_element('shd', val='clear', fill=color(ma.get('color') or '#FFFF00')[1:]))
+        elif name == 'link':
+            if ma['href'].startswith('#'):
+                internal_link(p, run, ma['href'][1:])
+            else:
+                relation = p.part.relate_to(ma['href'], RT.HYPERLINK, is_external=True)
+                link = OxmlElement('w:hyperlink'); link.set(qn('r:id'), relation)
+                p._p.remove(run._r); link.append(run._r); p._p.append(link)
+                run.font.color.rgb = RGBColor.from_string('0563C1'); run.underline = True
+    # Explicit Off overrides inherited emphasis, independent of mark order.
+    for mark in child.get('marks', []):
+        if mark['type'] != 'textStyle': continue
+        ma = mark.get('attrs') or {}
+        if ma.get('fontWeight'): run.bold = ma['fontWeight'] == 'bold'
+        if ma.get('fontStyle'): run.italic = ma['fontStyle'] == 'italic'
 
 
 def export_docx(model, layout):
@@ -220,6 +257,8 @@ def export_docx(model, layout):
         setattr(section, key + '_margin', Inches(layout[key]))
     usable = width - layout['left'] - layout['right']
     write_page_details(document, layout)
+    notes = NoteWriter(document, model, write_text_run)
+    citations = CitationWriter(document, model, write_text_run)
 
     def numbering(kind, start):
         root = document.part.numbering_part.element
@@ -260,33 +299,11 @@ def export_docx(model, layout):
                 references.bookmark(p, child['attrs']['name']); continue
             if child['type'] == 'hardBreak':
                 p.add_run().add_break(); continue
-            run = p.add_run(child['text'])
-            for mark in child.get('marks', []):
-                name, ma = mark['type'], mark.get('attrs') or {}
-                if name in ('bold', 'italic', 'underline'):
-                    setattr(run, name, True)
-                elif name in ('strike', 'subscript', 'superscript'):
-                    setattr(run.font, name, True)
-                elif name == 'textStyle':
-                    if ma.get('fontFamily'): run.font.name = ma['fontFamily']
-                    if ma.get('fontSize'): run.font.size = Pt(font_size(ma['fontSize']))
-                    if ma.get('color'): run.font.color.rgb = RGBColor.from_string(color(ma['color'])[1:])
-                elif name == 'highlight':
-                    run._r.get_or_add_rPr().append(_element('shd', val='clear', fill=color(ma.get('color') or '#FFFF00')[1:]))
-                elif name == 'link':
-                    if ma['href'].startswith('#'):
-                        internal_link(p, run, ma['href'][1:])
-                    else:
-                        relation = p.part.relate_to(ma['href'], RT.HYPERLINK, is_external=True)
-                        link = OxmlElement('w:hyperlink'); link.set(qn('r:id'), relation)
-                        p._p.remove(run._r); link.append(run._r); p._p.append(link)
-                        run.font.color.rgb = RGBColor.from_string('0563C1'); run.underline = True
-            # Explicit Off overrides inherited emphasis, independent of mark order.
-            for mark in child.get('marks', []):
-                if mark['type'] != 'textStyle': continue
-                ma = mark.get('attrs') or {}
-                if ma.get('fontWeight'): run.bold = ma['fontWeight'] == 'bold'
-                if ma.get('fontStyle'): run.italic = ma['fontStyle'] == 'italic'
+            if child['type'] == 'documentNote':
+                notes.reference(p, child); continue
+            if child['type'] == 'documentCitation':
+                citations.citation(p, child['attrs']); continue
+            write_text_run(p, child)
         return p
 
     def write(parent, nodes, available=usable, depth=0):
@@ -315,6 +332,8 @@ def export_docx(model, layout):
                 write_table(parent, node, available, lambda cell, content, cell_width: write(cell, content, cell_width, depth))
             elif kind == 'tableOfContents':
                 references.contents(parent, attrs)
+            elif kind == 'documentBibliography':
+                citations.bibliography(parent, attrs)
     write(document, model.get('content', []))
     if not document.paragraphs and not document.tables:
         document.add_paragraph()
@@ -359,8 +378,8 @@ def import_docx(raw):
     warnings = [COPY_NOTICE]
     def warn(message):
         if message not in warnings: warnings.append(message)
-    if any(re.search(r'word/(footnotes|endnotes|comments)', name) for name in names):
-        warn('Notes and comments are not imported in this phase.')
+    if any(re.search(r'word/comments', name) for name in names):
+        warn('Comments are not imported in this phase.')
     if document.element.xpath('.//w:ins | .//w:del | .//w:fldChar | .//w:pict | .//w:object | .//w:altChunk'):
         warn('Tracked changes, content controls, fields, legacy drawings and embedded objects may be omitted or reduced to visible text. Review the copy against the original.')
     if len(document.sections) > 1:
@@ -408,6 +427,9 @@ def import_docx(raw):
             marks.append({'type': 'highlight', 'attrs': {'color': palette.get(int(run.font.highlight_color), '#FFFF00')}})
         return marks
 
+    notes = NoteReader(document, warn, run_marks, safe_link)
+    citations = CitationReader(document, warn)
+
     def paragraph(p):
         style = style_reader.read(p.style)
         kind, attrs = 'paragraph', {'styleId': style['id']}
@@ -434,7 +456,8 @@ def import_docx(raw):
             if content or force or attrs.get('referenceId'):
                 output.append({'type': kind, 'attrs': dict(attrs), 'content': list(content)}); content.clear()
                 attrs.pop('referenceId', None)
-        for child in p._p:
+        for child in citations.inline_items(p._p):
+            if isinstance(child, dict): content.append(child); continue
             if child.tag == qn('w:pPr'): continue
             if child.tag == qn('w:bookmarkStart'):
                 name = references.bookmark(child)
@@ -465,7 +488,9 @@ def import_docx(raw):
                 marks = run_marks(Run(elem, p))
                 if link: marks.append({'type': 'link', 'attrs': {'href': link}})
                 for part in elem:
-                    if part.tag in (qn('w:t'), qn('w:tab')):
+                    if part.tag in (qn('w:footnoteReference'), qn('w:endnoteReference')):
+                        content.append(notes.read(part, 'footnote' if part.tag == qn('w:footnoteReference') else 'endnote'))
+                    elif part.tag in (qn('w:t'), qn('w:tab')):
                         text = '\t' if part.tag == qn('w:tab') else part.text or ''
                         if text: content.append({'type': 'text', 'text': text, 'marks': marks})
                     elif part.tag in (qn('w:br'), qn('w:cr')):
@@ -519,6 +544,8 @@ def import_docx(raw):
             if child.tag == qn('w:p'): yield Paragraph(child, parent)
             elif child.tag == qn('w:tbl'): yield Table(child, parent)
             elif child.tag == qn('w:sdt'):
+                bibliography = citations.tagged(child, block=parent is document and depth == 0)
+                if bibliography and bibliography['type'] == 'documentBibliography': yield bibliography; continue
                 toc = references.contents(child, parent is document and depth == 0)
                 if toc: yield toc
                 else:
@@ -556,7 +583,9 @@ def import_docx(raw):
     if len(document.element.xpath('.//w:p | .//w:r | .//w:tc')) > 20000:
         raise ValueError('Document exceeds 20,000 paragraphs, runs or cells.')
     content = blocks(document) or [{'type': 'paragraph'}]
-    model = {'type': 'doc', 'attrs': {'styles': list(style_reader.catalog.values())}, 'content': content}
+    notes.finish()
+    model = {'type': 'doc', 'attrs': {'styles': list(style_reader.catalog.values()), 'noteSettings': notes.settings, 'sources': citations.sources, 'citationStyle': citations.style}, 'content': content}
+    citations.finish(model)
     validate_model(model)
     if missing_links(model): warn('Some internal links have missing destinations. Use References → Check internal links to review them.')
     return {'document': model, 'layout': layout, 'warnings': warnings}

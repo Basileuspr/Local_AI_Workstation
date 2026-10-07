@@ -11,6 +11,7 @@ import WorkflowRunPanel from "./WorkflowRunPanel";
 import BulkActions, { SelectionCheckbox } from "./BulkActions";
 import { useSelection } from "../useSelection";
 import WorkflowDeleteDialog from "./WorkflowDeleteDialog";
+import ActionMenu from './ActionMenu';
 import SceneStudio from "./SceneStudio";
 import { useDispatch, useStore } from "../useStore";
 import { MAX_IMAGE_STEPS, MAX_IMAGE_GUIDANCE } from "../imageGenerationLimits";
@@ -278,13 +279,15 @@ function StageWorkflows({ active }) {
           {library.map(item => <option key={item.id} value={item.id}>{item.name}{item.deletion_pending ? " · cleanup pending" : ""}</option>)}
         </select>
         <button onClick={() => run(create)}>+ New image workflow</button>
-        <button onClick={() => run(async () => setCatalog(await api.catalog()))}>Refresh providers</button>
         {draft && <>
-          <button type="button" className="danger" disabled={runIsActive(execution)} onClick={() => setDeleting([{id: draft.id, name: draft.name, revision: draft.revision}])}>Delete workflow</button>
           <button onClick={() => run(async () => { await saveCurrent(); setNotice("Workflow saved."); })}>{dirty ? "Save changes" : "Saved"}</button>
-          <button onClick={() => run(() => load(draft.id))}>Reload saved</button>
           <button onClick={() => run(async () => { accept(await api.branch(await saveCurrent())); setJobs([]); setExecution(null); setNotice("Next-scene draft created. Choose a kept result as the source for the next scene."); })}>Branch next scene</button>
         </>}
+        <ActionMenu label="Workflow options" actions={[
+          {label:'Refresh providers', disabled:busy, onClick:() => run(async () => setCatalog(await api.catalog()))},
+          draft && {label:'Reload saved', disabled:busy, onClick:() => run(() => load(draft.id))},
+          draft && {label:'Delete workflow', danger:true, disabled:busy || runIsActive(execution), onClick:() => setDeleting([{id:draft.id, name:draft.name, revision:draft.revision}])},
+        ]}/>
       </fieldset>
       <BulkActions selection={workflowSelection} items={library} label="workflows" disabled={busy}
         actions={[{label:"Delete selected workflows", danger:true, onClick:setDeleting}]} />

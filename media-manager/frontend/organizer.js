@@ -47,7 +47,7 @@ export class MediaOrganizer extends HTMLElement {
     try{const grouping=localStorage.getItem('mo-grouping'),view=localStorage.getItem('mo-view');if(['day','month','year','none'].includes(grouping))this.grouping=grouping;if(['grid','list','gallery'].includes(view))this.view=view;}catch{}
     this.innerHTML = `
       <a class="mo-skip" href="#mo-library">Skip to media library</a>
-      <header class="mo-header"><div class="mo-brand"><span class="mo-brand-mark">${icon('film')}</span><strong>Media Manager</strong><span class="mo-version">LOCAL WORKSPACE</span></div><div class="mo-header-tools"><button id="mo-reload-thumbnails">Reload thumbnails</button><span class="mo-local"><i></i> On your computer</span></div></header>
+      <header class="mo-header"><div class="mo-brand"><span class="mo-brand-mark">${icon('film')}</span><strong>Media Manager</strong><span class="mo-version">LOCAL WORKSPACE</span></div><div class="mo-header-tools"><button id="mo-refresh-library">Refresh library</button><button id="mo-reload-thumbnails">Reload thumbnails</button><span class="mo-local"><i></i> On your computer</span></div></header>
       <div class="mo-layout">
         <aside class="mo-sidebar" aria-label="Library navigation">
           <div class="mo-sidebar-top"><span class="mo-eyebrow">WORKSPACE</span><div class="mo-nav-current">${icon('grid')} Media library</div></div>
@@ -104,6 +104,7 @@ export class MediaOrganizer extends HTMLElement {
       <dialog class="mo-dialog mo-custom-dialog" id="mo-custom-dialog" aria-labelledby="mo-custom-dialog-title"></dialog>
       <dialog class="mo-dialog mo-confirm" id="mo-confirm" aria-labelledby="mo-confirm-title"></dialog>`;
     this.$('#mo-all-videos').onclick = () => this.attempt(() => this.load('all-scans'));
+    this.$('#mo-refresh-library').onclick = () => this.attempt(async () => { await this.refresh(); await this.refreshAvailability(); });
     this.$('#mo-reload-thumbnails').onclick = () => this.bindThumbnails(this, true);
     this.$('#mo-delete-selected').onclick = () => this.openBulkDelete();
     this.$('#mo-restore-selected').onclick = () => this.openBulkDelete('restore');
@@ -122,7 +123,7 @@ export class MediaOrganizer extends HTMLElement {
     this.renderLibrary();
     try { if (sessionStorage.getItem('mo-active-tab') === 'duplicates') this.switchTab('duplicates'); } catch {}
     this.poll();
-    this.checkAvailability = () => { void this.refreshAvailability(); };
+    this.checkAvailability = () => { if (!document.hidden) void this.poll(); };
     window.addEventListener('focus', this.checkAvailability);
     document.addEventListener('visibilitychange', this.checkAvailability);
     this.availabilityTimer = setInterval(this.checkAvailability, 15000);
@@ -139,12 +140,12 @@ export class MediaOrganizer extends HTMLElement {
   $(selector) { return this.querySelector(selector); }
   async refreshAvailability() {
     // Recheck real paths without resetting filters, selection, pagination or playback.
-    if (!this.isConnected || document.hidden || this.busy || this.checkingAvailability || !this.data || this.querySelector('dialog[open]')) return;
+    if (!this.isConnected || document.hidden || this.busy || this.checkingAvailability || !this.data) return;
     const previous = this.data, request = this.libraryRequest;
     this.checkingAvailability = true;
     try {
       const data = await this.adapter.library(previous.uiRunId);
-      if (!this.isConnected || this.busy || this.querySelector('dialog[open]') || this.data !== previous || this.libraryRequest !== request) return;
+      if (!this.isConnected || this.busy || this.data !== previous || this.libraryRequest !== request) return;
       if (JSON.stringify(data.records) !== JSON.stringify(previous.records)) {
         this.data = data;
         this.updatePlan();
@@ -157,13 +158,14 @@ export class MediaOrganizer extends HTMLElement {
     }
   }
   async poll() {
-    if (!this.isConnected) return;
-    try { await this.refresh(); }
+    if (!this.isConnected || this.polling) return;
+    this.polling = true;
+    try { await this.refresh(); await this.refreshAvailability(); }
     catch (error) {
       if (!this.isConnected) return;
       this.notice(`${error.message} Reconnecting…`, true);
       this.timer = setTimeout(() => this.poll(), 3000);
-    }
+    } finally { this.polling = false; }
   }
   async attempt(action) { try { await action(); } catch (error) { this.notice(error.message, true); } }
   notice(message, error = false) {
@@ -243,7 +245,10 @@ export class MediaOrganizer extends HTMLElement {
       if (event.target.value) await this.load(event.target.value);
       else this.newScan();
     }));
-    this.$('#mo-duplicate-viewer').addEventListener('close', () => { this.$('#mo-duplicate-viewer').innerHTML = ''; });
+    this.$('#mo-duplicate-viewer').addEventListener('close', () => {
+      this.stopDuplicateVideo(); this.$('#mo-duplicate-viewer').innerHTML = '';
+      void this.refreshAvailability();
+    });
     this.querySelectorAll('[data-pick]').forEach(button => button.addEventListener('click', () => this.attempt(async () => {
       button.disabled = true;
       try {
@@ -383,6 +388,7 @@ export class MediaOrganizer extends HTMLElement {
   }
   renderLibrary() {
     this.renderDuplicates();
+    this.syncDuplicateViewer();
     const records = availableRecords(this.data?.records || []);
     const scope = this.$('#mo-scope-description');
     scope.textContent = this.data?.aggregate ? `All videos across ${this.data.folderCount} scanned folders · ${this.data.scanCount} saved scans. Years use each video's resolved media date.${this.data.readErrors.length ? ` ${this.data.readErrors.length} saved scan(s) could not be read.` : ''}` : this.data ? `This saved scan: ${this.data.run.source_root}` : 'Scan folders to add their videos, then choose All videos to browse them together.';
@@ -633,6 +639,7 @@ export class MediaOrganizer extends HTMLElement {
       button.setAttribute('aria-selected', String(selected)); button.tabIndex = selected ? 0 : -1;
     });
     this.renderDuplicates();
+    void this.refreshAvailability();
   }
   bindThumbnails(root, retry = false) {
     this.rotationObserver ||= new ResizeObserver(() => this.applyRotations(this));
@@ -684,17 +691,66 @@ export class MediaOrganizer extends HTMLElement {
     result.querySelectorAll('[data-duplicate-reveal]').forEach(button => { button.onclick = () => this.attempt(() => this.adapter.reveal(this.data.uiRunId, button.dataset.duplicateReveal)); });
     this.$('#mo-duplicate-more')?.addEventListener('click', () => { this.duplicateLimit += 12; this.renderDuplicates(); });
   }
+  duplicateViewerGroup(recordId) {
+    const row = this.data?.records.find(row => row.RecordId === recordId);
+    if (!row) return null;
+    const copies = this.data.records.filter(copy => String(copy.SHA256).toUpperCase() === String(row.SHA256).toUpperCase() &&
+      (copy.RecordId === recordId || (copy.Available && !copy.Trashed)))
+      .sort((a,b) => Number(b.DuplicatePrimary === 'yes') - Number(a.DuplicatePrimary === 'yes') || String(a.CurrentPath).localeCompare(String(b.CurrentPath)));
+    return {id:row.DuplicateGroup || row.SHA256?.slice(0,12), copies};
+  }
+  stopDuplicateVideo() {
+    const video = this.$('#mo-duplicate-viewer')?.querySelector('video');
+    if (video) { video.pause(); video.removeAttribute('src'); video.load(); }
+  }
+  syncDuplicateViewer() {
+    const dialog = this.$('#mo-duplicate-viewer');
+    if (!dialog?.open) return;
+    const row = this.data?.uiRunId === dialog.dataset.runId && this.data.records.find(row => row.RecordId === dialog.dataset.recordId);
+    const available = Boolean(row?.Available && !row.Trashed);
+    const status = dialog.querySelector('[data-viewer-status]');
+    status.textContent = available ? '' : 'This copy is unavailable in the current library. Choose another copy, or restore its original location and refresh.';
+    dialog.querySelector('[data-viewer-play]').disabled = !available;
+    dialog.querySelector('[data-viewer-reveal]').disabled = !available;
+    const group = row ? this.duplicateViewerGroup(row.RecordId) : null, index = group?.copies.findIndex(copy => copy.RecordId === row.RecordId);
+    dialog.querySelector('[data-copy-previous]').disabled = !group || index <= 0;
+    dialog.querySelector('[data-copy-next]').disabled = !group || index >= group.copies.length-1;
+    if (row) {
+      dialog.querySelector('#mo-duplicate-viewer-title').textContent = row.OriginalFilename;
+      dialog.querySelector('.mo-viewer-location code').textContent = row.CurrentPath;
+      dialog.querySelector('.mo-viewer-heading p').textContent = `${dateLabel(row)} · Copy ${index+1} of ${group.copies.length} · ${group.id}`;
+    }
+    const video = dialog.querySelector('video');
+    if (video) {
+      const play = dialog.querySelector('[data-play]');
+      if (play) play.disabled = !available;
+      if (!available && video.hasAttribute('src')) this.stopDuplicateVideo();
+      else if (available && (!video.hasAttribute('src') || dialog.dataset.currentPath !== row.CurrentPath)) {
+        const resume = !video.paused;
+        video.src = this.adapter.mediaUrl(dialog.dataset.runId,row.RecordId); video.load();
+        if (resume) void video.play().catch(() => {});
+      }
+    }
+    if (row) dialog.dataset.currentPath = row.CurrentPath;
+  }
   showDuplicate(recordId, focusControl = null) {
-    const group = duplicateGroups(this.data?.records || []).find(group => group.copies.some(row => row.RecordId === recordId));
+    const group = this.duplicateViewerGroup(recordId);
     if (!group) return;
     const index = group.copies.findIndex(row => row.RecordId === recordId);
     const row = group.copies[index];
     const dialog = this.$('#mo-duplicate-viewer');
+    const playingMode = Boolean(dialog.querySelector('video'));
+    this.stopDuplicateVideo();
+    const runId = this.data.uiRunId;
+    dialog.dataset.recordId=recordId; dialog.dataset.runId=runId; dialog.dataset.currentPath=row.CurrentPath;
     dialog.innerHTML = `<div class="mo-viewer-heading"><div><h2 id="mo-duplicate-viewer-title">${escape(row.OriginalFilename)}</h2><p>${escape(dateLabel(row))} · Copy ${index + 1} of ${group.copies.length} · ${escape(group.id)}</p></div><button data-viewer-close class="mo-icon-button" aria-label="Close enlarged preview" autofocus>${icon('close')}</button></div><div class="mo-viewer-stage">${this.duplicateThumbnail(row, 'full')}</div>${this.identity(row)}${this.itemActions(row, true)}<div class="mo-viewer-location"><code>${escape(row.CurrentPath)}</code></div><div class="mo-viewer-actions"><div><button data-copy-previous ${index === 0 ? 'disabled' : ''}>Previous copy</button><button data-copy-next ${index === group.copies.length - 1 ? 'disabled' : ''}>Next copy</button></div><div><button data-viewer-play ${row.Available ? '' : 'disabled'}>Play video</button><button data-viewer-reveal ${row.Available ? '' : 'disabled'}>${icon('external')} Show in folder</button></div></div>`;
     this.bindThumbnails(dialog); this.bindItemActions(dialog);
+    dialog.querySelector('.mo-viewer-location').insertAdjacentHTML('afterend','<p data-viewer-status role="status"></p>');
     dialog.querySelector('[data-viewer-close]').onclick = () => dialog.close();
     const navigate = (step, control) => {
-      const next = group.copies[index + step];
+      const latest = this.data?.uiRunId === runId ? this.duplicateViewerGroup(recordId) : null;
+      const position = latest?.copies.findIndex(copy => copy.RecordId === recordId);
+      const next = latest?.copies[position + step];
       if (next) this.showDuplicate(next.RecordId, control);
     };
     dialog.querySelector('[data-copy-previous]').onclick = () => navigate(-1, '[data-copy-previous]');
@@ -703,17 +759,19 @@ export class MediaOrganizer extends HTMLElement {
       if (event.target.closest('video') || event.altKey || event.ctrlKey || event.metaKey) return;
       if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); navigate(event.key === 'ArrowLeft' ? -1 : 1, '[data-viewer-close]'); }
     };
-    dialog.querySelector('[data-viewer-reveal]').onclick = () => this.dialogAttempt(dialog, () => this.adapter.reveal(this.data.uiRunId, row.RecordId));
+    dialog.querySelector('[data-viewer-reveal]').onclick = () => this.dialogAttempt(dialog, () => this.adapter.reveal(runId, row.RecordId));
     dialog.querySelector('[data-viewer-play]').onclick = () => {
       const stage = dialog.querySelector('.mo-viewer-stage');
       const button = dialog.querySelector('[data-viewer-play]');
       dialog.querySelector('.mo-playback-tools')?.remove();
-      if (stage.querySelector('video')) { stage.innerHTML = this.duplicateThumbnail(row, 'full'); this.bindThumbnails(stage); button.textContent = 'Play video'; }
-      else { stage.innerHTML = `<video data-rotation-record="${escape(row.RecordId)}" controls autoplay playsinline src="${escape(this.adapter.mediaUrl(this.data.uiRunId, row.RecordId))}" aria-label="Play ${escape(row.OriginalFilename)}"></video>`; button.textContent = 'Show thumbnail'; }
+      if (stage.querySelector('video')) { this.stopDuplicateVideo(); stage.innerHTML = this.duplicateThumbnail(row, 'full'); this.bindThumbnails(stage); button.textContent = 'Play video'; }
+      else { stage.innerHTML = `<video data-rotation-record="${escape(row.RecordId)}" controls autoplay playsinline src="${escape(this.adapter.mediaUrl(runId, row.RecordId))}" aria-label="Play ${escape(row.OriginalFilename)}"></video>`; button.textContent = 'Show thumbnail'; }
       attachPlayback(this, stage, row);
       this.applyRotations(stage);
     };
     if (!dialog.open) dialog.showModal();
+    if (playingMode && row.Available && !row.Trashed) dialog.querySelector('[data-viewer-play]').click();
+    this.syncDuplicateViewer();
     this.applyRotations(dialog);
     if (focusControl) {
       const control = focusControl && dialog.querySelector(focusControl);

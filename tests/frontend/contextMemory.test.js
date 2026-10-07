@@ -14,6 +14,7 @@ import {
   getContextStatus,
   getContextUsage,
   rotateContextMemory,
+  recentTurnStart,
 } from "../../src/contextMemory.js";
 
 const CONTEXT_SAFETY_RESERVE = 512;
@@ -82,12 +83,12 @@ describe("getContextUsage — output reserve", () => {
   });
 
   it("reserves a proportional slice when the response length is unlimited", () => {
-    // -1 means "Unlimited" in the UI: min(4096, floor(window * 0.45)).
-    expect(usageFor({ responseLength: -1, contextWindow: 8192 }).outputReserve).toBe(3686);
+    // Unlimited is still bounded so the request leaves room for input.
+    expect(usageFor({ responseLength: -1, contextWindow: 8192 }).outputReserve).toBe(2048);
   });
 
-  it("caps the unlimited reserve at 4096 on very large windows", () => {
-    expect(usageFor({ responseLength: -1, contextWindow: 128000 }).outputReserve).toBe(4096);
+  it("caps the unlimited reserve at 2048 on very large windows", () => {
+    expect(usageFor({ responseLength: -1, contextWindow: 128000 }).outputReserve).toBe(2048);
   });
 });
 
@@ -147,8 +148,8 @@ describe("getContextUsage — prompt accounting", () => {
       messages: [{ role: "user", content: "look", images: ["base64data"] }],
     });
 
-    // Images are charged a flat 700-token allowance each.
-    expect(withImage.unsummarizedTokens - withoutImage.unsummarizedTokens).toBe(700);
+    // Vision costs vary; use a conservative reserve, not a claimed exact count.
+    expect(withImage.unsummarizedTokens - withoutImage.unsummarizedTokens).toBe(2048);
   });
 
   it("treats an empty conversation as zero prompt tokens", () => {
@@ -208,6 +209,15 @@ describe("formatTokenEstimate", () => {
 });
 
 describe("buildContextMessages", () => {
+  it('keeps pending image uploads with the latest question and drops only older pixel groups', () => {
+    const history = [{ role: 'user', content: 'old image', images: ['old'] }, { role: 'assistant', content: 'Old observations.' },
+      { role: 'user', content: 'image A', images: ['a'] }, { role: 'user', content: 'image B', images: ['b'] }, { role: 'user', content: 'Compare them.' }];
+    expect(recentTurnStart(history)).toBe(2);
+    const built = buildContextMessages(history, '', 0);
+    expect(built[0].images).toBeUndefined();
+    expect(built.slice(2)).toEqual(history.slice(2));
+    expect(history[0].images).toEqual(['old']);
+  });
   it("sends only the unsummarized tail", () => {
     const built = buildContextMessages(messages(6), "", 4);
 
@@ -261,6 +271,16 @@ describe("buildContextMessages", () => {
 });
 
 describe("rotateContextMemory", () => {
+  it('compacts a four-message overflow without sacrificing the newest turn', async () => {
+    const all = longMessages(4);
+    const compactMemory = vi.fn().mockResolvedValue({ summary: 'Keep original files.' });
+    const result = await rotateContextMemory({ api: { compactMemory }, model: 'local', messages: all,
+      memorySummary: '', summarizedMessageCount: 0, contextWindow: 4096, responseLength: 512, useDurableMemory: false });
+    expect(compactMemory).toHaveBeenCalledTimes(1);
+    expect(result.summarizedMessageCount).toBe(2);
+    expect(result.contextMessages.slice(-2)).toEqual(all.slice(-2));
+    expect(result.usage.promptTokens).toBeLessThan(4096);
+  });
   function apiReturning(summary) {
     return { compactMemory: vi.fn().mockResolvedValue({ summary }) };
   }
@@ -292,11 +312,11 @@ describe("rotateContextMemory", () => {
   it("refuses to compact when only the protected recent messages remain", async () => {
     const api = apiReturning("nope");
 
-    // Four messages is the retention floor, so there is nothing older to fold in.
+    // The latest user request and answer are retained together.
     await rotateContextMemory({
       ...baseArgs,
       api,
-      messages: longMessages(4),
+      messages: longMessages(2),
       memorySummary: "",
       summarizedMessageCount: 0,
       force: true,
@@ -305,11 +325,9 @@ describe("rotateContextMemory", () => {
     expect(api.compactMemory).not.toHaveBeenCalled();
   });
 
-  it("does not compact history that already fits, even when forced", async () => {
+  it("allows manual compaction of older turns even when the history fits", async () => {
     const api = apiReturning("nope");
 
-    // `force` skips the ratio check, not the budget check: if the whole
-    // conversation fits alongside the retained tail there is nothing to fold in.
     await rotateContextMemory({
       ...baseArgs,
       api,
@@ -319,7 +337,8 @@ describe("rotateContextMemory", () => {
       force: true,
     });
 
-    expect(api.compactMemory).not.toHaveBeenCalled();
+    expect(api.compactMemory).toHaveBeenCalledTimes(1);
+    expect(api.compactMemory.mock.calls[0][0].messages).toHaveLength(18);
   });
 
   it("compacts when forced and there is older history to fold in", async () => {
@@ -355,7 +374,7 @@ describe("rotateContextMemory", () => {
     expect(result.memorySummary).toBe("Auto summary.");
   });
 
-  it("keeps at least the four newest messages out of the summary", async () => {
+  it("keeps the latest complete turn rather than four arbitrarily large messages", async () => {
     const api = apiReturning("summary");
     const all = longMessages(30);
 
@@ -368,7 +387,8 @@ describe("rotateContextMemory", () => {
       force: true,
     });
 
-    expect(all.length - result.summarizedMessageCount).toBeGreaterThanOrEqual(4);
+    expect(all.length - result.summarizedMessageCount).toBe(2);
+    expect(result.contextMessages.slice(-2)).toEqual(all.slice(-2));
   });
 
   it("forwards the previous summary and cancellation handles to the backend", async () => {

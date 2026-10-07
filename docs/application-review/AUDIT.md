@@ -225,7 +225,7 @@ Official guidance: [https://onnxruntime.ai/docs/execution-providers/CUDA-Executi
 
 ### R11 · P1 · Interrupted LoRA states need a complete restart reconciliation contract
 
-**Evidence:** Confirmed source gap; forced-crash behavior unverified.
+**Evidence:** Implemented restart reconciliation; isolated recovery and real synthetic orphan-process checks passed; production GPU forced-crash behavior unverified.
 
 LoRA project loading reconciles queued jobs after a queue restart, but the inspected loader does not reconcile starting/running/cancelling states. The manager tracks child identity in memory and cancel requires its active child. Its normal watcher performs cleanup, but that watcher cannot be assumed to run after backend termination. Electron reports unexpected backend exit; the inspected close handler does not automatically restart it.
 
@@ -235,7 +235,15 @@ LoRA project loading reconciles queued jobs after a queue restart, but the inspe
 
 **Preserve:** Incorrect recovery could release GPU ownership while a worker remains alive or damage training data.
 
-Source: [backend/services/lora_store.py](../../backend/services/lora_store.py), [backend/services/lora_training.py](../../backend/services/lora_training.py), [electron/main.js](../../electron/main.js).
+Source: [backend/services/lora_store.py](../../backend/services/lora_store.py), [backend/services/lora_training.py](../../backend/services/lora_training.py), [backend/services/lora_recovery.py](../../backend/services/lora_recovery.py), [backend/routes/lora.py](../../backend/routes/lora.py), [src/components/LoraStudio.jsx](../../src/components/LoraStudio.jsx), [src/api.js](../../src/api.js).
+
+**Status:** Implemented · 2026-10-06
+
+**Completed change:** Startup reconciliation persists interrupted states for dead queued/starting/running/cancelling runs, restores matching completed packages, and retains GPU ownership for verified surviving or inaccessible recorded workers. The LoRA pane offers deliberate recovery; worker identity is rechecked before termination and project persistence precedes stale-lock removal. Datasets, checkpoints and completed adapters are preserved.
+
+**Verification result:** 92 focused backend tests and 4 frontend checks passed; scratch Vite frontend build and scoped diff checks passed. Includes an abruptly exiting disposable backend parent with a real synthetic orphan worker, legacy/inaccessible worker ownership, malformed locks, stale/reused PID handling, independent worker exit, retraining admission, completion/data preservation, monitor failure and injected disk-full recovery. Real GPU training and production desktop forced-crash behavior remain unverified.
+
+[Before/after measurements and preservation checks](changes/R11-lora-restart-recovery.md)
 
 ## Already implemented
 

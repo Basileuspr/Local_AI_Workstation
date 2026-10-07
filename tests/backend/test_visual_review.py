@@ -42,6 +42,19 @@ def register(raw,identifier='one',source='media-manager'):
     digest=hashlib.sha256(raw).hexdigest();store.register(source,identifier,identifier,digest);return digest
 
 
+def test_native_video_tags_reconcile_shared_edits_clears_and_later_native_changes():
+    register(picture())
+    assert store.sync_media_tags('one',['Native'])['tags']==['Native']
+    store.review('media-manager','one',{'tags':['Shared'],'review_status':'reviewed'})
+    assert store.sync_media_tags('one',['Native'])['tags']==['Shared']
+    assert store.sync_media_tags('one',['Shared'])['review_status']=='reviewed'
+    store.review('media-manager','one',{'tags':[]})
+    assert store.sync_media_tags('one',['Shared'])['tags']==[]
+    assert store.sync_media_tags('one',[])['tags']==[]
+    assert store.sync_media_tags('one',['Later native'])['tags']==['Later native']
+    with pytest.raises(ValueError): store.review('media-manager','one',{'tags':['x'*61]})
+
+
 def test_groups_all_faces_by_similarity_and_names_once_across_images():
     a=register(picture(),'a');b=register(picture('blue'),'b')
     store.add_faces(a,picture(),[face(vector(0)),face(vector(1),(45,0,90,45))])

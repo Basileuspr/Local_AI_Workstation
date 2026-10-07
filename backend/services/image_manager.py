@@ -18,17 +18,18 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
-from PIL import Image, ImageOps
+from PIL import Image
 from config import settings
 from . import image_manager_trash
 from . import visual_review_names
+from .image_manager_metadata import FORMATS, image_metadata, signature
+from .image_manager_storage import no_links
+from .image_manager_previews import PreviewCache
 
 EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff", ".avif", ".gif"}
-FORMATS = {"JPEG", "PNG", "WEBP", "BMP", "TIFF", "AVIF", "GIF"}
 LAYOUTS = {"month", "day", "format", "folders"}
 FUNCTION_STEPS = {"scan", "duplicates", "plan", "duplicate-plan", "report"}
 MAX_PLAN = 1000
-MAX_PREVIEW_PIXELS = 40_000_000
 
 
 class Stopped(Exception):
@@ -43,52 +44,10 @@ def path_key(path):
     return str(Path(path).absolute()).casefold()
 
 
-def no_links(path):
-    """Validate every existing component before resolving a filesystem path."""
-    path = Path(path).absolute()
-    for part in [path, *path.parents]:
-        if part.is_symlink() or part.is_junction():
-            raise ValueError("Directory links, symbolic links and junctions are excluded.")
-    if any("nvidia" in part.casefold() for part in path.parts):
-        raise ValueError("NVIDIA paths are excluded.")
-    return path
-
-
-def signature(info):
-    return [info.st_size, info.st_mtime_ns, info.st_dev, info.st_ino]
-
-
-def image_metadata(path):
-    info = path.stat()
-    with Image.open(path) as image:
-        if image.format not in FORMATS or getattr(image, "is_animated", False) or getattr(image, "n_frames", 1) > 1:
-            raise ValueError("Animated/multiple-frame media is excluded.")
-        width, height = image.size
-        orientation = 1
-        captured = None
-        try:
-            exif = image.getexif()
-            orientation = exif.get(274, 1)
-            dates = [exif.get(36867), exif.get_ifd(34665).get(36867), exif.get(306)]
-            for value in dates:
-                if isinstance(value, str):
-                    try:
-                        captured = datetime.strptime(value.rstrip("\x00"), "%Y:%m:%d %H:%M:%S").isoformat()
-                        break
-                    except ValueError:
-                        continue
-        except (ValueError, KeyError, TypeError, OSError, SyntaxError):
-            pass
-        if orientation in (5, 6, 7, 8):
-            width, height = height, width
-        return {"width": width, "height": height, "format": image.format,
-                "date": captured or datetime.fromtimestamp(info.st_mtime, timezone.utc).isoformat(),
-                "date_source": "EXIF" if captured else "File modified", "signature": signature(info), "bytes": info.st_size}
-
-
 class ImageManager:
     def __init__(self, directory=None, *, scan_limit=100_000):
-        self.directory = Path(directory) if directory is not None else settings.data_dir / "image_manager"
+        self.directory = Path(directory) if directory is not None else settings.image_manager_dir
+        self._migrate_legacy = directory is None
         self.scan_limit = scan_limit
         self.lock = threading.RLock()
         self.cancel = threading.Event()
@@ -96,12 +55,18 @@ class ImageManager:
         self.worker = None
         self._initialized = False
         self.preview_slots = threading.BoundedSemaphore(2)
+        self.previews = PreviewCache()
         self.trash_reviews = {}
 
     @contextmanager
     def database(self):
-        self.directory.mkdir(parents=True, exist_ok=True)
-        connection = sqlite3.connect(self.directory / "catalog.sqlite3", timeout=30)
+        with self.lock:
+            if self._migrate_legacy:
+                from .image_manager_storage import ensure_catalog
+                ensure_catalog(settings.data_dir, self.directory)
+                self._migrate_legacy = False
+        no_links(self.directory).mkdir(parents=True, exist_ok=True)
+        connection = sqlite3.connect(no_links(self.directory / "catalog.sqlite3"), timeout=30)
         connection.row_factory = sqlite3.Row
         try:
             with self.lock:
@@ -316,35 +281,7 @@ class ImageManager:
         return groups
 
     def thumbnail(self, identifier, size=320):
-        record, source = self.image_path(identifier)
-        key = hashlib.sha256((identifier + json.dumps(record["signature"]) + str(size)).encode()).hexdigest()
-        cache = self.directory / "thumbnails" / (key + ".jpg")
-        if cache.is_file():
-            return cache
-        if record["width"] * record["height"] > MAX_PREVIEW_PIXELS or record["bytes"] > 256 * 1024 * 1024:
-            raise ValueError("This image exceeds the preview limit (40 megapixels / 256 MiB).")
-        with self.preview_slots:
-            if cache.is_file():
-                return cache
-            cache.parent.mkdir(parents=True, exist_ok=True)
-            temporary = cache.with_suffix("." + uuid.uuid4().hex + ".tmp")
-            try:
-                with Image.open(source) as original:
-                    original.draft("RGB", (size, size))
-                    image = ImageOps.exif_transpose(original)
-                    image.thumbnail((size, size))
-                    if image.mode in ("RGBA", "LA") or "transparency" in image.info:
-                        canvas = Image.new("RGB", image.size, "#161e29")
-                        rgba = image.convert("RGBA"); canvas.paste(rgba, mask=rgba.getchannel("A")); image = canvas
-                    else:
-                        image = image.convert("RGB")
-                    image.save(temporary, "JPEG", quality=84)
-                # Recheck before publishing a thumbnail of a source that may have changed.
-                self.image_path(identifier)
-                temporary.replace(cache)
-            finally:
-                temporary.unlink(missing_ok=True)
-        return cache
+        return self.previews.get(self, identifier, size)
 
     def functions(self):
         with self.database() as db:

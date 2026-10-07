@@ -69,6 +69,13 @@ function coordinator(doc) {
 
 export function installPopupDismissal(doc) { return coordinator(doc).acquire(); }
 
+export function dismissPopupLayers(doc, reason = 'action', include = () => true) {
+  for (const layer of [...coordinator(doc).layers].reverse()) {
+    const node = layer.node();
+    if (visible(node) && include(node)) layer.dismiss(reason);
+  }
+}
+
 export function registerPopupLayer(doc, layer) {
   const manager = coordinator(doc), release = manager.acquire();
   manager.layers.push(layer);

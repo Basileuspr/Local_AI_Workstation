@@ -11,6 +11,7 @@ import {
 } from "../preferences";
 import { responseStyles } from "../responseStyle";
 import CustomProfileControls from "./CustomProfileControls";
+import ChatToolSettings from './ChatToolSettings';
 import VoiceOutputSettings from './VoiceOutputSettings';
 import SoundOutputSettings from './SoundOutputSettings';
 import AppearanceSettings from "./AppearanceSettings";
@@ -20,7 +21,8 @@ export default function SettingsPanel() {
   const pane = useChatPane();
   const dispatch = useDispatch();
   const panel = useRef(null);
-  useDismissiblePopup({ open: state.settingsOpen, container: panel,
+  // This is a working editor: keep it available while using the chat and menus.
+  useDismissiblePopup({ open: state.settingsOpen, container: panel, dismissOnOutside: false,
     onDismiss: () => dispatch({ type: 'SET_SETTINGS_OPEN', payload: false }),
     returnFocus: () => document.getElementById(pane.domId('header'))?.querySelector('[aria-label="Chat options"]') });
   const [durableMemoryDraft, setDurableMemoryDraft] = useState("");
@@ -100,6 +102,15 @@ export default function SettingsPanel() {
   return (
     <div id={pane.domId("settings-panel")} className="visible" ref={panel}>
       <div id={pane.domId("settings-inner")}>
+        <div className="settings-top-actions">
+          <strong>Model / roleplay settings</strong>
+          <div className="preferences-actions">
+            <button type="button" aria-label="Close model / roleplay settings"
+              onClick={() => dispatch({ type: 'SET_SETTINGS_OPEN', payload: false })}>
+              Close settings
+            </button>
+          </div>
+        </div>
         <AppearanceSettings />
         <SoundOutputSettings/>
         <VoiceOutputSettings/>
@@ -300,6 +311,7 @@ export default function SettingsPanel() {
           ))}
         </div>
 
+        <ChatToolSettings />
         <CustomProfileControls />
 
         <div

@@ -25,7 +25,65 @@
 const dataset = JSON.parse(document.getElementById("review-data").textContent);
 const report = dataset.review, snapshots = dataset.snapshots, latest = snapshots.at(-1), first = snapshots[0];
 const e = value => String(value ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
-const sourceLink = name => `<a class="path" href="../../${name.split('/').map(encodeURIComponent).join('/')}">${e(name)}</a>`;
+// October 5 documentation moves: retain historical labels, open current guides.
+const documentMoves = {
+  "CHAT_IMAGE_GENERATION.md": "docs/chat/CHAT_IMAGE_GENERATION.md",
+  "CHAT_IMAGES_AND_SOFTWARE_SPECS.md": "docs/chat/CHAT_IMAGES_AND_SOFTWARE_SPECS.md",
+  "DUAL_CHAT.md": "docs/chat/DUAL_CHAT.md",
+  "MEDIA_ACTIONS_AND_CHAT_EDIT.md": "docs/chat/MEDIA_ACTIONS_AND_CHAT_EDIT.md",
+  "docs/CHAT_DOCUMENTS.md": "docs/chat/CHAT_DOCUMENTS.md",
+  "docs/CHAT_CLIPBOARD.md": "docs/chat/CHAT_CLIPBOARD.md",
+  "CHARACTER_PARTS.md": "docs/images/CHARACTER_PARTS.md",
+  "CHARACTERS.md": "docs/images/CHARACTERS.md",
+  "CPU_ASSISTANCE.md": "docs/images/CPU_ASSISTANCE.md",
+  "FACE_FOLDERS.md": "docs/images/FACE_FOLDERS.md",
+  "GALLERY_AND_BULK_ACTIONS.md": "docs/images/GALLERY_AND_BULK_ACTIONS.md",
+  "IMAGE_COLLECTIONS.md": "docs/images/IMAGE_COLLECTIONS.md",
+  "IMAGE_EDITOR.md": "docs/images/IMAGE_EDITOR.md",
+  "IMAGE_MANAGER.md": "docs/images/IMAGE_MANAGER.md",
+  "IMAGE_WORKFLOWS.md": "docs/images/IMAGE_WORKFLOWS.md",
+  "PROMPT_QUEUE.md": "docs/images/PROMPT_QUEUE.md",
+  "VISUAL_REVIEW.md": "docs/images/VISUAL_REVIEW.md",
+  "AUDIO.md": "docs/media/AUDIO.md",
+  "MEDIA_MANAGER.md": "docs/media/MEDIA_MANAGER.md",
+  "PAINT.md": "docs/media/PAINT.md",
+  "docs/THREE_D_VIEWER.md": "docs/media/THREE_D_VIEWER.md",
+  "DOCUMENT_EDITOR.md": "docs/workspace/DOCUMENT_EDITOR.md",
+  "FOLDER_REVIEW.md": "docs/workspace/FOLDER_REVIEW.md",
+  "FUNCTIONS.md": "docs/workspace/FUNCTIONS.md",
+  "KNOWLEDGE_VAULT.md": "docs/workspace/KNOWLEDGE_VAULT.md",
+  "docs/LOCAL_FILES.md": "docs/workspace/LOCAL_FILES.md",
+  "docs/SHORTCUT_REGISTRY.md": "docs/workspace/SHORTCUT_REGISTRY.md",
+  "docs/WORKSPACE_IMPROVEMENTS.md": "docs/workspace/WORKSPACE_IMPROVEMENTS.md",
+  "WINDOWS_COMPATIBILITY.md": "docs/setup/WINDOWS_COMPATIBILITY.md",
+  "WINDOW_RENDERING.md": "docs/setup/WINDOW_RENDERING.md",
+  "PC_BRIDGE.md": "docs/setup/PC_BRIDGE.md",
+  "APPLICATION_AWARENESS.md": "docs/development/APPLICATION_AWARENESS.md",
+  "GITHUB_PUBLICATION.md": "docs/development/GITHUB_PUBLICATION.md",
+  "TOOL_REGISTRY.md": "docs/development/TOOL_REGISTRY.md",
+  "INTERNET_ACCESS_PROPOSAL.md": "docs/development/INTERNET_ACCESS_PROPOSAL.md",
+  "ROADMAP_SEGMENTS_4_6.md": "docs/development/ROADMAP_SEGMENTS_4_6.md",
+  "docs/BROWSER_SECURITY.md": "docs/development/BROWSER_SECURITY.md",
+  "docs/LOCAL_TOOL_EXECUTION.md": "docs/development/LOCAL_TOOL_EXECUTION.md",
+  "ARCHITECTURE_CURRENT.md": "docs/archive/ARCHITECTURE_CURRENT.md",
+  "CLAUDE_CODE_HANDOFF.md": "docs/archive/CLAUDE_CODE_HANDOFF.md",
+  "HANDOFF.md": "docs/archive/HANDOFF.md",
+  "SESSION_HANDOFF.md": "docs/archive/SESSION_HANDOFF.md",
+  "SESSION_HANDOFF_2026-09-19.md": "docs/archive/SESSION_HANDOFF_2026-09-19.md",
+  "ROADMAP_ORIGINAL_7_SEGMENTS.md": "docs/archive/ROADMAP_ORIGINAL_7_SEGMENTS.md",
+  "PERFORMANCE_REVIEW_2026-09-20.md": "docs/archive/PERFORMANCE_REVIEW_2026-09-20.md",
+  "REMAINING_TASKS.md": "docs/archive/REMAINING_TASKS.md",
+  "PROJECT_STATUS.md": "docs/archive/PROJECT_STATUS.md",
+  "GENERATION_CONTROLS.md": "docs/images/GENERATION.md#generation-controls",
+  "ANALYZE_AND_ITERATE.md": "docs/images/GENERATION.md#analyze-and-iterate",
+  "DASHBOARD_STORAGE.md": "docs/workspace/STORAGE_AND_BACKUP.md#drive-folder-sizes",
+  "DASHBOARD_RESET.md": "docs/workspace/STORAGE_AND_BACKUP.md#app-data-controls"
+};
+const sourceLink = name => {
+  const [path, anchor] = (documentMoves[name] || name).split("#");
+  const target = path.split('/').map(encodeURIComponent).join('/') + (anchor ? '#' + encodeURIComponent(anchor) : '');
+  return `<a class="path" href="../../${target}">${e(name)}</a>`;
+};
 const sourceLinks = paths => paths.map(sourceLink).join(" · ");
 const put = (id, value) => { document.getElementById(id).innerHTML = value; };
 const date = value => value ? new Date(value).toLocaleString("en-US",{timeZone:"America/Denver",year:"numeric",month:"short",day:"numeric",hour:"numeric",minute:"2-digit",second:"2-digit",timeZoneName:"short"}) : "Unavailable";

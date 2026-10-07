@@ -1,0 +1,10 @@
+[
+  { "id": "computer-management", "name": "Computer Management", "description": "Open the management console for disks and other system tools." },
+  { "id": "disk-cleanup", "name": "Disk Cleanup", "description": "Open the drive selection dialog. Choose cleanup options yourself." },
+  { "id": "db-browser-sqlite", "name": "DB Browser for SQLite", "description": "Open the database browser without selecting a database.", "configurable": true },
+  { "id": "registry-editor", "name": "Registry Editor", "description": "Open Registry Editor. Use the location below for User Shell Folders." },
+  { "id": "power-automate", "name": "Power Automate", "description": "Open the console or sign-in window.", "configurable": true },
+  { "id": "system-information", "name": "System Information", "description": "Open the System Summary window." },
+  { "id": "system-properties", "name": "System Properties", "description": "Open the Computer Name tab with Hardware, Advanced, System Protection and Remote." },
+  { "id": "godmode", "name": "GodMode", "description": "Open the desktop folder of Windows settings and tools in File Explorer." }
+]

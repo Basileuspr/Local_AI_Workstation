@@ -1,0 +1,188 @@
+/* Shared action-control density. Workspace content and native surfaces keep
+   their own geometry; selected, primary, danger and disabled colors stay local. */
+:root {
+  --control-height: 30px;
+  --control-font-size: 12px;
+  --control-radius: 5px;
+  --control-gap: 6px;
+}
+
+:is(#app [data-capture-tab], .im-dialog, .de-dialog, .character-dialog,
+    .visual-review-dialog, .image-request-editor, .iterate-dialog,
+    .workspace-info-dialog, .appearance-dialog, .face-help-dialog,
+    .app-update-dialog, .collection-dialog, .chat-rename-dialog,
+    .save-image-prompts-dialog, .reset-confirmation, .folder-space-dialog)
+  :where(button):not(:where(
+    :has(img, canvas, video), .gallery-item, .im-image, .im-name,
+    .chat-image-open, .face-thumb, .gif-thumbnail, .gif-frame-preview,
+    .generate-reference-preview, .character-tile-image, .match-card,
+    .paint-handle, .paint-canvas-handle, .paint-palette button,
+    .emoji-grid button, .emoji-launch, .workspace-info-button,
+    .image-info-button, .workstation-clock, .function-launcher,
+    .de-quick .de-button, .image-viewer-arrow)) {
+  min-width: 0;
+  min-height: var(--control-height);
+  max-width: 100%;
+  padding: 5px 9px;
+  border-radius: var(--control-radius);
+  font-family: var(--font-body);
+  font-size: var(--control-font-size);
+  line-height: 18px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+:is(#app [data-capture-tab], .im-dialog, .de-dialog, .character-dialog,
+    .visual-review-dialog, .image-request-editor, .iterate-dialog,
+    .workspace-info-dialog, .appearance-dialog, .face-help-dialog,
+    .app-update-dialog, .collection-dialog, .chat-rename-dialog,
+    .save-image-prompts-dialog, .reset-confirmation, .folder-space-dialog)
+  :where(select:not([multiple]):not([size]), select[size="1"],
+    input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]):not([type=hidden])) {
+  min-width: 0;
+  min-height: var(--control-height);
+  max-width: 100%;
+  padding: 5px 8px;
+  border-radius: var(--control-radius);
+  font-family: var(--font-body);
+  font-size: var(--control-font-size);
+  line-height: 18px;
+}
+
+#app [data-capture-tab] :where(button, select, input):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+#app [data-capture-tab] .document-editor :where(button, select, input):focus-visible {
+  outline-color: #1766be;
+}
+
+/* A consistent rhythm for existing action rows and filter groups. */
+#app [data-capture-tab] :is(
+  .tools-toolbar, .browser-toolbar, .local-toolbar, .audio-controls,
+  .chat-image-toolbar, .chat-export-buttons, .chat-export-controls,
+  .custom-profile-toolbar, .custom-profile-actions, .roleplay-actions,
+  .preferences-actions, .settings-top-actions, .image-studio-header-actions,
+  .image-studio-result-actions, .image-output-folder, .ie-toolbar,
+  .ie-lock-controls, .image-destination-bar, .image-item-actions,
+  .image-library-toolbar, .image-library-density, .im-controls, .im-selection,
+  .im-existing-tag, .im-pagination, .vr-actions, .rw-controls,
+  .review-controls, .review-destinations, .review-votes,
+  .workflow-toolbar, .workflow-actions, .lora-training-actions,
+  .character-actions, .character-resource-picker, .character-links-add,
+  .face-actions, .face-toolbar, .learning-actions,
+  .learning-lesson-group-buttons, .learning-workspace-links,
+  .learning-sample-actions, .match-actions, .model-toolbar,
+  .model-viewport-toolbar, .linked-tabs, .hash-audit-actions,
+  .hash-catalog-toolbar, .folder-review-actions, .gif-maker-toolbar,
+  .gif-thumbnail-toolbar, .gif-player-controls, .registry-filters,
+  .registry-folder-actions, .tool-registry-filters,
+  .dashboard-header-buttons, .dashboard-drive-actions, .storage-actions,
+  .sound-output-actions, .sound-output-controls, .bridge-actions,
+  .paint-options, .paint-tools, .paint-shapes) {
+  gap: var(--control-gap);
+}
+
+#app [data-capture-tab] :is(
+  .tools-toolbar, .browser-toolbar, .local-toolbar, .ie-toolbar,
+  .image-studio-header-actions, .image-studio-result-actions,
+  .im-controls, .im-selection, .im-existing-tag, .vr-actions,
+  .review-controls, .review-destinations, .review-votes,
+  .workflow-toolbar, .workflow-actions, .character-actions,
+  .face-actions, .face-toolbar, .learning-actions, .match-actions,
+  .model-toolbar, .model-viewport-toolbar, .hash-audit-actions,
+  .hash-catalog-toolbar, .folder-review-actions, .gif-maker-toolbar,
+  .gif-thumbnail-toolbar, .gif-player-controls, .registry-folder-actions,
+  .dashboard-header-buttons, .dashboard-drive-actions, .storage-actions,
+  .sound-output-actions, .bridge-actions) {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+#app [data-capture-tab] :is(.tools-toolbar, .browser-toolbar, .local-toolbar,
+  .im-controls, .im-filters, .audio-controls, .linked-fields,
+  .registry-filters, .tool-registry-filters, .character-resource-picker,
+  .sound-output-controls, .image-resolution-controls, .neural-controls) label {
+  min-width: 0;
+  gap: 4px;
+  font-size: 12px;
+}
+
+/* Local tab bars use a quiet row with a clear underline on the active mode. */
+#app [data-capture-tab] :is(.im-tabs, .de-tabs, .model-ribbon-tabs,
+  .workflow-mode-tabs, .face-modes, .linked-tabs, .character-map-views) {
+  gap: 2px;
+}
+#app [data-capture-tab] :is(.im-tabs, .de-tabs, .model-ribbon-tabs,
+  .workflow-mode-tabs, .face-modes, .linked-tabs, .character-map-views) > button {
+  flex-shrink: 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 4px 4px 0 0;
+  padding: 5px 9px;
+  white-space: nowrap;
+}
+#app [data-capture-tab] :is(.im-tabs, .de-tabs, .model-ribbon-tabs,
+  .workflow-mode-tabs, .face-modes, .linked-tabs, .character-map-views) > button:is(
+  [aria-selected=true], [aria-pressed=true], [aria-current=page], .active, .selected) {
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+#app [data-capture-tab] :is(.im-tabs, .de-tabs, .model-ribbon-tabs,
+  .workflow-mode-tabs, .face-modes, .linked-tabs, .character-map-views) > button:not(
+  :is([aria-selected=true], [aria-pressed=true], [aria-current=page], .active, .selected)) {
+  background: transparent;
+  box-shadow: none;
+}
+#app [data-capture-tab] .de-tabs > button[aria-selected=true] { border-bottom-color: #1766be; }
+
+/* Reduce the frame around controls without changing editable content. */
+#app [data-capture-tab] :is(.tools-workspace, .dashboard, .prompt-queue,
+  .image-review, .image-manager, .character-studio, .face-studio,
+  .learning-workspace, .hash-auditor, .folder-review-workspace,
+  .shortcut-registry, .audio-workspace) { padding: 18px; }
+#app [data-capture-tab] :is(.tools-workspace, .face-studio, .character-studio) { gap: 12px; }
+#app [data-capture-tab] :is(.dashboard-header, .prompt-queue > header,
+  .image-review > header, .learning-heading) { padding-bottom: 12px; margin-bottom: 14px; gap: 12px; }
+#app [data-capture-tab] .functions-buttons { gap: 8px; grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr)); }
+#app [data-capture-tab] .custom-profile-toolbar { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+#app [data-capture-tab] .custom-profile-toolbar select { grid-column: 1 / -1; }
+#app [data-capture-tab] .function-launcher { min-height: 76px; padding: 12px; gap: 4px; font-size: 13px; border-radius: 6px; }
+#app [data-capture-tab] .function-launcher span { font-size: 12px; }
+#app [data-capture-tab] :is(.functions-editor, .function-step) { padding: 12px; gap: 8px; }
+#app [data-capture-tab] .function-sequences { gap: 12px; padding-bottom: 14px; }
+#app [data-capture-tab] .im-tabs { margin-block: 6px; padding-block: 4px; }
+#app [data-capture-tab] .im-controls { margin-block: 8px; align-items: end; }
+#app [data-capture-tab] .im-filters { align-items: end; gap: var(--control-gap); }
+#app [data-capture-tab] .im-sticky-controls { top: -18px; }
+#app [data-capture-tab] .im-stats { margin-block: 10px; gap: 6px 16px; }
+#app [data-capture-tab] .ie-controls { padding: 14px; }
+#app [data-capture-tab] .ie-toolbar { padding: 7px 10px; }
+#app [data-capture-tab] #image-studio .image-studio-header { padding: 10px 16px; }
+#app [data-capture-tab] #image-studio .image-studio-controls { padding: 12px; }
+#app [data-capture-tab] .neural-controls { padding: 12px; gap: 10px; }
+#app [data-capture-tab] .de-titlebar { padding-block: 8px; gap: 8px; }
+#app [data-capture-tab] .de-ribbon { min-height: 92px; }
+#app [data-capture-tab] .de-group { padding-inline: 8px; gap: 4px; }
+#app [data-capture-tab] .de-button { padding: 4px 6px; }
+#app [data-capture-tab] .de-story-toolbar { gap: 8px; padding-block: 5px; }
+#app [data-capture-tab] .paint-ribbon fieldset { padding: 6px; }
+#app [data-capture-tab] .paint-menu button { padding: 6px 9px; }
+#app [data-capture-tab] .image-number-shortcuts { margin-top: 7px; }
+#app [data-capture-tab] .image-number-shortcuts summary { color: var(--text-muted); font-size: 12px; cursor: pointer; }
+#app [data-capture-tab] :is(.functions-capture, [aria-label="Function templates"]) label { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+#app [data-capture-tab] .functions-capture select { max-width: 100%; }
+
+@media (max-width: 600px) {
+  #app [data-capture-tab] :is(.tools-workspace, .dashboard, .prompt-queue,
+    .image-review, .image-manager, .character-studio, .face-studio,
+    .learning-workspace, .hash-auditor, .folder-review-workspace,
+    .shortcut-registry, .audio-workspace) { padding: 12px; }
+  #app [data-capture-tab] .im-sticky-controls { top: -12px; }
+  #app [data-capture-tab] .browser-toolbar input { min-width: 0; flex-basis: 100%; }
+  #app [data-capture-tab] .im-existing-tag select { width: auto; flex: 1; }
+  #app [data-capture-tab] .ie-toolbar label { flex-wrap: wrap; }
+}
+@media (pointer: coarse) {
+  :root { --control-height: 36px; }
+}

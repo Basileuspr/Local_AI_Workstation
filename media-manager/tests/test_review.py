@@ -55,6 +55,17 @@ class ReviewTests(unittest.TestCase):
         with self.assertRaises(ValueError):review.request('../sessions')
         with self.assertRaises(ValueError):review.NoRedirect().redirect_request(None,None,None,None,None,None)
 
+    def test_open_adopts_shared_tag_edits_and_clears_in_native_palette(self):
+        for tags in (['Shared review'],[]):
+            with patch.object(review,'request',return_value={'review':{'tags':tags}}) as bridge:
+                value=review.action(self.state,{'operation':'open','runId':self.run,'recordId':self.row['RecordId']})
+            self.assertEqual(value['review']['tags'],tags)
+            assigned=set(media_actions.metadata(self.state.reports)['assignments'].get(self.row['SHA256'].upper(),[]))
+            palette=media_actions.metadata(self.state.reports)['tags']
+            self.assertEqual([tag['name'] for tag in palette if tag['id'] in assigned],tags)
+            self.assertIn('native_tags',bridge.call_args.args[1])
+            self.assertEqual(self.file.read_bytes(),self.original)
+
     def test_person_name_choices_include_tags_on_unclassified_videos(self):
         media_actions.tag_action(self.state,{'action':'create','name':'Last, First'})
         media_actions.tag_action(self.state,{'action':'create','name':'Trip'})

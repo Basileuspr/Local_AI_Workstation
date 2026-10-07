@@ -18,6 +18,7 @@ export function ToolRegistryDetails({ tool, onDownloadText, exporting }) {
       <dt>Returns</dt><dd>{tool.output_description}</dd>
       <dt>Requirements</dt><dd>{tool.requirements.length ? tool.requirements.join(" · ") : "Running local backend"}</dd>
       <dt>Effects</dt><dd>{tool.effects.length ? tool.effects.map(effect => TOOL_EFFECT_LABELS[effect] || effect).join(" · ") : "Reads app information"}</dd>
+      <dt>Local model execution</dt><dd>{tool.execution?.reason || 'Use its workspace.'}</dd>
     </dl>
     {tool.notes && <p className="tool-registry-note">{tool.notes}</p>}
     {tool.endpoint && <details className="tool-registry-contract"><summary>API and input schema</summary>

@@ -1,4 +1,5 @@
 const {randomUUID} = require('node:crypto');
+const {createNativeMixer} = require('./soundMixer');
 const {browserUrl} = require('./browserPolicy');
 const {BROWSER_PARTITION,REMOTE_PREFERENCES,installBrowserSession,originOf} = require('./browserSession');
 const MAX_SOURCE = 2 * 1024 * 1024, MAX_RESOURCES = 200;
@@ -21,7 +22,8 @@ function inspectDocument() {
     return items;
 }
 
-function createViewerBrowser({WebContentsView, session, getWindow, dialog, allowRequest}) {
+function createViewerBrowser({WebContentsView, session, getWindow, dialog, allowRequest, watchFind}) {
+    const mixer=createNativeMixer('browser');
     let view=null, isolated=null, starting=null, placement={visible:false}, revision=0, error='', notice='', popup=null, inspection=null;
     const resources=new Map(), sources=new Map();
     const owned=new Set(), popups=new Set();
@@ -34,6 +36,7 @@ function createViewerBrowser({WebContentsView, session, getWindow, dialog, allow
         return isolated;
     }
     function secureContents(wc) {
+        mixer.watch(wc);
         owned.add(wc);
         wc.setWebRTCIPHandlingPolicy('disable_non_proxied_udp');
         wc.setWindowOpenHandler(({url})=>{
@@ -86,6 +89,7 @@ function createViewerBrowser({WebContentsView, session, getWindow, dialog, allow
         view=new WebContentsView({webPreferences:{...REMOTE_PREFERENCES,session:profile()}});
         view.setVisible(false);getWindow().contentView.addChildView(view);
         const wc=contents();
+        watchFind?.(wc,'browser');
         secureContents(wc);
         wc.on('did-start-navigation',(_event,_url,inPlace,mainFrame)=>{if(mainFrame && !inPlace)invalidate();});
         wc.on('did-fail-load',(_event,code,description,_url,mainFrame)=>{if(mainFrame && code!==-3)error=`Could not load this page (${description}).`;});
@@ -177,7 +181,7 @@ function createViewerBrowser({WebContentsView, session, getWindow, dialog, allow
         try{await clearing;}finally{clearing=null;}
         return state();
     }
-    return {start,state,place,navigate,inspect,source,clearData,hide:()=>place({visible:false}),
+    return {start,state,place,navigate,inspect,source,clearData,setMix:mixer.configure,findContents:()=>view?.getVisible() ? contents() : null,hide:()=>place({visible:false}),
         dispose:async()=>{close();if(isolated){await isolated.cookies.flushStore();isolated.flushStorageData();sessionPolicy.detach();isolated=null;}},
         snapshot: async () => {
             const wc=contents(),version=revision;if(!wc)return null;

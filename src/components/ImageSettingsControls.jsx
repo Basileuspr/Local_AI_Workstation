@@ -5,14 +5,16 @@ import { MAX_IMAGE_STEPS, MAX_IMAGE_GUIDANCE } from "../imageGenerationLimits";
 function NumberControl({ name, value, min, max, step = 1, increments, presets = [], onChange, random = false }) {
   return <div className="image-number-control">
     <label>{name}<input aria-label={name} type="number" min={min} max={max} step={step} value={value} placeholder={random ? "Random" : undefined} onChange={event => onChange(event.target.value)} /></label>
+    {random && <button type="button" aria-pressed={value === ""} onClick={() => onChange("")}>Random seed</button>}
+    <details className="image-number-shortcuts"><summary>{name} {presets.length ? 'presets & adjustments' : 'adjustments'}</summary>
     <div className="image-quick-buttons" role="group" aria-label={`${name} presets`}>
       {presets.map(preset => <button type="button" key={preset} onClick={() => onChange(preset)}>{preset}</button>)}
-      {random && <button type="button" aria-pressed={value === ""} onClick={() => onChange("")}>Random</button>}
     </div>
     <div className="image-quick-buttons" role="group" aria-label={`Adjust ${name.toLowerCase()}`}>
       {[-1, 1].map(sign => increments.map(amount => <button type="button" key={sign * amount}
         aria-label={`${name} ${sign > 0 ? "plus" : "minus"} ${amount}`} onClick={() => onChange(adjustNumber(value, sign * amount, min, max))}>{sign > 0 ? "+" : "−"}{amount}</button>))}
     </div>
+    </details>
   </div>;
 }
 

@@ -86,6 +86,9 @@ def register(source, identifier, name, digest, stamp='', record=None):
 
 
 def read_source(source, identifier):
+    if source=='video-analyzer':
+        from services.review_workflow import video_preview
+        return video_preview(identifier)
     if source == 'library':
         from services import image_library
         raw, item = image_library.image_bytes(identifier)
@@ -109,6 +112,9 @@ def read_source(source, identifier):
 
 def media_record(source, identifier, manual=None):
     """Resolve current locations through existing adapters, never request paths."""
+    if source=='video-analyzer':
+        from services.review_workflow import native_record
+        return native_record(identifier,manual)
     if source=='library':
         from services import image_library
         with image_library.LOCK: index=image_library.read_index()
@@ -129,7 +135,9 @@ def media_record(source, identifier, manual=None):
             return path
         location=review_metadata.location(resolve,expected_signature=item['signature'],signature=signature)
         if not item['available'] and location['file_state']=='present': location['file_state']='unavailable'
-        details={key:item[key] for key in ('sha256','signature','width','height','format','bytes','date','folder_id','relative') if key in item}
+        with database() as db: saved=db.execute('SELECT record FROM sources WHERE source=? AND id=?',(source,identifier)).fetchone()
+        prior=json.loads(saved['record']).get('metadata',{}) if saved else {}
+        details={**prior,**{key:item[key] for key in ('sha256','signature','width','height','format','bytes','date','folder_id','relative') if key in item}}
         return review_metadata.media_record(source,identifier,manual=manual,details=details,**location)
     if source=='media-manager':
         # Video paths belong to the isolated Media Manager server. A preview
@@ -451,7 +459,9 @@ def review(source, identifier, change=None):
                                   **{key:value[key] for key in ('category','project','favorite','review_status') if key in change})
         names = {tag['id']:tag['name'] for tag in lib.read_index()['tags']}
         return library_review(item,names)
-    if source not in ('image-manager','media-manager'): raise ValueError('Choose a supported media source.')
+    if source not in ('image-manager','media-manager','video-analyzer'): raise ValueError('Choose a supported media source.')
+    if source=='video-analyzer' and change is not None and media_record(source,identifier)['file_state']=='changed':
+        raise ValueError('Video changed since registration. Reopen and register it again before saving its review.')
     if source == 'image-manager':
         from services.image_manager import manager
         record=media_record(source,identifier)
@@ -468,7 +478,12 @@ def review(source, identifier, change=None):
         if source=='image-manager':
             value['tags']=item['tags']; value['favorite']=bool(item['favorite'])
         if change is not None:
+            saved = db.execute('SELECT value FROM source_reviews WHERE source=? AND id=? AND digest=?',
+                               (source,identifier,digest)).fetchone()
+            native_tags_edited = source=='media-manager' and ('tags' in change or (saved and json.loads(saved['value']).get('tags_edited',False)))
             value=review_metadata.patch(value,change)
+            if source=='media-manager' and any(len(tag)>60 for tag in value['tags']):
+                raise ValueError('Media Manager tags need 1 to 60 characters.')
             if source=='image-manager':
                 # Preserve the old Like button contract for clients without a
                 # favorite field. New clients can set status/favorite separately.
@@ -476,5 +491,25 @@ def review(source, identifier, change=None):
                 manager.metadata([identifier],tags=value['tags'] if 'tags' in change else None,favorite=favorite)
                 if favorite is not None: value['favorite']=favorite
             db.execute('INSERT INTO source_reviews(source,id,digest,value) VALUES (?,?,?,?) ON CONFLICT(source,id,digest) DO UPDATE SET value=excluded.value',
-                       (source,identifier,digest,json.dumps(value)))
+                       (source,identifier,digest,json.dumps({**value,**({'tags_edited':True} if native_tags_edited else {})})))
+        return value
+
+
+def sync_media_tags(identifier, tags):
+    """Reconcile explicit native tag edits while preserving workstation edits."""
+    tags=review_metadata.patch({}, {'tags':tags})['tags']
+    if any(len(tag)>60 for tag in tags): raise ValueError('Media Manager tags need 1 to 60 characters.')
+    with database() as db:
+        row=db.execute("SELECT digest,record FROM sources WHERE source='media-manager' AND id=?",(identifier,)).fetchone()
+        if not row: raise ValueError('Register this video first.')
+        public(row['digest'])
+        record=json.loads(row['record']); previous=record.get('native_tags')
+        saved=db.execute("SELECT value FROM source_reviews WHERE source='media-manager' AND id=? AND digest=?",(identifier,row['digest'])).fetchone()
+        edited=saved and json.loads(saved['value']).get('tags_edited',False)
+        if (previous is None and not edited) or (previous is not None and previous!=tags):
+            review('media-manager',identifier,{'tags':tags})
+        value=review('media-manager',identifier)
+        # The isolated adapter adopts these returned tags into its own palette.
+        record['native_tags']=value['tags']
+        db.execute("UPDATE sources SET record=? WHERE source='media-manager' AND id=?",(json.dumps(record),identifier))
         return value

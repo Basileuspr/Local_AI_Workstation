@@ -11,6 +11,7 @@ const groups = [
     { id: "hash-auditor", label: "Hash Auditor" },
     { id: "folder-review", label: "Folder Review" },
     { id: "audio", label: "Audio" },
+    { id: "sound-mixer", label: "Sound Mixer", title: "Sound Mixer · soundboard, audio channels, EQ and recording" },
     { id: "slicer", label: "3D Slicer" },
     { id: "integrations", label: "Linked applications" },
   ] },
@@ -42,6 +43,7 @@ const groups = [
     { id: "markdown", label: "Markdown Viewer" },
     { id: "html-viewer", label: "HTML Viewer" },
     { id: "css-viewer", label: "CSS / Styling" },
+    { id: "styling-library", label: "Styling Library", title: "Styling Library · CSS, HTML, buttons, layouts and animations" },
     { id: "js-viewer", label: "JavaScript Viewer" },
     { id: "spreadsheets", label: "Spreadsheets" },
     { id: "shortcuts", label: "Shortcut Registry" },
@@ -49,7 +51,7 @@ const groups = [
 ];
 
 export const navigationSections = [
-  { id: 'utilities', label: 'Dashboard & Queue', items: [{ id: 'dashboard', label: 'Dashboard' }, { id: 'queue', label: 'Prompt Queue' }] },
+  { id: 'utilities', label: 'Dashboard & Queue', items: [{ id: 'dashboard', label: 'Dashboard' }, { id: 'queue', label: 'Prompt Queue' }, { id: 'info-center', label: 'Info Center', title: 'Info Center · feature use cases, examples and help' }] },
   ...groups,
   { id: 'functions', label: 'Functions', items: [{ id: 'tools', label: 'Functions' }] },
 ];
@@ -73,6 +75,13 @@ export function orderedSections(value) {
   const order = normalizeNavigationOrder(value);
   return order.sections.map(id => { const section = navigationSections.find(item => item.id === id);
     return { ...section, items: order.tabs[id].map(tab => section.items.find(item => item.id === tab)) }; });
+}
+export function filterNavigationSections(sections, query) {
+  const terms = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+  return sections.map(section => ({ ...section, items: section.items.filter(item => {
+    const text = `${section.label} ${item.label} ${item.title || ''} ${item.id.replaceAll('-', ' ')}`.toLocaleLowerCase();
+    return terms.every(term => text.includes(term));
+  }) })).filter(section => section.items.length);
 }
 export function reorderIds(ids, from, to) {
   if (!Number.isInteger(from) || !Number.isInteger(to) || from < 0 || to < 0 || from >= ids.length || to >= ids.length) return ids;

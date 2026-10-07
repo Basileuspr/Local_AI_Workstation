@@ -73,7 +73,8 @@ def workflow(lora_paths, monkeypatch):
         if not model.run:
             raise ValueError("No training worker")
         model.cancelled = True
-    monkeypatch.setattr(lora, "manager", SimpleNamespace(start=start, cancel=cancel, is_run_pending=lambda run: model.run == run))
+    monkeypatch.setattr(lora, "manager", SimpleNamespace(start=start, cancel=cancel, is_run_pending=lambda run: model.run == run,
+                                                       reconcile_restarted_runs=lambda: {}))
     return model
 
 

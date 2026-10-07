@@ -15,10 +15,25 @@ export function attachPlayback(owner, root, row) {
   panel.innerHTML=`<div><label>Frame progression<select aria-label="Frame progression">${FRAME_STEPS.map(n=>`<option value="${n}">${n} frame${n===1?'':'s'}</option>`).join('')}</select></label><button data-frame="-1">Previous frames</button><button data-frame="1">Next frames</button></div><div><label>Time progression<select aria-label="Time progression">${TIME_STEPS.map(n=>`<option value="${n}">${n} second${n===1?'':'s'}</option>`).join('')}</select></label><button data-time="-1">Back in time</button><button data-time="1">Forward in time</button></div><p role="status">Stepping pauses playback. Frame timing is read on first use.</p><button data-cancel hidden>Cancel frame timing</button>`;
   video.parentElement.after(panel);
   const controls=document.createElement('div');controls.className='mo-player-controls';
-  controls.innerHTML='<div><button data-play aria-label="Play video">Play</button><output aria-label="Video time">0:00 / 0:00</output><button data-mute aria-label="Mute video">Mute</button><button data-fullscreen>Fullscreen</button><label>Volume<input aria-label="Video volume" type="range" min="0" max="1" step=".05" value="1"></label><label>Speed<select aria-label="Playback speed"><option value=".5">0.5×</option><option value="1" selected>1×</option><option value="1.5">1.5×</option><option value="2">2×</option></select></label></div><input aria-label="Video timeline" type="range" min="0" max="0" step=".001" value="0"><div><button data-snapshot>Snapshot</button><button data-clip>CLIP · mark a range</button></div><p data-capture-status role="status"></p>';
+  controls.innerHTML='<div><button data-play aria-label="Play video">Play</button><output aria-label="Video time">0:00 / 0:00</output><button data-mute aria-label="Mute video">Mute</button><button data-fullscreen>Fullscreen</button><label>Volume<input aria-label="Video volume" type="range" min="0" max="1" step=".05" value="1"></label><label>Speed<select aria-label="Playback speed"><option value=".5">0.5×</option><option value="1" selected>1×</option><option value="1.5">1.5×</option><option value="2">2×</option></select></label></div><input aria-label="Video timeline" type="range" min="0" max="0" step=".001" value="0"><div><button data-snapshot>Snapshot</button><button data-clip>CLIP · mark a range</button></div><p data-video-status role="status">Loading video…</p><button data-retry-video hidden>Retry video playback</button><p data-capture-status role="status"></p>';
   panel.prepend(controls);
   const clock=t=>{t=Math.max(0,Number(t)||0);return `${Math.floor(t/60)}:${String(Math.floor(t%60)).padStart(2,'0')}.${String(Math.floor(t%1*10))}`;};
   const timeline=controls.querySelector('[aria-label="Video timeline"]');
+  const videoStatus=controls.querySelector('[data-video-status]'), retry=controls.querySelector('[data-retry-video]');
+  video.addEventListener('loadeddata',()=>{videoStatus.textContent='';retry.hidden=true;});
+  video.addEventListener('error',()=>{
+    videoStatus.textContent=video.error?.code===3 || video.error?.code===4
+      ? 'This player could not decode the video. Retry, or use Show in folder to open it with a desktop player.'
+      : 'The video could not load. Its file may have moved or become unavailable. Refresh the library and retry.';
+    retry.hidden=false;
+  });
+  retry.onclick=()=>owner.attempt(async()=>{
+    await owner.refreshAvailability();
+    if(!video.isConnected)return;
+    videoStatus.textContent='Loading video…';retry.hidden=true;
+    video.load();
+    await video.play().catch(error=>{videoStatus.textContent=error.message;retry.hidden=false;});
+  });
   const update=()=>{
     const length=Number.isFinite(video.duration)?video.duration:0;
     timeline.max=String(length);timeline.value=String(video.currentTime);timeline.disabled=!length;

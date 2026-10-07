@@ -1,5 +1,8 @@
 import { sortNamedItems } from "./alphabetical";
 import { appTabs, appTabLabels } from "./navigation";
+import windowsUtilities from './windowsUtilities.json';
+
+export const utilityActions = windowsUtilities.map(item => ({ ...item, id: `utility:${item.id}` }));
 
 export const desktopActions = [
   { id: "system:snipping-tool", name: "Windows Snipping Tool", description: "Choose an area of the screen to capture." },
@@ -11,6 +14,7 @@ export const captureActions = appTabs.map(tab => ({ id: `capture:${tab}`, name: 
 
 export const FUNCTION_BUTTONS_STORAGE_KEY = "local-ai-workstation-function-buttons-v1";
 export const functionTargets = [
+  { id: "info-center", name: "Info Center" },
   { id: "shortcuts", name: "Shortcut Registry" },
   { id: "audio", name: "Audio" },
   { id: "browser", name: "Browser" },
@@ -18,6 +22,8 @@ export const functionTargets = [
   { id: "markdown", name: "Markdown Viewer" },
   { id: "html-viewer", name: "HTML Viewer" },
   { id: "css-viewer", name: "CSS / Styling" },
+  { id: "styling-library", name: "Styling Library" },
+  { id: "sound-mixer", name: "Sound Mixer" },
   { id: "spreadsheets", name: "Spreadsheets" },
   { id: "canvas", name: "Canvas" },
   { id: "document-editor", name: "Document Editor" },
@@ -49,6 +55,7 @@ export const functionTargets = [
   { id: "neural-network", name: "Neural Network" },
   { id: "break-room", name: "Break Room" },
   ...desktopActions,
+  ...utilityActions,
   ...captureActions,
 ];
 

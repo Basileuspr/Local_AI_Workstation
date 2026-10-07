@@ -1,7 +1,7 @@
 """Versioned visible scene state, partial updates, and deterministic prompts.
 
-No inference or filesystem access belongs here. A future action planner can
-propose the same bounded patches that the manual editor uses today.
+No inference or filesystem access belongs here. The scene planner proposes the
+same bounded patches as the manual editor, subject to explicit user review.
 """
 from copy import deepcopy
 from typing import Annotated, Literal

@@ -48,7 +48,7 @@ def test_context_receipt_distinguishes_provider_counts_and_estimates():
         {'role':'user','content':'Hello','images':['image']}]}
     estimate = context.payload_usage(payload)
     assert estimate['count_kind'] == 'estimate'
-    assert estimate['system_tokens_estimate'] > 0 and estimate['image_tokens_estimate'] == 700
+    assert estimate['system_tokens_estimate'] > 0 and estimate['image_tokens_estimate'] == 2048
     assert estimate['summarization_occurred'] is True
     exact = context.payload_usage(payload, {'prompt_eval_count':300,'eval_count':20})
     assert exact['count_kind'] == 'provider_reported'

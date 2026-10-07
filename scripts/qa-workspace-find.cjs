@@ -1,0 +1,117 @@
+// Real Electron Ctrl+F QA: disposable profile, mocked app APIs, neutral guest pages.
+const {app,BrowserWindow,WebContentsView,ipcMain}=require('electron');
+const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),assert=require('node:assert/strict');
+const {createWorkspaceFind}=require('../electron/workspaceFind');
+const work=fs.mkdtempSync(path.join(os.tmpdir(),'law-workspace-find-'));
+app.setPath('userData',path.join(work,'profile'));
+let win; const guests=new Map(), checks=[];
+const watchdog=setTimeout(()=>app.exit(1),120000);
+app.whenReady().then(async()=>{
+  ipcMain.on('app:connection',event=>{event.returnValue={base:'http://127.0.0.1:1',token:''};});
+  const bridgeSource=fs.readFileSync(path.join(__dirname,'../electron/preload.js'),'utf8');
+  for(const match of bridgeSource.matchAll(/ipcRenderer\.invoke\((['"])([^'"]+)\1/g)) {
+    if(match[2].startsWith('workspace-find:'))continue;
+    ipcMain.handle(match[2],()=>({ready:false,available:false,error:'QA preview; service unavailable.'}));
+  }
+  win=new BrowserWindow({show:false,width:1280,height:720,webPreferences:{offscreen:true,sandbox:true,contextIsolation:true,nodeIntegration:false,backgroundThrottling:false,preload:path.join(__dirname,'../electron/preload.js')}});
+  win.webContents.on('console-message',event=>{if(event.level==='error')console.error('Renderer: '+event.message);});
+  const service=createWorkspaceFind({ipcMain,getWindow:()=>win,trustedDesktop:event=>event.sender===win.webContents&&event.senderFrame===win.webContents.mainFrame,
+    targets:Object.fromEntries(['browser','media-manager','integrations'].map(target=>[target,()=>{const view=guests.get(target);return view?.getVisible()?view.webContents:null;}]))});
+  service.watchHost(win.webContents);
+  const js=async code=>{try{return await win.webContents.executeJavaScript(code);}catch(error){console.error('QA operation: '+code);throw error;}};
+  const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+  const wait=async(code,label)=>{for(let i=0;i<450;i++){if(await js(`Boolean(${code})`))return;await pause(30);}fs.writeFileSync(path.join(work,'failure.png'),(await win.webContents.capturePage()).toPNG());throw Error('Timed out: '+label+'; status='+await status()+'; '+await js('document.body.innerText.slice(0,1000)'));};
+  const key=async(code,modifiers=[],wc=win.webContents)=>{wc.focus();wc.sendInputEvent({type:'keyDown',keyCode:code,modifiers});if(code==='Enter')wc.sendInputEvent({type:'char',keyCode:'\r',modifiers});wc.sendInputEvent({type:'keyUp',keyCode:code,modifiers});await pause(60);};
+  const fill=async(selector,value)=>{await js(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(node,${JSON.stringify(value)});node.dispatchEvent(new Event('input',{bubbles:true}));})()`);};
+  const query=async(value,status)=>{await fill('[aria-label="Find text"]',value);await wait(`document.querySelector('.workspace-find output')?.textContent===${JSON.stringify(status)}`,'query '+value);};
+  const status=()=>js("document.querySelector('.workspace-find output')?.textContent");
+  const check=(label,value=true)=>{assert(value,label);checks.push(label);};
+  await win.loadURL(process.env.LAW_FIND_QA_URL||'http://127.0.0.1:5298/tests/fixtures/workspaceControls.html');
+  await wait('document.querySelectorAll("[data-sidebar-route]").length>30','navigation');
+  const routes=await js('[...document.querySelectorAll("[data-sidebar-route]")].map(n=>({id:n.dataset.sidebarRoute,label:n.textContent.trim()}))');
+  async function navigate(id){
+    const route=routes.find(route=>route.id===id);
+    await js("(()=>{if(document.querySelector('#app-navigation[inert]'))document.querySelector('.navigation-toggle').click();})()");await pause(40);
+    await fill('[aria-label="Find a tab"]',route.label);await pause(40);
+    await js(`document.querySelector('[data-sidebar-route="${id}"]').click()`);
+    await wait(`document.querySelector('[data-capture-tab="${id}"]:not([hidden])')?.clientHeight>0 && !document.querySelector('[data-capture-tab="${id}"]').textContent.trim().startsWith('Opening ')`,'pane '+id);
+  }
+  await navigate('styling-library');
+  await js(`(()=>{const pane=document.querySelector('[data-capture-tab="styling-library"]');const fixture=document.createElement('div');fixture.id='qa-find-content';fixture.innerHTML='<p>qaNeedle <em>qaNeedle</em> QANeedle</p><p>qa.*[x]</p><p>qaFormatted <b>phrase</b></p><p hidden>qaNeedle</p><details><summary>Collapsed</summary>qaNeedle</details><input type="password" value="qaNeedle"><textarea>qaDraft qaDraft</textarea><div style="height:600px"></div><p id="qa-distant-match">qaDistant</p>';pane.querySelector('.styling-library').append(fixture);})()`);
+  await key('F',['control']); await wait("document.activeElement?.getAttribute('aria-label')==='Find text'",'Ctrl+F focus');check('Ctrl+F opens and focuses search');
+  await query('qaNeedle','1 of 3');
+  check('Counts visible text and excludes collapsed, hidden, password and find input',await js("CSS.highlights.get('workspace-find-all').size===3"));
+  await key('Enter');assert.equal(await status(),'2 of 3','Enter advances');check('Enter advances');
+  await js("(()=>{const node=document.createElement('p');node.textContent='Unrelated live update';document.querySelector('#qa-find-content').append(node);})()");await pause(180);
+  check('Live updates preserve the selected match',await status()==='2 of 3');
+  await key('Enter',['shift']);check('Shift+Enter reverses',await status()==='1 of 3');
+  await key('Enter',['shift']);check('Previous wraps',await status()==='3 of 3');
+  await key('F3');check('F3 advances and wraps',await status()==='1 of 3');
+  await key('G',['control','shift']);check('Ctrl+Shift+G reverses',await status()==='3 of 3');
+  await js("document.querySelector('[aria-label=\"Match case\"]').click()");await wait("document.querySelector('.workspace-find output').textContent==='1 of 2'",'case');check('Match case filters matches');
+  await query('qa.*[x]','1 of 1');check('Regex punctuation searches literally');
+  await query('qaFormatted phrase','1 of 1');check('Matches across inline formatting');
+  await query('qaMissing','No matches');check('No-match status and disabled navigation',await js("document.querySelector('[aria-label=\"Next match\"]').disabled"));
+  await query('qaDraft','1 of 2');check('Text fields are searchable without modifying draft',await js("document.querySelector('#qa-find-content textarea').value==='qaDraft qaDraft' && document.querySelector('#qa-find-content textarea').hasAttribute('data-workspace-find-current')"));
+  await query('qaDistant','1 of 1');check('Search scrolls distant matches into view',await js("document.querySelector('.styling-library').scrollTop>0 && document.documentElement.scrollTop===0 && document.querySelector('#qa-distant-match').getBoundingClientRect().bottom<=innerHeight"));
+  await js("document.querySelector('#qa-distant-match').textContent='qaChanged'");await wait("document.querySelector('.workspace-find output').textContent==='No matches'",'live update');check('Live text updates clear stale matches');
+  await query('qaChanged','1 of 1');
+  await js("window.qaTicker=setInterval(()=>{document.querySelector('#qa-find-content p:last-child').dataset.tick=String(Date.now());document.querySelector('#qa-find-content p:last-child').append(document.createTextNode(''));},40)");
+  await query('qaDraft','1 of 2');await js('clearInterval(window.qaTicker)');check('Find finishes while the workspace keeps updating');await query('qaChanged','1 of 1');
+  win.setContentSize(390,660);await pause(100);
+  check('Find controls fit a narrow window',await js("[...document.querySelectorAll('.workspace-find input,.workspace-find button')].every(n=>{const r=n.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&r.bottom<=innerHeight;})"));
+  fs.writeFileSync(path.join(work,'ctrl-f-narrow.png'),(await win.webContents.capturePage()).toPNG());
+  await js("(()=>{const node=document.createElement('p');node.id='qa-limit';node.style.cssText='max-height:60px;overflow:auto';node.textContent='qaLimit '.repeat(1100);document.querySelector('#qa-find-content').append(node);})()");await query('qaLimit','1 of 1000+');check('Large match sets are bounded with an explicit count indicator');
+  await js("document.querySelector('#qa-limit').textContent='x '.repeat(260000)+'qaBeyond'");await query('qaBeyond','Search limit reached');check('Oversized tab content reports the search limit instead of a false no-match claim');await js("document.querySelector('#qa-limit').remove()");
+  await key('Escape');check('Escape closes and clears highlights',await js("!document.querySelector('.workspace-find') && !CSS.highlights.has('workspace-find-all') && !document.querySelector('[data-workspace-find-current]')"));
+  win.setContentSize(1280,720);await pause(100);
+  await js("document.querySelector('#qa-find-content').remove(); document.querySelector('.styling-library').scrollTop=0; document.querySelector('.sl-example-content>button').click()");
+  await wait("document.querySelector('.sl-code-dialog')?.open",'code dialog');await key('F',['control']);
+  await wait("document.querySelector('.sl-code-dialog .workspace-find')",'dialog search');await query('Copy full example','1 of 1');check('Find scopes to the open dialog');
+  await key('Escape');check('Escape closes find before the dialog',await js("document.querySelector('.sl-code-dialog').open && !document.querySelector('.workspace-find')"));
+  await key('F',['control']);await wait("document.querySelector('.workspace-find')",'reopen dialog');
+  await js("document.querySelector('[aria-label=\"Close example code\"]').click()");await wait("!document.querySelector('.workspace-find')",'dialog removal');check('Closing dialog removes its find state');
+  await js("document.querySelector('.sl-preview iframe').scrollIntoView({block:'center'})");await pause(80);
+  const point=await js("(()=>{const r=document.querySelector('.sl-preview iframe').getBoundingClientRect();return {x:Math.round(r.left+30),y:Math.round(r.top+40)};})()");
+  win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,...point});win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,...point});await pause(80);
+  await js("document.querySelector('.sl-preview iframe').contentWindow.focus()");await pause(80);
+  assert(win.webContents.focusedFrame!==win.webContents.mainFrame,'Click focuses the sandboxed preview');await key('F',['control']);
+  await wait("document.activeElement?.getAttribute('aria-label')==='Find text'",'sandboxed preview shortcut');check('Ctrl+F from a sandboxed preview opens workspace Find');await key('Escape');
+  await navigate('document-editor');await wait("document.querySelector('.document-editor .tiptap[contenteditable=true]')",'document editor');
+  await js("document.querySelector('.document-editor .tiptap').focus()");await key('F',['control']);
+  await wait("document.querySelector('.de-find')",'editor Find/Replace');check('Document Editor retains its existing Find/Replace shortcut',await js("!document.querySelector('.workspace-find')"));
+  await js("document.querySelector('[aria-label=\"Close find and replace\"]').click()");
+  for(const route of routes){await navigate(route.id);await js("document.querySelector('[aria-label=\"Find in current tab\"]').click()");await wait("document.querySelector('.workspace-find')",'find '+route.id);check('Find available: '+route.id);await key('Escape');}
+  await navigate('sound-mixer');await js("document.querySelector('[aria-label=\"Workspace options\"]').click()");await pause(40);
+  await js("[...document.querySelectorAll('button')].find(n=>n.textContent.trim()==='Pin beside chat').click()");await pause(60);
+  await js("document.querySelector('[data-capture-tab=\"sound-mixer\"] button').focus()");await key('F',['control']);
+  await wait("document.querySelector('.workspace-find label').textContent.includes('Sound Mixer')",'pinned scope');check('Ctrl+F searches the focused pinned pane');
+  check('Ctrl+F dismisses menus that could cover the find bar',await js("document.querySelector('[aria-label=\"Workspace options\"]').getAttribute('aria-expanded')==='false'"));
+  await fill('[aria-label="Find text"]','Speech');await wait("CSS.highlights.get('workspace-find-all')?.size>0",'pinned matches');
+  check('Pinned search highlights only the pinned pane',await js("[...CSS.highlights.get('workspace-find-all')].every(range=>range.startContainer.parentElement.closest('[data-capture-tab]').dataset.captureTab==='sound-mixer')"));
+  await js("document.querySelector('[aria-label=\"Close side pane\"]').click()");await wait("!document.querySelector('.workspace-find')",'unpin closes');check('Unpin closes stale search');
+  for(const target of ['browser','media-manager','integrations']){
+    await navigate(target);
+    const view=new WebContentsView({webPreferences:{offscreen:true,sandbox:true,contextIsolation:true,nodeIntegration:false,backgroundThrottling:false}});
+    guests.set(target,view);view.setBounds({x:400,y:300,width:600,height:300});win.contentView.addChildView(view);view.setVisible(true);service.watch(view.webContents,target);
+    await view.webContents.loadURL('data:text/html,'+encodeURIComponent('<p>qaGuest qaGuest</p><iframe srcdoc="<p>qaGuest</p>"></iframe>'));
+    await pause(100);await key('F',['control'],view.webContents);await wait("document.activeElement?.getAttribute('aria-label')==='Find text'",'guest Ctrl+F');
+    await query('qaGuest','1 of 3');check('Embedded '+target+' Ctrl+F searches page and child frame');
+    await fill('[aria-label="Find text"]','qaGu');await pause(130);await query('qaMissing','No matches');await query('qaGuest','1 of 3');check('Embedded '+target+' rapid query changes ignore stale results');
+    await key('Enter');await wait("document.querySelector('.workspace-find output').textContent==='2 of 3'",'guest next');check('Embedded '+target+' next match');
+    await key('F3',['shift'],view.webContents);await wait("document.querySelector('.workspace-find output').textContent==='1 of 3'",'guest previous');check('Embedded '+target+' Shift+F3 keeps selection');
+    await key('Escape',[],view.webContents);await wait("!document.querySelector('.workspace-find')",'guest Escape');check('Embedded '+target+' Escape clears host bar');
+    await key('F',['control'],view.webContents);await wait("document.querySelector('.workspace-find')",'guest reopen');await query('qaGuest','1 of 3');
+    await view.webContents.loadURL('data:text/html,'+encodeURIComponent('<p>qaGuest</p>'));await wait("document.querySelector('.workspace-find output').textContent==='1 of 1'",'guest reload');check('Embedded '+target+' reload refreshes results');
+    await key('Escape');view.setVisible(false);win.contentView.removeChildView(view);view.webContents.close({waitForBeforeUnload:false});guests.delete(target);
+  }
+  await navigate('styling-library');await key('F',['control']);await js("(()=>{const button=document.querySelector('[aria-label=\"Match case\"]');if(button.getAttribute('aria-pressed')==='true')button.click();})()");await query('gradient','1 of 2');
+  fs.writeFileSync(path.join(work,'ctrl-f-styling-library.png'),(await win.webContents.capturePage()).toPNG());
+  await navigate('sound-mixer');check('Changing tab closes search and clears highlights',await js("!document.querySelector('.workspace-find')&&!CSS.highlights.has('workspace-find-all')"));
+  await key('F',['control']);await wait("document.querySelector('.workspace-find')",'find before reload');win.webContents.reload();await wait('document.querySelectorAll("[data-sidebar-route]").length>30','reloaded app');
+  check('Reload starts without stale find controls or highlights',await js("!document.querySelector('.workspace-find')&&!CSS.highlights.has('workspace-find-all')"));
+  const errors=await js('window.workspaceControlsQA.errors');check('No uncaught renderer errors',errors.length===0);
+  const report={passed:true,checks:checks.length,results:checks,errors,work};
+  fs.writeFileSync(path.join(work,'result.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report));
+  clearTimeout(watchdog);win.destroy();app.quit();
+}).catch(error=>{console.error(error.stack||error);console.error('QA artifacts: '+work);clearTimeout(watchdog);for(const view of guests.values())if(!view.webContents.isDestroyed())view.webContents.close({waitForBeforeUnload:false});win?.destroy();app.exit(1);});

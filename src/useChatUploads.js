@@ -100,7 +100,11 @@ export function buildDocumentMessage(parsed) {
       " characters" +
       ocrSummary +
       ")]\n\nContents:\n" +
-      parsed.text,
+      parsed.text + ((parsed.warnings || []).length ? '\n\n[Import coverage]\n' + parsed.warnings.join('\n') : ''),
+    document_understanding: {
+      table_count: parsed.table_count || 0, image_count: parsed.image_count || 0,
+      visual_pages: parsed.visual_pages || [], visual_images: parsed.visual_images || [], warnings: parsed.warnings || [],
+    },
   };
 }
 

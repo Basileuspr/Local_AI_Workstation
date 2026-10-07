@@ -102,8 +102,7 @@ export default function ImageGallery({ images, onOpen, onRemove, onDelete, onIma
       <input type="search" aria-label="Search image library" placeholder={folder === "workflows" ? "Search workflows or runs…" : "Search images or chats…"}
         value={query} onChange={event => { setQuery(event.target.value); setPage(0); }} />
       <div className="image-library-density" role="group" aria-label="Thumbnail size">
-        <button type="button" aria-pressed={!compact} onClick={() => { setCompact(false); setPage(0); }}>Comfortable</button>
-        <button type="button" aria-pressed={compact} onClick={() => { setCompact(true); setPage(0); }}>Compact</button>
+        <button type="button" title={`Current size: ${compact ? 'compact' : 'comfortable'}`} onClick={() => { setCompact(value => !value); setPage(0); }}>{compact ? 'Larger thumbnails' : 'Compact thumbnails'}</button>
       </div>
       {selectedFolder && <details className="image-library-folder-menu" ref={folderMenu} open={folderMenuOpen} onToggle={event => setFolderMenuOpen(event.currentTarget.open)}><summary>Folder options</summary><div>
         <button type="button" onClick={() => { setFolderMenuOpen(false); setFolderEditor(selectedFolder); }}>Rename folder</button><button type="button" onClick={async () => {

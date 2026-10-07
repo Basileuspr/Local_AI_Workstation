@@ -71,7 +71,7 @@ export function createChatSpeech({generate = generateClonedVoice, cancel = stopC
         requestId:op.requestId, signal:op.controller.signal});
       if (operation !== op) return;
       op.url = createUrl(result.blob); op.audio = audio(op.url);
-      op.output = audioOutput.track(op.audio);
+      op.output = audioOutput.track(op.audio,undefined,'speech');
       op.audio.onended = () => {if (operation === op) {operation = null; release(op); publish({owner:null,status:'idle',error:'',warnings:[]});}};
       op.audio.onerror = () => {if (operation === op) {operation = null; release(op); fail('Generated speech could not be played. Press Speak to try again.');}};
       publish({owner, status:'playing', error:'', warnings:result.processing?.warnings || []});

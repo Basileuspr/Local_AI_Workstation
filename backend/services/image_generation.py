@@ -200,25 +200,29 @@ class ImageGenerationManager:
         }
 
     def _unload(self) -> None:
-        if self._active_pipeline is not None and hasattr(self._active_pipeline, "remove_all_hooks"):
-            self._active_pipeline.remove_all_hooks()
+        pipeline = self._active_pipeline
+        had_pipeline = self._pipeline is not None or pipeline is not None
         self._active_pipeline = None
         self._workflow_pipelines.clear()
         self._compel = None
-        if self._pipeline is not None:
-            del self._pipeline
-            self._pipeline = None
+        self._pipeline = None
+        self._model_id = None
+        self._pipeline_type = "StableDiffusionXLPipeline"
+        self._lora_id = None
+        if pipeline is not None and hasattr(pipeline, "remove_all_hooks"):
+            try:
+                pipeline.remove_all_hooks()
+            except Exception:
+                logging.getLogger(__name__).warning("Could not detach failed image hooks", exc_info=True)
+        del pipeline
+        if had_pipeline:
             gc.collect()
             try:
                 import torch
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
-            except ImportError:
+            except (ImportError, OSError, RuntimeError):
                 pass
-        self._model_id = None
-        self._pipeline_type = "StableDiffusionXLPipeline"
-        self._lora_id = None
-        self._compel = None
 
     def _load(self, model: dict) -> None:
         if self._model_id == model["id"] and self._pipeline is not None:
@@ -252,6 +256,8 @@ class ImageGenerationManager:
             use_safetensors=True,
             local_files_only=True,
         )
+        # Own partially configured weights too, so failures can discard hooks.
+        self._pipeline = self._active_pipeline = pipeline
 
         # Diffusers already selects memory-efficient SDPA on modern PyTorch.
         # Slicing replaces that processor with slower, explicit attention
@@ -329,20 +335,21 @@ class ImageGenerationManager:
             # The runner already holds the shared GPU lease. Serialize resets
             # and ordinary Generate calls using the existing manager lock too.
             with self._lock:
-                context.check_cancelled()
-                self._load(model)
-                self._configure_wait_mode(allow_long_wait)
-                context.check_cancelled()
-                if self._lora_id is not None:
-                    self._activate_pipeline(self._pipeline)
-                    self._set_lora(None, 1)
-                pipeline = self._pipeline_for_operation(operation)
-                self._activate_pipeline(pipeline)
                 try:
                     context.check_cancelled()
+                    self._load(model)
+                    self._configure_wait_mode(allow_long_wait)
+                    context.check_cancelled()
+                    if self._lora_id is not None:
+                        self._activate_pipeline(self._pipeline)
+                        self._set_lora(None, 1)
+                    pipeline = self._pipeline_for_operation(operation)
+                    self._activate_pipeline(pipeline)
                     yield pipeline
-                finally:
                     pipeline.maybe_free_model_hooks()
+                except BaseException:
+                    self._unload()
+                    raise
         return resident()
 
     def _pipeline_for_operation(self, operation):
@@ -545,6 +552,8 @@ class ImageGenerationManager:
                 self._progress[request_id] = {"phase": "Loading model", "step": 0, "total_steps": effective_steps, "started": started}
             with self._lock:
                 from services.lora_training import manager as training_manager
+                if cancel_event.is_set():
+                    raise ImageGenerationCancelled("Image generation stopped")
                 if training_manager.is_active():
                     raise RuntimeError("Image generation is paused while local LoRA training owns the GPU.")
                 self._load(model)

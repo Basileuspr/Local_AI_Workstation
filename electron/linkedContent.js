@@ -1,4 +1,5 @@
 "use strict";
+const {createNativeMixer} = require('./soundMixer');
 
 function embedUrl(service, value) {
     try {
@@ -13,7 +14,8 @@ function embedUrl(service, value) {
     return null;
 }
 
-function createLinkedContent({WebContentsView, session, getWindow}) {
+function createLinkedContent({WebContentsView, session, getWindow, watchFind}) {
+    const mixer=createNativeMixer('integrations');
     let view = null, current = '', service = '';
     function hide() { if (view && !view.webContents.isDestroyed()) view.setVisible(false); }
     function close() {
@@ -38,6 +40,8 @@ function createLinkedContent({WebContentsView, session, getWindow}) {
                 nodeIntegration: false, webSecurity: true, preload: undefined}});
             view.setVisible(false); getWindow().contentView.addChildView(view);
             const wc = view.webContents;
+            watchFind?.(wc, 'integrations');
+            mixer.watch(wc);
             wc.setWindowOpenHandler(() => ({action: 'deny'}));
             wc.on('will-attach-webview', event => event.preventDefault());
             wc.on('will-navigate', (event, next) => { if (!embedUrl(service, next)) event.preventDefault(); });
@@ -65,6 +69,7 @@ function createLinkedContent({WebContentsView, session, getWindow}) {
         if (service !== 'spotify' || !view || view.webContents.isDestroyed() || !embedUrl('spotify', view.webContents.getURL())) return null;
         return view.webContents.mainFrame;
     }
-    return {open, place, hide, close, spotifyAudioFrame};
+    return {open, place, hide, close, spotifyAudioFrame, setMix:mixer.configure,
+        findContents:()=>view?.getVisible() && !view.webContents.isDestroyed() ? view.webContents : null};
 }
 module.exports = {embedUrl, createLinkedContent};

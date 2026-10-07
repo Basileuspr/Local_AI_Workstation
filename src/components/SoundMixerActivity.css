@@ -1,0 +1,4 @@
+.sm-activity {display:flex;align-items:center;gap:4px;flex:0 0 auto;}
+.workspace-navigation .sm-activity button {display:flex;align-items:center;gap:6px;padding:5px 7px;font-size:11px;min-height:28px;color:#fca5a5;border-color:#ef444444;background:#7f1d1d22;}
+.sm-activity i {width:6px;height:6px;flex:none;border-radius:50%;background:#ef4444;}
+@media(max-width:900px){.workspace-navigation:has(.sm-activity){flex-wrap:wrap}.sm-activity{order:5;flex-basis:100%;justify-content:flex-end}}

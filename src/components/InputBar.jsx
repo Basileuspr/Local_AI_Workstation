@@ -1,4 +1,6 @@
 import FreshFileInput from "./FreshFileInput";
+import ChatToolReview from './ChatToolReview';
+import { defaultChatTools } from './ChatToolSettings';
 import {ChatAudio} from './AudioWorkspace';
 import {chatSpeech} from '../chatSpeech';
 import {useImageRemoval} from "./ImageRemovalControls";
@@ -26,12 +28,13 @@ import { readImageFile } from "../useChatUploads";
 import ImageEditor from "./ImageEditor";
 import WebAccess from "./WebAccess";
 import { isStoredReference } from "../imageRefs";
-import { canvasContext, applyCanvasEdit } from "../canvasStore";
 import "./ChatComposer.css";
 import { useDismissiblePopup } from '../useDismissiblePopup';
+import { documentAppendPrompt, documentCreatePrompt } from '../chatDocuments';
 
 export default function InputBar({ active = true, onNewChat, onSessionSaved, onOpenSession }) {
   const state = useStore();
+  const [toolReview, setToolReview] = useState(null);
   const pane = useChatPane();
   const focusState = useRef({ active, focused: pane.focused }); focusState.current = { active, focused: pane.focused };
   const receivesExternalEvents = active && pane.focused;
@@ -43,6 +46,10 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
   const editLock = useRef(false);
   const chatSubmissions = useSyncExternalStore(chatSubmissionQueue.subscribe, chatSubmissionQueue.getSnapshot, chatSubmissionQueue.getSnapshot);
   const textareaRef = useRef(null);
+  const [documentTarget, setDocumentTarget] = useState(null);
+  const documentTargetRef = useRef(null);
+  function selectDocumentTarget(value) { documentTargetRef.current = value; setDocumentTarget(value); }
+  useEffect(() => { selectDocumentTarget(null); }, [state.currentSessionId, state.chatDraftVersion]);
   const currentSessionRef = useRef(state.currentSessionId);
   const draftVersionRef = useRef(state.chatDraftVersion);
   draftVersionRef.current = state.chatDraftVersion;
@@ -129,7 +136,20 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
 
   const selectedEdit = destinations?.chatEdit?.sessionId === state.currentSessionId ? destinations.chatEdit : null;
   useEffect(() => {
-    const focus = () => { if (receivesExternalEvents) { textareaRef.current.value = "/Edit "; textareaRef.current.focus(); } };
+    const append = event => {
+      if (!receivesExternalEvents) return;
+      const artifact = state.conversationHistory.flatMap(message => message.artifacts || []).find(item => item.kind === 'docx' && item.id === event.detail?.artifactId);
+      if (!artifact) return;
+      if (!textareaRef.current) return;
+      textareaRef.current.value = documentAppendPrompt(event.detail.artifactId, textareaRef.current.value);
+      selectDocumentTarget({ id: artifact.id, name: artifact.name, sessionId: state.currentSessionId });
+      setOpenTool(null); handleInput(); textareaRef.current.focus();
+    };
+    window.addEventListener('append-chat-document', append);
+    return () => window.removeEventListener('append-chat-document', append);
+  }, [receivesExternalEvents, state.currentSessionId, state.conversationHistory]);
+  useEffect(() => {
+    const focus = () => { if (receivesExternalEvents) { textareaRef.current.value = "/Edit "; handleInput(); textareaRef.current.focus(); } };
     window.addEventListener("focus-chat-edit", focus);
     return () => window.removeEventListener("focus-chat-edit", focus);
   }, [receivesExternalEvents]);
@@ -269,11 +289,9 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
     if (isUploading) { showToast("Wait for the attachment to finish saving before sending.", "error"); return; }
     const text = submittedText ?? textareaRef.current?.value.trim();
     if (!text) return;
-    let submittedCanvas;
-    try { submittedCanvas = !steerAfter && /\b(canvas|whiteboard)\b/i.test(text) ? canvasContext() : undefined; }
-    catch (failure) { showToast(failure.message, "error"); return; }
     if (!steerAfter && isEditCommand(text)) { void startChatEdit(text); return; }
     const sourceId = currentSessionRef.current;
+    const documentArtifactId = !steerAfter && documentTargetRef.current?.sessionId === sourceId && /^\/docx\s+(?:append|add|continue)\b/i.test(text) ? documentTargetRef.current.id : undefined;
     // Creating a blank chat is shared by rapid submissions. Navigating away
     // while it is created must not redirect the user when it resolves.
     if (!sourceId && !refs.pendingChatCreation) {
@@ -291,7 +309,7 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
     const target = sourceId ? Promise.resolve({ id: sourceId }) : refs.pendingChatCreation;
     // Attach a handler immediately, even if the job waits behind another reply.
     const prepared = target.then(session => ({ session }), error => ({ error }));
-    if (!steerAfter && textareaRef.current.value.trim() === text) { textareaRef.current.value = ""; textareaRef.current.style.height = "44px"; }
+    if (!steerAfter && textareaRef.current.value.trim() === text) { textareaRef.current.value = ""; textareaRef.current.style.height = "44px"; selectDocumentTarget(null); }
     const followUpId = createMessageId();
     const queued = chatSubmissionQueue.enqueue({ id: followUpId, label: text, session_id: sourceId, session_title: sessionTitle, model: selectedModel, afterId: steerAfter,
       pane_id: pane.id, pane_label: pane.label, onError: error => {
@@ -304,13 +322,13 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
       if (steerAfter && (!steerReceipt?.saved || steerReceipt.requestId !== steerAfter || steerReceipt.sessionId !== session.id)) {
         throw new Error('The partial reply could not be saved. Your steering instruction was kept; copy it from Steer and send it after resolving the save error.');
       }
-      await runMessage(text, session.id, signal, submittedCanvas, followUpId);
+      await runMessage(text, session.id, signal, followUpId, documentArtifactId);
     } });
     void prepared.then(({ session }) => { if (session) chatSubmissionQueue.setSession(followUpId, session.id); });
     return queued;
   }
 
-  async function runMessage(text, sessionId, signal, submittedCanvas, requestId) {
+  async function runMessage(text, sessionId, signal, requestId, documentArtifactId) {
     const progress = (stage, stage_detail) => {
       chatSubmissionQueue.update(requestId, { request_id: requestId, stage, stage_detail });
       invalidatePolling("runtime", "queue");
@@ -336,7 +354,7 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
     let nextSummarizedMessageCount = summarizedMessageCount;
     let fullResponse = "";
     let stopped = false;
-    let responseCompleted = false, responseFailed = false, replySaved = false;
+    let responseCompleted = false, responseFailed = false, replySaved = false, serverSavedReply = false;
     let saved;
     const userMsg = { id: createMessageId(), role: "user", content: text };
     const influencePlan=chatInfluences(state);
@@ -365,8 +383,7 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
       const updatedHistory = saved.messages;
       const contextWindow = getSelectedContextWindow();
       const systemPromptValue = getSystemPromptValue();
-      const canvasData = submittedCanvas;
-      const budgetPrompt = canvasData ? systemPromptValue + "\n" + JSON.stringify(canvasData) + " ".repeat(3500) : systemPromptValue;
+      const budgetPrompt = systemPromptValue;
       const effectiveSummaryModel = summaryModel || selectedModel;
       let contextMessages = buildContextMessages(updatedHistory, nextMemorySummary, nextSummarizedMessageCount);
       try {
@@ -374,8 +391,8 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
           api: requestApi, sessionId, model: effectiveSummaryModel, messages: updatedHistory,
           useDurableMemory: influencePlan.useDurableMemory,
           memorySummary: nextMemorySummary, summarizedMessageCount: nextSummarizedMessageCount,
-          contextWindow, responseLength: canvasData ? Math.max(4096, responseLength) : responseLength, systemPrompt: budgetPrompt, useKnowledgeBase,
-          triggerRatio: contextDefaults.hardTriggerRatio, requestId, signal: abortController.signal,
+          contextWindow, responseLength, systemPrompt: budgetPrompt, useKnowledgeBase,
+          triggerRatio: contextDefaults.normalTriggerRatio, requestId, signal: abortController.signal,
         });
         saved = await persistSessionSummary(api, saved, rotatedMemory.memorySummary, rotatedMemory.summarizedMessageCount);
         nextMemorySummary = saved.memory_summary || "";
@@ -390,13 +407,14 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
       progress("queued", "Waiting for the shared model queue");
       const res = await api.streamChat({
         exclusiveModel: pane.dual,
+        toolIds: state.toolUseEnabled ? (state.chatToolIds || defaultChatTools) : [],
         model: selectedModel, messages: contextMessages, useKnowledgeBase,
         knowledgeDocIds,
-        canvasContext: canvasData,
         systemPrompt: systemPromptValue, options: getModelOptions(), sessionId, requestId,
         useDurableMemory:influencePlan.useDurableMemory,
         signal: abortController.signal,
         replyMessageId: assistantMsg.id,
+        documentArtifactId,
       });
       if (currentSessionRef.current === sessionId) dispatch({ type: "PUSH_MESSAGE", payload: assistantMsg });
       const reader = res.body.getReader();
@@ -414,8 +432,17 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
           let event;
           try { event = JSON.parse(line.slice(6)); } catch { continue; }
           if (event.runtime_status) progress(event.runtime_status.stage, event.runtime_status.detail);
+          if (event.tool_approval) {
+            setToolReview({ ...event.tool_approval, sessionId });
+            progress('tools', `Review ${event.tool_approval.name}`);
+          }
+          if (event.tool_activity) {
+            progress('tools', `${event.tool_activity.tool_id}: ${event.tool_activity.status}`);
+            if (event.tool_activity.status !== 'validating') setToolReview(null);
+            assistantMsg.tool_activity = [...(assistantMsg.tool_activity || []), event.tool_activity];
+          }
           if (event.document_status) progress("creating_document", event.document_status);
-          if (event.notice) showToast(event.notice.message, "error");
+          if (event.notice) showToast(event.notice.message, event.notice.kind === 'context_budget' ? '' : "error");
           if (event.document_status && currentSessionRef.current === sessionId) {
             const node = document.querySelector(`[data-message-id="${assistantMsg.id}"] .message-markdown`);
             if (node) node.textContent = event.document_status;
@@ -429,10 +456,11 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
           if (event.influence_receipt) assistantMsg.influence_receipt = event.influence_receipt;
           if (event.context_usage) assistantMsg.context_usage = event.context_usage;
           if (event.canvas_edit) {
-            try { applyCanvasEdit(event.canvas_edit); assistantMsg.canvas_applied = true; }
-            catch (failure) { fullResponse += `\nCanvas was not changed: ${failure.message}\n`; showToast(failure.message, "error"); }
+            const message='Paint uses image attachments. Open Paint and choose Use in chat to review the current artwork.';
+            fullResponse += `\n${message}\n`; showToast(message, "error");
           }
           if (event.document_text) assistantMsg.document_text = event.document_text;
+          if (event.reply_saved === true) serverSavedReply = true;
           if (event.cancelled) stopped = true;
           if (event.error || /^\[Error:/.test(event.token || '')) responseFailed = true;
           if (event.token) {
@@ -470,7 +498,10 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
           // Streaming text is written outside React; remove it before React
           // replaces the empty assistant placeholder with rendered Markdown.
           document.querySelector(`[data-message-id="${assistantMsg.id}"] .message-markdown`)?.replaceChildren();
-          saved = await api.appendSessionMessages(sessionId, fullResponse ? [{ ...assistantMsg, content: fullResponse }] : [], selectedModel);
+          // Document replies are already committed by the backend. Reload that
+          // canonical reply rather than attempting a conflicting second write.
+          saved = serverSavedReply ? await api.loadSession(sessionId)
+            : await api.appendSessionMessages(sessionId, fullResponse ? [{ ...assistantMsg, content: fullResponse }] : [], selectedModel);
           saveReceipt.saved = true;
           nextMemorySummary = saved.memory_summary || "";
           nextSummarizedMessageCount = saved.summarized_message_count || 0;
@@ -499,6 +530,7 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
         showToast(error.message || "Could not save the reply to its original chat", "error");
       } finally {
         signal.removeEventListener("abort", abort);
+        setToolReview(null);
         if (refs.generationRequestId === requestId) {
           refs.abortController = null;
           refs.generationRequestId = null;
@@ -541,6 +573,7 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
   function handleInput() {
     const el = textareaRef.current;
     if (!el) return;
+    if (!/^\/docx\s+(?:append|add|continue)\b/i.test(el.value)) selectDocumentTarget(null);
     el.style.height = "44px";
     el.style.height = Math.min(el.scrollHeight, 120) + "px";
   }
@@ -554,6 +587,7 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
         if (textareaRef.current?.value === draft && [sourceSessionId, imageSessionId].includes(currentSessionRef.current)) {
           textareaRef.current.value = "";
           textareaRef.current.style.height = "44px";
+          selectDocumentTarget(null);
         }
       },
     });
@@ -571,13 +605,13 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
       </div>}
       <div className="chat-composer-tools" ref={toolBarRef} role="group" aria-label="Chat tools">
         <ChatImageControls active={active} open={openTool === 'images'} onToggle={() => toggleTool('images')} onGenerate={generateChatImage} />
-        <button className="chat-tool-button" type="button" disabled={openingEdit} title="Edit the latest or selected chat image" onClick={() => { setOpenTool(null); textareaRef.current.value = "/Edit "; textareaRef.current.focus(); }}>/Edit</button>
+        <button className="chat-tool-button" type="button" disabled={openingEdit} title="Edit the latest or selected chat image" onClick={() => { setOpenTool(null); textareaRef.current.value = "/Edit "; handleInput(); textareaRef.current.focus(); }}>/Edit</button>
         <ChatAudio active={active} sessionId={currentSessionId} open={openTool === 'audio'} onToggle={() => toggleTool('audio')} onInsert={text => {
           const input = textareaRef.current;
           input.value = [input.value.trimEnd(), text].filter(Boolean).join('\n');
           handleInput(); input.focus(); setOpenTool(null);
         }}/>
-        <button className="chat-tool-button" type="button" title="Create a Word document from your message" aria-label="Create Word document" onClick={() => { setOpenTool(null); textareaRef.current.value = "/docx " + (textareaRef.current.value || ""); handleInput(); textareaRef.current.focus(); }}>Word</button>
+        <button className="chat-tool-button" type="button" title="Create a Word document from your message" aria-label="Create Word document" onClick={() => { setOpenTool(null); textareaRef.current.value = documentCreatePrompt(textareaRef.current.value); handleInput(); textareaRef.current.focus(); }}>Word</button>
         <button className="chat-tool-button" type="button" aria-label="Internet / page import" aria-expanded={openTool === 'web'} aria-controls={pane.domId("chat-web-import")}
           title={webActivity.error || webActivity.message || "Import a public page"} onClick={() => toggleTool('web')}>
           Internet{webActivity.active ? ' •' : webActivity.error ? ' !' : webActivity.complete ? ' ✓' : ''}
@@ -589,6 +623,9 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
 
       </div>
       {webActivity.active && openTool !== 'web' && <small className="chat-import-progress" role="status">{webActivity.message || 'Importing page…'} <button type="button" onClick={() => setOpenTool('web')}>View / stop</button></small>}
+      {toolReview && <div hidden={toolReview.sessionId !== state.currentSessionId}><ChatToolReview key={toolReview.id} plan={toolReview}
+        onResolved={id => setToolReview(current => current?.id === id ? null : current)} /></div>}
+      {documentTarget?.sessionId === currentSessionId && <div className="chat-document-target" role="status"><span>Adding to {documentTarget.name}</span><button type="button" onClick={() => { selectDocumentTarget(null); textareaRef.current.value = textareaRef.current.value.replace(/^\/docx\s+(?:append|add|continue)\s*/i, ''); handleInput(); textareaRef.current.focus(); }}>Clear document selection</button></div>}
       <div id={pane.domId("input-row")} className="chat-input-row">
         <div className="attachment-menu-wrapper" ref={attachmentMenuRef}>
           <button

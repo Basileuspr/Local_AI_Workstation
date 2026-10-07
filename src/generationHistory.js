@@ -11,7 +11,11 @@ export function generationHistoryReducer(state, action) {
         ? {...slot, image:null, status:'removed'} : slot)}};
   }
   if (action.type === "start-batch") return { ...state, batch: { id: action.id,
-    slots: action.requestIds.map(id => ({ id, status: "pending", image: null })) } };
+    slots: action.requestIds.map(id => {
+      const retained = state.batch?.id === action.id && state.batch.slots.find(slot => slot.id === id);
+      const image = state.images.find(image => image.batch_id === action.id && image.request_id === id);
+      return retained || (image ? { id, status: "complete", image } : { id, status: "pending", image: null });
+    }) } };
   if (action.type === "start-single") return { ...state, batch: null };
   if (action.type === "batch-failed") {
     if (state.batch?.id !== action.batchId) return state;

@@ -10,7 +10,7 @@ export function ReferencesRibbon({ editor, disabled, openDialog, Group, Button }
       <Button label="Insert internal document link" disabled={disabled} onClick={() => openDialog('Hyperlink', { mode: 'document', href: href.startsWith('#') ? href : '', text: '' })}>Link within document…</Button>
       <Button label="Go to linked destination" disabled={!href.startsWith('#') || !refs.targets.has(href.slice(1))} onClick={() => goToReference(editor, href.slice(1))}>Go to link</Button></Group>
     <Group name="Check"><Button label="Check internal links" onClick={() => openDialog('Check internal links')}>Check internal links{refs.broken.length ? ` (${refs.broken.length})` : ''}</Button><span className="de-shortcut">Ctrl+click an internal link to follow it</span></Group>
-    <Group name="Later phases"><span className="de-shortcut">Footnotes · citations · captions · index<br/>Page references need pagination</span></Group>
+    <Group name="Upcoming pieces"><span className="de-shortcut">Captions · index · page references<br/>Pagination and print follow</span></Group>
   </>;
 }
 

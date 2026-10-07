@@ -18,8 +18,8 @@ function ResourceCard({item,active,disabled,onEdit,onUnlink}) {
     {!item.available && <p>Missing or unavailable in its workspace. The link is retained.</p>}
     {url && resource?.category === 'image' && <ImageThumbnail src={url} alt={resource.name} />}
     {url && resource?.category === 'image' && <MediaCardActions image={{id:item.target_id,name:resource.name,url,library:item.kind==='image'}}/>}
-    {url && resource?.category === 'audio' && <audio ref={player} controls preload="none" src={url} aria-label={`Preview ${resource.name}`} onError={()=>setPreviewError(true)}/>}
-    {url && resource?.category === 'video' && <video ref={player} controls playsInline preload="metadata" src={url} aria-label={`Preview ${resource.name}`} onError={()=>setPreviewError(true)}/>}
+    {url && resource?.category === 'audio' && <audio crossOrigin="anonymous" ref={player} controls preload="none" src={url} aria-label={`Preview ${resource.name}`} onError={()=>setPreviewError(true)}/>}
+    {url && resource?.category === 'video' && <video crossOrigin="anonymous" ref={player} controls playsInline preload="metadata" src={url} aria-label={`Preview ${resource.name}`} onError={()=>setPreviewError(true)}/>}
     {previewError&&<p role="status">{item.kind==='file'?'This file cannot be previewed here. Use Save file to open the original in a compatible viewer.':'This image is unavailable. Check it in the image library.'}</p>}
     <label>Reference notes<textarea aria-label={`Notes for ${resource?.name || 'unavailable reference'}`} rows={2} maxLength={4000} disabled={disabled} value={note} onChange={e => setNote(e.target.value)} placeholder="What identifies this character? For voice references, add the exact spoken words."/></label>
     <div className="face-row">

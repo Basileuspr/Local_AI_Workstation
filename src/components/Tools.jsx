@@ -2,10 +2,11 @@ import { memo, useRef, useState } from "react";
 import MarkdownMessage from "./MarkdownMessage";
 import { useDispatch } from "../useStore";
 import { createMessageId } from "../messageIds";
-import { functionTargets, desktopActions, captureActions, loadFunctionButtons, saveFunctionButtons } from "../functionButtons";
+import { functionTargets, desktopActions, utilityActions, captureActions, loadFunctionButtons, saveFunctionButtons } from "../functionButtons";
 import "./Tools.css";
 import { useDesktopCapabilities } from "./Compatibility";
 import FunctionBuilder from './FunctionBuilder';
+import {appTabLabels} from '../navigation';
 
 export default memo(function Tools() {
   const dispatch = useDispatch();
@@ -21,8 +22,24 @@ export default memo(function Tools() {
   const [draft, setDraft] = useState(null);
   const [managing, setManaging] = useState(false);
   const [actionBusy, setActionBusy] = useState("");
+  const [captureTarget, setCaptureTarget] = useState('capture:chats');
   const [notice, setNotice] = useState("");
   const actionLock = useRef(false);
+  const registryLocation = 'Computer\\HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\User Shell Folders';
+
+  async function utilityAction(target, choose = false) {
+    if (actionLock.current) return;
+    actionLock.current = true; setActionBusy(target); setNotice(''); setError('');
+    try {
+      const desktop = window.workstationDesktop;
+      const method = choose ? desktop?.chooseWindowsUtility : desktop?.openWindowsUtility;
+      if (!method) throw new Error('Fully quit and restart the desktop app to load Windows utility buttons.');
+      const result = await method(target.slice(8));
+      if (result?.error) throw new Error(result.error);
+      if (result) setNotice(choose ? 'Program saved. Click its button to open it.' : `${utilityActions.find(item => item.id === target)?.name} opened.`);
+    } catch (failure) { setError(failure.message); }
+    finally { actionLock.current = false; setActionBusy(''); }
+  }
 
   function persist(next) {
     try { setButtons(saveFunctionButtons(next)); setError(""); return true; }
@@ -40,6 +57,7 @@ export default memo(function Tools() {
   }
 
   async function open(target) {
+    if (target.startsWith('utility:')) return utilityAction(target);
     const feature = actionCapability(target);
     if (feature?.available === false) { setError(feature.detail); return; }
     if (target.startsWith("program:")) {
@@ -72,6 +90,24 @@ export default memo(function Tools() {
         <h1 id="functions-heading">Functions</h1>
 
       </header>
+      <section className="functions-utilities" aria-labelledby="windows-utilities-heading">
+        <h2 id="windows-utilities-heading">Windows utilities</h2>
+        <p className="tools-note">Open a program window, then choose its options yourself.</p>
+        <div className="functions-buttons">{utilityActions.map(action => <div className="function-custom" key={action.id}>
+          <button type="button" className="function-launcher" disabled={!!actionBusy || !window.workstationDesktop} onClick={() => open(action.id)}>
+            <strong>{action.name}</strong><span>{action.description}</span>
+          </button>
+          {action.configurable && <div className="tools-toolbar"><button type="button" disabled={!!actionBusy || !window.workstationDesktop} aria-label={`Choose program for ${action.name}`} onClick={() => utilityAction(action.id, true)}>Choose program…</button></div>}
+        </div>)}</div>
+        <label className="functions-registry-location">Registry location from screenshot
+          <input readOnly aria-label="User Shell Folders registry location" value={registryLocation} onFocus={event => event.target.select()} />
+        </label>
+        <div className="tools-toolbar"><button type="button" disabled={!!actionBusy} onClick={async () => {
+          try { await navigator.clipboard.writeText(registryLocation); setNotice('Registry location copied. Paste it into Registry Editor’s address bar.'); setError(''); }
+          catch { setError('Could not copy the location. Select the location text and copy it.'); }
+        }}>Copy registry location</button></div>
+        {!window.workstationDesktop && <p className="tools-note">Open the Windows desktop app to use these buttons.</p>}
+      </section>
       <FunctionBuilder legacyBusy={!!actionBusy} />
       <div className="tools-toolbar">
         <button type="button" disabled={!!loaded.error || !!draft} onClick={() => setDraft({ id: createMessageId(), name: "", target: "system:snipping-tool" })}>+ Add Button</button>
@@ -121,7 +157,13 @@ export default memo(function Tools() {
       <div className="functions-buttons">{desktopActions.map(action => <button key={action.id} type="button" className="function-launcher" disabled={!!actionBusy || actionCapability(action.id)?.available === false} onClick={() => open(action.id)}><strong>{action.name}</strong><span>{actionCapability(action.id)?.available === false ? actionCapability(action.id).detail : action.description}</span></button>)}</div>
       <h2>Capture a tab</h2>
 
-      <div className="functions-buttons">{captureActions.map(action => <button key={action.id} type="button" className="function-launcher" disabled={!!actionBusy || actionCapability(action.id)?.available === false} onClick={() => open(action.id)}><strong>{action.name}</strong><span>{actionCapability(action.id)?.available === false ? actionCapability(action.id).detail : action.description}</span></button>)}</div>
+      <div className="tools-toolbar functions-capture">
+        <label>Tab to capture<select aria-label="Tab to capture" value={captureTarget} disabled={!!actionBusy} onChange={event => setCaptureTarget(event.target.value)}>
+          {captureActions.map(action => <option key={action.id} value={action.id}>{appTabLabels[action.id.slice(8)]}</option>)}
+        </select></label>
+        <button type="button" disabled={!!actionBusy || actionCapability(captureTarget)?.available === false} onClick={() => open(captureTarget)}>{actionBusy.startsWith('capture:') ? 'Capturing…' : 'Capture tab'}</button>
+      </div>
+      <p className="tools-note">{actionCapability(captureTarget)?.available === false ? actionCapability(captureTarget).detail : 'Copy a maximized view of the selected tab to the clipboard.'}</p>
     </section>
   </>;
 });

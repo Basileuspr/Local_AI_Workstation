@@ -1,10 +1,37 @@
-"""Authenticated, read-only tool discovery. No invocation/dispatch endpoint."""
+"""Authenticated discovery, validated execution and exact single-use action review."""
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse
+from pydantic import BaseModel, Field
+from services.tool_execution import validate_call, dispatch, create_plan, decide_plan
 
 from services.tool_registry import build_registry, registry_markdown
 
 router = APIRouter(prefix="/tools", tags=["tool-registry"])
+
+
+class ToolCall(BaseModel):
+    model_config = {'extra': 'forbid'}
+    tool_id: str = Field(min_length=1, max_length=80)
+    arguments: dict = Field(default_factory=dict)
+
+
+class ToolDecision(BaseModel):
+    model_config = {'extra': 'forbid'}
+    approved: bool
+
+
+@router.post('/execute')
+async def execute_tool(request: Request, call: ToolCall):
+    registry = _registry(request)
+    tool = validate_call(registry, call.tool_id, call.arguments)
+    if tool['execution'].get('requires_review'):
+        return {'status': 'pending', 'plan': create_plan(tool, call.arguments)}
+    return await dispatch(request.app, tool, call.arguments)
+
+
+@router.post('/plans/{plan_id}/decision')
+async def review_tool_plan(request: Request, plan_id: str, decision: ToolDecision):
+    return await decide_plan(request.app, _registry(request), plan_id, decision.approved)
 
 
 def _registry(request):

@@ -5,6 +5,7 @@ export const TOOL_EFFECT_LABELS = {
   compute: "Uses compute", writes_app_data: "Saves app data", writes_files: "Writes files",
   temporary_files: "Uses temporary files", network: "Uses network", cancels_work: "Cancels work",
   deletes_files: "Can delete files", system_changes: "Can change the system",
+  reversible_metadata: "Edits review metadata", moves_source_files: "Moves source files",
 };
 
 export const TOOL_AVAILABILITY_LABELS = { registered: "API registered", ui_only: "Interactive workspace", unavailable: "API unavailable" };
@@ -14,7 +15,7 @@ export function toolText(tool) {
     `Category: ${tool.category}`, `Workspace: ${appTabLabels[tool.workspace] || tool.workspace}`,
     `Access: ${tool.interface === "http" ? "Backend API" : "Interactive workspace"}`,
     `Availability: ${TOOL_AVAILABILITY_LABELS[tool.availability] || "Unknown status"}`,
-    "Local LLM execution: not connected.", `Returns: ${tool.output_description}`,
+    `Local LLM execution: ${tool.execution?.reason || 'Use its workspace.'}`, `Returns: ${tool.output_description}`,
     `Requirements: ${tool.requirements?.length ? tool.requirements.join("; ") : "Running local backend"}`,
     `Effects: ${tool.effects?.length ? tool.effects.map(effect => TOOL_EFFECT_LABELS[effect] || effect).join("; ") : "Reads app information"}`];
   if (tool.notes) lines.push(`Notes: ${tool.notes}`);

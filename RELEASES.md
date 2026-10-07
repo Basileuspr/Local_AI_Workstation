@@ -1,5 +1,18 @@
 # Local release records
 
+## Application update checks
+
+Check for Updates uses the published project version in
+[GitHub's package manifest](https://raw.githubusercontent.com/Basileuspr/Local_AI_Workstation/main/package.json)
+by default. `LAW_UPDATE_MANIFEST_URL` can select another HTTPS JSON version feed;
+an explicitly empty value disables checks. Offline or invalid responses report
+Unable to check. Nothing is installed automatically.
+
+This is a version check for the source distribution. Development commits with
+the same version are not detected. Advance the version in `package.json` and
+`package-lock.json` when publishing a new reviewed version so the checker can
+announce it. A GitHub commit alone is not a new version or packaged release.
+
 ## 1.0.1-dev - development build identity
 
 Recorded during the September 30, 2026 application-review follow-up. This is a
@@ -32,7 +45,7 @@ for API fields, mismatch behavior, checks and the build workflow.
 - **Commit author/commit date:** recorded Git metadata for the local source
   commit. The current baseline commit is from September 25, 2026.
 - **Reported feature date:** a statement such as the September 28 additions in
-  `PROJECT_STATUS.md`. It is not proof of original creation time.
+  `docs/archive/PROJECT_STATUS.md`. It is not proof of original creation time.
 - **First observed:** a saved source snapshot shows that a feature's source was
   present by that capture time. Preexisting uncommitted feature creation times
   remain unknown.

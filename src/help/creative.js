@@ -2,6 +2,8 @@ export const creativeHelp = {
   generate: [['Request and results', [
     ['Model', 'Select an installed image model before generating. Verboa uses text-to-image only, dimensions in multiples of 16, and commonly starts with 8 steps, guidance 2 and an empty negative prompt.'],
     ['Prompt / negative prompt', 'Describe desired content and what to discourage. Review these fields before submitting a request.'],
+    ['Steps / Guidance / Seed shortcuts', 'Edit the visible number fields directly, or expand their presets and adjustments for the existing shortcut buttons. Random seed stays visible. Closing an expander retains the current values.'],
+    ['Tab options', 'Contains Clear Generate tab, Reset defaults and Jump to Chat. Clear and Reset remain separate actions with their original behavior.'],
     ['LoRA / None', 'Choose a compatible adapter or None to use the base model alone. Add a chosen adapter’s trigger explicitly when needed.'],
     ['Generate / Stop', 'Submits the current settings to the shared queue. Stop cancels remaining work while retaining completed images.'],
     ['Batch / increments', 'Starts with current settings, then advances each enabled increment together for successive images. A blank starting seed uses 1 when Seed increments are enabled.'],
@@ -31,6 +33,7 @@ export const creativeHelp = {
   ]]],
   workflows: [['Processing workflows', [
     ['New workflow / assets', 'Creates a saved draft with owned image copies. Upload sources, masks and control maps, then assign them to stages.'],
+    ['Workflow options', 'Contains provider refresh, Reload saved and Delete workflow. Save and Branch next scene stay visible; deleting still opens its review dialog.'],
     ['Stages / order', 'Runs top to bottom. Previous-image links follow the order; choose a specific image or stage for a fixed source.'],
     ['Operation / adapter', 'Installed SDXL supports image-to-image and masked edits; Ollama vision describes images; Lanczos resizes on CPU. A stage without an installed adapter cannot run.'],
     ['Prompt / settings', 'SDXL stages use prompts and generation settings. Describe / OCR reports content separately; Lanczos resizes without a prompt.'],
@@ -41,7 +44,9 @@ export const creativeHelp = {
     ['Keep as reference / Branch next scene', 'Explicitly promotes a result for reuse. Branching copies owned references; choose a kept result as the new source.'],
     ['Export / stitched reference', 'Keeps stage order. Stitches fit images without cropping and can scale to reference limits; ZIP retains original outputs. Completed images also appear in Gallery → Workflow Images.'],
   ]], ['Iterative scenes', [
+    ['Plan the next frame', 'Choose an installed Ollama model and describe your intention. Propose visual actions shows concrete before/after changes and uncertainties without modifying the scene. Select actions and Apply reviewed actions, then generate separately. Completed proposals are saved; edited scenes require a new plan. Stop planning cancels local inference.'],
     ['New scene / starting image', 'Saves character, camera, lighting, pose and object state. Generate the first frame from text or attach an image.'],
+    ['Scene options', 'Contains Reload saved and Refresh models and characters. Reload still asks before discarding unsaved changes.'],
     ['State fields', 'Edits save automatically. Change the fields for the next frame; other details carry forward. Natural-language action planning is not implemented.'],
     ['Character references', 'Copies the profile’s chosen references for review. This adapter conditions on the previous frame and text; it does not use a face adapter.'],
     ['Object state / JSON', 'Retain object identity while changing placement or contact. Applying edited JSON validates before replacing saved state.'],
@@ -65,6 +70,7 @@ export const creativeHelp = {
     ['Tie to character', 'Links this dataset to a profile without moving, copying or training the linked source.'],
   ]]],
   characters: [['Profile', [
+    ['Related tools / Character options', 'Related tools opens Faces, Audio or Packager. Character options contains Rename, Recalculate and Delete; deleting still requires confirmation.'],
     ['Name / biography / notes', 'Defines the saved character profile. A character can exist without face images.'],
     ['References / resources', 'Links existing faces, parts, LoRAs, audio, images, video, documents and other resources. Existing resources remain in their workspaces.'],
     ['Upload files / Saved file', 'Creates an app copy up to 128 MiB; images are limited to 24 megapixels. Saved file links a previous upload again. Video playback depends on the codec.'],
@@ -86,7 +92,7 @@ export const creativeHelp = {
     ['Accept / reject', 'Reviews full images and crops independently. Rejected selections remain recoverable. Check small digits, occlusion and left/right labels.'],
     ['Remove', 'Hides items from the working view without changing saved datasets or earlier exports.'],
     ['Full image / Crop', 'Sets which representation each item contributes to export.'],
-    ['Export selected / approved / rejected', 'Creates ZIP copies with captions and a manifest. Selected uses checked items; approved and rejected span the entire dataset across filters.'],
+    ['Export media → selected / approved / rejected', 'Creates ZIP copies with captions and a manifest. Selected uses checked items; approved and rejected span the entire dataset across filters.'],
     ['Tie to character', 'Optionally links the dataset to a character’s references without copying, moving or training source files.'],
   ]]],
 };

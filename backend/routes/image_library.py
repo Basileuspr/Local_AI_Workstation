@@ -43,7 +43,7 @@ class ImageEdit(BaseModel):
     category: str | None = Field(default=None, max_length=120)
     project: str | None = Field(default=None, max_length=120)
     favorite: StrictBool | None = None
-    review_status: Literal['unreviewed', 'accepted', 'rejected'] | None = None
+    review_status: Literal['unreviewed', 'reviewed', 'accepted', 'rejected'] | None = None
 
 
 class Tag(BaseModel):

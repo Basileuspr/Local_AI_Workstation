@@ -368,7 +368,7 @@
       "priority": "P1",
       "category": "Recovery",
       "title": "Interrupted LoRA states need a complete restart reconciliation contract",
-      "evidence": "Confirmed source gap; forced-crash behavior unverified",
+      "evidence": "Implemented restart reconciliation; isolated recovery and real synthetic orphan-process checks passed; production GPU forced-crash behavior unverified",
       "observation": "LoRA project loading reconciles queued jobs after a queue restart, but the inspected loader does not reconcile starting/running/cancelling states. The manager tracks child identity in memory and cancel requires its active child. Its normal watcher performs cleanup, but that watcher cannot be assumed to run after backend termination. Electron reports unexpected backend exit; the inspected close handler does not automatically restart it.",
       "recommendation": "Reconcile all active training states against verified process/run ownership on startup, preserve completed adapters and source datasets, and expose deliberate recovery. Do not mark a still-running external worker interrupted without verifying ownership.",
       "verify": "Use disposable projects and synthetic worker processes to cover backend restart, orphaned worker, stale status, monitor failure and disk-full persistence failure. Then separately validate a real training run when authorized.",
@@ -376,8 +376,16 @@
       "files": [
         "backend/services/lora_store.py",
         "backend/services/lora_training.py",
-        "electron/main.js"
-      ]
+        "backend/services/lora_recovery.py",
+        "backend/routes/lora.py",
+        "src/components/LoraStudio.jsx",
+        "src/api.js"
+      ],
+      "status": "Implemented",
+      "implemented_at": "2026-10-06",
+      "implementation": "Startup reconciliation persists interrupted states for dead queued/starting/running/cancelling runs, restores matching completed packages, and retains GPU ownership for verified surviving or inaccessible recorded workers. The LoRA pane offers deliberate recovery; worker identity is rechecked before termination and project persistence precedes stale-lock removal. Datasets, checkpoints and completed adapters are preserved.",
+      "verification_result": "92 focused backend tests and 4 frontend checks passed; scratch Vite frontend build and scoped diff checks passed. Includes an abruptly exiting disposable backend parent with a real synthetic orphan worker, legacy/inaccessible worker ownership, malformed locks, stale/reused PID handling, independent worker exit, retraining admission, completion/data preservation, monitor failure and injected disk-full recovery. Real GPU training and production desktop forced-crash behavior remain unverified.",
+      "result_document": "changes/R11-lora-restart-recovery.md"
     }
   ],
   "already_present": [

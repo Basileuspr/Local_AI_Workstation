@@ -1,3 +1,4 @@
+import { imageProfileChanged } from "../imageProfiles";
 import { useState } from "react";
 import { sortNamedItems } from "../alphabetical";
 import { useDispatch, useStore } from "../useStore.jsx";
@@ -5,7 +6,7 @@ import BulkActions, { SelectionCheckbox } from "./BulkActions";
 import { useSelection } from "../useSelection";
 
 export default function CustomProfileControls() {
-  const { customProfiles: savedProfiles, activeCustomProfileId } = useStore();
+  const { customProfiles: savedProfiles, activeCustomProfileId, imageSettings } = useStore();
   const customProfiles = sortNamedItems(savedProfiles);
   const dispatch = useDispatch();
   const [mode, setMode] = useState("");
@@ -65,24 +66,28 @@ export default function CustomProfileControls() {
 
   return (
     <section className="custom-profile-control">
-      <div className="custom-profile-label">Custom Profile</div>
+      <div className="custom-profile-label">Image Profile</div>
       <div className="custom-profile-toolbar">
         <select
-          aria-label="Custom Profile"
+          aria-label="Image Profile"
           value={activeCustomProfileId}
           onChange={(event) => dispatch({ type: "APPLY_CUSTOM_PROFILE", payload: event.target.value })}
         >
-          <option value="">No custom profiles</option>
+          <option value="">Select an image profile</option>
           {customProfiles.map((profile) => (
             <option value={profile.id} key={profile.id}>{profile.name}</option>
           ))}
         </select>
         <button type="button" onClick={startCreate}>+ Add</button>
+        <button type="button" disabled={!imageProfileChanged(selectedProfile, imageSettings)} onClick={() => {
+          dispatch({ type: "UPDATE_CUSTOM_PROFILE" }); showToast("Image profile updated", "success");
+        }}>Update</button>
         <button type="button" onClick={startEdit} disabled={!selectedProfile}>Edit</button>
       </div>
+      <p className="custom-profile-hint">Saves prompt, negative prompt, steps, guidance, and seed. {imageProfileChanged(selectedProfile, imageSettings) ? "Unsaved changes — click Update to save." : "Changes save only with Update."}</p>
       <BulkActions selection={selection} items={customProfiles} label="profiles" disabled={!!mode}
         actions={[{label:"Delete selected profiles", danger:true, onClick:items => {
-          if (!window.confirm(`Delete ${items.length} selected custom profile(s)? This cannot be undone. Current chat and image settings will be kept.`)) return;
+          if (!window.confirm(`Delete ${items.length} selected custom profile(s)? This cannot be undone. Current image settings will be kept.`)) return;
           dispatch({type:"DELETE_CUSTOM_PROFILES", payload:items.map(item => item.id)});
           selection.forget(items); showToast(`Deleted ${items.length} profiles`, "success");
         }}]} />

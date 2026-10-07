@@ -45,6 +45,9 @@ const { stopBackendProcess, createAppShutdown, applicationMenu } = require('./ap
 // Capture once for this process. A later source build must not relabel a running desktop.
 const desktopBuild = readBuildInfo(path.resolve(__dirname, ".."));
 if (process.env.LAW_USER_DATA_DIR) app.setPath("userData", path.resolve(process.env.LAW_USER_DATA_DIR));
+// Keep the image catalog beside Media Manager's private runtime storage,
+// outside app data and independent of reset/import and renderer preferences.
+process.env.LAW_IMAGE_MANAGER_DIR ||= path.join(app.getPath("userData"), "image-manager");
 const rendering = configureRendering({ app, log: createLogger('rendering') });
 const maintenanceToken = randomUUID();
 const localFilesToken = randomUUID();
@@ -125,12 +128,15 @@ const { directory: mediaDirectory, reports: mediaReports } = mediaManagerPaths({
     root: path.join(__dirname, ".."), desktop: app.getPath("desktop"), userData: app.getPath("userData"),
 });
 const mediaPython = process.env.LAW_MEDIA_MANAGER_PYTHON || CONFIG.pythonPath;
+let workspaceFind;
+const watchWorkspaceFind = (contents, target) => workspaceFind?.watch(contents, target);
 const mediaManager = createMediaManager({
     WebContentsView, session, getWindow: () => mainWindow,
     python: mediaPython,
     directory: mediaDirectory,
     reports: mediaReports,
     reviewConnection: () => ({ base: `http://127.0.0.1:${CONFIG.backendPort}`, token: reviewBridgeToken }),
+    watchFind: watchWorkspaceFind,
 });
 
 function trustedDesktop(event) {
@@ -141,8 +147,18 @@ function trustedDesktop(event) {
     return trustedUrl(event.senderFrame.url, useViteDev ? CONFIG.viteDevUrl : null);
 }
 
-const viewerBrowser = createViewerBrowser({WebContentsView, session, dialog, getWindow:()=>mainWindow});
-const linkedContent = require('./linkedContent').createLinkedContent({WebContentsView, session, getWindow:()=>mainWindow});
+const viewerBrowser = createViewerBrowser({WebContentsView, session, dialog, getWindow:()=>mainWindow, watchFind:watchWorkspaceFind});
+const linkedContent = require('./linkedContent').createLinkedContent({WebContentsView, session, getWindow:()=>mainWindow, watchFind:watchWorkspaceFind});
+workspaceFind = require('./workspaceFind').createWorkspaceFind({ipcMain, getWindow:()=>mainWindow, trustedDesktop,
+    targets: {'browser':()=>viewerBrowser.findContents(), 'media-manager':()=>mediaManager.findContents(), 'integrations':()=>linkedContent.findContents()}});
+ipcMain.handle('sound-mixer:configure', (event,value) => {
+    if(!trustedDesktop(event))return {error:'Desktop access required.'};
+    try {
+        const mix=require('./soundMixer').normalizeNativeMix(value);
+        viewerBrowser.setMix(mix);mediaManager.setMix(mix);linkedContent.setMix(mix);
+        return {applied:true};
+    }catch(error){return {error:error.message};}
+});
 ipcMain.handle('sound-output:open-settings', async event => {
     if (!trustedDesktop(event) || process.platform !== 'win32') return {error:'Windows Sound settings require the trusted Windows desktop app.'};
     try {await shell.openExternal('ms-settings:sound');return {opened:true};}
@@ -216,6 +232,20 @@ ipcMain.handle("functions:run-action", async (event, action) => {
     finally { desktopActionBusy = false; }
 });
 const programLaunchers = createProgramLaunchers({ file: path.join(app.getPath("userData"), "program-launchers.json"), dialog, shell, getWindow: () => mainWindow });
+const windowsUtilities = require('./windowsUtilities').createWindowsUtilities({
+    file: path.join(app.getPath('userData'), 'windows-utilities.json'), shell, dialog, getWindow: () => mainWindow,
+    desktopDirectory: app.getPath('desktop'),
+});
+for (const method of ['open', 'choose']) {
+    ipcMain.handle(`functions:utility-${method}`, async (event, id) => {
+        if (!trustedDesktop(event)) return { error: 'Desktop access required.' };
+        if (desktopActionBusy || functionWorkflows.busy) return { error: 'Another desktop action or function is running.' };
+        desktopActionBusy = true;
+        try { return await windowsUtilities[method](id); }
+        catch (error) { return { error: error.message }; }
+        finally { desktopActionBusy = false; }
+    });
+}
 const functionWorkflows = createFunctionWorkflows({
     file: path.join(app.getPath('userData'), 'function-folders.json'),
     chooseDirectory: async purpose => {
@@ -595,7 +625,7 @@ const maintenance = createMaintenance({
     freezeRenderer: () => mainWindow.webContents.executeJavaScript(`document.getElementById('root').inert = true`),
     thawRenderer: () => mainWindow.webContents.executeJavaScript(`document.getElementById('root').inert = false`),
     readStorage: () => mainWindow.webContents.executeJavaScript(`Object.fromEntries(Object.keys(localStorage).map(key => [key, localStorage.getItem(key)]))`),
-    clearRenderer: () => clearDesktopStorage(mainWindow.webContents),
+    clearRenderer: () => clearDesktopStorage(mainWindow.webContents, {}, "App data and personal settings were reset. Image Manager and Media Manager catalogs were retained."),
     restoreRenderer: (values, notice) => clearDesktopStorage(mainWindow.webContents, values, notice),
     clearCache: async () => { await mainWindow.webContents.session.clearCache(); },
     startBackend: async () => { startPythonBackend(); await waitForBackend(); },
@@ -894,6 +924,7 @@ async function createWindow() {
         webPreferences: { nodeIntegration: false, contextIsolation: true, spellcheck: true, preload: path.join(__dirname, "preload.js") },
     });
     mainWindow.on("close", shutdown.closeWindow);
+    workspaceFind.watchHost(mainWindow.webContents);
     mainWindow.on("closed", () => { mainWindow = null; windowRendering = null; });
 
     windowRendering = attachWindowRendering({ window: mainWindow, screen, log });

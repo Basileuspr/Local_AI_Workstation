@@ -4,6 +4,11 @@ import os
 from pathlib import Path
 import sys
 import tempfile
+import argparse
+
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--model', required=True, help='Installed SDXL model ID; never infer a model from discovery order')
+args = parser.parse_args()
 
 output = Path(tempfile.mkdtemp(prefix="law-reference-smoke-"))
 os.environ["LAW_DATA_DIR"] = str(output)
@@ -14,8 +19,9 @@ from services.image_generation import manager, discover_models
 from services.generation_reference import store_reference
 
 models = discover_models()
-assert len(models) == 1, "Specify the intended model if more than one is installed"
-options = dict(model_id=models[0]["id"], prompt="a blue ceramic teapot on a wooden table, watercolor illustration",
+selected = next((model for model in models if model['id'] == args.model), None)
+assert selected and selected.get('pipeline') != 'ErnieImagePipeline', 'Choose an installed SDXL model'
+options = dict(model_id=selected["id"], prompt="a blue ceramic teapot on a wooden table, watercolor illustration",
                negative_prompt="blurry", width=512, height=512, steps=12, guidance_scale=5.5, seed=42)
 print(json.dumps({"output": str(output), "model": options["model_id"]}), flush=True)
 try:

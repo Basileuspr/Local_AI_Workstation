@@ -3,9 +3,21 @@ export function matchesImageTags(image, selectedIds) {
   return selectedIds.every(id => assigned.has(id));
 }
 
-export function reviewImages(images, folder, selectedIds = [], query = "") {
+export const reviewStatuses = ['unreviewed', 'reviewed', 'accepted', 'rejected'];
+export const reviewStatusLabels = { unreviewed: 'To review', reviewed: 'Reviewed (no rating)', accepted: 'Liked', rejected: 'Disliked' };
+export function reviewStatus(image) {
+  return image.review_status || ({ liked: 'accepted', disliked: 'rejected' })[image.rating] || 'unreviewed';
+}
+export function completeReview(image) {
+  const status = reviewStatus(image);
+  return { review_status: status === 'unreviewed' ? 'reviewed' : status,
+    rating: ({ accepted: 'liked', rejected: 'disliked' })[status] || null };
+}
+
+export function reviewImages(images, folder, selectedIds = [], query = "", favoritesOnly = false) {
   const text = query.trim().toLowerCase();
-  return images.filter(image => !image.hidden && (folder === "pending" ? !image.rating : image.rating === folder)
+  return images.filter(image => !image.hidden && (!favoritesOnly || image.favorite)
+    && (folder === 'all' ? true : folder === 'favorites' ? image.favorite : reviewStatus(image) === ({pending:'unreviewed',liked:'accepted',disliked:'rejected'})[folder] || reviewStatus(image) === folder)
     && matchesImageTags(image, selectedIds)
     && `${image.name} ${image.annotations?.caption || ""}`.toLowerCase().includes(text));
 }

@@ -20,7 +20,7 @@ export default function AppUpdateCheck() {
       {busy && <p role="status">Checking the configured release feed…</p>}
       {error && <p role="alert">{error}</p>}
       {result && <><p role="status">{{ up_to_date: 'Up to date', update_available: 'Update available', unable_to_check: 'Unable to check' }[result.status] || 'Update status unavailable'}</p>
-        <dl><dt>Installed version</dt><dd>{result.current_version || 'Unknown'}</dd><dt>Release feed version</dt><dd>{result.latest_version || 'Unknown'}</dd></dl>
+        <dl><dt>Installed version</dt><dd>{result.current_version || 'Unknown'}</dd><dt>Published version</dt><dd>{result.latest_version || 'Unknown'}</dd></dl>
         <p>{result.detail}</p></>}
       <footer><button type="button" disabled={busy} onClick={check}>Check again</button><button type="button" onClick={close}>Close</button></footer>
     </dialog></>;

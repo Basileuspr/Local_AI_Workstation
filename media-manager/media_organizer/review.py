@@ -62,7 +62,22 @@ def sample(state,run_id,record_id):
     preview=state.thumbnails.get(path,'full'); after=path.stat()
     if (before.st_size,before.st_mtime_ns)!=(after.st_size,after.st_mtime_ns): raise ValueError('Video changed while reading.')
     origin=row.get('OriginRunId',run_id); identifier=row.get('OriginRecordId',record_id)
-    return {'id':origin+'::'+identifier,'name':row['OriginalFilename'],'digest':digest,'image':base64.b64encode(preview).decode('ascii')}
+    data=media_actions.metadata(state.reports); assigned=set(data['assignments'].get(digest.upper(),[]))
+    tags=[tag['name'] for tag in data['tags'] if tag['id'] in assigned]
+    return {'id':origin+'::'+identifier,'name':row['OriginalFilename'],'digest':digest,'image':base64.b64encode(preview).decode('ascii'),'native_tags':tags}
+
+
+def save_native_tags(state,digest,tags):
+    if not isinstance(tags,list) or len(tags)>100 or any(not isinstance(tag,str) or not 1<=len(tag.strip())<=60 for tag in tags):
+        raise ValueError('Tags need 1 to 60 characters.')
+    with state.lock:
+        data=media_actions.metadata(state.reports); assigned=[]
+        for label in tags:
+            tag=next((tag for tag in data['tags'] if tag['name'].casefold()==label.casefold()),None)
+            if not tag: tag={'id':uuid4().hex,'name':label}; data['tags'].append(tag)
+            assigned.append(tag['id'])
+        data['assignments'][digest.upper()]=assigned
+        manifest.write_json(str(state.reports/'ui-metadata.json'),data)
 
 
 def action(state,payload):
@@ -77,8 +92,8 @@ def action(state,payload):
         return value
     if operation=='open':
         item=sample(state,payload.get('runId'),payload.get('recordId')); value=request('register',item)
-        data=media_actions.metadata(state.reports); assigned=set(data['assignments'].get(item['digest'].upper(),[]))
-        value['review']['tags']=[tag['name'] for tag in data['tags'] if tag['id'] in assigned]
+        if value['review']['tags']!=item['native_tags']:
+            save_native_tags(state,item['digest'],value['review']['tags'])
         return value
     if operation=='classify':
         ids=payload.get('recordIds')
@@ -95,14 +110,7 @@ def action(state,payload):
         request('register',item)
         result=request('review',{'source':'media-manager','id':item['id'],**{key:changes[key] for key in ('rating','caption','tags','category','project','favorite','review_status') if key in changes}})
         if 'tags' in changes:
-            with state.lock:
-                data=media_actions.metadata(state.reports); assigned=[]
-                for label in tags:
-                    tag=next((tag for tag in data['tags'] if tag['name'].casefold()==label.casefold()),None)
-                    if not tag: tag={'id':uuid4().hex,'name':label}; data['tags'].append(tag)
-                    assigned.append(tag['id'])
-                data['assignments'][item['digest'].upper()]=assigned
-                manifest.write_json(str(state.reports/'ui-metadata.json'),data)
+            save_native_tags(state,item['digest'],tags)
         return result
     if operation in ('person','face','merge','scenes'): return request(operation,payload.get('value',{}))
     if operation=='export':

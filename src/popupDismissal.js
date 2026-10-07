@@ -1,1 +1,1 @@
-export { installPopupDismissal, registerPopupLayer } from '../media-manager/frontend/popup-dismissal';
+export { installPopupDismissal, registerPopupLayer, dismissPopupLayers } from '../media-manager/frontend/popup-dismissal';

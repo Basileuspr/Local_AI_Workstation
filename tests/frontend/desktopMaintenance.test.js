@@ -146,6 +146,23 @@ describe("desktop reset lifecycle", () => {
     expect(order(deps.startBackend)).toBeLessThan(order(deps.notifyComplete));
     expect((await controller.reset({ ticket: saved.ticket, confirmation: "RESET" })).error).toBeTruthy();
   });
+  it("passes the reviewed catalog retention choice to the offline worker and completion notice", async () => {
+    const {controller, deps} = fixture();
+    const saved = await controller.prepareReset();
+    const counts = {folders: 2, images: 3};
+    deps.run.mockImplementation(async request => request.action === "reset" ? {ok: true, image_manager_retained: counts} : {ok: true});
+    expect(await controller.reset({ticket: saved.ticket, confirmation: "RESET", keepImageManager: true}))
+      .toEqual({ok: true, image_manager_retained: counts});
+    expect(deps.run).toHaveBeenCalledWith({action: "reset", confirmation: "RESET", keep_image_manager: true});
+    expect(deps.clearRenderer).toHaveBeenCalledWith(true);
+  });
+  it("rejects an invalid retention choice before stopping the backend", async () => {
+    const {controller, deps} = fixture();
+    const saved = await controller.prepareReset();
+    expect((await controller.reset({ticket: saved.ticket, confirmation: "RESET", keepImageManager: "false"})).error).toContain("Choose whether");
+    expect(deps.stopBackend).not.toHaveBeenCalled();
+    expect(deps.clearRenderer).not.toHaveBeenCalled();
+  });
   it("leaves running work untouched and refuses a separately owned backend", async () => {
     const { controller, deps } = fixture();
     const saved = await controller.prepareReset();

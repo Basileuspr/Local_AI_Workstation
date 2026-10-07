@@ -11,7 +11,10 @@ export function createPollingObserver({ read, interval, active = () => false, ti
     if (listeners.size && delay !== null) timer = setTimer(run, Math.max(0, delay));
   }
   function emit(kind, data) {
-    for (const listener of listeners) listener[kind]?.(data);
+    for (const listener of listeners) {
+      try { listener[kind]?.(data); }
+      catch (error) { host?.reportError?.(error); }
+    }
   }
   async function run() {
     if (!listeners.size || running || interval(value, context()) === null) return;
@@ -28,14 +31,14 @@ export function createPollingObserver({ read, interval, active = () => false, ti
       if (!next.unchanged || active(value)) emit("data", value);
       else emit("recovered", value);
     } catch (error) {
-      if (listeners.size && started === epoch) { failures++; emit("error", error); }
+      if (listeners.size && started === epoch && !dirty) { failures++; emit("error", error); }
     } finally {
       clearTimer(deadline); controller = null; running = false;
       if (listeners.size) schedule(dirty ? 0 : interval(value, context()));
     }
   }
   function invalidate() {
-    idleCount = 0;
+    idleCount = 0; etag = undefined;
     if (running) dirty = true;
     else schedule(0);
   }

@@ -138,6 +138,25 @@ class RequestQueue:
             # An external GPU task may have claimed the lease after analysis.
             await asyncio.sleep(0.15)
 
+    def suspend_for_tools(self, job):
+        """Provider round has exited; let nested tools enter the normal FIFO."""
+        with self._lock:
+            if self.active is not job:
+                raise ValueError("Only the active chat can suspend for tools")
+            self.coordinator.release(job.owner)
+            self.active = None
+            job.requires_gpu = False
+            job.stage = 'tools'
+
+    def resume_after_tools(self, job):
+        with self._lock:
+            if job.cancel_event.is_set(): raise QueueCancelled()
+            job.requires_gpu = True
+            job.status = 'queued'
+            job.stage = 'preparing_model'
+            self.jobs.remove(job)
+            self.jobs.append(job)
+
     async def cancel(self, job):
         with self._lock:
             if job.status in TERMINAL or job.cancel_event.is_set():

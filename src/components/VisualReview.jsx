@@ -6,10 +6,12 @@ import {downloadBlob} from '../downloadBlob';
 import {useImageDestinations} from '../ImageDestinations';
 import FaceClassification from './FaceClassification';
 import ReviewRecordDetails from './ReviewRecordDetails';
+import ReviewFieldsEditor from './ReviewFieldsEditor';
+import ReviewWorkflow from './ReviewWorkflow';
 import ReviewTags,{tagList} from './ReviewTags';
 import PersonNameEditor from './PersonNameEditor';
 import PersonTagSelect from './PersonTagSelect';
-import { canReadReviewImage, reviewFileMessage } from '../imageReview';
+import { canReadReviewImage, reviewFileMessage, completeReview } from '../imageReview';
 import './VisualReview.css';
 
 function ReviewDialog({source,ids,onClose,onChanged,onPersonRenamed,people,labels,active=true,focusPerson=''}){
@@ -21,7 +23,7 @@ function ReviewDialog({source,ids,onClose,onChanged,onPersonRenamed,people,label
   useEffect(()=>{if(active)dialog.current.showModal();else dialog.current.close();},[active]);
   useEffect(()=>{let live=true;setItem(null);setValue(null);setError('');setUndo(null);request('/open',{source,ids:[identifier]}).then(result=>{if(live){setItem(result);setValue({...result.review});}}).catch(failure=>{if(live)setError(failure.message);});return()=>{live=false;};},[source,identifier]);
   async function act(work){if(acting.current)return;acting.current=true;setBusy(true);setError('');try{await work();}catch(failure){setError(failure.message);}finally{acting.current=false;setBusy(false);}}
-  async function save(rating=value?.rating,tags=value?.tags){if(!value||changedFile)return;const saved=await request('/review',{source,id:identifier,rating,caption:value.caption,tags,...(typeof value.favorite==='boolean'?{favorite:value.favorite}:{})});setValue(current=>({...current,...saved}));setItem(current=>({...current,available_tags:[...new Set([...(current.available_tags||[]),...saved.tags])]}));onChanged?.();}
+  async function save(rating=value?.rating,tags=value?.tags,status=rating===value?.rating?value?.review_status:({liked:'accepted',disliked:'rejected'})[rating]||'unreviewed'){if(!value||changedFile)return;const saved=await request('/review',{source,id:identifier,rating,review_status:status,caption:value.caption,tags,category:value.category||'',project:value.project||'',...(typeof value.favorite==='boolean'?{favorite:value.favorite}:{})});setValue(current=>({...current,...saved}));setItem(current=>({...current,available_tags:[...new Set([...(current.available_tags||[]),...saved.tags])]}));onChanged?.();}
   const close=()=>act(async()=>{await save();onClose();});
   const move=delta=>act(async()=>{await save();setPosition(p=>p+delta);});
   async function reload(){setItem(await request('/open',{source,ids:[identifier]}));onChanged?.();}
@@ -33,10 +35,10 @@ function ReviewDialog({source,ids,onClose,onChanged,onPersonRenamed,people,label
     <header><h2>{item?.name||'Image review'} <small>{position+1} of {ids.length}</small></h2><button disabled={busy} onClick={close}>Save & close</button></header>
     <div className="vr-inspect">{item&&(canReadReviewImage(item.media)?<img className="vr-image" src={reviewImageUrl(source,identifier)} alt={item.name||'Selected image'}/>:<p role="status">{reviewFileMessage(item.media)}</p>)}
     {item?.classification&&<FaceClassification key={identifier} classification={item.classification} people={people} names={item.available_tags||[]} focusPerson={focusPerson} busy={busy} act={act} onRename={renamePerson} onCorrect={correction} undo={undo} onUndo={undoCorrection}/>}</div>
-    {value&&<><ReviewRecordDetails image={{...item?.media,...value}} /><label>Caption / notes<textarea aria-label="Review caption" disabled={busy||changedFile} value={value.caption} maxLength={10000} onChange={e=>setValue({...value,caption:e.target.value})}/></label>
+    {value&&<><ReviewRecordDetails image={{...item?.media,...value}} /><ReviewFieldsEditor value={value} onChange={setValue} disabled={busy||changedFile}/><button disabled={busy||changedFile} onClick={()=>act(async()=>{const decision=completeReview(value);await save(decision.rating,value.tags,decision.review_status);if(position<ids.length-1)setPosition(p=>p+1);})}>Done & next</button><label>Caption / notes<textarea aria-label="Review caption" disabled={busy||changedFile} value={value.caption} maxLength={10000} onChange={e=>setValue({...value,caption:e.target.value})}/></label>
       <ReviewTags key={identifier} value={value.tags} available={item.available_tags||[]} disabled={busy||changedFile} maxLength={source==='image-manager'?60:80} onChange={tags=>setValue({...value,tags})} onApply={tags=>act(()=>save(value.rating,tags))}/>
       {item.person_tags?.length>0&&<p>Person name tags: {item.person_tags.join(' · ')}. These follow the face groups.</p>}
-      <div className="vr-actions"><button disabled={busy||changedFile} aria-pressed={value.rating==='liked'} onClick={()=>act(async()=>{await save('liked');if(position<ids.length-1)setPosition(p=>p+1);})}>Like</button><button disabled={busy||changedFile} aria-pressed={value.rating==='disliked'} onClick={()=>act(async()=>{await save('disliked');if(position<ids.length-1)setPosition(p=>p+1);})}>Dislike</button><button disabled={busy||changedFile} onClick={()=>act(()=>save(null))}>Return to review</button><button disabled={busy||changedFile} onClick={()=>act(()=>save())}>Save notes</button>
+      <div className="vr-actions"><button disabled={busy||changedFile} aria-pressed={value.rating==='liked'} onClick={()=>act(async()=>{await save('liked',value.tags,'accepted');if(position<ids.length-1)setPosition(p=>p+1);})}>Like</button><button disabled={busy||changedFile} aria-pressed={value.rating==='disliked'} onClick={()=>act(async()=>{await save('disliked',value.tags,'rejected');if(position<ids.length-1)setPosition(p=>p+1);})}>Dislike</button><button disabled={busy||changedFile} onClick={()=>act(()=>save(null,value.tags,'unreviewed'))}>Return to review</button><button disabled={busy||changedFile} onClick={()=>act(()=>save())}>Save notes</button>
         {destinations&&<><button disabled={busy||!canReadReviewImage(item?.media)} onClick={()=>take('editor')}>Edit image</button><button disabled={busy||!canReadReviewImage(item?.media)} onClick={()=>take('workflow')}>Start workflow</button><button disabled={busy||!canReadReviewImage(item?.media)} onClick={()=>take('folder')}>Add to Gallery folder</button></>}
         <button disabled={busy||!canReadReviewImage(item?.media)} onClick={()=>act(async()=>{await save();downloadBlob(await request('/export',{source,ids:[identifier]}),'reviewed-image.zip');})}>Export image & notes</button></div></>}
     {item?.classification&&<details><summary>Scene labels</summary>
@@ -46,8 +48,8 @@ function ReviewDialog({source,ids,onClose,onChanged,onPersonRenamed,people,label
   </dialog>,document.body);
 }
 
-export default function VisualReview({source,ids=[],active=true,onChanged}) {
-  const [open,setOpen]=useState(false),[caps,setCaps]=useState(null),[catalog,setCatalog]=useState({items:[],people:[],scenes:{},total:0});
+export default function VisualReview({source,ids=[],active=true,onChanged,embedded=false}) {
+  const [open,setOpen]=useState(embedded),[caps,setCaps]=useState(null),[catalog,setCatalog]=useState({items:[],people:[],scenes:{},total:0});
   const [job,setJob]=useState(null),[faces,setFaces]=useState(true),[model,setModel]=useState('');
   const [person,setPerson]=useState(''),[scene,setScene]=useState(''),[rating,setRating]=useState(''),[query,setQuery]=useState(''),[offset,setOffset]=useState(0);
   const [slides,setSlides]=useState(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),[loading,setLoading]=useState(false),[revision,setRevision]=useState(0);
@@ -113,8 +115,9 @@ export default function VisualReview({source,ids=[],active=true,onChanged}) {
     finally{acting.current=false;setBusy(false);}
   }
 
-  return <details className="visual-review" onToggle={event=>setOpen(event.currentTarget.open)}>
-    <summary>Review & classify <span>People, scenes, ratings and notes</span></summary>
+  const Container=embedded?'section':'details';
+  return <>{source==='image-manager'&&<ReviewWorkflow source={source} ids={ids} active={active} onChanged={changed}/>}<Container className="visual-review" onToggle={embedded?undefined:event=>setOpen(event.currentTarget.open)}>
+    {!embedded&&<summary>People & scenes <span>Face groups and optional classification</span></summary>}
     {open&&<>
 
       <div className="vr-actions">
@@ -178,5 +181,5 @@ export default function VisualReview({source,ids=[],active=true,onChanged}) {
       {error&&<p role="alert">{error}</p>}
       {slides&&<ReviewDialog source={source} ids={slides} active={active} focusPerson={person} people={catalog.people} labels={caps?.scene_labels||[]} onChanged={changed} onPersonRenamed={personRenamed} onClose={()=>setSlides(null)}/>}
     </>}
-  </details>;
+  </Container></>;
 }

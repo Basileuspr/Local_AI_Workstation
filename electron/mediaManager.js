@@ -4,6 +4,7 @@ const path = require("node:path");
 const { spawn } = require("node:child_process");
 const { randomUUID } = require("node:crypto");
 const { snapshotDocument } = require("./captureSnapshot");
+const {createNativeMixer} = require('./soundMixer');
 
 function childEnvironment(environment) {
     const allowed = /^(path|pathext|systemroot|windir|comspec|temp|tmp|userprofile|appdata|localappdata|programfiles|programfiles\(x86\)|programdata|homedrive|homepath|home|lang)$/i;
@@ -18,7 +19,8 @@ function mediaOrigin(value) {
     } catch { return null; }
 }
 
-function createMediaManager({ WebContentsView, session, getWindow, python, directory, reports, reviewConnection, spawnProcess = spawn }) {
+function createMediaManager({ WebContentsView, session, getWindow, python, directory, reports, reviewConnection, spawnProcess = spawn, watchFind }) {
+    const mixer=createNativeMixer('media-manager');
     let child = null, view = null, pending = null, origin = null, disposed = false, failure = null;
     let placement = { visible: false };
 
@@ -104,6 +106,7 @@ function createMediaManager({ WebContentsView, session, getWindow, python, direc
             view.setVisible(false);
             getWindow().contentView.addChildView(view);
             const contents = view.webContents;
+            watchFind?.(contents, 'media-manager');
             contents.setWindowOpenHandler(() => ({ action: "deny" }));
             const guard = (event, url) => {
                 try { if (new URL(url).origin === origin) return; } catch {}
@@ -125,6 +128,7 @@ function createMediaManager({ WebContentsView, session, getWindow, python, direc
                     host?.focus(); host?.send("media-manager:navigation");
                 }
             });
+            mixer.watch(contents);
             await contents.loadURL(origin);
             const initialized = await contents.executeJavaScript("(() => { const ui = document.querySelector('media-organizer'); return Boolean(ui?.dataset.mediaManagerReady === 'true' && ui.querySelector('#mo-results')); })()");
             if (!initialized) throw new Error("Media Manager could not load its page. Restart the app after updating, or check the bundled media-manager files.");
@@ -137,7 +141,8 @@ function createMediaManager({ WebContentsView, session, getWindow, python, direc
         return pending;
     }
     return {
-        start, place,
+        start, place, setMix:mixer.configure,
+        findContents: () => view?.getVisible() && !view.webContents.isDestroyed() ? view.webContents : null,
         snapshot: async () => {
             if (!view || failure || view.webContents.isDestroyed()) {
                 const result = await start();

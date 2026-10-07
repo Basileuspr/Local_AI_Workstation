@@ -133,6 +133,8 @@ from routes.storage_libraries import router as storage_libraries_router
 app.include_router(storage_libraries_router)
 from routes.visual_review import router as visual_review_router
 app.include_router(visual_review_router)
+from routes.review_workflow import router as review_workflow_router
+app.include_router(review_workflow_router)
 from services.storage_libraries import StorageUnavailable
 
 
@@ -230,8 +232,10 @@ class ChatRequest(BaseModel):
     project_name: str | None = None
     request_id: str | None = None
     document_format: Literal["docx"] | None = None
+    document_artifact_id: str | None = Field(default=None, pattern=r"^[a-f0-9]{32}$")
     reply_message_id: str | None = None
     exclusive_model: bool = False
+    tool_ids: list[str] = Field(default_factory=list, max_length=16)
 
 
 class CompactMemoryRequest(BaseModel):
@@ -719,55 +723,13 @@ async def _compact_memory(request: CompactMemoryRequest):
         return {"summary": ""}
     if request.request_id and task:
         active_generation_tasks[request.request_id] = task
-    previous_summary = (request.previous_summary or "").strip()
-    transcript = "\n\n".join(_summarize_message_for_memory(m) for m in request.messages)
-    target_tokens = max(250, min(int(request.target_tokens or 700), 1200))
-    max_summary_chars = target_tokens * 5
-
-    prompt = (
-        "Update the rolling memory summary for this local chat session.\n"
-        "Write a factual continuity record for the same conversation. Use these headings "
-        "when applicable: Goals, Decisions, Constraints, Important details, Work completed, "
-        "Open questions. Preserve explicit user preferences and named files/models. Drop small "
-        "talk, duplicate wording, transient errors that are no longer relevant, and long quotes. "
-        "Do not invent facts. Stay within approximately "
-        f"{target_tokens} tokens.\n\n"
-        f"Previous summary:\n{previous_summary or '[none]'}\n\n"
-        f"New transcript segment:\n{transcript}\n\n"
-        "Updated rolling memory summary:"
-    )
-
+    from services.chat_context import compact_history
     try:
-        async with httpx.AsyncClient(timeout=90.0) as client:
-            response = await client.post(
-                f"{OLLAMA_BASE_URL}/api/chat",
-                json={
-                    "model": request.model,
-                    "stream": False,
-                    "keep_alive": settings.ollama_keep_alive_seconds,
-                    "think": _ollama_think_setting(request.model),
-                    "messages": [
-                        {
-                            "role": "system",
-                            "content": "You compress conversation history into accurate long-term working memory.",
-                        },
-                        {"role": "user", "content": prompt},
-                    ],
-                    "options": {"temperature": 0.1, "num_predict": target_tokens + 96,
-                                "num_ctx": context_limit},
-                },
-            )
-            response.raise_for_status()
-            data = response.json()
-            summary = data.get("message", {}).get("content", "").strip()
-            if not summary:
-                summary = _fallback_memory_summary(previous_summary, request.messages, max_summary_chars)
-            return {"summary": summary[:max_summary_chars]}
-    except asyncio.CancelledError:
-        raise
-    except Exception as e:
-        logger.exception("Memory compaction failed, falling back to a local summary")
-        return {"summary": _fallback_memory_summary(previous_summary, request.messages, max_summary_chars)}
+        async with httpx.AsyncClient(timeout=90.0, trust_env=False) as client:
+            return await compact_history(client, OLLAMA_BASE_URL, model=request.model,
+                previous=(request.previous_summary or "").strip(), messages=request.messages,
+                target=max(80, min(int(request.target_tokens or 700), 1200)), limit=context_limit,
+                keep_alive=settings.ollama_keep_alive_seconds, think=_ollama_think_setting(request.model))
     finally:
         if request.request_id and active_generation_tasks.get(request.request_id) is task:
             active_generation_tasks.pop(request.request_id, None)
@@ -801,6 +763,7 @@ async def chat(request: ChatRequest, client_request: Request):
 
     async def stream_queued_chat():
         error = None
+        response = None
         try:
             if request.request_id in cancelled_generation_ids:
                 raise QueueCancelled()
@@ -834,9 +797,14 @@ async def chat(request: ChatRequest, client_request: Request):
             error = str(exc)
             yield f"data: {json.dumps({'token': f'[Error: {exc}]', 'error': str(exc), 'done': True})}\n\n"
         finally:
-            active_generation_tasks.pop(request.request_id, None)
-            cancelled_generation_ids.discard(request.request_id)
-            queue.finish(job, error)
+            try:
+                if response is not None:
+                    close = getattr(response.body_iterator, 'aclose', None)
+                    if close: await close()
+            finally:
+                active_generation_tasks.pop(request.request_id, None)
+                cancelled_generation_ids.discard(request.request_id)
+                queue.finish(job, error)
 
     return StreamingResponse(stream_queued_chat(), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
@@ -844,7 +812,7 @@ async def chat(request: ChatRequest, client_request: Request):
 
 async def _chat(request: ChatRequest, client_request: Request):
     from services import chat_influences
-    from services.chat_documents import wants_document, stream_document
+    from services.chat_documents import document_operation, stream_document
     last_prompt = next((m.content for m in reversed(request.messages) if m.role == "user"), "")
     from services.image_conversion import conversion_target, convert_chat
     image_target = conversion_target(last_prompt) if request.use_memory else None
@@ -858,7 +826,14 @@ async def _chat(request: ChatRequest, client_request: Request):
             except (ValueError, OSError) as exc:
                 yield f"data: {json.dumps({'token': str(exc), 'error': str(exc), 'done': True})}\n\n"
         return StreamingResponse(conversion_stream(), media_type="text/event-stream")
-    create_word = request.document_format == "docx" or (request.use_memory and wants_document(last_prompt))
+    try:
+        word_operation = await run_in_threadpool(document_operation, last_prompt, request.session_id,
+                                                 force=request.document_format == "docx", artifact_id=request.document_artifact_id) if request.use_memory or request.document_format == "docx" or request.document_artifact_id else None
+    except (ValueError, FileNotFoundError) as exc:
+        async def document_error(detail=str(exc)):
+            yield f"data: {json.dumps({'token': f'[Error: {detail}]', 'error': detail, 'done': True})}\n\n"
+        return StreamingResponse(document_error(), media_type="text/event-stream")
+    create_word = word_operation is not None
     from services.chat_canvas import wants_canvas_edit, instruction as canvas_instruction, stream_canvas
     edit_canvas = bool(request.canvas_context and wants_canvas_edit(last_prompt))
     # Images travel as blob references so megabytes of base64 never cross the
@@ -1134,16 +1109,33 @@ async def _chat(request: ChatRequest, client_request: Request):
                         yield event
                     return
                 if create_word:
-                    async for event in stream_document(client, ollama_payload, request, client_request, influence_context=influence_context, trace=trace):
+                    async for event in stream_document(client, ollama_payload, request, client_request, influence_context=influence_context, trace=trace, operation=word_operation):
                         yield event
                     return
-                yield chat_influences.event(ollama_payload, context=influence_context)
+                if request.tool_ids:
+                    yield chat_influences.event(ollama_payload, context=influence_context)
+                    from services.tool_coordinator import stream_tools
+                    tool_stream = stream_tools(client, OLLAMA_BASE_URL, ollama_payload, request, client_request, trace)
+                    try:
+                        async for data in tool_stream:
+                            if data.startswith('data: '):
+                                tool_event = json.loads(data[6:])
+                                if tool_event.get('token'): full_response_parts.append(tool_event['token'])
+                            yield data
+                    finally:
+                        await tool_stream.aclose()
+                    trace_status = 'Response complete'
+                    trace.finish(trace_status)
+                    if memory_session_id and full_response_parts:
+                        await run_in_threadpool(save_message, memory_session_id, 'assistant', ''.join(full_response_parts))
+                    return
                 provider_done = False
-                async with client.stream(
-                    "POST",
-                    f"{OLLAMA_BASE_URL}/api/chat",
-                    json=ollama_payload,
-                ) as response:
+                from services.chat_context import open_chat_stream
+                async with open_chat_stream(client, OLLAMA_BASE_URL, ollama_payload, client_request.is_disconnected,
+                    progress=lambda detail: queue.set_stage(job, 'preparing_model', detail) if job else None) as response:
+                    yield chat_influences.event(ollama_payload, context=influence_context)
+                    for adjustment in ollama_payload.get('_context_notices', []):
+                        yield f"data: {json.dumps({'notice': {'kind': 'context_budget', 'message': adjustment}})}\n\n"
                     if response.is_error:
                         raw_error = await response.aread()
                         try:

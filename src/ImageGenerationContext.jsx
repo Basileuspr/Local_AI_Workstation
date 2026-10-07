@@ -5,7 +5,7 @@ import { imageTasksObserver } from "./appPolling";
 import { invalidatePolling } from "./polling";
 import { createMessageId } from "./messageIds";
 import { imageRequest, reconcileImageLora, validateImageSelection } from "./chatImageGeneration";
-import { activeImageTasks, imageGenerationClientId, imageTaskFinished, restoreImageTaskHistory } from './imageTaskState';
+import { activeImageTasks, canReloadGeneratedSession, imageGenerationClientId, imageTaskFinished, newerImageTaskSnapshot, restoreImageTaskHistory } from './imageTaskState';
 import { emptyGenerationHistory, generationHistoryReducer } from "./generationHistory";
 import { referenceOptions } from './generationReference';
 
@@ -21,6 +21,7 @@ export function ImageGenerationProvider({ children, onSessionSaved }) {
   sessionSaved.current = onSessionSaved;
   const [catalog, setCatalog] = useState({ models: [], loras: [], runtime: null, loraError: "" });
   const [catalogError, setCatalogError] = useState("");
+  const catalogLoaded = useRef(false);
   const [requests, setRequests] = useState([]);
   const [clientId] = useState(imageGenerationClientId);
   const [connectionError, setConnectionError] = useState('');
@@ -32,6 +33,7 @@ export function ImageGenerationProvider({ children, onSessionSaved }) {
   useEffect(() => () => { if (referenceImage?.url) URL.revokeObjectURL(referenceImage.url); }, [referenceImage]);
   const activeRequests = useRef([]);
   const taskStatuses = useRef(new Map());
+  const taskSnapshot = useRef(null);
   // After clearing, only later submissions may repopulate this tab's output.
   const visibleRequests = useRef(null);
   const hydratedTasks = useRef(false);
@@ -74,6 +76,7 @@ export function ImageGenerationProvider({ children, onSessionSaved }) {
     try {
       const data = await api.loadImageGenerationModels();
       if (serial !== refreshSerial.current) return;
+      catalogLoaded.current = true;
       setCatalog({ models: data.models || [], loras: data.loras || [], runtime: data.runtime || null, loraError: data.lora_error || "" });
       setCatalogError("");
     } catch (error) {
@@ -85,7 +88,7 @@ export function ImageGenerationProvider({ children, onSessionSaved }) {
   useEffect(() => { void refreshModels(); }, [refreshModels, state.connected, imageModelInventory, imageAvailable]);
   useEffect(() => {
     const settings = state.imageSettings;
-    if (catalogError || reconcileImageLora(settings, catalog) === settings) return;
+    if (!catalogLoaded.current || catalogError || reconcileImageLora(settings, catalog) === settings) return;
     dispatch({ type: "CLEAR_UNAVAILABLE_IMAGE_LORA", payload: settings });
     dispatch({ type: "SHOW_TOAST", payload: { message: "Saved LoRA unavailable for this model. Using the base model only; saved profiles are preserved.", type: "" } });
   }, [catalog, catalogError, state.imageSettings.modelId, state.imageSettings.loraId, dispatch]);
@@ -93,8 +96,10 @@ export function ImageGenerationProvider({ children, onSessionSaved }) {
     if (!pendingSessionSync || state.isGenerating) return;
     if (state.currentSessionId !== pendingSessionSync.id) { setPendingSessionSync(null); return; }
     let disposed = false;
+    const before = latest.current;
     void api.loadSession(pendingSessionSync.id).then((session) => {
-      if (disposed || latest.current.isGenerating || latest.current.currentSessionId !== session.id) return;
+      if (disposed || latest.current.currentSessionId !== session.id) return;
+      if (!canReloadGeneratedSession(before, latest.current)) { setPendingSessionSync(null); return; }
       dispatch({ type: "SET_SESSION", payload: {
         id: session.id, revision: session.revision, messages: session.messages, title: session.title,
         memorySummary: session.memory_summary || "", summarizedMessageCount: session.summarized_message_count || 0,
@@ -111,7 +116,12 @@ export function ImageGenerationProvider({ children, onSessionSaved }) {
       void api.stopImageGeneration(target).catch((error) => toast(error.message));
     }
   }
-  const acceptTasks = useCallback(tasks => {
+  const acceptTasks = useCallback(snapshot => {
+    const next = newerImageTaskSnapshot(taskSnapshot.current, snapshot);
+    if (next === taskSnapshot.current) return;
+    if (taskSnapshot.current?.backend_id !== next.backend_id) taskStatuses.current.clear();
+    taskSnapshot.current = next;
+    const tasks = next.tasks || [];
     const first = !hydratedTasks.current;
     hydratedTasks.current = true;
     const visible = task => visibleRequests.current === null || visibleRequests.current.has(task.request_id);
@@ -151,7 +161,7 @@ export function ImageGenerationProvider({ children, onSessionSaved }) {
     const stopAll = () => { for (const request of activeRequests.current) void api.stopImageGeneration(request.id).catch(() => {}); };
     refs.imageResetUi = stopAll;
     refs.imageAbortController = {abort:stopAll};
-    const detach = imageTasksObserver(clientId).subscribe({ data: data => acceptTasks(data.tasks || []),
+    const detach = imageTasksObserver(clientId).subscribe({ data: acceptTasks,
       recovered: () => setConnectionError(''),
       error: error => setConnectionError(`${error.message}. Reconnecting to submitted image requests.`) });
     return () => {
@@ -164,6 +174,7 @@ export function ImageGenerationProvider({ children, onSessionSaved }) {
     if (submitting.current) return false;
     try {
       if (catalogError) throw new Error(catalogError);
+      if (!catalogLoaded.current) throw new Error('Image models are still loading. Try again when the model list is ready.');
       if (!Array.isArray(items) || !items.length || items.length > 32) throw new Error('Choose 1–32 batch requests.');
       items = items.map(item => ({...item,settings:reconcileImageLora(item.settings,catalog)}));
       for (const item of items) {
@@ -203,7 +214,7 @@ export function ImageGenerationProvider({ children, onSessionSaved }) {
       // The entire batch has been accepted before the UI switches its output.
       taskSerial.current++;
       updateHistory(batchId ? {type:'start-batch',id:batchId,requestIds:captured.map(request => request.request_id)} : {type:'start-single'});
-      acceptTasks(data.tasks || []);
+      acceptTasks(data);
       invalidatePolling("image-tasks", "queue", "runtime");
       const current = latest.current;
       if (current.currentSessionId === sessionId || (!source && !current.currentSessionId)) {

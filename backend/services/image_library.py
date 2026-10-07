@@ -111,9 +111,15 @@ def decorate(item, *, include_names=True):
     return value
 
 
+def image_path(item):
+    # This binding is written only by validated REVIEW organization/recovery.
+    if item.get('review_location'):
+        return storage.no_links(Path(item['review_location']))
+    return storage.no_links(storage.resolve(ROOT / 'images' / (identity(item['id']) + '.image')))
+
+
 def media_record(item):
-    logical = ROOT / 'images' / (identity(item['id']) + '.image')
-    location = review_metadata.location(lambda: storage.no_links(storage.resolve(logical)),previous_path=item.get('path'))
+    location = review_metadata.location(lambda: image_path(item),previous_path=item.get('path'))
     details = {key: item[key] for key in ('origin','annotations','sha256','seed','width','height','type','size','created_at') if key in item}
     return review_metadata.media_record('library',item['id'],manual=item,details=details,**location)
 
@@ -157,7 +163,7 @@ def image_bytes(item_id):
         image_vault.require_public(item["sha256"])
         state = media_record(item)['file_state']
         if state != 'present': raise ValueError('Image file is missing. Restore its storage and refresh REVIEW.' if state=='missing' else 'Image storage is unavailable. Reconnect its storage and refresh REVIEW.')
-        data = storage.resolve(ROOT / "images" / (item_id + ".image")).read_bytes()
+        data = image_path(item).read_bytes()
         if hashlib.sha256(data).hexdigest() != item["sha256"]: raise ValueError("Stored image has changed")
         return data, item
 
@@ -271,11 +277,14 @@ def delete_folder(folder_id):
 
 def delete_image(item_id):
     with LOCK:
-        image_bytes(item_id)  # Validate ownership and prevent unauthenticated vault changes.
+        _, item = image_bytes(item_id)  # Validate ownership and prevent unauthenticated vault changes.
         index = read_index()
         index["images"] = [item for item in index["images"] if item["id"] != item_id]
         save_index(index)
-        storage.resolve(ROOT / "images" / (identity(item_id) + ".image")).unlink(missing_ok=True)
+        # Located external originals remain external source data. Only an
+        # app-created transfer or the original library copy is owned here.
+        if not item.get('review_location') or item.get('review_location_owned',False):
+            image_path(item).unlink(missing_ok=True)
 
 
 def source_bytes(source):

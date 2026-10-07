@@ -2,6 +2,10 @@ import {workspaceControls} from './workspaceControls';
 // Every workspace has an explicit guide. New routes must add one here too.
 // Keep instructions out of the work surface; WorkspaceInfo owns their presentation.
 const overview = {
+  'info-center': {
+    purpose: 'Find practical use cases, examples, and detailed control guides for every workspace in one central directory.',
+    example: 'Search for duplicates to compare Image Manager and Hash Auditor, read their use cases, then choose Open on the feature that fits your task.',
+  },
   university: {
     purpose: 'Learn computing, local AI and the workstation’s tools through offline lessons with guided app practice, sample files, working notes and knowledge checks.',
     example: 'Find Read a table and verify its totals, save the practice CSV, open Spreadsheets from the lesson and filter to stationery. Verify the 28-credit subtotal, return to your notes and complete the knowledge check.',
@@ -20,7 +24,7 @@ const overview = {
   },
   'document-editor': {
     purpose: 'Write and edit rich documents with a Word-style ribbon and local Python DOCX import/export.',
-    example: 'Use Home → Styles to apply Title, headings or a custom paragraph style. Modify a style once to update all its paragraphs; Reset to style clears direct formatting while keeping links. Click a table for Table Layout and Table Design, or use Insert for pictures, page breaks, headers and numbering. Export .docx, then Download DOCX. The editing view is continuous; the DOCX reader calculates actual pages. Opening an existing file creates a supported editable copy after a conversion notice.',
+    example: 'Use Home → Styles for named paragraph formatting, or click a table for Table Layout and Table Design. References provides contents, bookmarks, footnotes/endnotes and citations: Manage sources, Insert citation, choose a basic style and add a bibliography. Source edits update citations and entries together. Export .docx, then Download DOCX. The editing view is continuous; opening an existing file creates a supported editable copy after a conversion notice.',
   },
   'local-files': {
     purpose: 'Edit existing DOCX text, inspect SQLite databases, and sample or analyze videos locally.',
@@ -39,8 +43,8 @@ const overview = {
     example: "Import two project documents, connect them in the inspector, then select the relevant Knowledge scope when asking a question in chat.",
   },
   canvas: {
-    purpose: "Draw a whiteboard or ask chat to create and edit a diagram on the canvas.",
-    example: "Draw two rectangles and an arrow, add labels with Text, select the objects, then Use in chat to ask the model to revise your diagram.",
+    purpose: "Paint with brushes, shapes and text, edit selections and layers, and save images or editable projects locally.",
+    example: "Choose Rectangle, draw a shape, then Text to add a label. Enable Layers in View to add another layer. Save project preserves layers; Use in chat stages a removable PNG attachment for your next message.",
   },
   converter: {
     purpose: "Convert still images into another file format on this computer.",
@@ -53,6 +57,10 @@ const overview = {
   audio: {
     purpose: "Record, transcribe, extract audio, read text aloud, or generate speech with a local voice model.",
     example: "Upload a meeting recording, enable Separate speakers, transcribe it, correct the speaker labels and text, then save the reviewed transcript.",
+  },
+  'sound-mixer': {
+    purpose: 'Mix the app’s speech, audio, video and alerts with local tracks and an explicitly enabled microphone. Record processed app channels into a local audio file.',
+    example: 'Add two local audio tracks, play them, lower one fader, and use Solo to hear a single channel. Expand EQ & pan to shape its sound. Enable a microphone only when needed; monitoring starts off. Press Record mix, perform your mix, then Stop and Save recording. Settings stay linked across tabs.',
   },
   slicer: {
     purpose: 'Prepare a G-code file from a local STL using the installed CuraEngine and a matching printer profile, with local progress and cancellation controls.',
@@ -124,7 +132,7 @@ const overview = {
   },
   "html-viewer": {
     purpose: "Read, edit, and preview HTML source.",
-    example: "Enter ‘<main><h1>Hello</h1><p>A local preview.</p></main>’, choose Preview, then return to Source to edit it.",
+    example: "Enter ‘<main><h1>Hello</h1><p>A local preview.</p></main>’, choose Preview, then Edit source to revise it. File actions contains Open and Copy; Save source stays on the toolbar.",
   },
   "css-viewer": {
     purpose: "Read and edit CSS with a local HTML preview.",
@@ -133,6 +141,10 @@ const overview = {
   "js-viewer": {
     purpose: "Read, edit, copy, or save JavaScript source as text.",
     example: "Open a script from Browser inspection, search or read its source, edit a copy, and save it as a JavaScript file.",
+  },
+  'styling-library': {
+    purpose: 'Browse offline HTML and CSS examples for buttons, form controls, layouts, effects, typography and animations.',
+    example: 'Choose Buttons, open Button essentials with View code, and compare its HTML structure with its CSS styles. Copy or save the full example, or choose Edit in CSS / Styling, change the button colors, and click Preview. Choose Animations to compare loading patterns and pause their motion.',
   },
   spreadsheets: {
     purpose: "Inspect tabular data in the spreadsheet viewer.",

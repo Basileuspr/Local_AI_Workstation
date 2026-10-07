@@ -41,9 +41,9 @@ app.whenReady().then(async () => {
         item.once("done", (_event, state) => downloads.push({ file, state }));
     });
     const js = source => win.webContents.executeJavaScript(source);
-    const click = label => js(`(()=>{const b=[...document.querySelectorAll('button')].find(b=>b.textContent.trim()===${JSON.stringify(label)});for(let p=b.parentElement;p;p=p.parentElement)if(p.tagName==='DETAILS')p.open=true;b.click();})()`);
+    const click = label => js(`(()=>{const b=[...document.querySelectorAll('button')].find(b=>(b.matches('[data-sidebar-route]')||!b.closest('[hidden],[inert]'))&&(b.textContent.trim()===${JSON.stringify(label)}||b.title===${JSON.stringify(label)}));if(!b)throw Error('Missing button '+${JSON.stringify(label)});for(let p=b.parentElement;p;p=p.parentElement)if(p.tagName==='DETAILS')p.open=true;b.click();return new Promise(resolve=>requestAnimationFrame(resolve));})()`);
     await win.loadURL("app://local/index.html");
-    await until(() => js("!![...document.querySelectorAll('button')].find(b=>b.textContent==='Image Editor')"), "editor tab");
+    await until(() => js("!!document.querySelector('[data-sidebar-route=\"image-editor\"]')"), "editor tab");
     await click("Image Editor");
     const payload = fs.readFileSync(path.join(work, "original.png")).toString("base64");
     await js(`(() => { const transfer = new DataTransfer(); transfer.items.add(new File([Uint8Array.from(atob(${JSON.stringify(payload)}), c=>c.charCodeAt(0))], 'original.png', {type:'image/png'})); const input=document.querySelector('[aria-label="Open image for editing"]'); input.files=transfer.files; input.dispatchEvent(new Event('change',{bubbles:true})); })()`);

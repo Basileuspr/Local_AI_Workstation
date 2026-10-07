@@ -318,9 +318,11 @@ export async function parseFile(file) {
 }
 
 export async function streamChat({
+  toolIds = [],
   exclusiveModel = false,
   replyMessageId,
   documentFormat,
+  documentArtifactId,
   model,
   messages,
   useKnowledgeBase,
@@ -354,7 +356,9 @@ export async function streamChat({
       username,
       reply_message_id: replyMessageId,
       document_format: documentFormat,
+      document_artifact_id: documentArtifactId,
       exclusive_model: exclusiveModel,
+      tool_ids: toolIds,
     }),
     signal,
   });
@@ -540,22 +544,35 @@ export async function stopImageGeneration(requestId) {
 }
 
 export async function imageGenerationTasks(clientId, submission) {
-  const res = await (submission ? fetchWorkload : fetch)(apiUrl(`/image-generation/tasks${submission ? '' : `?client_id=${encodeURIComponent(clientId)}`}`), submission ? {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({...submission, client_id:clientId}),
-  } : {cache:'no-store'});
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({}));
-    throw new Error(typeof error.detail === 'string' ? error.detail : 'Could not reconnect to image generation');
+  const url = apiUrl(`/image-generation/tasks${submission ? '' : `?client_id=${encodeURIComponent(clientId)}`}`);
+  const body = submission && JSON.stringify({...submission, client_id:clientId});
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const res = await (submission ? fetchWorkload : fetch)(url, submission ? {
+        method: 'POST', headers: {'Content-Type':'application/json'}, body,
+        signal: AbortSignal.timeout(30000),
+      } : {cache:'no-store'});
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        throw Object.assign(new Error(typeof error.detail === 'string' ? error.detail : 'Could not reconnect to image generation'), {status:res.status});
+      }
+      return await res.json();
+    } catch (error) {
+      // Replay only the captured, idempotent task submission, once. Never
+      // retry validation conflicts or the synchronous /generate endpoint.
+      const retryable = error instanceof TypeError || error instanceof SyntaxError || error.name === 'TimeoutError'
+        || [502,503,504].includes(error.status);
+      if (!submission || attempt >= 1 || !retryable) throw error;
+    }
   }
-  return res.json();
 }
 
-export async function getImagePromptTokens({ modelId, prompt, negativePrompt }) {
+export async function getImagePromptTokens({ modelId, prompt, negativePrompt, signal }) {
   const res = await fetch(apiUrl(`/image-generation/prompt-tokens`), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ model_id: modelId, prompt, negative_prompt: negativePrompt || "" }),
+    signal,
   });
   if (!res.ok) {
     const error = await res.json().catch(() => ({}));
@@ -670,6 +687,10 @@ export async function cancelLoraTraining(projectId) {
   return loraRequest(`/projects/${encodeURIComponent(projectId)}/cancel`, { method: "POST" });
 }
 
+export async function recoverLoraTraining(projectId) {
+  return loraRequest(`/projects/${encodeURIComponent(projectId)}/recover`, { method: "POST" });
+}
+
 export async function listLoraAdapters() {
   const data = await loraRequest("/adapters");
   return data.adapters || [];
@@ -678,4 +699,15 @@ export async function listLoraAdapters() {
 export async function restoreSessionImage(sessionId, imageId) {
   const response = await fetch(apiUrl(`/sessions/${sessionId}/gallery-images/${encodeURIComponent(imageId)}/restore`), { method: "POST" });
   if (!response.ok) throw new Error((await response.json()).detail || "Could not restore image");
+}
+
+export async function decideToolPlan(planId, approved) {
+  const response = await fetchWorkload(apiUrl(`/tools/plans/${encodeURIComponent(planId)}/decision`), {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({approved}),
+  });
+  const result = await response.json();
+  if (!response.ok) {
+    const failure = new Error(result.detail || 'Could not review tool action'); failure.status = response.status; throw failure;
+  }
+  return result;
 }

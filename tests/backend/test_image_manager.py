@@ -1,4 +1,5 @@
 import hashlib
+from io import BytesIO
 import json
 import os
 import shutil
@@ -45,8 +46,9 @@ def test_still_images_only_metadata_preview_and_source_preservation(setup):
     assert {row['relative'] for row in records} == {'a.png', str(Path('holiday/a.png')), 'other.webp'}
     assert all(row['date_source'] == 'File modified' for row in records)
     preview = manager.thumbnail(records[0]['id'])
-    assert preview.is_relative_to(manager.directory)
-    with Image.open(preview) as image: assert max(image.size) <= 320
+    assert isinstance(preview, bytes)
+    with Image.open(BytesIO(preview)) as image: assert max(image.size) <= 320
+    assert not (manager.directory / 'thumbnails').exists()
     manager.metadata([records[0]['id']], favorite=True, tags=['Trip', 'Trip', '  Blue '])
     assert manager.query(search='Trip', favorite=True)['total'] == 1
     assert run(manager, 'scan', folder_ids=[src], recursive=True)['status'] == 'complete'

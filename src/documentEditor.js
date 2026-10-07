@@ -12,6 +12,8 @@ import { PAGE_DETAIL_DEFAULTS, PAGINATION_OPTIONS } from './documentPageLayout';
 import { DocumentTableProperties, DocumentTableView, DocumentTableCell, DocumentTableHeader } from './documentTables';
 import { DocumentStyles, DOCUMENT_FONTS } from './documentStyles';
 import { DocumentReferences, Bookmark, TableOfContents, safeDocumentLink, normalizeReferences } from './documentReferences';
+import { DocumentNotes, DocumentNote, normalizeNotes } from './documentNotes';
+import { DocumentCitations, DocumentCitation, DocumentBibliography, normalizeCitations } from './documentCitations';
 
 export { DOCUMENT_FONTS };
 export const DEFAULT_PAGE = { paper: 'Letter', orientation: 'portrait', top: 1, bottom: 1, left: 1, right: 1, ...PAGE_DETAIL_DEFAULTS };
@@ -64,7 +66,7 @@ export function documentExtensions() {
   TextAlign.configure({ types: ['heading', 'paragraph'], defaultAlignment: null }), Highlight.configure({ multicolor: true }),
   LocalImage.configure({ allowBase64: true }), TableKit.configure({ table: { resizable: true, cellMinWidth: 24, View: DocumentTableView }, tableCell: false, tableHeader: false }),
   DocumentTableCell, DocumentTableHeader, DocumentTableProperties,
-  Subscript, Superscript, ParagraphLayout, PageBreak, DocumentStyles, DocumentReferences, Bookmark, TableOfContents];
+  Subscript, Superscript, ParagraphLayout, PageBreak, DocumentStyles, DocumentReferences, Bookmark, TableOfContents, DocumentNotes, DocumentNote, DocumentCitations, DocumentCitation, DocumentBibliography];
 }
 
 export function resetDocumentContent(editor, content) {
@@ -73,6 +75,10 @@ export function resetDocumentContent(editor, content) {
   const normalized = normalizeReferences(state);
   // Construct the normalized state afresh, keeping import/recovery outside Undo.
   if (normalized) state = EditorState.create({ schema: state.schema, doc: normalized.doc, plugins: previous.plugins });
+  const notes = normalizeNotes(state);
+  if (notes) state = EditorState.create({ schema: state.schema, doc: notes.doc, plugins: previous.plugins });
+  const citations = normalizeCitations(state);
+  if (citations) state = EditorState.create({ schema: state.schema, doc: citations.doc, plugins: previous.plugins });
   editor.view.updateState(state);
 }
 

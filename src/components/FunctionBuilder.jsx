@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useDispatch } from '../useStore';
 import { createMessageId } from '../messageIds';
 import { defaultStep, launchTargets, loadWorkflows, saveWorkflows, stepTypes, validateWorkflow } from '../functionWorkflow.mjs';
+import ActionMenu from './ActionMenu';
 
 const label = type => stepTypes.find(([id]) => id === type)?.[1] || type;
 const windowKey = value => JSON.stringify(value);
@@ -26,6 +27,7 @@ export default function FunctionBuilder({ legacyBusy = false }) {
   const [inspecting, setInspecting] = useState(false), [windows, setWindows] = useState([]), [controls, setControls] = useState({});
   const [starting, setStarting] = useState(false), [handoff, setHandoff] = useState('');
   const [pointing, setPointing] = useState(false);
+  const [templateName, setTemplateName] = useState(templates()[0].name);
   const startingRef = useRef(false);
   const busy = legacyBusy || starting || run?.status === 'running';
   const desktop = window.workstationDesktop;
@@ -111,7 +113,10 @@ export default function FunctionBuilder({ legacyBusy = false }) {
 
     {pointing && <p role="status">Within 5 seconds, move your pointer over the target field or button in the other application. Keep it there; no click is needed.</p>}
     {!supported && <p className="tools-note">Sequences need the desktop app and its updated bridge. Fully quit from the tray and relaunch after building.</p>}
-    {!draft && <div className="tools-toolbar" aria-label="Function templates">{templates().map(template => <button key={template.name} disabled={!!loaded.error || busy} onClick={() => newDraft(template)}>{template.name}</button>)}</div>}
+    {!draft && <div className="tools-toolbar" aria-label="Function templates">
+      <label>Template<select aria-label="Function template" disabled={!!loaded.error || busy} value={templateName} onChange={event => setTemplateName(event.target.value)}>{templates().map(template => <option key={template.name}>{template.name}</option>)}</select></label>
+      <button type="button" disabled={!!loaded.error || busy} onClick={() => newDraft(templates().find(template => template.name === templateName))}>Use template</button>
+    </div>}
     {draft && <form className="functions-editor function-sequence-editor" onSubmit={event => { event.preventDefault(); void act(async () => { validateWorkflow(draft); persist(items.some(item => item.id === draft.id) ? items.map(item => item.id === draft.id ? draft : item) : [...items, draft]); setDraft(null); }); }}>
       <label>Function name<input autoFocus required maxLength={80} value={draft.name} onChange={event => setDraft({ ...draft, name: event.target.value })}/></label>
       <ol className="function-step-list">{draft.steps.map((step, index) => <li key={index}>
@@ -161,7 +166,11 @@ export default function FunctionBuilder({ legacyBusy = false }) {
     {error && <p className="functions-error" role="alert">{error}</p>}
     <div className="functions-buttons">{items.map(item => <article className="function-custom" key={item.id}>
       <button className="function-launcher" disabled={busy || !supported} onClick={() => start(item)}><strong>Run {item.name}</strong><span>{item.steps.map(step => label(step.type)).join(' → ')}</span></button>
-      <div className="tools-toolbar"><button disabled={!!draft || busy} onClick={() => { setControls({}); setDraft(structuredClone(item)); }}>Edit</button><button disabled={!!draft || busy} onClick={() => newDraft({ ...item, name: `${item.name.slice(0, 70)} copy` })}>Duplicate</button><button disabled={busy} onClick={() => { if (window.confirm(`Remove function "${item.name}"?`)) void act(async () => persist(items.filter(value => value.id !== item.id))); }}>Remove</button></div>
+      <ActionMenu label="Function options" title={`Options for ${item.name}`} actions={[
+        {label:'Edit', disabled:!!draft || busy, onClick:() => { setControls({}); setDraft(structuredClone(item)); }},
+        {label:'Duplicate', disabled:!!draft || busy, onClick:() => newDraft({ ...item, name: `${item.name.slice(0, 70)} copy` })},
+        {label:'Remove', danger:true, disabled:busy, onClick:() => { if (window.confirm(`Remove function "${item.name}"?`)) void act(async () => persist(items.filter(value => value.id !== item.id))); }},
+      ]}/>
     </article>)}</div>
     {run && <section className="function-result" aria-label="Function run result">
       <div className="tools-toolbar"><strong>{run.name}</strong><span role="status">{run.status}{run.status === 'running' ? ` · Step ${run.index + 1} of ${run.steps.length}` : ''}</span>{run.status === 'running' && <button onClick={() => act(() => call('stopFunction', run.id))}>Stop function</button>}</div>

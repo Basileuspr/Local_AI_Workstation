@@ -19,6 +19,16 @@ export const classificationHelp = ['Review and classification', [
 ]];
 
 export const mediaHelp = {
+  'sound-mixer': [['Mixer controls', [
+    ['Master / output', 'The shared playback volume, mute and output device also update Settings and Audio. Channel settings save automatically; tracks, live inputs and unsaved recordings last only until refresh or app closure.'],
+    ['Channel faders / Mute / Solo', 'Adjust a workspace or local track independently. Solo can select several channels; all other channels are silenced until solos are cleared. Mute takes priority over Solo.'],
+    ['EQ & pan', 'Low, mid and high EQ range from -12 to +12 dB. Pan moves a processed channel left or right. The output limiter reduces peaks after mixing. Level meters measure actual PCM audio.'],
+    ['Local tracks', 'Add up to eight audio files, 100 MB each, from this computer. Play, pause, rewind, seek and loop each independently. Play all uses the current positions. Stop inputs pauses tracks and releases the microphone. Files are never uploaded.'],
+    ['Microphone / Monitor', 'Enable requests permission for the selected input. Its channel joins the recording while speaker monitoring stays off; enable Monitor with headphones. Disable immediately releases the microphone. Opening this tab never requests capture.'],
+    ['Record mix / Stop / Save', 'Records processed renderer channels and the enabled microphone, after their faders and master level, for up to five minutes or 32 MB. Leaving the tab keeps a recording running. Save downloads the result; clear only removes the unsaved result.'],
+    ['External and installed voices', 'Desktop Browser, Media Manager and linked players support channel mute and volume for HTML players. They cannot feed the mixer EQ, meters or recording. Installed Windows speech voices use the Speech fader for new chunks; mute stops speech. Their PCM also stays outside the mix recording. Cross-origin players without CORS retain volume/mute only.'],
+    ['Presets / Board settings', 'Flat, Voice and Music adjust the board. Board settings contains Save settings and Load settings. Exported JSON contains channel levels, EQ, pan, mute, solo and limiter settings, without audio files, device identifiers or recordings. Loading never starts playback or capture.'],
+  ]]],
   audio: [['Transcription', [
     ['Record microphone / Stop recording', 'Records up to 10 minutes. Stop recording before transcribing; leaving this workspace discards an unfinished recording.'],
     ['Upload audio', 'Accepts a complete recording up to 2 hours and 250 MB. Supported formats include WAV, MP3, M4A, AAC, OGG, FLAC, WebM and MP4 audio.'],
@@ -67,8 +77,8 @@ export const mediaHelp = {
     ['Search / All tags', 'Filters catalog matches. Saved tag choices cover the available catalog, including hidden images. Choosing a tag clears Untagged only.'],
     ['More filters', 'Contains date, format, favorites and Untagged only filters. The summary shows active filters.'],
     ['Selection', 'Ctrl-click toggles an image; Shift-click selects a range. Actions include selected items on other pages.'],
-    ['Add tag / Set tags', 'Add tag keeps existing tags. Set tags replaces them; submitting a blank tag list clears them.'],
-    ['More actions', 'Groups favorites, hiding, organization and reviewed deletion. Hidden images stay hidden after rescanning or restarting until restored.'],
+    ['Tag selected images → Add tag / Set tags', 'Expand after selecting images. Add tag keeps existing tags. Set tags replaces them; submitting a blank tag list clears them. Collapsing the tools retains your tag draft.'],
+    ['Selection options', 'Appears after selecting images and groups favorites, hiding, organization and reviewed deletion. Hidden images stay hidden after rescanning or restarting until restored.'],
   ]], classificationHelp, ['Duplicates and file actions', [
     ['Find exact duplicates', 'Compares SHA-256 byte hashes, not visual similarity. Hardlinked paths can share disk space. No files are removed by the search.'],
     ['Send duplicates', 'Rechecks hashes and prepares a plan for the source folder’s Duplicates subfolder. Matching hashes get their own groups with relative folders retained.'],
@@ -78,9 +88,12 @@ export const mediaHelp = {
     ['Delete / Trash / Restore', 'Delete reviews files before moving them to recoverable Trash on the same drive. Trash retains bytes and does not free disk space. Restore checks for collisions.'],
     ['Image functions / History', 'Save ordered scan, duplicate, plan and report steps. Jobs continue across tabs; Stop retains completed work. History shows the latest ten transfer receipts.'],
   ]], ['Image tools', [
-    ['Scope / output folder', 'Use selected images or the visible folder catalog. Scan new or changed source files first. Each run creates a new output subfolder.'],
+    ['Scope / output folder', 'Choose image folder, then Read image folder directly in Image tools to scan new or changed files. Or use selected catalog images. Choose a separate output folder; each run creates a new output subfolder. The fixed action area explains any missing step.'],
     ['Convert / resize', 'Creates new copies. PNG and WebP retain transparency; JPEG flattens onto the chosen background. Original metadata is omitted.'],
-    ['Stitch / GIF', 'Creates a strip, grid or animation plus individual image copies. Stitches support up to 64 MP; GIFs are bounded by memory and flatten transparency.'],
+    ['Sizing / sheets', 'Exact dimensions is the default and keeps large PNG compilations at the requested size using temporary disk space. Fit into one image optionally shrinks compilation tiles to 64 MP. Multiple sheets preserves regular-grid tile sizes across smaller outputs. The whole catalog folder is processed without a source count, pixel or byte cap.'],
+    ['Grid / full fill / order', 'Auto or custom columns support incomplete final rows. Balanced full fill places whole images in orientation-separated rows with no added gaps. Choose filename order, reverse or Shuffle.'],
+    ['Preparation / naming', 'Optional near-white border trimming and portrait/landscape 1080p sizing affect exported copies only. A prefix numbers copies; dimensions.csv records order, sizes and sheet positions. Originals are retained.'],
+    ['Stitch / GIF', 'Compilation exports default to sheets only; individual copies are optional. Exact PNG grids have no generic megapixel limit. JPEG supports 65,500 pixels per side and WebP 16,383; use PNG for larger dimensions. GIFs share a 128 MiB budget and flatten transparency.'],
   ]]],
   'media-manager': [['Library and playback', [
     ['Source folders / Scan', 'Adds catalog entries for chosen media locations. Review scan results before preparing file operations.'],
@@ -110,12 +123,14 @@ export const mediaHelp = {
     ['Review notes / export', 'Save ratings, captions and tags, then export selected copies and notes through the review controls.'],
   ]]],
   review: [['Review controls', [
-    ['Request / filters', 'Choose a request or narrow results to the image group you want to inspect.'],
-    ['Like / Dislike / To review', 'Records image preferences without changing image pixels.'],
+    ['Images / People & scenes / Organize files', 'Images is the main review gallery. Open People & scenes for face groups and classification, or Organize files for transfers and advanced metadata. Each view keeps its controls separate.'],
+    ['Show / Favorites only / Tags', 'Choose To review, Reviewed (no rating), Liked, Disliked or All images. Favorites are independent bookmarks and can be combined with any filter. Open Tags when you need tag filters.'],
+    ['Start review / Done & next', 'Click an image or Start review to inspect it. Like and Dislike save a rating and advance. Done & next marks a new image reviewed without a rating, preserving any existing Like or Dislike.'],
+    ['Select images / More actions', 'Select images to show Like and Dislike plus a compact menu for folders, workflows, favorites, exports and deletion. Choose a menu action, then Apply.'],
     ['Caption / tags', 'Edit the review metadata before saving.'],
     ['Edit / workflow / folder', 'Send a chosen image to Editor, begin a workflow, or save a copy in a Gallery folder.'],
     ['Export selected', 'Exports only selected images and their review metadata.'],
-    ['Export liked / disliked', 'Exports the entire rating group as image copies with caption text, ratings and tags.'],
+    ['Export a rating group', 'Choose Liked or Disliked in Show, then Select images, Select all, and Export selected in More actions.'],
   ]]],
   'gif-maker': [['Frames', [
     ['Add images / drop', 'Adds PNG, JPEG or WebP frames. The draft remains while you use other workspaces.'],

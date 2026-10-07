@@ -40,10 +40,10 @@ logger = logging.getLogger(__name__)
 
 
 class ImageGenerationRequest(BaseModel):
-    session_id: str | None = Field(default=None, max_length=100)
-    request_id: str | None = Field(default=None, max_length=100)
+    session_id: str | None = Field(default=None, min_length=1, max_length=100, pattern=r"^[A-Za-z0-9_-]+$")
+    request_id: str | None = Field(default=None, min_length=1, max_length=100, pattern=r"^[A-Za-z0-9_-]+$")
     request_label: str | None = Field(default=None, max_length=160)
-    model_id: str
+    model_id: str = Field(min_length=1, max_length=200)
     prompt: str = Field(min_length=1, max_length=12000)
     negative_prompt: str | None = Field(default=None, max_length=12000)
     width: int = 1024
@@ -62,6 +62,8 @@ class ImageGenerationRequest(BaseModel):
 
     @model_validator(mode="after")
     def supported_dimensions(self):
+        if not self.prompt.strip() or not self.model_id.strip():
+            raise ValueError("Choose an image model and enter a non-empty prompt.")
         validate_dimensions(self.width, self.height, self.allow_long_wait)
         if self.source_image_ref and int(self.steps * self.strength) < 1:
             raise ValueError("Increase Steps or Change amount to allow at least one image-to-image step.")
@@ -109,13 +111,16 @@ class ImageTaskSubmission(BaseModel):
 
 
 class BackendImageClient:
+    def __init__(self, cancellation_event=None):
+        self.cancellation_event = cancellation_event
+
     async def is_disconnected(self):
         # The backend owns this task; a refreshed page is only a new observer.
-        return False
+        return self.cancellation_event is not None and self.cancellation_event.is_set()
 
 
 async def execute_saved_image(values):
-    return await generate_image(ImageGenerationRequest(**values), BackendImageClient())
+    return await generate_image(ImageGenerationRequest(**values), BackendImageClient(values.get("_cancellation_event")))
 
 
 @router.post("/tasks")
@@ -144,7 +149,11 @@ async def image_task_snapshot(client_id: str = Query(min_length=1, max_length=10
             task["status"] = ("saving" if job.stage == "saving" or job.status == "completed"
                               else job.status if job.status in {"queued", "running", "cancelling"} else "running")
         task["progress"] = image_progress_snapshot(task["request_id"])
-    return conditional_status(request, {"tasks": tasks})
+    image_tasks.snapshot_sequence += 1
+    data = {"tasks": tasks, "backend_id": image_tasks.backend_id,
+            "snapshot_sequence": image_tasks.snapshot_sequence}
+    # Ordering metadata must not defeat conditional idle polling.
+    return conditional_status(request, data, etag_data={"tasks": tasks, "backend_id": image_tasks.backend_id})
 
 
 @router.post("/generate")
@@ -156,7 +165,8 @@ async def generate_image(request: ImageGenerationRequest, client_request: Reques
         except ValueError as error:
             raise HTTPException(400, str(error)) from error
     request.request_id = request.request_id or uuid.uuid4().hex
-    job = queue.enqueue("image", f"{request.request_label} \u00b7 {request.prompt}" if request.request_label else request.prompt, request.request_id,
+    try:
+        job = queue.enqueue("image", f"{request.request_label} \u00b7 {request.prompt}" if request.request_label else request.prompt, request.request_id,
                         timing_profile=hashlib.sha256(json.dumps([
                             request.model_id, request.width, request.height, request.steps,
                             request.lora_id, request.long_prompt, request.allow_long_wait,
@@ -164,7 +174,9 @@ async def generate_image(request: ImageGenerationRequest, client_request: Reques
                         ]).encode()).hexdigest(),
                         session_id=request.session_id,
                         owner=f"image-generation:{request.request_id}",
-                        cancel=lambda: manager.cancel(request.request_id))
+                            cancel=lambda: manager.cancel(request.request_id))
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
     worker = None
     monitor = None
     finished = asyncio.Event()
@@ -317,6 +329,8 @@ def get_prompt_tokens(request: PromptTokenRequest):
 @router.get("/outputs/{filename}")
 def get_generated_image(filename: str):
     safe_name = Path(filename).name
+    if safe_name != filename or "\\" in filename or ":" in filename:
+        raise HTTPException(status_code=404, detail="Generated image not found")
     path = storage.resolve(OUTPUT_DIR / safe_name)
     if not path.is_file() or path.suffix.lower() != ".png":
         raise HTTPException(status_code=404, detail="Generated image not found")

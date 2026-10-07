@@ -10,7 +10,9 @@ router = APIRouter(prefix="/artifacts", tags=["artifacts"])
 def preview(artifact_id: str):
     try:
         value = chat_documents.read_artifact(artifact_id)
-        return JSONResponse({key: value[key] for key in ("id", "kind", "name", "title", "size", "blocks", "created_at")}, headers={"Cache-Control": "no-store"})
+        result = {key: value[key] for key in ("id", "kind", "name", "title", "size", "blocks", "created_at")}
+        result.update({key: value[key] for key in ("document_id", "version", "parent_id") if key in value})
+        return JSONResponse(result, headers={"Cache-Control": "no-store"})
     except FileNotFoundError as exc: raise HTTPException(404, str(exc)) from exc
 
 

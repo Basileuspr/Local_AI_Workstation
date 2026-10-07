@@ -26,8 +26,14 @@ visual_classification.prepare_runtime=prepare
 # Keep model cleanup local to the fixture as well as simulated inference.
 import httpx
 original_client=httpx.AsyncClient
-def response(request):return httpx.Response(200,json={'done':True})
-visual_classification.httpx=type('FixtureHTTP',(),{'AsyncClient':staticmethod(lambda **kwargs:original_client(transport=httpx.MockTransport(response))), 'HTTPError':httpx.HTTPError})
+def response(request):
+    if request.url.path=='/api/show': return httpx.Response(200,json={'capabilities':['vision']})
+    if request.url.path=='/api/chat':
+        import json
+        value={'caption':'Synthetic scene notes','category':'Fixture suggestion','subjects':'Two drawn faces','scene':'Test graphic','style':'Illustration','composition':'Side by side','quality':'Clear graphic','dataset_suitability':'Uncertain','tags':['Synthetic'],'confidence':'Possible'}
+        return httpx.Response(200,json={'message':{'content':json.dumps(value)}})
+    return httpx.Response(200,json={'done':True})
+visual_classification.httpx=type('FixtureHTTP',(),{'AsyncClient':staticmethod(lambda **kwargs:original_client(transport=httpx.MockTransport(response))), 'HTTPError':httpx.HTTPError,'Timeout':httpx.Timeout})
 
 root=settings.data_dir.parent/'photos';root.mkdir(parents=True,exist_ok=True)
 for name,color in [('one.png','#34604b'),('two.png','#3e587c')]:
@@ -37,3 +43,18 @@ for name,color in [('one.png','#34604b'),('two.png','#3e587c')]:
 folder=manager.add_folder(str(root));manager.start('scan',{'folder_ids':[folder['id']],'recursive':True});manager.worker.join(10)
 @app.get('/fixture/items')
 def items():return {'ids':[row['id'] for row in manager.query()['images']]}
+
+
+@app.get('/fixture/video')
+def video():
+    from services import local_files
+    import av,numpy as np
+    path=settings.data_dir.parent/'review-fixture.mp4'
+    if not path.exists():
+        with av.open(str(path),'w') as output:
+            stream=output.add_stream('libx264',rate=10);stream.width=160;stream.height=96;stream.pix_fmt='yuv420p'
+            for index in range(10):
+                frame=av.VideoFrame.from_ndarray(np.full((96,160,3),80+index,dtype=np.uint8),format='rgb24');frame.pts=index
+                for packet in stream.encode(frame):output.mux(packet)
+            for packet in stream.encode(None):output.mux(packet)
+    return local_files.open_file(path)

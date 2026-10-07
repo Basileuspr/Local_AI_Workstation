@@ -36,7 +36,7 @@ it('offers named saved tags and normal tag creation without requiring classified
 it('keeps classification collapsed and never starts inference by opening a manager',()=>{
   const fetch=vi.fn();vi.stubGlobal('fetch',fetch);
   const output=renderToStaticMarkup(<VisualReview source="image-manager" ids={['one']}/>);
-  expect(output).toContain('Review &amp; classify');expect(output).not.toContain('Classify selection');expect(fetch).not.toHaveBeenCalled();
+  expect(output).toContain('People &amp; scenes');expect(output).not.toContain('Classify selection');expect(fetch).not.toHaveBeenCalled();
 });
 it('uses the authenticated review route for explicit classification',async()=>{
   const fetch=vi.fn().mockResolvedValue({ok:true,json:async()=>({id:'job'})});vi.stubGlobal('fetch',fetch);

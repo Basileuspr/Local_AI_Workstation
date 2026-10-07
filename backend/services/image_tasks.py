@@ -5,6 +5,7 @@ their source chat before completion is reported. No base64 payloads are retained
 """
 import asyncio
 import uuid
+import threading
 from dataclasses import dataclass, field
 
 from starlette.concurrency import run_in_threadpool
@@ -22,6 +23,7 @@ class ImageTask:
     result: dict | None = None
     error: str | None = None
     cancelled: bool = False
+    cancellation_event: threading.Event = field(default_factory=threading.Event)
     worker: object = None
     message_id: str = field(default_factory=lambda: uuid.uuid4().hex)
     image_id: str = field(default_factory=lambda: uuid.uuid4().hex)
@@ -37,6 +39,8 @@ class ImageTasks:
     def __init__(self):
         self.tasks = {}
         self._submit_lock = asyncio.Lock()
+        self.backend_id = uuid.uuid4().hex
+        self.snapshot_sequence = 0
 
     def snapshot(self, client_id):
         return [task.snapshot() for task in self.tasks.values() if task.client_id == client_id]
@@ -85,7 +89,7 @@ class ImageTasks:
                 task.status = "cancelled"
                 return
             task.status = "running"
-            generated = await execute(task.request)
+            generated = await execute({**task.request, "_cancellation_event": task.cancellation_event})
             if task.cancelled:
                 task.status = "cancelled"
                 return
@@ -120,6 +124,7 @@ class ImageTasks:
         if not task or task.status in {"completed", "failed", "cancelled", "saving"}:
             return False
         task.cancelled = True
+        task.cancellation_event.set()
         return True
 
 

@@ -333,4 +333,3 @@ export function getPaintDocument() {
   }
   return shared;
 }
-export function paintCanvasInUse() { return !!shared; }

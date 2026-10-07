@@ -4,8 +4,8 @@ from typing import Literal
 from pathlib import Path
 import stat
 
-STATUS_TO_RATING = {'unreviewed': None, 'accepted': 'liked', 'rejected': 'disliked'}
-RATING_TO_STATUS = {value: key for key, value in STATUS_TO_RATING.items()}
+STATUS_TO_RATING = {'unreviewed': None, 'reviewed': None, 'accepted': 'liked', 'rejected': 'disliked'}
+RATING_TO_STATUS = {None: 'unreviewed', 'liked': 'accepted', 'disliked': 'rejected'}
 
 
 class ReviewFields(BaseModel):
@@ -17,7 +17,7 @@ class ReviewFields(BaseModel):
     category: str = Field(default='', max_length=120)
     project: str = Field(default='', max_length=120)
     favorite: StrictBool = False
-    review_status: Literal['unreviewed', 'accepted', 'rejected'] = 'unreviewed'
+    review_status: Literal['unreviewed', 'reviewed', 'accepted', 'rejected'] = 'unreviewed'
 
 
 class MediaRecord(ReviewFields):

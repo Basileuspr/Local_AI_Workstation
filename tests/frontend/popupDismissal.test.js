@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { installPopupDismissal, registerPopupLayer } from '../../src/popupDismissal';
+import { installPopupDismissal, registerPopupLayer, dismissPopupLayers } from '../../src/popupDismissal';
 
 function fixture() {
   const listeners = new Map(), dialogs = [];
@@ -18,6 +18,15 @@ function fixture() {
 }
 
 describe('shared popup dismissal',()=>{
+  it('can close obstructing menus without hiding content panels being searched',()=>{
+    const f=fixture(), menu=vi.fn(), content=vi.fn(), hidden=vi.fn();
+    const release=[registerPopupLayer(f.doc,{node:()=>f.node({menu:true}),dismiss:menu}),
+      registerPopupLayer(f.doc,{node:()=>f.node(),dismiss:content}),
+      registerPopupLayer(f.doc,{node:()=>f.node({menu:true,getClientRects:()=>[]}),dismiss:hidden})];
+    dismissPopupLayers(f.doc,'find',node=>node.menu);
+    expect(menu).toHaveBeenCalledWith('find');expect(content).not.toHaveBeenCalled();expect(hidden).not.toHaveBeenCalled();
+    release.forEach(fn=>fn());
+  });
   it('Escape dismisses only the innermost visible popup, even when focus is outside',()=>{
     const f=fixture(), outer=vi.fn(),inner=vi.fn();
     const releaseOuter=registerPopupLayer(f.doc,{node:()=>f.node(),dismiss:outer});

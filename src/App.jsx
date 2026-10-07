@@ -13,6 +13,7 @@ import SecondChat from "./components/SecondChat";
 import ChatActivityNotice from "./components/ChatActivityNotice";
 import { DualChatProvider, ChatPaneProvider, useDualChat } from "./ChatPane";
 import { chatModelChoice } from "./chatModelChoices";
+import { recentTurnStart } from './contextMemory';
 
 import { ImageGenerationProvider } from "./ImageGenerationContext";
 import { AnalyzeIterateProvider } from "./AnalyzeIterateContext";
@@ -37,6 +38,7 @@ import FaceStudio from "./components/FaceStudio";
 import CharacterStudio from "./components/CharacterStudio";
 import Toast from "./components/Toast";
 import Dashboard from "./components/Dashboard";
+import InfoCenter from "./components/InfoCenter";
 import PromptQueue, { PromptQueueProvider } from "./components/PromptQueue";
 import KnowledgeVault from "./components/KnowledgeVault";
 import Tools, { MarkdownViewer } from "./components/Tools";
@@ -48,8 +50,10 @@ const LocalFiles = lazy(() => import('./components/LocalFiles'));
 const DocumentEditor = lazy(() => import('./components/DocumentEditor'));
 const Slicer = lazy(() => import('./components/Slicer'));
 const AppIntegrations = lazy(() => import('./components/AppIntegrations'));
+const StylingLibrary = lazy(() => import('./components/StylingLibrary'));
+const SoundMixer = lazy(() => import('./components/SoundMixer'));
 import SpreadsheetViewer from "./components/SpreadsheetViewer";
-import CanvasWorkspace from "./components/CanvasWorkspace";
+import CanvasWorkspace from "./components/CanvasPaintWorkspace";
 import FileConverter from "./components/FileConverter";
 import FilePackager from "./components/FilePackager";
 import HashAuditor from "./components/HashAuditor";
@@ -145,6 +149,7 @@ function AppInner() {
     state.imageSettings,
     state.voiceOutput,
     state.soundOutput,
+    state.soundMixer,
     state.customProfiles,
     state.activeCustomProfileId,
     state.activeLoraProjectId,
@@ -351,12 +356,12 @@ function AppInner() {
   }, [dispatch]);
 
   const handleCompactMemory = useCallback(async () => {
-    if (!state.currentSessionId || state.conversationHistory.length <= 4) {
+    if (!state.currentSessionId || recentTurnStart(state.conversationHistory) <= state.summarizedMessageCount) {
       dispatch({ type: "SHOW_TOAST", payload: { message: "More chat history is needed before compaction", type: "" } });
       return;
     }
 
-    const compactUntil = state.conversationHistory.length - 4;
+    const compactUntil = recentTurnStart(state.conversationHistory);
     const messages = state.conversationHistory.slice(state.summarizedMessageCount, compactUntil);
     if (messages.length === 0) {
       dispatch({ type: "SHOW_TOAST", payload: { message: "Recent context is already retained", type: "" } });
@@ -375,7 +380,7 @@ function AppInner() {
       const memorySummary = result.summary || state.memorySummary;
       const saved = await api.updateSessionMetadata(state.currentSessionId, {
         memorySummary,
-        summarizedMessageCount: compactUntil,
+        summarizedMessageCount: result.summary?.trim() ? compactUntil : state.summarizedMessageCount,
         expectedRevision: state.sessionRevision,
       });
       dispatch({ type: "SESSION_METADATA_SAVED", payload: saved, expectedRevision: state.sessionRevision });
@@ -423,6 +428,8 @@ function AppInner() {
           <div className="pane" data-capture-tab="document-editor" hidden={!visible("document-editor")}><Suspense fallback={<p>Opening Document Editor…</p>}><DocumentEditor active={visible("document-editor")}/></Suspense></div>
           <div className="pane" data-capture-tab="html-viewer" hidden={!visible("html-viewer")}><CodeViewer kind="html" incoming={viewerInputs.html}/></div>
           <div className="pane" data-capture-tab="css-viewer" hidden={!visible("css-viewer")}><CodeViewer kind="css" incoming={viewerInputs.css}/></div>
+          <div className="pane" data-capture-tab="styling-library" hidden={!visible("styling-library")}><Suspense fallback={<p>Opening Styling Library…</p>}><StylingLibrary active={visible("styling-library")} onEdit={openBrowserSource}/></Suspense></div>
+          <div className="pane" data-capture-tab="sound-mixer" hidden={!visible("sound-mixer")}><Suspense fallback={<p>Opening Sound Mixer…</p>}><SoundMixer active={visible("sound-mixer")}/></Suspense></div>
           <div className="pane" data-capture-tab="js-viewer" hidden={!visible("js-viewer")}><CodeViewer kind="js" incoming={viewerInputs.js}/></div>
           <div className="pane" data-capture-tab="spreadsheets" hidden={!visible("spreadsheets")}><SpreadsheetViewer /></div>
           <div className="pane" data-capture-tab="canvas" hidden={!visible("canvas")}><CanvasWorkspace /></div>
@@ -443,6 +450,9 @@ function AppInner() {
           <div className="pane" data-capture-tab="review" hidden={!visible("review")}><ImageReview active={visible("review")} onOpenSource={handleLoadSession} /></div>
           <div className="pane" data-capture-tab="queue" hidden={!visible("queue")}>
             <PromptQueue onOpenDestination={openQueueDestination} />
+          </div>
+          <div className="pane" data-capture-tab="info-center" hidden={!visible("info-center")}>
+            <InfoCenter onOpenWorkspace={tab => dispatch({ type: 'SET_SIDEBAR_TAB', payload: tab })} />
           </div>
           <div className="pane" data-capture-tab="dashboard" hidden={!visible("dashboard")}>
             <Dashboard active={visible("dashboard")} />

@@ -3,6 +3,7 @@ import { builtInEntries, entryTypes, filterRegistry, loadPersonalEntries, savePe
 import { downloadBlob } from "../downloadBlob";
 import { applicationIconKey, loadRegistryIcons, saveRegistryIcons, readApplicationIcon } from "../registryApplicationIcons";
 import RegistryApplicationIcon from "./RegistryApplicationIcon";
+import ActionMenu from './ActionMenu';
 import "./Tools.css";
 import "./ShortcutRegistry.css";
 
@@ -96,8 +97,10 @@ export default function ShortcutRegistry() {
     <div className="tools-toolbar">
       <button type="button" disabled={!!loadedFolders.error} onClick={() => { setNewFolder(""); requestAnimationFrame(() => folderInput.current?.focus()); }}>New application folder</button>
       <button type="button" ref={addButton} disabled={!!loaded.error} onClick={() => openEditor()}>Add personal entry</button>
-      <button type="button" disabled={!visible.length} onClick={() => { try { downloadBlob(new Blob([registryMarkdown(visible)], { type: "text/markdown;charset=utf-8" }), "shortcut-reference.md"); } catch (failure) { setError(failure.message); } }}>Save reference (.md)</button>
-      <button type="button" disabled={!visible.length} onClick={async () => { try { await navigator.clipboard.writeText(registryMarkdown(visible)); setNotice("Matching reference copied, including entries in collapsed folders."); } catch (failure) { setError(`Could not copy: ${failure.message}`); } }}>Copy reference</button>
+      <ActionMenu label="Reference options" actions={[
+        {label:'Save reference (.md)', disabled:!visible.length, onClick:() => {try{downloadBlob(new Blob([registryMarkdown(visible)],{type:'text/markdown;charset=utf-8'}),'shortcut-reference.md');}catch(failure){setError(failure.message);}}},
+        {label:'Copy reference', disabled:!visible.length, onClick:async() => {try{await navigator.clipboard.writeText(registryMarkdown(visible));setNotice("Matching reference copied, including entries in collapsed folders.");}catch(failure){setError(`Could not copy: ${failure.message}`);}}},
+      ]}/>
     </div>
 
     {error && <p className="functions-error" role="alert">{error}</p>}

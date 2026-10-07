@@ -396,6 +396,23 @@ export default function LoraStudio({ active = true }) {
     }
   }
 
+  async function recover() {
+    if (!project?.id || trainingSubmitting) return;
+    const projectId = project.id;
+    setTrainingSubmitting(true);
+    try {
+      await api.recoverLoraTraining(projectId);
+      const [list, updated] = await Promise.all([api.listLoraProjects(), api.getLoraProject(projectId)]);
+      setProjects(list);
+      setProject(current => current?.id === projectId ? updated : current);
+      toast("Previous training run recovered; saved files preserved", "success");
+    } catch (error) {
+      toast(error.message || "Could not recover training", "error");
+    } finally {
+      setTrainingSubmitting(false);
+    }
+  }
+
   useLoraInfo(project?.settings?.learning_rate);
 
   if (!project) {
@@ -485,7 +502,7 @@ export default function LoraStudio({ active = true }) {
             <CpuPerformance report={training.cpu_assistance} timings={training.timings} />
             {busy && training.stage !== "analysis" && <><div className="lora-progress"><span style={{ width: `${Math.max(0, Math.min(100, training.percent || 0))}%` }} /></div><div className="lora-summary">Epoch {training.epoch || 0}/{training.epochs || settings.epochs} · step {training.step || 0}/{training.total_steps || "?"} · {training.percent || 0}% {training.loss != null ? `· loss ${Number(training.loss).toFixed(4)}` : ""}</div></>}
             <QueueRequestStatus projectId={project.id} kind="training" />
-            <div className="lora-training-actions">{busy ? <button className="lora-danger-button" type="button" onClick={cancel}>Cancel safely</button> : <>
+            <div className="lora-training-actions">{training.recovery_required ? <button className="lora-danger-button" type="button" onClick={recover} disabled={trainingSubmitting}>Recover previous run</button> : busy ? <button className="lora-danger-button" type="button" onClick={cancel}>Cancel safely</button> : <>
               <button className="image-generate-btn" type="button" onClick={() => train(true)} disabled={loading || workspaceBusy || !project.vision_model || !project.images?.length || !hardware?.cuda_available || hardware?.training_ready === false || state.serviceStatus?.capabilities?.features?.training?.available === false}>Analyze &amp; Train</button>
               <button className="lora-secondary-button" type="button" onClick={() => train()} disabled={loading || workspaceBusy || !hardware?.cuda_available || hardware?.training_ready === false || state.serviceStatus?.capabilities?.features?.training?.available === false}>Start local training</button>
             </>}</div>

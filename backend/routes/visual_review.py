@@ -112,7 +112,7 @@ async def info(): return await call(capabilities)
 
 
 @router.get('/catalog')
-async def catalog(source:Literal['library','image-manager']='library',person:str='',scene:str='',offset:int=0,rating:str='',query:str='',category:str='',project:str='',favorite:bool|None=None,review_status:Literal['','unreviewed','accepted','rejected']=''):
+async def catalog(source:Literal['library','image-manager']='library',person:str='',scene:str='',offset:int=0,rating:str='',query:str='',category:str='',project:str='',favorite:bool|None=None,review_status:Literal['','unreviewed','reviewed','accepted','rejected']=''):
     return await call(store.catalog,source,person,scene,max(0,offset),rating=rating,query=query[:200],category=category,project=project,favorite=favorite,review_status=review_status)
 
 
@@ -135,7 +135,7 @@ async def classify(request:Batch):
 
 
 @router.get('/job')
-async def job(): return await call(classifier.status)
+async def job(id:str=''): return await call(classifier.status,id)
 
 
 @router.post('/classify-catalog')
@@ -198,6 +198,7 @@ class Sample(BaseModel):
     name: str=Field(max_length=240)
     digest: str=Field(pattern=r'^[a-f0-9]{64}$')
     image: str=Field(max_length=3_000_000)
+    native_tags: list[str] | None=Field(default=None,max_length=100)
 
 
 class MediaBatch(BaseModel):
@@ -212,6 +213,7 @@ async def media_register(request:Sample):
     await call(store.image,raw)
     await call(store.register,'media-manager',request.id,request.name,request.digest)
     value=await call(store.review,'media-manager',request.id)
+    if request.native_tags is not None: value=await call(store.sync_media_tags,request.id,request.native_tags)
     return {'digest':request.digest,'name':request.name,'review':value,'media':await call(store.media_record,'media-manager',request.id,value),'classification':await call(store.result,request.digest)}
 
 
@@ -231,7 +233,7 @@ async def media_info(): return await info()
 
 
 @router.get('/media/catalog')
-async def media_catalog(person:str='',scene:str='',offset:int=0,rating:str='',query:str='',category:str='',project:str='',favorite:bool|None=None,review_status:Literal['','unreviewed','accepted','rejected']=''):
+async def media_catalog(person:str='',scene:str='',offset:int=0,rating:str='',query:str='',category:str='',project:str='',favorite:bool|None=None,review_status:Literal['','unreviewed','reviewed','accepted','rejected']=''):
     return await call(store.catalog,'media-manager',person,scene,max(0,offset),rating=rating,query=query[:200],category=category,project=project,favorite=favorite,review_status=review_status)
 
 

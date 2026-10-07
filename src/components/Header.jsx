@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useStore, useDispatch } from "../useStore.jsx";
 import * as api from "../api";
 import { formatModelLabel } from "../modelCatalog";
-import { formatTokenEstimate, getContextStatus, getContextUsage } from "../contextMemory";
+import { formatTokenEstimate, getContextStatus, getContextUsage, recentTurnStart } from "../contextMemory";
 import {chatInfluences} from '../chatInfluences';
 import { describeStatus, statusIndicator } from "../serviceStatus";
 import { useChatPane } from "../ChatPane";
@@ -181,10 +181,13 @@ export default function Header({ onSessionRenamed, onCompactMemory }) {
                 <dl>{[["Configured window",contextUsage.windowTokens],["System estimate",contextUsage.systemTokens],["Summary estimate",contextUsage.summaryTokens],["Recent messages estimate",contextUsage.unsummarizedTokens],["Output reserve",contextUsage.outputReserve],["Other reserves",contextUsage.fixedReserve-contextUsage.outputReserve]].map(([name,value])=><div key={name}><dt>{name}</dt><dd>{value} tokens</dd></div>)}</dl>
                 {(() => { const record = [...conversationHistory].reverse().find(message => message.context_usage || message.influence_receipt?.context_usage);
                   const usage = record?.context_usage || record?.influence_receipt?.context_usage;
-                  return usage && <p>Last request ({usage.model}): {usage.prompt_tokens} prompt tokens ({usage.count_kind.replaceAll('_', ' ')}), {usage.generated_tokens ?? "unknown"} generated. This describes that processed request.</p>; })()}
+                  return usage && <><p>Last request ({usage.model}): {usage.prompt_tokens} prompt tokens ({usage.count_kind.replaceAll('_', ' ')}), {usage.generated_tokens ?? "unknown"} generated. This describes that processed request.</p>
+                    {usage.adjustments?.length > 0 && <ul>{usage.adjustments.map((notice, index) => <li key={index}>{notice}</li>)}</ul>}</>; })()}
+                <p>Older turns compact automatically before sending. The backend reserves room for the reply and bounds working memory. Images use resized inference copies; groups are analyzed separately. Original uploads and the full transcript stay saved.</p>
               </details>
-              <button id={pane.domId("context-compact-btn")} type="button" title="Summarize older turns and retain the four newest messages"
-                disabled={isGenerating || conversationHistory.length <= 4} onClick={() => { close(); onCompactMemory?.(); }}>Compact memory</button>
+              {memorySummary && <details><summary>Working memory · {summarizedMessageCount} messages summarized</summary><p style={{whiteSpace:'pre-wrap',maxHeight:240,overflow:'auto'}}>{memorySummary}</p></details>}
+              <button id={pane.domId("context-compact-btn")} type="button" title="Summarize older turns while retaining the newest request and its attachments"
+                disabled={isGenerating || recentTurnStart(conversationHistory) <= summarizedMessageCount} onClick={() => { close(); onCompactMemory?.(); }}>Compact memory</button>
               <button id={pane.domId("thinking-terminal-btn")} type="button" title="View full thinking trace" aria-haspopup="dialog"
                 onClick={() => { close(); setThinkingOpen(true); }}>Thinking trace</button>
               <button id={pane.domId("rename-chat-btn")} type="button" title="Rename chat" onClick={() => { close(); openRename(); }}>Rename chat</button>

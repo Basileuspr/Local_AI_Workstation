@@ -1,9 +1,9 @@
 import { apiUrl } from "./api";
 import { workflowUpdate } from "./imageWorkflow";
 
-async function request(path = "", method = "GET", body, token) {
+async function request(path = "", method = "GET", body, token, signal) {
   const response = await fetch(apiUrl(`/image-workflows${path}`), {
-    method,
+    method, ...(signal ? {signal} : {}),
     ...(body instanceof FormData ? { body } : body !== undefined ? {
       headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body),
     } : {}),
@@ -28,6 +28,11 @@ export const sceneFrame = (workflow, frame, action) => request(`${path(workflow.
 export const sceneIdentity = (workflow, characterId) => request(`${path(workflow.id)}/scene/identity`, "POST", { revision: workflow.revision, character_id: characterId });
 export const importSource = (workflow, source) => request(`${path(workflow.id)}/source`, "POST", { revision: workflow.revision, source });
 export const patchScene = (workflow, changes, remove_objects = []) => request(`${path(workflow.id)}/scene`, "PATCH", { revision: workflow.revision, changes, remove_objects });
+export const scenePlannerModels = () => request('/scene-planner/models');
+export const scenePlans = id => request(`${path(id)}/scene/plans`);
+export const planScene = (workflow, input, signal) => request(`${path(workflow.id)}/scene/plans`, 'POST', {revision:workflow.revision,...input}, undefined, signal);
+export const stopScenePlan = (id, planId) => request(`${path(id)}/scene/plans/${encodeURIComponent(planId)}/stop`, 'POST');
+export const applyScenePlan = (workflow, planId, selectedActions) => request(`${path(workflow.id)}/scene/plans/${encodeURIComponent(planId)}/apply`, 'POST', {revision:workflow.revision,selected_actions:selectedActions});
 export const get = id => request(path(id));
 export const save = workflow => request(path(workflow.id), "PUT", workflowUpdate(workflow));
 export const validate = workflow => request(`${path(workflow.id)}/preflight`, "POST", { revision: workflow.revision });

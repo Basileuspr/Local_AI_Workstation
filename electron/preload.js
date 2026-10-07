@@ -1,7 +1,15 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("workstationDesktop", {
+    findWorkspaceText: value => ipcRenderer.invoke('workspace-find:search', value),
+    stopWorkspaceFind: (target, restoreFocus = false) => ipcRenderer.invoke('workspace-find:stop', {target, restoreFocus}),
+    onWorkspaceFind: callback => {
+        const open = (_event, value) => callback(value), close = () => callback({close:true});
+        ipcRenderer.on('workspace-find:open', open); ipcRenderer.on('workspace-find:close', close);
+        return () => { ipcRenderer.removeListener('workspace-find:open', open); ipcRenderer.removeListener('workspace-find:close', close); };
+    },
     openSoundSettings: () => ipcRenderer.invoke('sound-output:open-settings'),
+    setSoundMix: value => ipcRenderer.invoke('sound-mixer:configure', value),
     openLinkedContent: value => ipcRenderer.invoke('linked-content:open', value),
     placeLinkedContent: value => ipcRenderer.invoke('linked-content:place', value),
     closeLinkedContent: () => ipcRenderer.invoke('linked-content:close'),
@@ -43,6 +51,8 @@ contextBridge.exposeInMainWorld("workstationDesktop", {
     },
     copyImage: (dataUrl) => ipcRenderer.invoke("functions:copy-image", dataUrl),
     runAction: (action) => ipcRenderer.invoke("functions:run-action", action),
+    openWindowsUtility: id => ipcRenderer.invoke('functions:utility-open', id),
+    chooseWindowsUtility: id => ipcRenderer.invoke('functions:utility-choose', id),
     chooseProgram: () => ipcRenderer.invoke("functions:choose-program"),
     openProgram: (id) => ipcRenderer.invoke("functions:open-program", id),
     captureTab: (tab) => ipcRenderer.invoke("functions:capture-tab", tab),
@@ -112,7 +122,7 @@ contextBridge.exposeInMainWorld("workstationDesktop", {
     importAppBackup: (ticket, confirmation) => ipcRenderer.invoke("maintenance:import", { ticket, confirmation }),
     backupImportStatus: () => ipcRenderer.invoke("maintenance:import-status"),
     recoverBackupImport: () => ipcRenderer.invoke("maintenance:recover-import"),
-    resetAppData: (ticket, confirmation) => ipcRenderer.invoke("maintenance:reset", { ticket, confirmation }),
+    resetAppData: (ticket, confirmation, keepImageManager = false) => ipcRenderer.invoke("maintenance:reset", { ticket, confirmation, keepImageManager }),
     onResetResult: (callback) => {
         const listener = (_event, result) => callback(result);
         ipcRenderer.on("maintenance:result", listener);

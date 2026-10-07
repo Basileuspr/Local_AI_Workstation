@@ -1,4 +1,6 @@
 import {defaultSoundOutput, normalizeSoundOutput} from './preferences';
+import {createSoundMixer} from './soundMixer';
+import {mediaMixerChannel} from './mixerSettings';
 
 const outputError = (error, action = 'use this output') => error?.name === 'NotAllowedError'
   ? `Permission to ${action} was denied. Choose an output device again, or use System default.`
@@ -21,6 +23,7 @@ export function testToneBlob() {
 }
 
 export function createAudioOutput(env = globalThis) {
+  const mixer=createSoundMixer(env);
   const listeners=new Set(), players=new Map(), captures=new Set();
   let preferences={...defaultSoundOutput}, refreshOperation=null, deviceListener=null, test=null;
   let snapshot={devices:[],loaded:false,refreshing:false,error:'',routeError:'',testing:false,captureBusy:false};
@@ -30,7 +33,8 @@ export function createAudioOutput(env = globalThis) {
 
   function apply(entry) {
     const chosen=preferences, version=++entry.version;
-    entry.media.volume=chosen.volume;entry.media.muted=chosen.muted;
+    const playback=mixer.playbackState(entry.channel,entry.mixer?.processed);
+    entry.media.volume=playback.volume;entry.media.muted=playback.muted;
     entry.ready=entry.ready.catch(()=>{}).then(async()=>{
       if(!entry.active || version!==entry.version)return;
       const sink=missing() ? '' : chosen.deviceId;
@@ -51,28 +55,32 @@ export function createAudioOutput(env = globalThis) {
     });
     return entry.ready;
   }
-  function track(media, onVolume) {
+  function track(media, onVolume, channel=mediaMixerChannel(media)) {
     let entry=players.get(media);
     if(!entry) {
-      entry={media,active:true,version:0,ready:Promise.resolve(),error:'',users:0,onVolume:new Set()};
+      entry={media,channel,active:true,version:0,ready:Promise.resolve(),error:'',users:0,onVolume:new Set()};
       entry.changed=()=>{
-        if(entry.active && (media.volume!==preferences.volume || media.muted!==preferences.muted))
-          entry.onVolume.forEach(listener=>listener({volume:media.volume,muted:media.muted}));
+        const expected=mixer.playbackState(entry.channel,entry.mixer?.processed);
+        if(entry.active && (media.volume!==expected.volume || media.muted!==expected.muted)) {
+          const channelVolume=entry.mixer?.processed ? 1 : mixer.getSnapshot().settings.channels[entry.channel]?.volume ?? 1;
+          entry.onVolume.forEach(listener=>listener({volume:channelVolume>0?Math.min(1,media.volume/channelVolume):preferences.volume,muted:media.muted}));
+        }
       };
-      media.addEventListener?.('volumechange',entry.changed);players.set(media,entry);void apply(entry);
+      media.addEventListener?.('volumechange',entry.changed);players.set(media,entry);
+      entry.mixer=mixer.bindMedia(media,channel,()=>{if(entry.active)void apply(entry);});void apply(entry);
     }
     entry.users++;if(onVolume)entry.onVolume.add(onVolume);
     let released=false;
     return {ready:entry.ready,release(){
       if(released)return;released=true;if(onVolume)entry.onVolume.delete(onVolume);
       if(--entry.users>0)return;
-      entry.active=false;entry.version++;media.removeEventListener?.('volumechange',entry.changed);players.delete(media);routeStatus();
+      entry.active=false;entry.version++;entry.mixer.release();media.removeEventListener?.('volumechange',entry.changed);players.delete(media);routeStatus();
     }};
   }
   function configure(value) {
     const next=normalizeSoundOutput(value);
     if(Object.keys(next).every(key=>next[key]===preferences[key]))return;
-    preferences=next;for(const entry of players.values())void apply(entry);
+    preferences=next;mixer.setMaster({...next,deviceId:missing()?'':next.deviceId});for(const entry of players.values())void apply(entry);
     publish({});
   }
   async function refresh() {
@@ -85,6 +93,7 @@ export function createAudioOutput(env = globalThis) {
         const outputs=(await devices.enumerateDevices()).filter(device=>device.kind==='audiooutput' && device.deviceId)
           .map(device=>({deviceId:device.deviceId,label:device.label || (device.deviceId==='default' ? 'System default' : 'Output device')}));
         publish({devices:outputs,loaded:true});
+        mixer.setMaster({...preferences,deviceId:missing()?'':preferences.deviceId});
         for(const entry of players.values())void apply(entry);
       } catch(error) {publish({error:outputError(error,'list output devices')});}
       finally {refreshOperation=null;publish({refreshing:false});}
@@ -134,7 +143,7 @@ export function createAudioOutput(env = globalThis) {
     stopTest();
     if(captures.size)throw Error('Wait until audio recording or processing finishes before playing a test sound.');
     if(preferences.muted || preferences.volume===0)throw Error('Unmute playback and raise the volume before testing the output.');
-    const url=env.URL.createObjectURL(testToneBlob()), media=new env.Audio(url), handle=track(media);
+    const url=env.URL.createObjectURL(testToneBlob()), media=new env.Audio(url), handle=track(media,undefined,'alerts');
     const current={url,media,handle};test=current;publish({testing:true,error:''});
     media.onended=()=>{if(test===current)stopTest();};
     media.onerror=()=>{if(test===current){stopTest();publish({error:'The test sound could not be played. Refresh devices or choose System default.'});}};
@@ -146,7 +155,8 @@ export function createAudioOutput(env = globalThis) {
     const token={};captures.add(token);stopTest();publish({captureBusy:true});
     return ()=>{captures.delete(token);publish({captureBusy:captures.size>0});};
   }
-  return {subscribe(listener){listeners.add(listener);return ()=>listeners.delete(listener);},getSnapshot:()=>snapshot,
+  mixer.connectPlayback((media,channel)=>track(media,undefined,channel),holdCapture);
+  return {mixer,subscribe(listener){listeners.add(listener);return ()=>listeners.delete(listener);},getSnapshot:()=>snapshot,
     getPreferences:()=>preferences,configure,track,refresh,listen,choose,bindDocument,testSound,stopTest,holdCapture,
     ready:media=>players.get(media)?.ready || Promise.resolve()};
 }

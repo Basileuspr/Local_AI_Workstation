@@ -26,7 +26,7 @@ app.whenReady().then(async()=>{
   win.webContents.on('console-message',(_event,level,message)=>{if(level===3&&!message.includes('Failed to load resource'))errors.push(message);});
   win.webContents.session.on('will-download',(_event,item)=>{const file=path.join(work,item.getFilename());item.setSavePath(file);item.once('done',(_event,state)=>downloads.push({file,state}));});
   const js=source=>win.webContents.executeJavaScript(source);
-  const click=(label,scope='document')=>js(`(()=>{const root=${scope};const b=[...root.querySelectorAll('button')].find(b=>b.textContent.trim()===${JSON.stringify(label)});if(!b)throw Error('Missing button '+${JSON.stringify(label)});if(b.disabled)throw Error('Disabled button '+${JSON.stringify(label)});b.click();})()`);
+  const click=(label,scope='document')=>js(`(()=>{const root=${scope};const b=[...root.querySelectorAll('button')].find(b=>b.textContent.trim()===${JSON.stringify(label)}||b.title===${JSON.stringify(label)});if(!b)throw Error('Missing button '+${JSON.stringify(label)});if(b.disabled)throw Error('Disabled button '+${JSON.stringify(label)});b.click();return new Promise(resolve=>requestAnimationFrame(resolve));})()`);
   const set=(selector,value,blur=false)=>js(`(()=>{const e=document.querySelector(${JSON.stringify(selector)})||window.qaLabel(${JSON.stringify(selector)}.match(/aria-label="([^"]+)"/)?.[1]);if(!e)throw Error('Missing '+${JSON.stringify(selector)});const proto=e.tagName==='SELECT'?HTMLSelectElement.prototype:e.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(e,${JSON.stringify(value)});e.dispatchEvent(new Event(e.tagName==='SELECT'?'change':'input',{bubbles:true}));${blur?"e.dispatchEvent(new FocusEvent('focusout',{bubbles:true}));":''}})()`);
   const field=(label)=>`[aria-label=${JSON.stringify(label)}]`;
   const scope=selector=>`document.querySelector(${JSON.stringify(selector)})`;
@@ -38,7 +38,7 @@ app.whenReady().then(async()=>{
   await until(()=>js("!!document.querySelector('#image-studio select option[value=\"qa-image\"]')"),'image catalog');
   await set('#image-studio .image-studio-controls > label select','qa-image');
   await set('#image-studio textarea','Batch fixture prompt');
-  await click('512 × 512',scope('#image-studio'));
+  await set(field('Resolution'),'512x512');
   await js("document.querySelector('.image-batch').open=true");
   await js("document.querySelector('[aria-label=\"Vary Steps\"]').click()");
   await set(field('Batch starting Steps'),'10');
@@ -48,7 +48,7 @@ app.whenReady().then(async()=>{
   await pause(150);fs.writeFileSync(path.join(work,'generate-batch.png'),(await win.webContents.capturePage(undefined,{stayHidden:true,stayAwake:true})).toPNG());
   await click('Queue batch (4)',scope('#image-studio'));
   await set('#image-studio textarea','Changed after queue');
-  await click('1024 × 1024',scope('#image-studio'));
+  await set(field('Resolution'),'1024x1024');
   await until(()=>rows('generation.jsonl').length===4,'four batch requests');
   await until(()=>js("document.querySelectorAll('.image-request').length===0 && ![...document.querySelectorAll('#image-studio button')].some(b=>b.textContent==='Stop all image requests')"),'batch finished');
   const requests=rows('generation.jsonl');
@@ -83,7 +83,7 @@ app.whenReady().then(async()=>{
   await click('Edit Image',scope('.review-slideshow'));
   await until(()=>js("!!document.querySelector('.ie-stage img')?.naturalWidth"),'review to editor');
   assert.equal(await js("document.querySelector('.ie-stage img').naturalWidth"),640);
-  assert.equal(await js("document.querySelector('.ie-main-history').getAttribute('aria-label')"),'Image editing history');
+  assert.equal(await js("document.querySelector('.ie-main-history').getAttribute('aria-label')"),'Image editing tools');
   await click('Increase contrast',scope('.image-editor'));
   await click('Undo',scope('.ie-main-history'));
   assert.equal(await js("document.querySelector('[aria-label=\"Contrast\"]').value"),'0');
@@ -122,21 +122,22 @@ app.whenReady().then(async()=>{
   checks.push('Previous-stage input can be restored after selecting an asset; changes and save preserve it; execution reads the exact prior output; locked scale preserves source proportions');
 
   await click('LoRA');
-  await until(()=>js("!![...document.querySelectorAll('button')].find(b=>b.textContent.includes('Settings guide'))"),'LoRA guide');
+  await until(()=>js("!!document.querySelector('[aria-label=\"LoRA information\"]')"),'LoRA guide');
   await until(()=>js("!!document.querySelector('.lora-form-grid input')"),'loaded LoRA project');
-  await click('ⓘ Settings guide');
-  await until(()=>js("!!document.querySelector('.lora-help-dialog[open]')"),'guide dialog');
-  await until(()=>js("document.querySelector('.lora-help-dialog[open]')?.textContent.includes('0.0001')"),'numeric settings guide');
-  assert.ok(await js("document.querySelector('[aria-labelledby=\"lora-help-title\"]').textContent.includes('10×')"));
-  await pause(200);assert.ok(await js("document.querySelector('[aria-labelledby=\"lora-help-title\"]').open"));
+  await js("document.querySelector('[aria-label=\"LoRA information\"]').click()");
+  await until(()=>js("!!document.querySelector('.workspace-info-dialog[open]')"),'guide dialog');
+  await until(()=>js("document.querySelector('.workspace-info-dialog[open]')?.textContent.includes('0.0001')"),'numeric settings guide');
+  assert.ok(await js("document.querySelector('.workspace-info-dialog[open]').textContent.includes('10×')"));
+  await pause(200);assert.ok(await js("document.querySelector('.workspace-info-dialog[open]').open"));
   fs.writeFileSync(path.join(work,'lora-guide.png'),(await win.webContents.capturePage(undefined,{stayHidden:true,stayAwake:true})).toPNG());
   checks.push('LoRA top-of-tab settings guide presents numeric learning-rate comparisons and setting functions');
-  const verify=spawnSync(python,['-c',`import json,sys,zipfile\nfrom pathlib import Path\nfrom PIL import Image\np=Path(sys.argv[1])\nwith zipfile.ZipFile(p/'review-image.zip') as z:\n m=json.loads(z.read('manifest.json')); assert len(m['images'])==1; assert m['images'][0]['caption']=='Caption saved before export'\nwith zipfile.ZipFile(p/'review-selected.zip') as z:\n m=json.loads(z.read('manifest.json')); assert len(m['images'])==2\n for image in m['images']:\n  assert z.read(image['file'])==(p/image['name']).read_bytes()\noutputs=list((p/'data'/'generated_images').glob('*.png')); assert len(outputs)==4\nfor output in outputs: assert Image.open(output).size==(512,512)\nprint('Original ZIP payloads, saved captions and all batch PNG sizes verified')`,work],{encoding:'utf8',windowsHide:true});
+  const verify=spawnSync(python,[path.join(__dirname,'qa-generation-export-verify.py'),work],{encoding:'utf8',windowsHide:true});
   assert.equal(verify.status,0,verify.stderr);checks.push(verify.stdout.trim());
   assert.deepEqual(errors,[]);
   fs.writeFileSync(resultFile,JSON.stringify({ok:true,work,checks,downloads},null,2));
   console.log(JSON.stringify({ok:true,resultFile,work,checks}));
 }).catch(async error=>{
+  process.exitCode=1;
   if(win&&!win.isDestroyed())fs.writeFileSync(path.join(work,'failed.html'),await win.webContents.executeJavaScript('document.documentElement.outerHTML').catch(()=>''));
   fs.writeFileSync(resultFile,JSON.stringify({ok:false,work,checks,error:error.stack,errors},null,2));console.error(error);
 }).finally(()=>{child?.stdin.write('\n');win?.destroy();app.quit();});

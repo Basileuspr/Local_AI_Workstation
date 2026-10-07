@@ -1,6 +1,7 @@
 chromadb
 fastapi
 httpx
+jsonschema>=4.23,<5
 langchain-text-splitters
 python-docx
 python-multipart

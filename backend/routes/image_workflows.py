@@ -1,6 +1,6 @@
 """Revision-checked workflows, queued execution, cancellation and reviewed results."""
 
-from fastapi import APIRouter, File, Form, Header, HTTPException, UploadFile, Path
+from fastapi import APIRouter, File, Form, Header, HTTPException, UploadFile, Path, Request
 from fastapi.responses import FileResponse, StreamingResponse
 from services.image_thumbnails import path_response
 from starlette.concurrency import run_in_threadpool
@@ -13,6 +13,8 @@ from services.image_workflows import deletion, scenes
 from services.image_workflows.contracts import ScenePatchRequest, SceneFrameRequest, SceneIdentityRequest
 from services.image_workflows.scene_analysis import ImportSourceRequest, import_source
 from services.image_vault import PinError
+from services.image_workflows import scene_planner
+from services.request_queue import QueueCancelled
 
 router = APIRouter(prefix="/image-workflows", tags=["image-workflows"])
 
@@ -109,6 +111,42 @@ def choose_scene_frame(workflow_id: str, request: SceneFrameRequest):
 @router.post("/{workflow_id}/scene/identity")
 def scene_identity(workflow_id: str, request: SceneIdentityRequest):
     return call(scenes.attach_identity, workflow_id, request)
+
+
+async def planner_call(function, *args):
+    try:
+        return await function(*args)
+    except QueueCancelled as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except (store.NotFound, store.Conflict, ValueError, OSError) as exc:
+        def failed():
+            raise exc
+        return call(failed)
+
+
+@router.get('/scene-planner/models')
+async def planner_models():
+    return await planner_call(scene_planner.models)
+
+
+@router.get('/{workflow_id}/scene/plans')
+def scene_plans(workflow_id: str):
+    return call(scene_planner.list_plans, workflow_id)
+
+
+@router.post('/{workflow_id}/scene/plans', status_code=201)
+async def plan_scene(workflow_id: str, body: scene_planner.PlanRequest, request: Request):
+    return await planner_call(scene_planner.propose, workflow_id, body, request)
+
+
+@router.post('/{workflow_id}/scene/plans/{plan_id}/stop')
+async def stop_scene_plan(workflow_id: str, plan_id: str):
+    return await planner_call(scene_planner.stop, workflow_id, plan_id)
+
+
+@router.post('/{workflow_id}/scene/plans/{plan_id}/apply')
+def apply_scene_plan(workflow_id: str, plan_id: str, request: scene_planner.ApplyRequest):
+    return call(scene_planner.apply, workflow_id, plan_id, request)
 
 
 @router.post("/{workflow_id}/assets", status_code=201)

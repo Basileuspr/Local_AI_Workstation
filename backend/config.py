@@ -126,10 +126,15 @@ class Settings:
     warnings: tuple[str, ...] = field(default=())
     ollama_keep_alive_seconds: int = 300
     face_intra_op_threads: int = 6
+    image_manager_storage_dir: Path | None = None
 
     # --- derived paths -----------------------------------------------------
-    # Everything the app writes hangs off data_dir, so a portable build can
-    # relocate all of it by setting one variable.
+    # Most app data follows data_dir. The external image catalog has its own
+    # location, so reset/import cannot replace it.
+
+    @property
+    def image_manager_dir(self) -> Path:
+        return self.image_manager_storage_dir or self.data_dir.parent / (self.data_dir.name + "-image-manager")
 
     @property
     def sessions_dir(self) -> Path:
@@ -225,6 +230,7 @@ def load_settings() -> Settings:
         ocr_min_page_chars=_env_int("OCR_MIN_PAGE_CHARS", 20, warnings, minimum=1),
         data_dir=data_dir,
         models_dir=models_dir,
+        image_manager_storage_dir=_env_path("IMAGE_MANAGER_DIR", data_dir.parent / (data_dir.name + "-image-manager"), warnings),
         log_dir=log_dir,
         log_level=(_env("LOG_LEVEL") or "INFO").upper(),
         allowed_origins=_env_origins("ALLOWED_ORIGINS", DEFAULT_ALLOWED_ORIGINS, warnings),

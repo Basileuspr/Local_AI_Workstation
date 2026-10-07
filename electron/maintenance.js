@@ -143,9 +143,10 @@ function createMaintenance(deps) {
             }
             return result;
         },
-        async reset({ ticket, confirmation } = {}) {
+        async reset({ ticket, confirmation, keepImageManager = false } = {}) {
             if (busy) return { error: "Maintenance is already running." };
             if (!pending || pending.ticket !== ticket || confirmation !== "RESET") return { error: "Review the reset, then confirm permanent reset." };
+            if (typeof keepImageManager !== 'boolean') return { error: 'Choose whether to keep the external Image Manager catalog.' };
             busy = true;
             let stopped = false;
             let completed = false;
@@ -161,17 +162,17 @@ function createMaintenance(deps) {
                     await deps.stopBackend();
                     stopped = true;
                 }
-                await deps.run({ action: "reset", confirmation });
+                const result = await deps.run({ action: "reset", confirmation, ...(keepImageManager ? { keep_image_manager: true } : {}) });
                 completed = true;
                 // Clear rendered content while offline, before releasing the new backend.
-                await deps.clearRenderer();
+                await deps.clearRenderer(keepImageManager);
                 await deps.clearCache();
                 await deps.run({ action: "finish-reset" });
                 await deps.startBackend();
                 pending = null;
                 recovery = false;
                 deps.notifyComplete();
-                return { ok: true };
+                return { ok: true, ...(result.image_manager_retained ? { image_manager_retained: result.image_manager_retained } : {}) };
             } catch (error) {
                 recovery = stopped;
                 if (!stopped) await deps.unlockBackend().catch(() => {});

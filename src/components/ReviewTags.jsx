@@ -8,7 +8,7 @@ export function tagList(value) {
   return [...names.values()];
 }
 
-export default function ReviewTags({value,available=[],disabled=false,maxLength=80,onChange,onApply}) {
+export default function ReviewTags({value,available=[],disabled=false,maxLength=80,onChange,onApply=onChange}) {
   const [selected,setSelected]=useState(''),[created,setCreated]=useState('');
   const [text,setText]=useState(value.join(', ')),edited=useRef(null);
   useEffect(()=>{if(edited.current!==value)setText(value.join(', '));},[value]);

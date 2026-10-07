@@ -150,7 +150,8 @@ def validate_backup(source, root=None, expected_digest=None, staging=None):
                 # Detect source replacement/modification during review/extraction.
                 if _digest(handle) != digest: raise ValueError("Backup changed while it was being verified.")
                 return {"archive": str(source), "sha256": digest, "desktop_storage": preferences,
-                        "report": {"files": len(files) - 1, "bytes": total, "created_at": str(manifest.get("created_at", "Unknown"))[:100]}}
+                        "report": {"files": len(files) - 1, "bytes": total, "created_at": str(manifest.get("created_at", "Unknown"))[:100]},
+                        **({'verified_files': files} if staging is not None else {})}
     except (zipfile.BadZipFile, EOFError, NotImplementedError):
         raise ValueError("Backup ZIP is damaged or uses unsupported compression.") from None
 
@@ -193,6 +194,10 @@ def import_backup(source, digest, confirmation, previous_storage, root=None):
     staging = Path(tempfile.mkdtemp(prefix=f".law-import-{root.name}-stage-", dir=root.parent)).resolve()
     try:
         validated = validate_backup(source, root, expected_digest=digest, staging=staging)
+        from services.image_manager_storage import ensure_catalog
+        ensure_catalog(root)  # Keep the current catalog even when absent from the backup.
+        from services.image_manager_maintenance import rebind_imported_catalog
+        rebind_imported_catalog(staging, root, validated['verified_files'])
         recovery = Path(tempfile.mkdtemp(prefix=f".law-import-{root.name}-before-", dir=root.parent)).resolve()
         write_atomic(recovery / "desktop-local-storage.json", previous_storage)
         (recovery / "RECOVERY.txt").write_text("Private pre-import recovery copy. data/ contains the previous app data; desktop-local-storage.json contains its desktop preferences. Keep this folder until you are satisfied with the imported backup. If import was interrupted, use Recover previous data on the Dashboard. Do not merge these files into an active data directory.\n", encoding="utf-8")

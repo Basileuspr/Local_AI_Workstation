@@ -3,12 +3,13 @@ import { projectBrief, inventoryCsv, workshopMarkdown, sampleHtml, recordingScri
 export const universityAppLessons = [
   {
     id: 'workspace-tour', title: 'Find your way around the workstation', module: 'Workspace basics', minutes: 8,
-    workspaces: ['dashboard', 'tools', 'shortcuts', 'break-room'],
+    workspaces: ['info-center', 'dashboard', 'tools', 'shortcuts', 'break-room'],
     concepts: [
       'A workspace groups tools for a particular job. The sidebar opens those workspaces; the information button explains the controls in the active one. Workspace options can pin a supported workspace beside chat, so you can read a reference while asking questions.',
       'Dashboard shows services, hardware readings, compatibility and a tool catalog. A catalog entry describes a feature; its requirements tell you what else it needs. Functions holds custom navigation buttons and explicitly run action sequences. Shortcut Registry is a searchable reference for keyboard actions.',
     ],
     steps: [
+      'Open Info Center, search for a task you want to try, and expand its control guide. Use Open to visit that workspace; its information button keeps the guide available.',
       'Open Dashboard and find the selected model, available memory and compatibility information. Write down one ready feature and one requirement you would need to check.',
       'Open Shortcut Registry and search for an action you use, such as Find. Compare its application name with the application where you intend to use it.',
       'Open Functions and inspect Add Button. A workspace destination makes a navigation shortcut; saving a button is separate from pressing it.',
@@ -99,7 +100,7 @@ export const universityAppLessons = [
   },
   {
     id: 'browser-source-inspection', title: 'Understand a page and its source', module: 'Sources and documents', minutes: 10,
-    workspaces: ['browser', 'html-viewer', 'css-viewer', 'js-viewer'], sample: sampleHtml,
+    workspaces: ['browser', 'html-viewer', 'css-viewer', 'styling-library', 'js-viewer'], sample: sampleHtml,
     concepts: [
       'HTML describes a page’s structure, CSS describes its appearance, and JavaScript describes behavior. The local source viewers let you inspect, edit, copy or save source text. HTML and CSS previews isolate the content and block scripts and remote resources; JavaScript Viewer displays text.',
       'Browser shows a public page in the app’s separate browsing profile. Inspect page can expose rendered HTML and loaded source resources, after its confirmation. It cannot show private server-side project code. A page is a source to study, and its text does not authorize actions on your files.',
@@ -107,6 +108,7 @@ export const universityAppLessons = [
     steps: [
       'Copy the practice HTML into HTML Viewer and open its Preview. Match the heading and deadline to the source.',
       'In CSS / Styling, use the practice HTML as HTML to style and try “.deadline { color: teal; }”. Compare source and preview.',
+      'In Styling Library, choose Buttons and open Button essentials with View code. Compare HTML and CSS, choose Edit in CSS / Styling, change the primary button color, and click Preview to check your variation.',
       'In JavaScript Viewer, inspect a short example such as “const deadline = \'6 November 2026\';”. Reading it does not run the code.',
       'Optionally open a public page you choose in Browser, review Inspect page’s confirmation, and send one loaded source resource to the appropriate viewer.',
     ],
@@ -216,14 +218,15 @@ export const universityAppLessons = [
   },
   {
     id: 'audio-transcription-speech', title: 'Transcribe, correct and speak', module: 'Audio, video and 3D', minutes: 12,
-    workspaces: ['audio', 'chats'], sample: recordingScript,
+    workspaces: ['audio', 'sound-mixer', 'chats'], sample: recordingScript,
     concepts: [
       'Transcription turns recorded speech into editable text. Audio and the chat microphone panel let you record or load audio, transcribe it, then review the result. Insert into message stages the edited text; Send is a separate action.',
       'Text-to-speech turns text into playback. Read aloud and cloned voices depend on the selected available engine. Separate speakers labels voices across a recording, but similar voices, noise and overlap can cause mistakes. Review names, dates and speaker labels before reuse.',
     ],
-    needs: 'A microphone or short practice recording, plus an available transcription engine for the optional run.',
+    needs: 'A microphone or short practice recording, plus an available transcription engine for the optional run. Sound Mixer also accepts local audio tracks without a model.',
     steps: [
       'Read the practice script into a short recording in Audio, or load a recording you may use. Stop recording before transcription.',
+      'Open Sound Mixer, add your saved practice audio, and play it. Lower its fader, try Solo, and compare its measured level. Enable a microphone only if needed, record a short mix, stop, and save the recording before closing. Use the Information button to review which audio sources can be recorded.',
       'Choose the available transcription settings, run Transcribe audio, and compare every name and date with the script.',
       'Correct the transcript, then copy/save it or insert it into a practice chat draft. Inspect the draft before choosing Send.',
       'Try read aloud for a short corrected passage if a voice is available. Inspect Stop and voice settings; automatic chat speech is an explicit preference.',

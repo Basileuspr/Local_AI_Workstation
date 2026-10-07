@@ -7,6 +7,7 @@ import CharacterNameDialog from "./CharacterNameDialog";
 import ProtectedImage from "../ImagePrivacy";
 import MediaCardActions from "./MediaCardActions";
 import CharacterResources from './CharacterResources';
+import ActionMenu from './ActionMenu';
 
 function Distribution({ values }) {
   if (values.length < 2) return null;
@@ -209,12 +210,11 @@ export default function FaceBank({ active = true, initialId = '', openCharacter,
               {character.missing_members?.length ? ` · ${character.missing_members.length} missing from dataset` : ""}
             </p>
           </div>
-          <div className="face-row">
-            <button type="button" onClick={() => { setError(""); setNotice(""); setRenaming({ id: character.id, name: character.name }); }} disabled={Boolean(busy)}>Rename</button>
-            <button type="button" onClick={() => act("recompute", () => faces.recompute(activeId), "Recalculated.")}
-                    disabled={Boolean(busy)}>Recalculate</button>
-            <button type="button" onClick={removeCharacter} disabled={Boolean(busy)}>Delete</button>
-          </div>
+          <ActionMenu label="Character options" actions={[
+            {label:'Rename', disabled:Boolean(busy), onClick:() => { setError(""); setNotice(""); setRenaming({ id: character.id, name: character.name }); }},
+            {label:'Recalculate', disabled:Boolean(busy), onClick:() => act("recompute", () => faces.recompute(activeId), "Recalculated.")},
+            {label:'Delete', danger:true, disabled:Boolean(busy), onClick:removeCharacter},
+          ]}/>
         </header>
 
         {onStartKnowledge && <div className="face-row"><button type="button" disabled={Boolean(busy)} onClick={() => onStartKnowledge(character.id)}>Start / open Knowledge node</button></div>}

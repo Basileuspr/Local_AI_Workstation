@@ -47,9 +47,17 @@ editors/other agents finish changing the source so the capture is coherent.
 Use the repo venv to capture its actual Python packages. Node metadata is read
 from the manifest, lockfile and installed packages. This records the existing
 environment; it is not a fresh-install compatibility test. The source inventory
-includes scoped code, tests, scripts and root project Markdown; it excludes
+includes scoped code, tests, scripts, root project Markdown and organized guides
+under `docs/`; it excludes private handoffs/audits and generated review output,
 runtime data, models, caches, logs, secrets and private Git remotes. Historical
 source contents are hashed for the HEAD baseline and not copied into reports.
+
+Documentation was reorganized on October 5, 2026. Historical snapshots retain
+their original paths; use the [document relocation map](../development/DOCUMENT_MAP.md)
+to find the corresponding current guide. Start at the [documentation index](../README.md)
+for the topic groups. The reader retains historical source labels but follows
+the relocation map when opening a moved guide; its `documentMoves` table lives
+in `reader-template.html` and must accompany any later documentation moves.
 
 ## Keep the narrative useful
 

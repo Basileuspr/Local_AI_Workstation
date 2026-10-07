@@ -8,7 +8,7 @@ const { appAsset, APP_HEADERS, trustedUrl } = require('../electron/security');
 const root = path.resolve(__dirname, '..'), work = fs.mkdtempSync(path.join(os.tmpdir(), 'law-image-manager-'));
 app.setPath('userData', path.join(work, 'profile'));
 protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
-let win, child; const checks = [], errors = [];
+let win, child, exitStatus = 0; const checks = [], errors = [];
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function until(fn, label, timeout = 20000) { const end = Date.now() + timeout; while (Date.now() < end) { if (await fn()) return; await pause(70); } throw Error('Timed out: ' + label); }
 app.whenReady().then(async () => {
@@ -26,6 +26,7 @@ app.whenReady().then(async () => {
   ipcMain.handle('app:startup-status', () => ({ state: 'ready' }));
   ipcMain.handle('app:capabilities', () => ({ features: {} }));
   ipcMain.handle('media-manager:place', () => {}); ipcMain.handle('viewer-browser:place', () => {});
+  ipcMain.handle('linked-content:place', () => {});
   ipcMain.handle('maintenance:import-status', () => ({ active: false }));
   const maintenanceCalls = [];
   ipcMain.handle('maintenance:prepare-reset', () => ({ ticket: 'qa-reset-review', report: { inventory: { chats: { files: 3 } } } }));
@@ -51,7 +52,9 @@ app.whenReady().then(async () => {
   await click('Arrange tabs', '.sidebar-navigation');
   await until(() => js("document.querySelector('.tab-order-dialog')?.open"), 'order dialog');
   const orderClick = label => js(`document.querySelector('.tab-order-dialog button[aria-label="${label}"]').click()`);
-  for (let index = 0; index < 4; index++) { await orderClick('Move Viewers up'); await pause(20); }
+  for (let index = 0; index < 20 && await js("!document.querySelector('.tab-order-dialog button[aria-label=\"Move Viewers up\"]').disabled"); index++) {
+    await orderClick('Move Viewers up'); await pause(20);
+  }
   await orderClick('Move Knowledge up'); await pause(20); await orderClick('Move Knowledge up');
   await orderClick('Move Spreadsheets up');
   await click('Save tab order', '.tab-order-dialog');
@@ -70,13 +73,14 @@ app.whenReady().then(async () => {
   await click('RESET APP DATA & SANITIZE APPLICATION', '.dashboard-reset');
   await until(() => js("document.querySelector('.reset-native-dialog')?.open"), 'reset review opens');
   assert.equal(await js("document.querySelectorAll('.reset-native-dialog input').length"), 0);
+  assert(await js("document.querySelector('.reset-native-dialog').textContent.includes('automatically, like Media Manager')"));
   assert.equal(maintenanceCalls.length, 0, 'Opening review cannot reset app data');
   await click('Keep app data', '.reset-native-dialog');
   assert.equal(maintenanceCalls.length, 0, 'Cancel cannot reset app data');
   await click('RESET APP DATA & SANITIZE APPLICATION', '.dashboard-reset');
   await click('Permanently reset app data', '.reset-native-dialog');
   await until(() => maintenanceCalls.length === 1, 'reset button confirms');
-  assert.deepEqual(maintenanceCalls[0], { action: 'reset', ticket: 'qa-reset-review', confirmation: 'RESET' });
+  assert.deepEqual(maintenanceCalls[0], { action: 'reset', ticket: 'qa-reset-review', confirmation: 'RESET', keepImageManager: false });
   await click('Keep app data', '.reset-native-dialog');
   await click('IMPORT BACK-UP', '.dashboard-reset');
   await until(() => js("document.querySelector('.reset-native-dialog')?.open"), 'import review opens');
@@ -88,7 +92,7 @@ app.whenReady().then(async () => {
   await until(() => maintenanceCalls.length === 2, 'import button confirms');
   assert.deepEqual(maintenanceCalls[1], { action: 'import', ticket: 'qa-import-review', confirmation: 'IMPORT' });
   await click('Cancel', '.reset-native-dialog');
-  checks.push('Dashboard reset/import use review plus confirmation buttons; opening/Cancel invoke no maintenance; destructive IPC stubbed');
+  checks.push('Dashboard explains automatic Image Manager retention without export or a checkbox; reset/import review and Cancel invoke no maintenance; destructive IPC stubbed');
   await nav('image-manager'); await pause(250);
   assert.equal((await api('/state')).job, null, 'Opening must not scan');
   await click('+ Add source folder'); await until(() => js("document.querySelector('.im-folder-list')?.textContent.includes('image-source')"), 'source catalog');
@@ -253,12 +257,12 @@ app.whenReady().then(async () => {
   checks.push('Image Manager Image tools processes selected catalog images, creates real sized PNG copies and a grid, and preserves originals');
   assert.deepEqual(errors, []);
   console.log(JSON.stringify({ ok: true, checks }));
-}).catch(error => { console.error(error.stack); process.exitCode = 1; }).finally(async () => {
+}).catch(error => { console.error(error.stack); exitStatus = 1; }).finally(async () => {
   try {
     win?.destroy();
     if (child && child.exitCode === null) { const exited = new Promise(resolve => child.once('exit', resolve)); child.stdin.end('stop\n'); await Promise.race([exited, pause(2500)]); if (child.exitCode === null) { child.kill(); await Promise.race([exited, pause(2500)]); } }
     if (path.dirname(work) !== os.tmpdir() || !path.basename(work).startsWith('law-image-manager-')) throw Error('Unsafe QA cleanup path');
     fs.rmSync(work, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
-  } catch (error) { console.error('QA cleanup: ' + error.message); process.exitCode = 1; }
-  finally { app.exit(process.exitCode || 0); }
+  } catch (error) { console.error('QA cleanup: ' + error.message); exitStatus = 1; }
+  finally { app.exit(exitStatus); }
 });

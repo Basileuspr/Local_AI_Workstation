@@ -3,8 +3,11 @@ import { applyAppearance, defaultAppearance, normalizeAppearance } from "./appea
 import { defaultRoleplayConfig, mergeRoleplayConfig,roleplayFromCharacter } from "./roleplayPrompt";
 import { defaultImageSettings, defaultVoiceOutput, normalizeVoiceOutput, defaultSoundOutput, normalizeSoundOutput, loadPreferences } from "./preferences";
 import {audioOutput} from './audioOutput';
+import {defaultMixerSettings, normalizeMixerSettings} from './mixerSettings';
 import { loadStartupNavigation } from "./navigation";
 import { orderModels } from "./modelOrder";
+
+import { imageProfileSettings } from "./imageProfiles";
 
 const StoreContext = createContext(null);
 const DispatchContext = createContext(null);
@@ -66,6 +69,7 @@ const initialState = {
   imageSettings: defaultImageSettings,
   voiceOutput: defaultVoiceOutput,
   soundOutput: defaultSoundOutput,
+  soundMixer: defaultMixerSettings,
   customProfiles: [],
   activeCustomProfileId: "",
   activeLoraProjectId: "",
@@ -133,43 +137,6 @@ const profiles = {
   },
 };
 
-function chatSettingsFrom(state) {
-  return {
-    selectedModel: state.selectedModel,
-    summaryModel: state.summaryModel,
-    temperature: state.temperature,
-    topP: state.topP,
-    topK: state.topK,
-    repeatPenalty: state.repeatPenalty,
-    numPredict: state.numPredict,
-    responseLength: state.responseLength,
-    systemPrompt: state.systemPrompt,
-    responseStyle: state.responseStyle,
-    useKnowledgeBase: state.useKnowledgeBase,
-    roleplay: state.roleplay,
-  };
-}
-
-function updateActiveCustomProfile(nextState) {
-  if (!nextState.activeCustomProfileId) return nextState;
-  const profileIndex = nextState.customProfiles.findIndex(
-    (profile) => profile.id === nextState.activeCustomProfileId
-  );
-  if (profileIndex === -1) return { ...nextState, activeCustomProfileId: "" };
-
-  const customProfiles = nextState.customProfiles.map((profile, index) =>
-    index === profileIndex
-      ? {
-          ...profile,
-          imageSettings: { ...nextState.imageSettings },
-          chatSettings: chatSettingsFrom(nextState),
-          updatedAt: new Date().toISOString(),
-        }
-      : profile
-  );
-  return { ...nextState, customProfiles };
-}
-
 export function reducer(state, action) {
   switch (action.type) {
     case "OPEN_IMAGE_WORKFLOW":
@@ -195,7 +162,7 @@ export function reducer(state, action) {
       return { ...state, modelsError: action.payload || null };
 
     case "SET_SELECTED_MODEL":
-      return updateActiveCustomProfile({ ...state, selectedModel: action.payload });
+      return ({ ...state, selectedModel: action.payload });
     case "SET_STARTUP_BEHAVIOR":
       return { ...state, startupBehavior: action.payload === "resume" ? "resume" : "new" };
 
@@ -368,7 +335,7 @@ export function reducer(state, action) {
     }
 
     case "SET_PARAM":
-      return updateActiveCustomProfile({ ...state, [action.key]: action.value });
+      return ({ ...state, [action.key]: action.value });
 
     case "SET_VOICE_OUTPUT":
       return { ...state, voiceOutput: normalizeVoiceOutput({ ...state.voiceOutput, ...action.payload }) };
@@ -376,8 +343,11 @@ export function reducer(state, action) {
     case "SET_SOUND_OUTPUT":
       return { ...state, soundOutput: normalizeSoundOutput({ ...state.soundOutput, ...action.payload }) };
 
+    case "SET_SOUND_MIXER":
+      return { ...state, soundMixer: normalizeMixerSettings(action.payload) };
+
     case "SET_IMAGE_SETTINGS":
-      return updateActiveCustomProfile({
+      return ({
         ...state,
         imageSettings: { ...state.imageSettings, ...action.payload },
       });
@@ -404,13 +374,12 @@ export function reducer(state, action) {
         name,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        imageSettings: { ...state.imageSettings },
-        chatSettings: chatSettingsFrom(state),
+        imageSettings: imageProfileSettings(state.imageSettings),
+        version: 2,
       };
 
       return {
         ...state,
-        activeProfile: "",
         activeCustomProfileId: id,
         customProfiles: [...state.customProfiles, profile],
       };
@@ -421,12 +390,18 @@ export function reducer(state, action) {
       if (!profile) return { ...state, activeCustomProfileId: "" };
       return {
         ...state,
-        ...(profile.chatSettings || {}),
-        imageSettings: { ...defaultImageSettings, ...(profile.imageSettings || {}) },
-        activeProfile: "",
+        imageSettings: { ...state.imageSettings, ...imageProfileSettings(profile.imageSettings) },
         activeCustomProfileId: profile.id,
       };
     }
+
+    case "UPDATE_CUSTOM_PROFILE":
+      return { ...state, customProfiles: state.customProfiles.map(profile =>
+        profile.id === state.activeCustomProfileId
+          ? { ...profile, version: 2, imageSettings: imageProfileSettings(state.imageSettings),
+              legacySettings: profile.version === 2 ? profile.legacySettings : { imageSettings: profile.imageSettings, chatSettings: profile.chatSettings },
+              updatedAt: new Date().toISOString() }
+          : profile) };
 
     case "RENAME_CUSTOM_PROFILE":
       return {
@@ -453,7 +428,7 @@ export function reducer(state, action) {
       return { ...state, roleplayOpen: !state.roleplayOpen };
 
     case "SET_ROLEPLAY":
-      return updateActiveCustomProfile({
+      return ({
         ...state,
         roleplay: mergeRoleplayConfig(action.payload),
       });
@@ -462,7 +437,7 @@ export function reducer(state, action) {
       return {...state,activeCustomProfileId:'',roleplay:roleplayFromCharacter(action.payload,state.roleplay)};
 
     case "SET_ROLEPLAY_FIELD":
-      return updateActiveCustomProfile({
+      return ({
         ...state,
         roleplay: {
           ...state.roleplay,
@@ -503,7 +478,7 @@ export function reducer(state, action) {
 
     case "SET_RESPONSE_LENGTH": {
       const val = action.payload;
-      return updateActiveCustomProfile({ ...state, responseLength: val, numPredict: val > 0 ? val : state.numPredict });
+      return ({ ...state, responseLength: val, numPredict: val > 0 ? val : state.numPredict });
     }
 
     case "SHOW_TOAST":
@@ -521,6 +496,7 @@ export function StoreProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, undefined, createInitialState);
   useLayoutEffect(() => { applyAppearance(state.appearance); }, [state.appearance]);
   useLayoutEffect(() => {audioOutput.configure(state.soundOutput);},[state.soundOutput]);
+  useLayoutEffect(() => {audioOutput.mixer.configure(state.soundMixer);},[state.soundMixer]);
   useLayoutEffect(() => {
     const stopDevices=audioOutput.listen();
     const stopPlayers=audioOutput.bindDocument(document,payload=>dispatch({type:'SET_SOUND_OUTPUT',payload}));
@@ -557,10 +533,11 @@ export function ChatStoreProvider({ children }) {
   const dispatch = useCallback(action => {
     if(action.type === 'RESET_PREFERENCES') {
       parentDispatch({type:'SET_SOUND_OUTPUT',payload:defaultSoundOutput});
+      parentDispatch({type:'SET_SOUND_MIXER',payload:defaultMixerSettings});
       localDispatch(action);return;
     }
     if (["SHOW_TOAST", "SET_SESSIONS", "SESSION_TITLE_UPDATED", "SET_SESSION_IMAGES", "SET_KB_DOCUMENTS", "OPEN_INDEX_ENTRY", "OPEN_KNOWLEDGE_NODE",
-      "OPEN_IMAGE_WORKFLOW", "OPEN_ITERATIVE_SCENE", "SET_ACTIVE_LORA_PROJECT", "SET_APPEARANCE", "RESET_APPEARANCE", "SET_STARTUP_BEHAVIOR", "SET_SOUND_OUTPUT"].includes(action.type)
+      "OPEN_IMAGE_WORKFLOW", "OPEN_ITERATIVE_SCENE", "SET_ACTIVE_LORA_PROJECT", "SET_APPEARANCE", "RESET_APPEARANCE", "SET_STARTUP_BEHAVIOR", "SET_SOUND_OUTPUT", "SET_SOUND_MIXER"].includes(action.type)
       || action.type === "SET_SIDEBAR_TAB") parentDispatch(action);
     else localDispatch(action);
   }, [parentDispatch]);
@@ -568,7 +545,7 @@ export function ChatStoreProvider({ children }) {
   const state = { ...local, connected: parent.connected, serviceStatus: parent.serviceStatus,
     modelsError: parent.modelsError, models: orderModels(parent.models, local.modelOrder),
     sessions: parent.sessions, kbDocuments: parent.kbDocuments, sessionImages: parent.sessionImages,
-    appearance: parent.appearance, soundOutput: parent.soundOutput, startupBehavior: parent.startupBehavior, activeSidebarTab: parent.activeSidebarTab };
+    appearance: parent.appearance, soundOutput: parent.soundOutput, soundMixer: parent.soundMixer, startupBehavior: parent.startupBehavior, activeSidebarTab: parent.activeSidebarTab };
   return <StoreContext.Provider value={state}><DispatchContext.Provider value={dispatch}>
     <RefsContext.Provider value={refs.current}>{children}</RefsContext.Provider>
   </DispatchContext.Provider></StoreContext.Provider>;

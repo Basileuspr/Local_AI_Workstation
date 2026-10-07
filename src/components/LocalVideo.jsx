@@ -1,5 +1,7 @@
 import {useEffect, useRef, useState} from 'react';
 import {localRequest, localAsset, timeLabel, downloadResult} from '../localFiles';
+import {reviewRequest} from '../visualReview';
+import ReviewWorkflow from './ReviewWorkflow';
 
 export default function LocalVideo({file, onSaved, run, busy, active}) {
   const player=useRef(null), [preset,setPreset]=useState('quick'), [operation,setOperation]=useState('vision');
@@ -7,6 +9,7 @@ export default function LocalVideo({file, onSaved, run, busy, active}) {
   const [speech,setSpeech]=useState('base'), [capabilities,setCapabilities]=useState(null), [selected,setSelected]=useState(new Set());
   const [capError,setCapError]=useState(''), [playError,setPlayError]=useState('');
   const [focus,setFocus]=useState('');
+  const [reviewId,setReviewId]=useState('');
   useEffect(() => {let alive=true; localRequest('/capabilities').then(value => {if(alive){setCapabilities(value);setModel(previous=>previous || value.vision_models.find(item=>item.id==='qwen3-vl:8b')?.id || value.vision_models[0]?.id || '');}}).catch(error => {if(alive)setCapError(error.message);}); return () => {alive=false;};},[]);
   useEffect(() => {if(!active)player.current?.pause();},[active]);
   useEffect(() => {const element=player.current; return () => {if(element){element.pause(); element.removeAttribute('src'); element.load();}};},[]);
@@ -30,7 +33,7 @@ export default function LocalVideo({file, onSaved, run, busy, active}) {
       {needsSpeech && <label>Transcription model <select value={speech} onChange={e=>setSpeech(e.target.value)}>{['base','small','turbo'].map(id=><option key={id} value={id}>{id} {capabilities?.transcription.models?.[id]?.ready ? '· ready' : '· not installed'}</option>)}</select></label>}
       <button disabled={busy || needsVision && !model || operation==='transcript' && (!info.audio || !capabilities?.transcription.models?.[speech]?.ready)} onClick={analyze}>{needsVision ? 'Analyze video' : operation==='frames' ? 'Extract frames' : 'Run operation'}</button>
       {busy && <button onClick={()=>localRequest(`/${file.id}/cancel`,{}).catch(()=>{})}>Stop</button>}
-      <button disabled={!frames.length && !transcript} onClick={()=>downloadResult({name:file.name,...file.data},'json')}>Export analysis JSON</button></div>
+      <button disabled={!frames.length && !transcript} onClick={()=>downloadResult({name:file.name,...file.data},'json')}>Export analysis JSON</button><button disabled={busy} onClick={()=>run(async()=>{const result=await reviewRequest('/workflow/register-video',{session_id:file.id});setReviewId(result.media_id.split(':')[1]);})}>Add video & analysis to REVIEW</button></div>
 
     {needsVision&&<label className="local-analysis-focus">What should the analysis focus on? (optional)<textarea value={focus} maxLength={2000} rows={2} disabled={busy} placeholder="For example: Explain the activity, identify visible objects, and note what changes." onChange={e=>setFocus(e.target.value)}/></label>}
     {capError && <p>{capError}</p>}
@@ -38,7 +41,7 @@ export default function LocalVideo({file, onSaved, run, busy, active}) {
     {needsVision && capabilities && !capabilities.vision_models.length && <p>No installed vision model is currently available. Start Ollama with a vision-capable model, then reopen this file. Frame extraction alone does not analyze content.</p>}
     {needsVision && <p role="status">{selected.size ? `${selected.size} frame(s) selected` : 'Automatic frame sampling'}</p>}
     </section>
-    <video ref={player} src={localAsset(file.id,'source')} controls preload="metadata" poster={frames[0] ? localAsset(file.id,frames[0].id) : undefined} onError={() => setPlayError('The desktop player cannot play this codec/container. Metadata and frame decoding can still work.')} />
+    <video crossOrigin="anonymous" ref={player} src={localAsset(file.id,'source')} controls preload="metadata" poster={frames[0] ? localAsset(file.id,frames[0].id) : undefined} onError={() => setPlayError('The desktop player cannot play this codec/container. Metadata and frame decoding can still work.')} />
     {playError && <p>{playError}</p>}
 
     {file.data.audio_id && <p><a href={localAsset(file.id,file.data.audio_id)} download="extracted-audio.m4a">Save extracted audio</a></p>}
@@ -49,6 +52,7 @@ export default function LocalVideo({file, onSaved, run, busy, active}) {
       {file.data.analysis.summary&&<div className="local-analysis-summary">{file.data.analysis.summary}</div>}
       <h3>Observed timeline</h3>{file.data.analysis.observations?.map(observation=><article key={observation.id}><button onClick={()=>seek(observation.time)}>{timeLabel(observation.time)}</button><p>{observation.text}</p></article>)}
       <p>{file.data.analysis.note}</p></section> : <p>No content analysis yet. Choose an installed vision model and click Analyze video to get a summary and timestamped observations.</p>}
+    {reviewId&&<ReviewWorkflow source="video-analyzer" ids={[reviewId]} active={active} onChanged={()=>localRequest(`/${file.id}`).then(onSaved).catch(()=>{})}/>}
     <div className="local-frames">{frames.map(frame=><article key={frame.id}><img loading="lazy" src={localAsset(file.id,frame.id)} alt={`Frame at ${timeLabel(frame.time)}`}/>
       <div><button onClick={()=>seek(frame.time)}>{timeLabel(frame.time)}</button><label><input type="checkbox" checked={selected.has(frame.id)} onChange={()=>setSelected(old=>{const next=new Set(old); next.has(frame.id)?next.delete(frame.id):next.add(frame.id); return next;})}/> Analyze frame</label></div>
       <p>{frame.keyframe?'Keyframe · ':''}{frame.observation || 'Sampled frame; not analyzed.'}</p></article>)}</div>

@@ -3,6 +3,18 @@ import { emptyGenerationHistory, generationHistoryReducer } from './generationHi
 
 export const imageTaskFinished = task => ['completed', 'failed', 'cancelled'].includes(task.status);
 
+export function newerImageTaskSnapshot(current, incoming) {
+  if (current?.backend_id && incoming.backend_id === current.backend_id
+    && incoming.snapshot_sequence <= current.snapshot_sequence) return current;
+  return incoming;
+}
+
+export function canReloadGeneratedSession(before, current) {
+  return before.currentSessionId === current.currentSessionId && !current.isGenerating
+    && before.sessionRevision === current.sessionRevision
+    && before.conversationHistory === current.conversationHistory;
+}
+
 export function imageGenerationClientId() {
   const key = 'local-ai-workstation-image-client';
   try {

@@ -1,4 +1,5 @@
 export function queueDestination(job) {
+  if (job.kind === 'analysis' && job.owner?.startsWith('scene-planner:')) return {tab:'workflows',workflowId:job.project_id,scene:true};
   if (job.kind === 'local-file' || job.kind === 'video-vision') return {tab: 'local-files'};
   if (job.kind === "gif") return {tab: "gif-maker", requestId: job.request_id || job.id};
   if (["chat", "image", "compact"].includes(job.kind)) {
