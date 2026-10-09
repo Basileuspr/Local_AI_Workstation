@@ -19,3 +19,11 @@
 .bridge-result pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 30rem; overflow: auto; }
 .bridge-result img { max-width: 100%; max-height: 40rem; object-fit: contain; display: block; }
 .pc-bridge button:disabled { opacity: .5; cursor: not-allowed; }
+.bridge-progress { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: .75rem; list-style: none; padding: 0; }
+.bridge-progress li, .bridge-step { border: 1px solid var(--border-color, #555); border-radius: .6rem; padding: 1rem; }
+.bridge-progress span { display: block; margin-top: .4rem; }
+.bridge-step { margin-block: 1rem; }
+.bridge-step h3 { margin-top: 0; }
+.bridge-task-hint { border-left: 3px solid var(--accent, #5dc9ff); padding-left: .8rem; }
+.pc-bridge button[aria-pressed="true"] { border-color: var(--accent, #5dc9ff); background: var(--bg-secondary, #20242b); }
+.pc-bridge input, .pc-bridge select, .pc-bridge textarea { box-sizing: border-box; }

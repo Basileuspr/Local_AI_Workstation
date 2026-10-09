@@ -24,6 +24,13 @@ requirements. No extra networking service or cloud account is needed on a LAN.
 
 ## Pair once
 
+The panel walks through **1. Start this PC**, **2. Pair your PCs**, and
+**3. Send a task**. The progress strip shows listener and pairing status.
+Detected network addresses appear as buttons; choose your active adapter to
+fill the address field. The message above **Send task to selected PC** explains
+the next required step. Open **Connection help and diagnostics** for firewall
+guidance and local API/logging details; connection warnings remain visible.
+
 1. Connect both PCs to the same private network. On each PC, run `ipconfig` in
    PowerShell and find the active Wi-Fi/Ethernet adapter's IPv4 address.
 2. Open **Dashboard > PC bridge** on each PC. Give each a recognizable name,

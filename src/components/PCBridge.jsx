@@ -91,6 +91,19 @@ export default function PCBridge({ active = true }) {
   }
   const peers = status?.peers || [];
   const models = capabilities?.[`${kind}_models`] || [];
+  const enabledPeers = peers.filter(peer => peer.enabled);
+  const portValid = Number.isInteger(port) && port >= 1024 && port <= 65535;
+  const stepsValid = Number.isInteger(steps) && steps >= 1 && steps <= 50;
+  const taskHint = pollError ? "Wait for bridge status to recover before sending a task."
+    : !status?.running ? "Start the bridge on both PCs to send tasks and receive results."
+    : !enabledPeers.length ? "Pair another PC using an invitation below."
+    : !enabledPeers.some(peer => peer.id === peerId) ? "Choose the PC that should run your task."
+    : !capabilities ? "Check models and availability to see what this PC can run."
+    : !models.length ? "No models are available for this task. Check the other PC’s runtime, then check availability again."
+    : !model ? "Choose a model installed on the other PC."
+    : !prompt.trim() ? "Enter a prompt to send to the selected PC."
+    : kind === "image" && !stepsValid ? "Use a whole number of steps from 1 to 50."
+    : "Ready to send. The result will appear in Bridge jobs below.";
   const showResult = job => perform(async () => {
     const next = await bridgeRequest(`/jobs/${job.direction}/${job.id}`);
     setResult({ ...next.result, label: job.payload.prompt });
@@ -104,13 +117,26 @@ export default function PCBridge({ active = true }) {
 
   return <section className="dashboard-card pc-bridge" aria-label="PC bridge">
     <h2>PC bridge</h2>
+    <p>Use another PC to answer a prompt or generate an image while you keep working here.</p>
+    <ol className="bridge-progress" aria-label="Bridge setup progress">
+      <li><strong>1. Start this PC</strong><span>{pollError ? "Status unknown" : status?.running ? "Bridge running" : "Start below"}</span></li>
+      <li><strong>2. Pair your PCs</strong><span>{enabledPeers.length ? `${enabledPeers.length} paired PC${enabledPeers.length === 1 ? "" : "s"}` : "Exchange an invitation"}</span></li>
+      <li><strong>3. Send a task</strong><span>Choose a PC, model, and prompt</span></li>
+    </ol>
 
     {error && <p role="alert">{error}</p>}{pollError && <p role="alert">{pollError}</p>}{notice && <p role="status">{notice}</p>}
     <p><strong>{pollError ? "Bridge status unknown" : !status ? "Checking bridge status…" : status.running ? `Listening at ${status.url}` : "Network bridge off"}</strong></p>
     {status?.listener_error && <p role="alert">{status.listener_error}</p>}
     {status?.logging?.detail && <p role="alert">{status.logging.detail}</p>}
     {status?.network?.warnings?.map(warning => <p role="alert" key={warning}>{warning}</p>)}
-    {status?.network?.local_api && <p className="dashboard-note">Local app API: {status.network.local_api} · {status.logging?.file_available ? "Backend file logging active" : "Backend file logging unavailable"}</p>}
+    <details><summary>Connection help and diagnostics</summary>
+      <p>Keep both apps running on the same private network. Allow Python through Windows Firewall on the private network if prompted. If pairing times out, check the other PC’s bridge is running; guest Wi-Fi may block connections.</p>
+      {status?.network?.local_api && <p className="dashboard-note">Local app API: {status.network.local_api} · {status.logging?.file_available ? "Backend file logging active" : "Backend file logging unavailable"}</p>}
+    </details>
+    <section className="bridge-step" aria-label="Start this PC">
+    <h3>1. Start this PC</h3>
+    <p>Name this PC and choose its network address. Start the bridge again after each app launch.</p>
+    {!!status?.network?.addresses?.length && <div className="bridge-actions" aria-label="Detected network addresses">{status.network.addresses.map(item => <button key={`${item.name}-${item.address}`} disabled={status.running || busy} aria-pressed={address === item.address} onClick={() => setAddress(item.address)}>{item.name} · {item.address}</button>)}</div>}
     <div className="bridge-fields">
       <label>PC name<input maxLength={60} value={name} disabled={status?.running || busy} onChange={event => setName(event.target.value)} /></label>
       <label>This PC’s private IPv4 address<input list="bridge-local-addresses" placeholder="192.168.1.20" value={address} disabled={status?.running || busy} onChange={event => setAddress(event.target.value)} /></label>
@@ -119,21 +145,32 @@ export default function PCBridge({ active = true }) {
     </div>
 
     <div className="bridge-actions">
-      {!status?.running ? <button disabled={busy || !!pollError || !status || !address || !name} onClick={() => action("/start", "POST", { address, port, name })}>Start bridge</button> :
+      {!status?.running ? <button disabled={busy || !!pollError || !status || !address.trim() || !name.trim() || !portValid} onClick={() => action("/start", "POST", { address: address.trim(), port, name: name.trim() })}>Start bridge</button> :
         <button disabled={busy} onClick={() => perform(async () => { await bridgeRequest("/stop", "POST"); setInvitation(""); })}>Stop bridge</button>}
+    </div>
+    {!portValid && <p role="status">Use a whole number for the port from 1024 to 65535. The usual port is 8765.</p>}
+    </section>
+    <section className="bridge-step" aria-label="Pair your PCs">
+    <h3>2. Pair your PCs</h3>
+    <p>Start the bridge on both PCs. Create an invitation on one PC and paste it on the other. You only need to pair once while addresses and ports stay the same.</p>
+    <div className="bridge-actions">
       <button disabled={busy || !status?.running} onClick={() => perform(async () => { setInvitation((await bridgeRequest("/invitation", "POST")).code); })}>Create pairing invitation</button>
     </div>
     {invitation && <div><label>Private invitation · expires in 5 minutes<textarea readOnly value={invitation} rows={3} /></label><button onClick={() => perform(async () => { await navigator.clipboard.writeText(invitation); setNotice("Invitation copied. Paste it only into your other PC’s bridge."); })}>Copy invitation</button></div>}
     <details><summary>Pair with another PC</summary>
+      <p>Already have an invitation? Paste it here. Invitations expire after five minutes; create a new one if it has expired.</p>
       <label>Invitation<textarea rows={3} value={code} maxLength={14000} onChange={event => setCode(event.target.value)} /></label>
       <button disabled={busy || !status?.running || !code.trim()} onClick={() => perform(async () => { await bridgeRequest("/pair", "POST", { code }); setCode(""); setNotice("PCs paired in both directions."); })}>Pair PCs</button>
     </details>
     <h3>Paired PCs</h3>
     {peers.length ? <ul>{peers.map(peer => <li key={peer.id}>{peer.name} · {peer.url} · {peer.enabled ? "Paired" : "Revoked"} {peer.enabled && <button disabled={busy} onClick={() => action(`/peers/${peer.id}/revoke`)}>Revoke access</button>}</li>)}</ul> : <p>No PCs paired yet.</p>}
-    <h3>Delegate a task</h3>
+    </section>
+    <section className="bridge-step" aria-label="Send a task">
+    <h3>3. Send a task</h3>
+    <p>Only this prompt and its settings are sent. Chat history, attachments, memories, and knowledge collections stay here.</p>
     <div className="bridge-fields">
       <label>Run on<select value={peerId} onChange={event => { setPeerId(event.target.value); setCapabilities(null); setModel(""); }}><option value="">Choose paired PC</option>{peers.filter(peer => peer.enabled).map(peer => <option value={peer.id} key={peer.id}>{peer.name}</option>)}</select></label>
-      <button disabled={busy || !peerId} onClick={inspectPeer}>Check models and availability</button>
+      <button disabled={busy || !!pollError || !status?.running || !enabledPeers.some(peer => peer.id === peerId)} onClick={inspectPeer}>Check models and availability</button>
       <label>Task<select value={kind} onChange={event => { setKind(event.target.value); setModel(""); }}><option value="chat">Chat prompt</option><option value="image">Generate image</option></select></label>
       <label>Exact model<select value={model} onChange={event => setModel(event.target.value)}><option value="">Choose worker model</option>{models.map(item => <option key={item.id} value={item.id}>{item.name || item.id}</option>)}</select></label>
     </div>
@@ -147,7 +184,9 @@ export default function PCBridge({ active = true }) {
       <label>Steps<input type="number" min={1} max={50} value={steps} onChange={event => setSteps(Number(event.target.value))} /></label>
     </div>}
 
-    <button disabled={busy || !!pollError || !status?.running || !peerId || !model || !prompt.trim() || !peers.some(peer => peer.id === peerId && peer.enabled)} onClick={submit}>Send task to selected PC</button>
+    <p className="bridge-task-hint" role="status">{busy ? "Working… Please wait for this operation to finish." : taskHint}</p>
+    <button disabled={busy || !!pollError || !status?.running || !peerId || !model || !models.some(item => item.id === model) || !prompt.trim() || (kind === "image" && !stepsValid) || !peers.some(peer => peer.id === peerId && peer.enabled)} onClick={submit}>Send task to selected PC</button>
+    </section>
     <h3>Bridge jobs</h3>
     <BridgeJobs jobs={jobs} peers={peers} busy={busy} action={action} showResult={showResult} saveResult={saveResult} />
     {result && <section className="bridge-result" aria-label="Bridge result"><button onClick={() => setResult(null)}>Close result</button><h3>{result.label}</h3>
