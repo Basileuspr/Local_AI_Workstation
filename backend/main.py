@@ -14,6 +14,7 @@ from starlette.concurrency import run_in_threadpool
 import httpx
 import json
 import os
+import re
 import subprocess
 import sys
 import asyncio
@@ -554,10 +555,17 @@ async def list_models():
             models = []
             embedding_models = []
             unavailable_models = []
+            seen_model_names = set()
 
             for model in data.get("models", []):
+                name = model.get("name", "")
+                # Ollama's compatibility conversion can list a tag twice and
+                # expose its hash-addressed internal model as a separate row.
+                if not name or name in seen_model_names or re.fullmatch(r"llamacpp:[0-9a-f]{64}", name, re.IGNORECASE):
+                    continue
+                seen_model_names.add(name)
                 model_info = {
-                    "name": model["name"],
+                    "name": name,
                     "size": model.get("size", 0),
                     "modified": model.get("modified_at", ""),
                 }

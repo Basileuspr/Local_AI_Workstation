@@ -2,6 +2,7 @@
 [CmdletBinding()]
 param([Alias('Profile')][ValidateSet('Core', 'Full')][string]$InstallProfile = 'Core')
 $ErrorActionPreference = 'Stop'
+$nodeOptionsBeforeSetup = $env:NODE_OPTIONS
 $projectRoot = Split-Path -Parent $PSScriptRoot
 Push-Location -LiteralPath $projectRoot
 try {
@@ -32,8 +33,17 @@ try {
     }
     & $python -c $pythonCheck
     if ($LASTEXITCODE -ne 0) { throw 'This venv is unusable here or is not 64-bit Python 3.13. Preserve or rename it, then rerun setup to create a local environment.' }
+    # This PC's HTTPS certificates are trusted by Windows. Use that trust store
+    # for this setup process without disabling TLS verification or changing
+    # machine-wide Node settings. Older Node releases keep their existing mode.
+    if ((& node.exe --help) -match '--use-system-ca') {
+        $env:NODE_OPTIONS = (($env:NODE_OPTIONS + ' --use-system-ca').Trim())
+    }
     & npm.cmd ci --no-audit --no-fund
     if ($LASTEXITCODE -ne 0) { throw 'Node dependency installation failed. Check network access and the npm error above, then rerun setup.' }
+    # Materialize Electron's lazily downloaded runtime before setup completes.
+    & node.exe (Join-Path $projectRoot 'node_modules\electron\install.js')
+    if ($LASTEXITCODE -ne 0) { throw 'Electron runtime installation failed. Check the download error above, then rerun setup.' }
     & $python -m pip install -r requirements-core.txt
     if ($LASTEXITCODE -ne 0) { throw 'Core Python installation failed. Check the pip error above; the app is not ready yet.' }
     if ($InstallProfile -eq 'Full') {
@@ -52,4 +62,7 @@ try {
 } catch {
     Write-Error $_ -ErrorAction Continue
     exit 1
-} finally { Pop-Location }
+} finally {
+    $env:NODE_OPTIONS = $nodeOptionsBeforeSetup
+    Pop-Location
+}

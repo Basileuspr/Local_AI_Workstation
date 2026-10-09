@@ -1,7 +1,7 @@
 FROM hf.co/mradermacher/OpenAI-gpt-oss-20B-Claude-4.5-Opus-Heretic-Uncensored-i1-GGUF:Q4_K_M
 PARAMETER temperature 0.7
 PARAMETER num_predict 512
-PARAMETER num_gpu 20
+# Let Ollama choose offload for each computer's GPU.
 PARAMETER stop <|return|>
 TEMPLATE """<|start|>system<|message|>You are ChatGPT, a large language model trained by OpenAI.
 # Valid channels: analysis, final.<|end|>
