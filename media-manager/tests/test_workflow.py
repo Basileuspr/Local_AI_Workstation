@@ -71,6 +71,39 @@ class WorkflowTests(unittest.TestCase):
     def records_by_name(self, data):
         return {r["OriginalPath"][len(self.src) + 1:]: r for r in data["records"]}
 
+    def test_scan_only_preserves_source_and_can_later_prepare_a_move(self):
+        before = snapshot.take(self.src, quiet=True)
+        opts = scan.ScanOptions(source=self.src, dest="", reports=self.reports, workers=3,
+                                ffprobe=os.path.join(self.tmp, "no-ffprobe.exe"), use_exiftool=False,
+                                allow_missing_tools=True, quiet=True)
+        run_dir, data = scan.run_scan(opts, out=noop)
+        self.assertEqual(data['run']['mode'], 'scan-only')
+        self.assertEqual(data['run']['destination_root'], '')
+        self.assertEqual(len(data['records']), 9)
+        self.assertEqual(len(data['duplicate_groups']), 1)
+        self.assertEqual(data['summary']['plan']['would_move'], 0)
+        self.assertTrue(all(row['Approved'] == 'no' and not row['ProposedDestination']
+                            and not row['DestinationFilename'] for row in data['records']))
+        self.assertTrue(snapshot.is_identical(snapshot.compare(before, snapshot.take(self.src, quiet=True))))
+        self.assertEqual(mover.run_move(mover.MoveOptions(run_dir, execute=True, yes=True,
+                                                        include_invalid=True, quiet=True), out=noop), 2)
+        self.assertFalse(os.path.exists(os.path.join(run_dir, 'moves')))
+        self.assertFalse(os.path.exists(self.dest))
+        with open(os.path.join(run_dir, 'summary.txt'), encoding='utf-8') as summary:
+            self.assertIn('None (scan only; all files stay in place)', summary.read())
+        # Adding a destination later reuses analysis and prepares the established move plan.
+        opts.dest, opts.resume = self.dest, run_dir
+        _, planned = scan.run_scan(opts, out=noop)
+        self.assertEqual(planned['run']['mode'], 'dry-run')
+        self.assertGreater(planned['summary']['plan']['would_move'], 0)
+        self.assertTrue(snapshot.is_identical(snapshot.compare(before, snapshot.take(self.src, quiet=True))))
+        self.assertFalse(os.path.exists(self.dest))
+
+    def test_scan_only_still_rejects_reports_inside_source(self):
+        opts = scan.ScanOptions(self.src, '', os.path.join(self.src, 'runs'))
+        with self.assertRaisesRegex(scan.ScanError, 'reports folder must not be inside'):
+            scan.validate_paths(opts)
+
     def test_scan_move_undo(self):
         before = snapshot.take(self.src, quiet=True)
         opts = scan.ScanOptions(source=self.src, dest=self.dest, reports=self.reports, workers=3,

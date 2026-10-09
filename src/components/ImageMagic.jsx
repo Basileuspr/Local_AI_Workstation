@@ -6,7 +6,7 @@ import * as api from '../imageWorkflowApi';
 import { openEditorImage } from '../imageEditorSession';
 import { combineMagicResult, magicSize, magicStage, maskBlob, paintMask, prepareMagicInput, REFERENCE_ROLES, uploadMagicAsset } from '../imageMagic';
 
-export default function ImageMagic({session,preview,getSource,onAccept,onBusy,reference,disabled,requestedEdit}) {
+export default function ImageMagic({session,imageSize,preview,getSource,onAccept,onBusy,reference,disabled,requestedEdit}) {
   const [catalog,setCatalog]=useState(null),[model,setModel]=useState(''),[vision,setVision]=useState('');
   const [prompt,setPrompt]=useState(''),[guidance,setGuidance]=useState(''),[strength,setStrength]=useState(.25);
   const [refs,setRefs]=useState([]),[scope,setScope]=useState('all'),[strokes,setStrokes]=useState([]),[radius,setRadius]=useState(5);
@@ -18,7 +18,10 @@ export default function ImageMagic({session,preview,getSource,onAccept,onBusy,re
     setRefs(items=>items.filter(item=>!ids.has(item.id)));
   },{label:'Magic Edit references',disabled:busy||disabled});
   const [workingSize,setWorkingSize]=useState({width:1024,height:1024,allow_long_wait:false});
-  useEffect(()=>{if(session)setWorkingSize({...magicSize(session.width,session.height),allow_long_wait:false});},[session]);
+  useEffect(()=>{
+    if(session)setWorkingSize({...magicSize(imageSize?.width || session.width,imageSize?.height || session.height),allow_long_wait:false});
+    setStrokes([]);setCandidate(null);
+  },[session,imageSize?.width,imageSize?.height]);
   const canvas=useRef(),drawing=useRef(false),strokeRef=useRef([]),job=useRef(),cancelled=useRef(false),mounted=useRef(true),busyRef=useRef(false),refsRef=useRef([]);
   useEffect(()=>{refsRef.current=refs;},[refs]);
   useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;cancelled.current=true;if(job.current)api.stop(...job.current).catch(()=>{});refsRef.current.forEach(r=>URL.revokeObjectURL(r.url));};},[]);

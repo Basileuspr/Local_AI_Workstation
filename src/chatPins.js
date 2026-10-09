@@ -1,6 +1,9 @@
 import { appTabs, appTabLabels } from "./navigation";
 
 export const CHAT_PINS_KEY = "local-ai-workstation-chat-pins-v1";
+export const WORKSPACE_PINS_KEY = "local-ai-workstation-workspace-pins-v1";
+export const workspacePinnableTabs = [...appTabs]
+  .sort((a, b) => appTabLabels[a].localeCompare(appTabLabels[b]));
 export const pinnableTabs = appTabs.filter(tab => tab !== "chats")
   .sort((a, b) => appTabLabels[a].localeCompare(appTabLabels[b]));
 
@@ -22,6 +25,24 @@ export function loadChatPins() {
   } catch { return {}; }
 }
 
-export function workspaceVisible(activeTab, pin, tab) {
-  return activeTab === tab || activeTab === "chats" && pin?.kind === "tool" && pin.tab === tab;
+export function validWorkspacePin(activeTab, value) {
+  if (appTabs.includes(activeTab) && activeTab !== "chats" && value?.kind === "tool"
+    && appTabs.includes(value.tab) && value.tab !== activeTab) return { kind: "tool", tab: value.tab };
+  return null;
+}
+
+export function loadWorkspacePins() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(WORKSPACE_PINS_KEY));
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+    return Object.fromEntries(Object.entries(raw).flatMap(([tab, value]) => {
+      const pin = validWorkspacePin(tab, value);
+      return pin ? [[tab, pin]] : [];
+    }));
+  } catch { return {}; }
+}
+
+export function workspaceVisible(activeTab, pin, tab, workspacePin = null) {
+  const selected = activeTab === "chats" ? pin : validWorkspacePin(activeTab, workspacePin);
+  return activeTab === tab || selected?.kind === "tool" && selected.tab === tab;
 }

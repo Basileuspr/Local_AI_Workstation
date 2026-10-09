@@ -78,6 +78,36 @@ sender gate and are not available to remote pages.
 | `inspect` | Native confirmation, current-page revision check, bounded read-only DOM and cached-resource catalog. |
 | `source` | Opaque current-page ID only; stale or unknown IDs rejected. No arbitrary JS, URLs, or paths accepted. |
 | `clearData` | Enumerated cookies/cache/site/all scope, native confirmation, close views before clearing. |
+| `browser-bookmarks:list/save/remove/createFolder/import` | Trusted host only; bounded named bookmark operations. Import paths come only from the native HTML picker. Imported HTML is parsed as inert data, without scripts, icons or network access. |
+| `viewer-browser:createTab/selectTab/closeTab/shortcut/setTabSettings` | Trusted browser host only; existing tab IDs, bounded tab count, public URLs and fixed shortcut/settings arguments. Inactive-page suspension destroys only that tab and its owned windows. Profile changes close that window's tabs. Profile data clearing also closes extra windows using that profile. |
+| `browser-window:new` | Trusted main renderer or registered Browser-only main frame; no renderer URL/path argument. Opens a blank Browser using the caller's selected profile, bounded to 8 extra windows. |
+
+Extra Browser windows use `browserWindowPreload.js`, an ephemeral host-renderer
+partition and the Browser-only renderer. The sender registry in
+`browserWindows.js` requires that window's exact webContents/mainFrame and
+trusted renderer path with the Browser-window marker. It routes the bounded
+browsing/tab/profile operations to that window's controller; backend connection,
+workflows, file APIs, shell and profile clearing retain the main desktop gate.
+Bookmarks use the same registered-host check and import dialogs use the caller's
+window. Remote views receive no preload or host capabilities. A shared profile
+catalog gives each window its own selected profile without duplicating logins.
+The browser-session permission/download handlers are installed once per Chromium
+Session and route to the owning window; detaching one controller revokes only
+its grants/downloads. Privacy clearing closes extra windows using the selected
+profile before clearing shared Chromium storage. Shutdown disposes all extra
+controllers before closing the main renderer and stopping the backend.
+
+Bookmarks live in `browser-bookmarks.json` beside the app's browser profiles and
+are shared across account profiles. They retain names, addresses, nesting and
+exported creation dates. Repeat imports merge folders by parent/name and skip
+addresses already saved in the same folder. The registry is separate from
+Chromium cookies, cache and site storage, so browser privacy clearing preserves it.
+Local-file, private-network and Chrome entries may be retained for reference;
+their Open controls are disabled and navigation still enforces the public-address
+policy. Imports accept HTML up to 10 MB, with at most 10,000 bookmarks and 2,000
+folders. Writes replace the registry atomically; invalid existing libraries are
+preserved and reported instead of silently reset. Bookmark management hides the
+native page view so it cannot cover the controls.
 
 Source inspection no longer enables `Network` recording. It reads already loaded
 resources through the `Page` domain only after confirmation and detaches the
@@ -144,7 +174,20 @@ browsing mode and persistent website-permission grants were intentionally omitte
 
 ## Validation and manual verification
 
-Automated/native checks passed:
+Independent-window verification (2026-10-08): `node scripts/qa-browser-windows.cjs`
+uses disposable profiles and owned local pages to check three concurrently
+playing native videos, separate tabs/history/drafts, shared cookies/storage and
+bookmarks, correctly parented permissions, both Ctrl+N paths, information-dialog
+visibility, narrow geometry, profile isolation, clearing and shutdown. Its host
+fixture reuses the production Browser window/controller/preload. It does not
+restart the user's live app or run GPU generation. `node scripts/qa-browser-tabs.cjs`
+also verifies suspension deadlines, reload/recovery, profile changes, shortcuts
+and timeout persistence across two separate Electron launches. Focused frontend
+tests cover window sender gates, profile selection and shared-session policy.
+Fully quit/reopen the workstation after active generation finishes to load the
+changed Electron and preload code; a renderer-only refresh is insufficient.
+
+Earlier browser-foundation automated/native checks passed:
 
 - Full frontend suite: 115 test files, 973 tests (includes the 3D viewer additions).
 - Production Vite build; Three.js remains in lazy viewer/worker chunks.

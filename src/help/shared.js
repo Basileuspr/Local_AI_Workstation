@@ -2,6 +2,7 @@ export const sharedHelp = [
   ['Workspace controls', [
     ['Information (i)', 'Explains individual controls for the active workspace. The pinned pane has its own guide.'],
     ['Workspace options / Pin', 'Opens the workspace actions and lets you pin a supported workspace beside chat.'],
+    ['Side pane', 'The top toolbar in tool workspaces can keep another workspace visible, including Browser beside Generate. Choose None or Unpin × to hide it. Each workspace remembers its own selection; Chat keeps its existing side-pane selector under Workspace options.'],
     ['Navigation groups', 'Drag a group divider to resize its list. Arrow keys adjust a focused divider; Enter or double-click restores the default. Sizes are remembered locally.'],
     ['Tab order', 'Drag rows or use arrows to reorder navigation. The chosen order persists after restart.'],
     ['Refresh', 'Reloads the interface. Save unsaved drafts first; desktop-service changes require a full quit and reopen.'],

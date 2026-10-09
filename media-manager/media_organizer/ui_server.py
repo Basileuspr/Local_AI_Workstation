@@ -172,8 +172,9 @@ class UIState:
         if not row or not row["Available"]:
             raise ValueError("This file is no longer available. Re-scan its current folder.")
         path = Path(row["CurrentPath"]).resolve()
-        roots = ([Path(row[key]).resolve() for key in ('ScanSource', 'ScanDestination')] if data.get('aggregate')
-                 else [Path(data["run"][key]).resolve() for key in ("source_root", "destination_root")])
+        locations = ([row.get(key) for key in ('ScanSource', 'ScanDestination')] if data.get('aggregate')
+                     else [data["run"].get(key) for key in ("source_root", "destination_root")])
+        roots = [Path(location).resolve() for location in locations if location]
         roots.extend(Path(folder['path']).resolve() for folder in custom_folders.folders(self.reports))
         if path.suffix.lower() != ".mp4" or not any(path.is_relative_to(root) for root in roots):
             raise ValueError("The media path is outside this scan's folders.")
@@ -188,19 +189,22 @@ class UIState:
             if kind in ('move', 'custom-move') and payload.get("confirmation") != "MOVE":
                 raise ValueError("Confirm moving the reviewed files from the review dialog.")
             if kind == "scan":
-                if not payload.get("source", "").strip() or not payload.get("destination", "").strip():
-                    raise ValueError("Choose both a source and a destination folder.")
-                opts = scan.ScanOptions(source=payload["source"], dest=payload["destination"],
+                if not payload.get("source", "").strip():
+                    raise ValueError("Choose a source folder to scan.")
+                opts = scan.ScanOptions(source=payload["source"], dest=payload.get("destination") or "",
                                         reports=str(self.reports), duplicates=payload.get("duplicates", "all"), quiet=True)
                 scan.validate_paths(opts)
-                source, destination = Path(opts.source).resolve(), Path(opts.dest).resolve()
-                if source.is_relative_to(destination) or destination.is_relative_to(source):
-                    raise ValueError("Choose separate source and destination folders; neither may contain the other.")
+                if opts.dest:
+                    source, destination = Path(opts.source).resolve(), Path(opts.dest).resolve()
+                    if source.is_relative_to(destination) or destination.is_relative_to(source):
+                        raise ValueError("Choose separate source and destination folders; neither may contain the other.")
             elif kind == "move":
                 if payload.get('runId') == catalog.ALL_SCANS:
                     raise ValueError('Choose a specific saved scan to review its archive plan, or select clips and use Place in folder.')
                 target = self.run_path(payload.get("runId"))
-                manifest.load_manifest(str(target))
+                data = manifest.load_manifest(str(target))
+                if not data['run'].get('destination_root'):
+                    raise ValueError('This scan has no archive destination. Select clips and use Place in folder, or add a destination and scan again.')
             elif kind == 'custom-move':
                 plan = custom_folders.consume_plan(self, payload.get('runId'), payload.get('planId'))
             elif kind in ('image-inspect', 'image-process'):

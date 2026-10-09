@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { apiUrl } from '../api';
-import { sharedPollingObserver, readPollingJson } from '../polling';
-import { folderReviewDefaults, folderReviewExport, folderReviewModels, folderReviewRequest, folderReviewResponse, folderReviewRunning } from '../folderReview';
+import { sharedPollingObserver } from '../polling';
+import { folderReviewDefaults, folderReviewExport, folderReviewModels, folderReviewRequest, readFolderReviewStatus, folderReviewRunning } from '../folderReview';
 import './FolderReview.css';
 
 export function FolderReviewFiles({ items = [] }) {
@@ -39,7 +38,7 @@ export default function FolderReview({ active = true, models = [], defaultModel 
   useEffect(() => {
     if (!active) return;
     const poll = sharedPollingObserver('folder-review-status', {
-      read: async opts => folderReviewResponse('/status', await readPollingJson(apiUrl('/folder-review/status'), opts)), active: value => Boolean(value?.active),
+      read: readFolderReviewStatus, active: value => Boolean(value?.active),
       interval: (value, context) => context.hidden ? null : context.failures ? 5000 : value?.active ? 1000 : 10000,
     });
     observer.current = poll;
@@ -49,7 +48,8 @@ export default function FolderReview({ active = true, models = [], defaultModel 
       if (!submitted.current && value.reviews[0]) {
         submitted.current = true; setRoot(current => current || value.reviews[0].root);
       }
-    }, error: () => setConnectionError('Could not reach Folder Review. Reconnect to check a running review before starting another.') });
+    }, recovered: () => setConnectionError(''),
+    error: failure => setConnectionError(failure?.message || 'Could not reach Folder Review. Reconnect to check a running review before starting another.') });
   }, [active]);
   useEffect(() => {
     if (!active || !reviewId) return;

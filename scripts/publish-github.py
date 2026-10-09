@@ -18,6 +18,9 @@ ROOT_FILES = {'.gitignore', 'LICENSE', 'package.json', 'package-lock.json', 'vit
 EXTENSIONS = {'.py', '.js', '.jsx', '.mjs', '.cjs', '.css', '.html', '.md', '.json', '.txt', '.ps1', '.svg', '.ini', '.toml'}
 PRIVATE_PARTS = {'data', 'models', 'logs', 'exports', 'backups', 'reports', 'artifacts', 'node_modules', 'venv', '.venv', '.git', '.codex', '.claude', 'runs', 'test-work', '__pycache__', 'dist', 'captures'}
 GENERATED_DOCS = {'docs/application-review/index.html', 'docs/application-review/HISTORY.md', 'docs/application-review/AUDIT.md', 'build-info.json'}
+# Public, licensed dependency asset required by the offline piano converter.
+# Exact bytes are checked before capture and again in the outgoing tree.
+BUNDLED_ASSETS = {'src/assets/piano-model/basic-pitch.bin': (742392, 'b142a95737a52e1e412d5f92e73d8bb80dfe8d04941acc0702f11f4524fb377c')}
 TOKEN = re.compile(r'-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,}|hf_[A-Za-z0-9]{25,}|sk-(?:proj-)?[A-Za-z0-9_-]{30,}|AKIA[A-Z0-9]{16}|eyJ[A-Za-z0-9_-]{15,}\.[A-Za-z0-9_-]{15,}\.[A-Za-z0-9_-]{15,}')
 HOME = re.compile(r'(?i)[a-z]:[\\/]+Users[\\/]+(?!Public\b|Default\b)[^\\/\s"\'<>]+|/(?:home|Users)/[^/\s"\'<>]+')
 SECRET = re.compile(r'''(?i)(?:api[_-]?key|access[_-]?token|password|secret)\s*[:=]\s*["'][^"'\r\n]{8,}["']''')
@@ -36,6 +39,8 @@ def allowed(name):
         return False
     if name in GENERATED_DOCS or name.startswith('docs/application-review/snapshots/'):
         return False
+    if name in BUNDLED_ASSETS:
+        return True
     if name in ROOT_FILES:
         return True
     if len(path.parts) == 1:
@@ -44,6 +49,9 @@ def allowed(name):
 
 
 def privacy_problem(name, raw):
+    if name in BUNDLED_ASSETS:
+        size, checksum = BUNDLED_ASSETS[name]
+        return None if len(raw) == size and hashlib.sha256(raw).hexdigest() == checksum else 'Bundled dependency asset does not match its verified checksum'
     if len(raw) > 5 * 1024 * 1024:
         return 'Source file exceeds 5 MiB'
     try:
@@ -153,7 +161,8 @@ def prepare(root, storage):
         after = source.stat()
         if (before.st_size, before.st_mtime_ns) != (after.st_size, after.st_mtime_ns):
             raise ValueError('Source changed while capturing. Wait for edits to finish, then review again.')
-        raw = raw.replace(b'\r\n', b'\n')
+        if name not in BUNDLED_ASSETS:
+            raw = raw.replace(b'\r\n', b'\n')
         if name == '.gitignore':
             baseline = public.get(name, b'').decode()
             extra = [line for line in raw.decode().splitlines() if line and line not in baseline.splitlines()]
@@ -243,7 +252,13 @@ def validate(root, folder, paths):
         staged.update(name for name in GENERATED_DOCS if name != 'build-info.json' and (workspace / name).is_file())
         staged.update(file.relative_to(workspace).as_posix() for file in (workspace / 'docs/application-review/snapshots').glob('*.json'))
     # Only the selected paths and explicit regenerated reader assets are staged.
-    git(workspace, log, '--literal-pathspecs', 'add', '--pathspec-from-file=-', '--pathspec-file-nul', input=b'\0'.join(path.encode() for path in sorted(staged)) + b'\0')
+    source_paths = {item['path'] for item in selected}
+    git(workspace, log, '--literal-pathspecs', 'add', '--pathspec-from-file=-', '--pathspec-file-nul', input=b'\0'.join(path.encode() for path in sorted(source_paths)) + b'\0')
+    generated_paths = staged - source_paths
+    if generated_paths:
+        # Shared local excludes may hide reader snapshots. Only these explicit
+        # generated assets may bypass ignores; the outgoing audit still applies.
+        git(workspace, log, '--literal-pathspecs', 'add', '--force', '--pathspec-from-file=-', '--pathspec-file-nul', input=b'\0'.join(path.encode() for path in sorted(generated_paths)) + b'\0')
     emit('progress', phase='Auditing outgoing files')
     tree = git(workspace, log, 'write-tree').decode().strip()
     content = blobs(workspace, log, tree)

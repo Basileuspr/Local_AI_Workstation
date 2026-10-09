@@ -1,4 +1,5 @@
 import { apiUrl } from './api';
+import { readPollingJson } from './polling';
 
 export const folderReviewDefaults = { recursive: true, max_entries: 2000, max_bytes: 16 * 1024 * 1024, max_chars: 200000, batch_chars: 4000 };
 export const folderReviewRunning = status => ['running', 'cancelling'].includes(status);
@@ -29,6 +30,10 @@ export function folderReviewResponse(path, data) {
   else valid = valid && review(data) && (data.report === undefined || typeof data.report === 'string');
   if (!valid) throw Error('Folder Review returned an invalid response. Refresh results to recover the saved review.');
   return data;
+}
+export async function readFolderReviewStatus(options) {
+  const result = await readPollingJson(apiUrl('/folder-review/status'), options);
+  return result.unchanged ? result : { ...result, value: folderReviewResponse('/status', result.value) };
 }
 export async function folderReviewRequest(path, { body, signal } = {}) {
   const response = await fetch(apiUrl('/folder-review' + path), {

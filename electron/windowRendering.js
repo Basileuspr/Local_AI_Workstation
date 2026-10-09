@@ -40,33 +40,57 @@ function configureRendering({ app, platform = process.platform, environment = pr
 
 function attachWindowRendering({ window, screen, log, delay = 80, nativePulseDelay = 500 }) {
     let disposed = false, timer = null, paintTimer = null, nativePulse = null, lastDisplay = '', repaintCount = 0;
+    let queuedInteractive=false,skippedMediaRepaints=0;
+    const nativeMedia=new Map(),nativeListeners=new Map();
     const listeners = [];
     const live = () => !disposed && !window.isDestroyed() && !window.webContents.isDestroyed();
     const visible = () => live() && window.isVisible() && !window.isMinimized();
     let hasShown = visible();
     const childViews = () => (window.contentView?.children || []).filter(view => view.webContents && !view.webContents.isDestroyed());
     const nativeVisible = () => childViews().some(view => view.getVisible());
-    function paint() {
+    const nativePlaying = () => childViews().some(view=>view.getVisible() && nativeMedia.get(view.webContents));
+    function observeNativeMedia() {
+        for(const view of childViews()) {
+            const wc=view.webContents;
+            if(nativeListeners.has(wc) || !wc.on)return;
+            const removers=[];
+            const watch=(name,fn)=>{wc.on(name,fn);removers.push(()=>wc.removeListener(name,fn));};
+            const cleanup=()=>{for(const remove of removers)remove();nativeListeners.delete(wc);nativeMedia.delete(wc);};
+            nativeListeners.set(wc,cleanup);
+            watch('media-started-playing',()=>{
+                nativeMedia.set(wc,true);clearTimeout(nativePulse);nativePulse=null;
+            });
+            const paused=()=>{nativeMedia.delete(wc);repaint();};
+            watch('media-paused',paused);
+            watch('did-start-navigation',(_event,_url,inPlace,mainFrame)=>{if(mainFrame && !inPlace)nativeMedia.delete(wc);});
+            watch('destroyed',cleanup);
+        }
+    }
+    function paint(passive=false) {
         if (!visible()) return;
+        if(passive && nativePlaying()){skippedMediaRepaints++;return;}
         // This invalidates the real native window, including child surfaces.
         // A layout notification alone never requested this full-window repaint.
         try { window.webContents.invalidate(); repaintCount++; }
         catch (error) { log?.warn('Window repaint request failed:', error.message); }
     }
     function watchNativeViews() {
-        if (nativePulse !== null || !visible() || !nativeVisible()) return;
+        observeNativeMedia();
+        if (nativePulse !== null || !visible() || !nativeVisible() || nativePlaying()) return;
         // Native Browser/Media Manager pages have no host preload or DOM bridge.
         // Keep their changing text presented without granting either host access.
         nativePulse = setTimeout(() => {
             nativePulse = null;
-            if (visible() && nativeVisible()) { paint(); watchNativeViews(); }
+            if (visible() && nativeVisible() && !nativePlaying()) { paint(true); watchNativeViews(); }
         }, nativePulseDelay);
     }
-    function repaint() {
+    function repaint({passive=false}={}) {
         if (!visible()) return;
         watchNativeViews();
+        if(passive && nativePlaying()){skippedMediaRepaints++;return;}
+        queuedInteractive ||= !passive;
         if (paintTimer !== null) return;
-        paintTimer = setTimeout(() => { paintTimer = null; paint(); }, delay);
+        paintTimer = setTimeout(() => {paintTimer=null;const passive=!queuedInteractive;queuedInteractive=false;paint(passive);}, delay);
     }
     function displayKey() {
         const display = screen.getDisplayMatching(window.getBounds());
@@ -124,11 +148,12 @@ function attachWindowRendering({ window, screen, log, delay = 80, nativePulseDel
         disposed = true; clearTimeout(timer); timer = null;
         clearTimeout(paintTimer); paintTimer = null;
         clearTimeout(nativePulse); nativePulse = null;
+        for(const remove of nativeListeners.values())remove();nativeListeners.clear();nativeMedia.clear();
         for (const remove of listeners.splice(0)) remove();
     }
     listen(window, 'closed', dispose);
     lastDisplay = displayKey(); visibility();
-    return { refresh: schedule, repaint, state: () => ({ repaintCount }), dispose };
+    return { refresh: schedule, repaint, state: () => ({ repaintCount,skippedMediaRepaints,nativeMediaPlaying:nativePlaying() }), dispose };
 }
 
 module.exports = { MODES, defaultMode, configureRendering, attachWindowRendering };

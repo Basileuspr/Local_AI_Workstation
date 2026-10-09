@@ -4,7 +4,7 @@ import json
 from typing import Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from services import knowledge_base as kb
 from services import knowledge_graph as vault
 from services.knowledge_node_options import KnowledgeNodeOptions
@@ -13,8 +13,15 @@ from services.knowledge_node_options import KnowledgeNodeOptions
 class KnowledgeNodeDraft(BaseModel):
     model_config = ConfigDict(extra="forbid")
     title: str = Field(min_length=1, max_length=100)
-    kind: Literal["note", "idea", "project", "place", "event", "reference"] = "note"
+    kind: Literal["note", "character", "idea", "project", "place", "event", "reference"] = "note"
     text: str = Field(default="", max_length=100000)
+    character_id: str = Field(default="", pattern=r"^(?:[a-f0-9]{32})?$")
+
+    @model_validator(mode="after")
+    def character_kind(self):
+        if self.character_id and self.kind != "character":
+            raise ValueError("Only character nodes can link to a character profile")
+        return self
 
     @field_validator("title")
     @classmethod
@@ -27,6 +34,7 @@ class KnowledgeNodeDraft(BaseModel):
 
 STYLES = {
     "note": {"color": "#6d9cbc", "shape": "circle", "icon": "document"},
+    "character": {"color": "#b89bea", "shape": "circle", "icon": "person"},
     "idea": {"color": "#edc66b", "shape": "diamond", "icon": "idea"},
     "project": {"color": "#77c6ab", "shape": "hexagon", "icon": "flag"},
     "place": {"color": "#b89bea", "shape": "square", "icon": "flag"},
@@ -38,25 +46,30 @@ STYLES = {
 def read_node(doc_id):
     vault._require_documents(doc_id)
     with vault.database() as connection:
-        row = connection.execute("SELECT filename, title, kind, text FROM authored_nodes WHERE doc_id = ?", (doc_id,)).fetchone()
+        row = connection.execute("SELECT filename, title, kind, text, character_id FROM authored_nodes WHERE doc_id = ?", (doc_id,)).fetchone()
     if row is None:
         raise LookupError("This document was not started inside Knowledge")
-    return dict(zip(("filename", "title", "kind", "text"), row), doc_id=doc_id)
+    return dict(zip(("filename", "title", "kind", "text", "character_id"), row), doc_id=doc_id)
 
 
 def save_node(draft: KnowledgeNodeDraft, doc_id=None, *, cancel_event=None):
     existing = read_node(doc_id) if doc_id else None
+    if draft.character_id:
+        from services.faces import bank
+        bank.get_character(draft.character_id)
     # A distinct filename prevents same-title nodes from replacing any existing document.
     title = re.sub(r'[<>:"/\\|?*\[\]#\x00-\x1f]', "_", draft.title).strip(" .")[:48] or "Node"
     filename = existing["filename"] if existing else f"Knowledge-{title}-{uuid4().hex}.md"
     text = f"# {draft.title}\n\nType: {draft.kind}\n\n{draft.text.strip()}\n"
+    if draft.character_id:
+        text += f"\nCharacter profile ID: {draft.character_id}\n"
     result = kb.add_document(text, filename, cancel_event=cancel_event)
     if result.get("error"):
         raise ValueError(result["error"])
     with vault.database() as connection:
-        connection.execute("INSERT INTO authored_nodes (doc_id, filename, title, kind, text) VALUES (?, ?, ?, ?, ?) "
-                           "ON CONFLICT(doc_id) DO UPDATE SET title=excluded.title, kind=excluded.kind, text=excluded.text",
-                           (result["doc_id"], filename, draft.title, draft.kind, draft.text))
+        connection.execute("INSERT INTO authored_nodes (doc_id, filename, title, kind, text, character_id) VALUES (?, ?, ?, ?, ?, ?) "
+                           "ON CONFLICT(doc_id) DO UPDATE SET title=excluded.title, kind=excluded.kind, text=excluded.text, character_id=excluded.character_id",
+                           (result["doc_id"], filename, draft.title, draft.kind, draft.text, draft.character_id))
         if not existing:
             options = KnowledgeNodeOptions(label=draft.title, tags=[draft.kind], **STYLES[draft.kind])
             connection.execute("INSERT INTO node_options (doc_id, options) VALUES (?, ?)", (result["doc_id"], options.model_dump_json()))
@@ -72,4 +85,4 @@ def save_node(draft: KnowledgeNodeDraft, doc_id=None, *, cancel_event=None):
                             options[key] = STYLES[draft.kind][key]
                 options["tags"] = list(dict.fromkeys(draft.kind if tag == existing["kind"] else tag for tag in options.get("tags", [])))
                 connection.execute("UPDATE node_options SET options = ? WHERE doc_id = ?", (json.dumps(options), result["doc_id"]))
-    return {**result, "title": draft.title, "kind": draft.kind}
+    return {**result, "title": draft.title, "kind": draft.kind, "character_id": draft.character_id}

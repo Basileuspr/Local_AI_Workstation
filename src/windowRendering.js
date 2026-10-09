@@ -5,16 +5,18 @@ export const WINDOW_LAYOUT_EVENT = 'workstation:window-layout';
 export function installWindowRepaint(window, { delay = 100 } = {}) {
   const desktop = window.workstationDesktop, document = window.document;
   if (!desktop?.repaintWindow || !window.MutationObserver || !document?.documentElement) return () => {};
-  let timer = null, frame = null, disposed = false;
+  let timer = null, frame = null, disposed = false, interactive=false;
   const shown = () => !disposed && document.visibilityState !== 'hidden';
-  function notify() {
+  function notify(event) {
+    interactive ||= !!event?.type;
     if (!shown() || timer !== null || frame !== null) return;
     timer = window.setTimeout(() => {
       timer = null;
       if (!shown()) return;
       frame = window.requestAnimationFrame(() => {
         frame = null;
-        if (shown()) desktop.repaintWindow();
+        if (shown()) desktop.repaintWindow(interactive?'interaction':'content');
+        interactive=false;
       });
     }, delay);
   }
@@ -22,6 +24,7 @@ export function installWindowRepaint(window, { delay = 100 } = {}) {
     if (timer !== null) window.clearTimeout(timer);
     if (frame !== null) window.cancelAnimationFrame(frame);
     timer = frame = null;
+    interactive=false;
   }
   const observer = new window.MutationObserver(records => {
     if (records.some(record => {

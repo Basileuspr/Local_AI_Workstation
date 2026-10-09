@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { shuffledCards, readMatchBest } from '../memoryMatch';
 import FaceHelp from './FaceHelp';
+import MiniPiano from './MiniPiano';
 import './Learning.css';
 import './BreakRoom.css';
 
@@ -32,6 +33,7 @@ export default function BreakRoom({ active = true }) {
   }
   function restart() { pairLock.current = false; setCards(shuffledCards()); setFlipped([]); setMatched([]); setMoves(0); setPaused(false); setError(''); }
   return <section className="learning-workspace break-room" aria-label="Break Room">
+    <MiniPiano active={active} />
     <FaceHelp active={active} />
     <header className="learning-heading"><div><span className="learning-eyebrow">TAKE A SHORT BREAK</span><h1>Memory Match</h1><p>Turn over two cards and find all eight pairs. Use the fewest moves you can.</p></div></header>
     <div className="match-status" role="status">{completed ? `All pairs found in ${moves} moves!` : `${matched.length} / 8 pairs · ${moves} move${moves === 1 ? '' : 's'}`}{best !== null && ` · Best: ${best}`}</div>

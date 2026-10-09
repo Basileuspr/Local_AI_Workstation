@@ -19,12 +19,12 @@ const overview = {
     example: 'Reset network, select Input 1 → Hidden 1, and change Weight from 0.8 to 0. Hidden 1’s weighted sum falls from 0.750 to 0.350 because Input 1’s contribution is removed. Reset again, then compare tanh, ReLU, and sigmoid with the same numbers.',
   },
   'break-room': {
-    purpose: 'Take a short break with Memory Match or help identify faces in images already analyzed in REVIEW / Image Manager.',
-    example: 'Click Help identify faces, compare a possible match, enter or choose a name, and answer Yes or No. Skip leaves it for later; Undo restores the last answer. Or find eight pairs in Memory Match.',
+    purpose: 'Play Mini Piano, practice ready-made music lessons, save your own piano templates, convert local audio to estimated notes and MIDI, attach Spotify track references, take a break with Memory Match, or help identify faces in analyzed REVIEW / Image Manager images.',
+    example: 'Choose C major scale and Practice: watch the falling-note guide and press the letters it shows. Practice waits for you. Try Play along for a four-beat count-in and timed hits at the line. Use New template to save your own notes, chords and rests; the same live guide works with them. For a recording, open Audio → notes, select a short local audio clip, convert and Review as piano template. Correct the estimate before saving. Add an optional Spotify track reference and open it in Linked Applications to listen separately. Explore enharmonic equivalents, play Memory Match or help identify faces.',
   },
   'document-editor': {
     purpose: 'Write and edit rich documents with a Word-style ribbon and local Python DOCX import/export.',
-    example: 'Use Home → Styles for named paragraph formatting, or click a table for Table Layout and Table Design. References provides contents, bookmarks, footnotes/endnotes and citations: Manage sources, Insert citation, choose a basic style and add a bibliography. Source edits update citations and entries together. Export .docx, then Download DOCX. The editing view is continuous; opening an existing file creates a supported editable copy after a conversion notice.',
+    example: 'Use Home → Styles for named paragraph formatting, or click a table for Table Layout and Table Design. References provides captions, live cross-references, contents, bookmarks, footnotes/endnotes and citations: Manage sources, Insert citation, choose a basic style and add a bibliography. Caption edits update reference text and numbering; source edits update citations and bibliography together. Export .docx, then Download DOCX. The editing view is continuous; opening an existing file creates a supported editable copy after a conversion notice.',
   },
   'local-files': {
     purpose: 'Edit existing DOCX text, inspect SQLite databases, and sample or analyze videos locally.',
@@ -83,8 +83,8 @@ const overview = {
     example: "Upload images, choose Review image, save a caption and tags, then use Add to folder. For face or scene grouping, open Review & classify and select available local models.",
   },
   "image-editor": {
-    purpose: "Edit an image locally and preview the changes.",
-    example: "Open an image, adjust its contrast slightly, compare the preview, then save the edited copy.",
+    purpose: "Crop, rotate and adjust an image locally, then save an edited copy.",
+    example: "Open an image, choose Crop, draw or fine-tune a selection, and press Apply crop. Adjust contrast, compare with the original, then export the edited PNG. Undo restores an applied crop.",
   },
   "gif-maker": {
     purpose: "Build an animated GIF from ordered image frames.",
@@ -119,8 +119,16 @@ const overview = {
     example: "Create an identity project with a trigger token, add varied reference images, review captions, train, and compare the saved adapter in Generate with its matching base model.",
   },
   browser: {
-    purpose: "Browse public pages and inspect their available HTML, CSS, and JavaScript source.",
-    example: "Open a public page, choose Inspect page, and open a stylesheet in CSS / Styling to study its rules.",
+    purpose: "Browse public pages in tabs, manage bookmarks, and inspect available HTML, CSS, and JavaScript source.",
+    example: "Open a page, use New tab for another, and adjust the default 2-minute suspension timeout in Tab settings. Selecting a suspended tab reloads its page.",
+  },
+  'web-system': {
+    purpose: 'Research a current question with public-page evidence, or deliberately configure recurring public sources with separate retention controls.',
+    example: 'Choose a local text model, ask a focused question, and optionally enter a public source URL. Use Research now, inspect citations and Coverage, then choose one source to Save to Knowledge. For recurring checks, add a source and explicitly enable background monitoring.',
+  },
+  'reels-analyzer': {
+    purpose: 'Acquire supported reels from a manually signed-in account browser and analyze verified media with local models while keeping brief saved summaries.',
+    example: 'Open account browser, select the original account profile, log in and Check account. Open a conversation, choose Use this conversation, select installed models, and Analyze discovered reels. Review saved summaries; unsupported acquisition remains a reported failure.',
   },
   "3d-viewer": {
     purpose: "View, build, edit, paint, and repair local 3D models without sending them to AI.",

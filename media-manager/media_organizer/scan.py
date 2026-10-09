@@ -63,11 +63,11 @@ def default_reports_dir() -> str:
 # ---------------------------------------------------------------------------
 def validate_paths(opts: ScanOptions) -> None:
     opts.source = os.path.abspath(opts.source)
-    opts.dest = os.path.abspath(opts.dest)
+    opts.dest = os.path.abspath(opts.dest) if opts.dest and opts.dest.strip() else ""
     opts.reports = os.path.abspath(opts.reports)
     if not os.path.isdir(winfs.long_path(opts.source)):
         raise ScanError(f"source folder does not exist or is not a folder: {opts.source}")
-    if winfs.is_within(opts.dest, opts.source):
+    if opts.dest and winfs.is_within(opts.dest, opts.source):
         raise ScanError("the destination must not be the source folder or inside it "
                         f"(source: {opts.source}, destination: {opts.dest})")
     if winfs.is_within(opts.reports, opts.source):
@@ -363,7 +363,7 @@ def run_scan(opts: ScanOptions, out=print, on_progress=None) -> tuple[str, dict]
         log.info("tools: %s | %s", ffprobe_info.describe(), exif_info.describe())
         out(f"Media Organizer {__version__} - DRY RUN (read-only scan)")
         out(f"  Source:      {opts.source}")
-        out(f"  Destination: {opts.dest}")
+        out(f"  Destination: {opts.dest or 'None (scan only; files stay in place)'}")
         out(f"  Run folder:  {run_dir}")
         out(f"  {ffprobe_info.describe()}")
         out(f"  {exif_info.describe()}")
@@ -376,7 +376,8 @@ def run_scan(opts: ScanOptions, out=print, on_progress=None) -> tuple[str, dict]
                         f"MP4 {len(res.candidates):,} | {current}")
 
         try:
-            walk = scanner.walk(opts.source, exclude=[opts.dest, opts.reports], on_progress=on_walk, stop_event=stop)
+            walk = scanner.walk(opts.source, exclude=[path for path in (opts.dest, opts.reports) if path],
+                                on_progress=on_walk, stop_event=stop)
         except KeyboardInterrupt:
             stop.set()
             prog.clear()
@@ -455,7 +456,8 @@ def run_scan(opts: ScanOptions, out=print, on_progress=None) -> tuple[str, dict]
         elapsed = time.monotonic() - t0
         summary = report.build_summary(records, walk, groups, plan_stats, elapsed)
         run_info = {
-            "id": os.path.basename(run_dir), "mode": "dry-run", "started": started.isoformat(timespec="seconds"),
+            "id": os.path.basename(run_dir), "mode": "dry-run" if opts.dest else "scan-only",
+            "started": started.isoformat(timespec="seconds"),
             "finished": datetime.now().isoformat(timespec="seconds"), "elapsed_seconds": round(elapsed, 1),
             "source_root": opts.source, "destination_root": opts.dest, "reports_dir": run_dir,
             "options": {k: v for k, v in asdict(opts).items() if k not in ("source", "dest", "reports")},

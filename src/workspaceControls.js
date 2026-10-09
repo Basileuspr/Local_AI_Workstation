@@ -7,6 +7,7 @@ import {modelHelp} from './help/model';
 import {workflowSettingsHelp,imageAdjustmentHelp} from './help/workflowSettings';
 import {neuralNetworkHelp} from './help/neuralNetwork';
 import {linkedToolHelp} from './help/linkedTools';
+import {webHelp} from './help/web';
 
 export const workspaceControls = {
   'info-center': [['Explore features', [
@@ -35,7 +36,18 @@ export const workspaceControls = {
     ['Copy practice prompt / Export notes & progress', 'Copy a lesson prompt for manual use in chat or download a JSON copy of this course’s notes and progress.'],
   ]]],
   'neural-network': neuralNetworkHelp,
-  'break-room': [['Help identify faces', [
+  'break-room': [['Mini Piano', [
+    ['Piano keys', 'Hold a key with your mouse or touch to play; hold several for a chord. Focus a piano key and use Space or Enter, or click the piano and use the letter shortcuts shown on its keys. Shortcuts work while focus stays inside the piano.'],
+    ['Audio → notes', 'Select a local audio file up to 32 MB / ten minutes, choose a 1–30 second excerpt, tempo, timing grid and detection threshold, then Convert audio to notes. The local Basic Pitch model estimates pitches and chords. Review as piano template opens an editable draft; Save template adds it to the live practice guide. Download MIDI preserves detected timing. Update timing re-snaps existing notes at the chosen BPM and grid. Cancel or leaving Break Room ends conversion.'],
+    ['Spotify track reference', 'Attach an official Spotify track link or URI to a template. Listen on Spotify opens the track; Open in Linked Applications selects its Spotify tab and fills the track link. Open Spotify player and press Play there to listen. Return to piano comes back to Break Room. Spotify streams are not downloaded, synchronized with the guide, or analyzed.'],
+    ['Sound & effects', 'Choose Clean, Warm, Dreamy or Retro, or adjust waveform, brightness, reverb, echo, tremolo and sustain. Reset effects returns to Clean.'],
+    ['Lower / Higher octave', 'Shift the visible keyboard from C1 upward. Choose 2, 3, or 4 octaves, or the full A0–C8 88-key range. Changing the range releases held notes.'],
+    ['Volume', 'Adjust the piano’s volume. Playback also follows Sound output and the Sound Mixer Audio channel. Notes stop when you leave Break Room, move focus outside the piano, or leave the app.'],
+    ['Lesson / template · Listen / Practice / Stop', 'Choose one of 29 ready-made lessons or your saved templates. Listen plays the sequence at its BPM and highlights keys. Repeat loops the demonstration. Practice highlights the next note or chord and advances when you play exactly those keys; release between steps. For a rest, count its beats then choose Next step. Stop ends the activity.'],
+    ['Live note guide / Play along', 'Falling bars line up with the actual piano keys and show computer-key shortcuts. The prompt names the current chord and the next three steps appear underneath. Practice waits at the line until you play the right keys. Play along gives a four-beat count-in, moves notes at the selected BPM, and scores note/chord attacks as hits or misses. Release and press again for repeated notes. Rest steps are not scored. Leaving the piano or app stops the run. Hide Live note guide when you want to play freely.'],
+    ['New template / Use as template / Edit template', 'Create a sequence or adapt an existing lesson. Name it, add instructions and a default tempo, then enter notes such as C4 Db4, chords such as [C4 E4 G4], and rests such as R. A suffix such as :2 sets the beat length. Or play a note/chord, release it, then Add played keys. Save template remembers it locally. Download template keeps a JSON copy; Delete template offers Undo delete.'],
+    ['Note names / Enharmonic equivalents', 'Show sharp names, flat names, or both on black keys. The selected-key line, tooltips and expandable reference include white-key equivalents and optional double accidentals. Spellings use the written octave, so B♯3 = C4 and C♭5 = B4. Templates accept #, b, ##, bb, x and the corresponding musical symbols.'],
+  ]], ['Help identify faces', [
     ['Photos from', 'Choose all analyzed images, Image Library, or Image Manager. First use Group faces and classify in REVIEW / Image Manager. Questions reuse saved crops without scanning or loading a model.'],
     ['Name / Yes', 'Confirm the proposed name, choose an existing person, or enter a new name. Yes updates this face in the existing REVIEW people groups; a new name labels only this face.'],
     ['No / Skip', 'No records a rejected match and separates this face from a mistaken group when needed. Skip saves no answer and leaves the face available on a later visit.'],
@@ -52,6 +64,7 @@ export const workspaceControls = {
   ...creativeHelp,
   ...workstationHelp,
   ...linkedToolHelp,
+  ...webHelp,
   workflows: [...creativeHelp.workflows,...workflowSettingsHelp],
   'image-editor': [...creativeHelp['image-editor'],imageAdjustmentHelp],
   chats: chatHelp,

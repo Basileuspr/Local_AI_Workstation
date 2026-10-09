@@ -1,7 +1,7 @@
 import { Children, cloneElement, isValidElement, createContext, useEffect, useRef, useState } from "react";
 import { DesktopCapabilitiesProvider, StartupNotice, WorkspaceBoundary } from "./Compatibility";
 import "./AppLayout.css";
-import { ChatPinControls } from "../ChatWorkspace";
+import { ChatPinControls, WorkspacePinControls } from "../ChatWorkspace";
 import { useStore } from "../useStore";
 import ResizableDivider from "./ResizableDivider";
 import { AppearanceDialog } from "./AppearanceSettings";
@@ -19,6 +19,7 @@ import SoundMixerActivity from './SoundMixerActivity';
 import WorkspaceFind from './WorkspaceFind';
 import { FloatingToolBoundsContext } from '../floatingToolBounds';
 import { useDismissiblePopup } from '../useDismissiblePopup';
+import { useWorkspaceModalOpen } from '../useWorkspaceModalOpen';
 
 const compactLayout = "(max-width: 900px)";
 export const NavigationOpenContext = createContext(false);
@@ -29,11 +30,11 @@ export default function AppLayout({ activeTab, sidebar, children, onRefresh, ref
   const [layout, setLayout] = useState(loadWorkspaceLayout);
   const [compact, setCompact] = useState(() => window.matchMedia(compactLayout).matches);
   const [open, setOpen] = useState(false);
-  const [modalOpen, setModalOpen] = useState(false);
+  const modalOpen = useWorkspaceModalOpen();
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [loraLearningRate, setLoraLearningRate] = useState(undefined);
   const [resizing, setResizing] = useState(false);
-  const [paneSize, setPaneSize] = useState({ width: 0, height: 0 });
+  const [paneSize, setPaneSize] = useState({ width: 0, height: 0, appWidth: 0 });
   const [floatingToolBounds, setFloatingToolBounds] = useState(null);
   const panes = useRef(null);
   const previousSession = useRef(sessionId);
@@ -44,12 +45,15 @@ export default function AppLayout({ activeTab, sidebar, children, onRefresh, ref
   const drawerOpen = compact && open;
   useDismissiblePopup({ open: drawerOpen, container: navigation, onDismiss: () => setOpen(false), returnFocus: menuButton });
   const navigationHidden = compact ? !open : layout.sidebarCollapsed;
-  const split = activeTab === "chats" && !!pinnedTab;
+  const sidebarMax = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, (paneSize.appWidth || window.innerWidth || 1280) - 330));
+  const sidebarWidth = Math.min(layout.sidebarWidth, sidebarMax);
+  const split = !!pinnedTab && pinnedTab !== activeTab;
+  const layoutKey = activeTab === "chats" ? sessionId : `workspace:${activeTab}`;
   const stacked = paneSize.width > 0 && paneSize.width <= 820;
   const axis = stacked ? "vertical" : "horizontal";
   const secondChat = pinnedTab === "second-chat";
   const limits = splitLimits(stacked ? paneSize.height : paneSize.width, axis, secondChat);
-  const ratio = clampLayoutValue(layout.splits[sessionId]?.[axis] ?? SPLIT_DEFAULTS[axis], limits.min, limits.max);
+  const ratio = clampLayoutValue(layout.splits[layoutKey]?.[axis] ?? SPLIT_DEFAULTS[axis], limits.min, limits.max);
 
   useEffect(() => saveWorkspaceLayout(layout), [layout]);
   useEffect(() => {
@@ -62,7 +66,8 @@ export default function AppLayout({ activeTab, sidebar, children, onRefresh, ref
   useEffect(() => {
     const update = () => {
       const { width, height } = panes.current.getBoundingClientRect();
-      setPaneSize(current => current.width === width && current.height === height ? current : { width, height });
+      const appWidth = panes.current.closest('#app').clientWidth;
+      setPaneSize(current => current.width === width && current.height === height && current.appWidth === appWidth ? current : { width, height, appWidth });
     };
     const observer = new ResizeObserver(update);
     observer.observe(panes.current); update();
@@ -72,21 +77,12 @@ export default function AppLayout({ activeTab, sidebar, children, onRefresh, ref
 
   function changeRatio(next) {
     setLayout(current => ({ ...current, splits: { ...current.splits,
-      [sessionId]: { ...current.splits[sessionId], [axis]: next } } }));
+      [layoutKey]: { ...current.splits[layoutKey], [axis]: next } } }));
   }
   function toggleNavigation() {
     if (compact) setOpen(current => !current);
     else setLayout(current => ({ ...current, sidebarCollapsed: !current.sidebarCollapsed }));
   }
-
-  useEffect(() => {
-    // Native Browser/Media Manager surfaces must not cover dialogs or tool menus.
-    const update = () => setModalOpen([...document.querySelectorAll("dialog[open], .disclosure-panel:not([hidden])")].some(node => node.getClientRects().length > 0));
-    const observer = new MutationObserver(update);
-    observer.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ["open", "hidden"] });
-    update();
-    return () => observer.disconnect();
-  }, []);
 
   useEffect(() => {
     // Hidden elements report zero scroll offsets. Retain the last visible
@@ -153,7 +149,7 @@ export default function AppLayout({ activeTab, sidebar, children, onRefresh, ref
 
   return <DesktopCapabilitiesProvider><WorkspaceInfoContext.Provider value={setLoraLearningRate}><div id="app"
     className={`${drawerOpen ? "navigation-open " : ""}${!compact && layout.sidebarCollapsed ? "sidebar-collapsed " : ""}${resizing ? "layout-resizing" : ""}`.trim()}
-    style={{ "--sidebar-width": `${layout.sidebarWidth}px` }}>
+    style={{ "--sidebar-width": `${sidebarWidth}px` }}>
     <div id="app-navigation" className="sidebar-shell" ref={navigation} inert={navigationHidden} aria-hidden={navigationHidden || undefined}
       role={compact ? "dialog" : "navigation"} aria-label="App navigation" aria-modal={drawerOpen || undefined}
       onKeyDown={handleNavigationKey}>
@@ -161,8 +157,8 @@ export default function AppLayout({ activeTab, sidebar, children, onRefresh, ref
       {sidebar(closeNavigation)}
     </div>
     <ResizableDivider label="Resize navigation and main workspace" className="sidebar-divider" controls="app-navigation main"
-      hidden={compact || layout.sidebarCollapsed} value={layout.sidebarWidth} min={SIDEBAR_MIN} max={SIDEBAR_MAX}
-      defaultValue={SIDEBAR_DEFAULT} step={10} valueText={`${Math.round(layout.sidebarWidth)} pixels`}
+      hidden={compact || layout.sidebarCollapsed} value={sidebarWidth} min={SIDEBAR_MIN} max={sidebarMax}
+      defaultValue={SIDEBAR_DEFAULT} step={10} valueText={`${Math.round(sidebarWidth)} pixels`}
       onChange={sidebarWidth => setLayout(current => ({ ...current, sidebarWidth }))} onDragging={setResizing}
       pointerValue={event => event.clientX - DIVIDER_SIZE / 2} />
     {drawerOpen && <div className="navigation-backdrop" aria-hidden="true" onClick={closeNavigation} />}
@@ -173,6 +169,7 @@ export default function AppLayout({ activeTab, sidebar, children, onRefresh, ref
           onClick={toggleNavigation}>☰</button>
         <span>{titles[activeTab] || "Local AI Workstation"}</span>
         <WorkstationTime onOverlayChange={setFloatingToolBounds} inert={drawerOpen} />
+        <WorkspacePinControls activeTab={activeTab} />
         <SoundMixerActivity activeTab={activeTab}/>
         <WorkspaceFind activeTab={activeTab} pinnedTab={pinnedTab} onOpen={closeNavigation}/>
         <DisclosurePanel label="Workspace options" className="workspace-options" title="Side pane, appearance, and refresh">
@@ -199,17 +196,18 @@ export default function AppLayout({ activeTab, sidebar, children, onRefresh, ref
           "--chat-min-height": secondChat ? "320px" : "280px", "--pinned-min-height": secondChat ? "400px" : "200px" }}>
         {Children.map(children, child => {
           if (!isValidElement(child) || !child.props["data-capture-tab"]) return child;
-          const pinned = activeTab === "chats" && child.props["data-capture-tab"] === pinnedTab;
+          const pinned = split && child.props["data-capture-tab"] === pinnedTab;
+          const primary = split && child.props["data-capture-tab"] === activeTab;
           // Keep each pane in the same DOM/React position, preserving drafts and native surfaces.
-          return cloneElement(child, { className: `${child.props.className || ""}${pinned ? " pinned-workspace" : ""}` },
+          return cloneElement(child, { className: `${child.props.className || ""}${primary ? " primary-workspace" : ""}${pinned ? " pinned-workspace" : ""}` },
             pinned && <div className="pinned-pane-heading" key="pin-heading"><strong>{pinnedTitle}</strong>
               <WorkspaceInfo tab={pinnedTab === "second-chat" ? "chats" : pinnedTab} learningRate={loraLearningRate} />
               <button type="button" onClick={() => { onUnpin?.(); requestAnimationFrame(() => document.querySelector('[aria-label="Workspace options"]')?.focus()); }} aria-label="Close side pane">{pinnedTab === "second-chat" ? "Close ×" : "Unpin ×"}</button></div>,
             child.props.children && <WorkspaceBoundary key="workspace-content">{child.props.children}</WorkspaceBoundary>);
         })}
-        <ResizableDivider label={secondChat ? "Resize Chat A and Chat B" : "Resize chat and pinned pane"} className="chat-pane-divider" controls="app-workspace-panes"
+        <ResizableDivider label={secondChat ? "Resize Chat A and Chat B" : activeTab === "chats" ? "Resize chat and pinned pane" : `Resize ${titles[activeTab]} and ${pinnedTitle || "side pane"}`} className="chat-pane-divider" controls="app-workspace-panes"
           hidden={!split} orientation={stacked ? "horizontal" : "vertical"} value={ratio} min={limits.min} max={limits.max}
-          defaultValue={SPLIT_DEFAULTS[axis]} valueText={secondChat ? `Chat A ${Math.round(ratio)} percent, Chat B ${Math.round(100 - ratio)} percent` : `Chat ${Math.round(ratio)} percent, pinned pane ${Math.round(100 - ratio)} percent`}
+          defaultValue={SPLIT_DEFAULTS[axis]} valueText={secondChat ? `Chat A ${Math.round(ratio)} percent, Chat B ${Math.round(100 - ratio)} percent` : `${titles[activeTab]} ${Math.round(ratio)} percent, side pane ${Math.round(100 - ratio)} percent`}
           onChange={changeRatio} onDragging={setResizing}
           pointerValue={event => {
             const rect = panes.current.getBoundingClientRect();

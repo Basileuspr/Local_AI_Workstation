@@ -109,8 +109,19 @@ app.add_middleware(
 )
 
 from routes.web import router as web_router
+from routes.browser_media import router as browser_media_router
 
 app.include_router(web_router)
+from routes.web_system import router as web_system_router
+from services.web_research import manager as web_research_manager
+app.include_router(web_system_router)
+app.add_event_handler('startup', web_research_manager.startup)
+app.add_event_handler('shutdown', web_research_manager.close)
+app.include_router(browser_media_router)
+from routes.reels import router as reels_router
+app.include_router(reels_router)
+from services import reels_store
+app.add_event_handler('startup', reels_store.listing)  # Recover before opening Reels.
 app.include_router(sessions_router)
 app.include_router(audio_router)
 app.include_router(files_router)

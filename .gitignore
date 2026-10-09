@@ -86,3 +86,4 @@ ROADMAP_ORIGINAL*.md
 # Generated portable identity; source captures retain the dated record.
 /build-info.json
 /data-image-manager/
+!src/assets/piano-model/basic-pitch.bin

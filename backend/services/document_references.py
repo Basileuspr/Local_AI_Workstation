@@ -148,6 +148,7 @@ def missing_links(model):
     for node in walk(model):
         attrs = node.get('attrs') or {}
         if node['type'] == 'bookmark': names.add(attrs['name'])
+        elif node['type'] == 'documentCaption': names.add(attrs['id'])
         elif attrs.get('referenceId'): names.add(attrs['referenceId'])
     return any(mark.get('type') == 'link' and mark.get('attrs', {}).get('href', '').startswith('#') and
                mark['attrs']['href'][1:] not in names for node in walk(model) for mark in node.get('marks', []))

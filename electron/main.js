@@ -147,7 +147,61 @@ function trustedDesktop(event) {
     return trustedUrl(event.senderFrame.url, useViteDev ? CONFIG.viteDevUrl : null);
 }
 
-const viewerBrowser = createViewerBrowser({WebContentsView, session, dialog, getWindow:()=>mainWindow, watchFind:watchWorkspaceFind});
+const browserWorkflowDirectory = path.join(app.getPath('userData'), 'browser-workflows');
+async function browserMediaRequest(id, action, body) {
+    if(!/^[a-f0-9]{32}$/.test(id) || !['verify','cancel'].includes(action))throw Error('Invalid browser media operation.');
+    const response=await fetch(`http://127.0.0.1:${CONFIG.backendPort}/browser-media/${id}/${action}`, {
+        method:'POST',headers:{'Content-Type':'application/json','x-law-session':sessionToken,'x-local-files':localFilesToken},
+        body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(action==='verify'?115000:5000),redirect:'error',
+    });
+    if(!response.ok)throw Error('media_verification_failed');
+    return response.json();
+}
+const browserProfiles = require('./browserProfiles').createBrowserProfiles(app.getPath('userData'));
+const browserWindows = require('./browserWindows').createBrowserWindows({BrowserWindow, profileRegistry:browserProfiles,
+    getMainWindow:()=>mainWindow,devUrl:useViteDev ? CONFIG.viteDevUrl : null,
+    createBrowser:options=>createViewerBrowser({WebContentsView,session,dialog,profileDirectory:app.getPath('userData'),...options}),
+    onCreate:window=>attachWindowRendering({window,screen,log}),onError:error=>log.warn('Browser window cleanup failed:',error.message)});
+const viewerBrowser = createViewerBrowser({WebContentsView, session, dialog, getWindow:()=>mainWindow, watchFind:watchWorkspaceFind,
+    profileRegistry:browserProfiles,beforeClearProfile:id=>browserWindows.closeProfile(id),
+    profileDirectory:app.getPath('userData'),workflowDirectory:browserWorkflowDirectory,
+    prepareMedia:(id,body)=>browserMediaRequest(id,'verify',body),cancelMedia:id=>browserMediaRequest(id,'cancel').catch(()=>null)});
+async function reelsBackendRequest(action, value={}) {
+    const routes={state:['GET','/reels/state'],preflight:['POST','/reels/preflight'],create:['POST','/reels/batches'],clear:['POST','/reels/clear-cache']};
+    let endpoint=routes[action],body=value;
+    if(['checkpoint','cancel','analyze'].includes(action)) {
+        const {batchId,index,...payload}=value;
+        if(!/^[a-f0-9]{32}$/.test(batchId) || action==='analyze' && (!Number.isInteger(index)||index<0||index>99))throw Error('Invalid reel operation.');
+        endpoint=['POST',`/reels/batches/${batchId}/${action==='analyze'?`items/${index}/analyze`:action}`];
+        body=action==='checkpoint'?{...payload,...(index!==undefined?{index}:{})}:payload;
+    }
+    if(!endpoint)throw Error('Unsupported reel operation.');
+    const [method,route]=endpoint;
+    const response=await fetch(`http://127.0.0.1:${CONFIG.backendPort}${route}`,{
+        method,headers:{'Content-Type':'application/json','x-law-session':sessionToken,'x-local-files':localFilesToken},
+        body:method==='POST'?JSON.stringify(body):undefined,redirect:'error',signal:AbortSignal.timeout(action==='analyze'?50*60*1000:30000),
+    });
+    if(!response.ok){const data=await response.json().catch(()=>({}));throw Error(typeof data.detail==='string'?data.detail:'Reels operation unavailable.');}
+    return response.json();
+}
+const reelsAnalyzer=require('./reelsAnalyzer').createReelsAnalyzer({browser:viewerBrowser,request:reelsBackendRequest});
+const webResearch=require('./webResearch').createWebResearch({browser:viewerBrowser,busy:()=>reelsAnalyzer.busy(),request:async(route,body)=>{
+    const response=await fetch(`http://127.0.0.1:${CONFIG.backendPort}${route}`,{method:'POST',redirect:'error',signal:AbortSignal.timeout(35000),
+        headers:{'Content-Type':'application/json','x-law-session':sessionToken,'x-local-files':localFilesToken},body:JSON.stringify(body)});
+    const data=await response.json();if(!response.ok)throw Error(typeof data.detail==='string'?data.detail:'Web operation unavailable.');return data;
+}});
+for(const action of ['background','read'])ipcMain.handle(`web-research:${action}`,async(event,value)=>{
+    if(!trustedDesktop(event))return {error:'Desktop access required.'};
+    try{return await webResearch[action](value);}catch(error){return {error:require('./redactSecrets').redactSecrets(error.message).slice(0,400)};}
+});
+for(const action of ['state','controls','discover','start','pause','resume','cancel','clear'])ipcMain.handle(`reels:${action}`,async(event,value)=>{
+    if(!trustedDesktop(event))return {error:'Desktop access required.'};
+    try{return await reelsAnalyzer[action](value);}catch(error){return {error:require('./redactSecrets').redactSecrets(error.message).slice(0,400)};}
+});
+const {createBrowserBookmarks,registerBrowserBookmarkIpc}=require('./browserBookmarks');
+registerBrowserBookmarkIpc({ipcMain,store:createBrowserBookmarks(app.getPath('userData')),
+    trustedDesktop:event=>trustedDesktop(event) || browserWindows.trusted(event),dialog,
+    getWindow:event=>browserWindows.windowFor(event) || mainWindow});
 const linkedContent = require('./linkedContent').createLinkedContent({WebContentsView, session, getWindow:()=>mainWindow, watchFind:watchWorkspaceFind});
 workspaceFind = require('./workspaceFind').createWorkspaceFind({ipcMain, getWindow:()=>mainWindow, trustedDesktop,
     targets: {'browser':()=>viewerBrowser.findContents(), 'media-manager':()=>mediaManager.findContents(), 'integrations':()=>linkedContent.findContents()}});
@@ -155,7 +209,7 @@ ipcMain.handle('sound-mixer:configure', (event,value) => {
     if(!trustedDesktop(event))return {error:'Desktop access required.'};
     try {
         const mix=require('./soundMixer').normalizeNativeMix(value);
-        viewerBrowser.setMix(mix);mediaManager.setMix(mix);linkedContent.setMix(mix);
+        viewerBrowser.setMix(mix);browserWindows.setMix(mix);mediaManager.setMix(mix);linkedContent.setMix(mix);
         return {applied:true};
     }catch(error){return {error:error.message};}
 });
@@ -201,12 +255,21 @@ registerMeshRepairIpc({ipcMain, service: meshRepair, trustedDesktop});
 require('./modelEditor').registerModelEditorIpc({ipcMain, dialog, getWindow: () => mainWindow, trustedDesktop});
 require('./paintFiles').registerPaintIpc({ipcMain, dialog, getWindow: () => mainWindow, trustedDesktop, BrowserWindow});
 const tabCapture = createTabCapture({ BrowserWindow, screen, clipboard, ClipboardItem, getWindow: () => mainWindow, mediaManager, viewerBrowser });
-for (const action of ['start','state','place','navigate','inspect','source','command','clearData']) {
+ipcMain.handle('browser-window:new',async event=>{
+    const browser=trustedDesktop(event) ? viewerBrowser : browserWindows.controller(event);
+    if(!browser)return {error:'Desktop access required.'};
+    try{return await browserWindows.open(browser);}catch(error){return {error:error.message};}
+});
+for (const action of ['start','state','place','navigate','inspect','source','command','clearData','profiles','createProfile','selectProfile',
+    'createTab','selectTab','closeTab','shortcut','setTabSettings','startWorkflow','browserTool','workflowState','cancelWorkflow','resumeWorkflow','clearWorkflowMedia','releaseWorkflowMedia']) {
     ipcMain.handle(`viewer-browser:${action}`, async (event,value)=>{
-        if(!trustedDesktop(event))return {error:'Desktop access required.'};
+        const main=trustedDesktop(event),browser=main ? viewerBrowser : browserWindows.controller(event);
+        if(!browser || !main && !browserWindows.allows(action))return {error:'Desktop access required.'};
+        if(['startWorkflow','browserTool','cancelWorkflow','resumeWorkflow'].includes(action) && reelsAnalyzer.busy())return {error:'Pause or cancel Reels processing before controlling this page with another workflow.'};
+        if(['clearWorkflowMedia','releaseWorkflowMedia'].includes(action) && reelsAnalyzer.busy())return {error:'Cancel Reels processing and wait for it to stop before clearing workflow media.'};
         try {
-            const result = await viewerBrowser[action](value);
-            if (action === 'place') windowRendering?.repaint();
+            const result = await browser[action](value);
+            if (action === 'place' && result) windowRendering?.repaint();
             return result;
         }
         catch(error){return {error:error.message};}
@@ -290,7 +353,7 @@ ipcMain.handle("app:open-logs", async event => {
 });
 
 ipcMain.handle('app:rendering-status', event => trustedDesktop(event) ? { ...rendering.state(), ...windowRendering?.state() } : null);
-ipcMain.on('app:window-repaint', event => { if (trustedDesktop(event)) windowRendering?.repaint(); });
+ipcMain.on('app:window-repaint', (event,reason) => { if (trustedDesktop(event)) windowRendering?.repaint({passive:reason==='content'}); });
 ipcMain.handle('app:rendering-mode', (event, mode) => {
     if (!trustedDesktop(event)) return null;
     try { return rendering.save(mode); }
@@ -699,6 +762,7 @@ function startPythonBackend() {
             LAW_LAUNCH_ID: launchId,
             LAW_DESKTOP_MAINTENANCE_TOKEN: maintenanceToken,
             LAW_LOCAL_FILES_TOKEN: localFilesToken,
+            LAW_BROWSER_WORKFLOW_DIR: path.join(browserWorkflowDirectory, 'media'),
             LAW_DESKTOP_CONTROL: "1",
             LAW_DESKTOP_NODE_VERSION: process.versions?.node || '',
             LAW_DESKTOP_ELECTRON_VERSION: process.versions?.electron || '',
@@ -1052,7 +1116,7 @@ const shutdown = createAppShutdown({
     app, log, stopBackend: stopPythonBackend,
     onBegin: () => { isQuitting = true; },
     dispose: [() => functionWorkflows.dispose(), () => tabCapture.dispose(), () => driveSpace.dispose(),
-        () => mediaManager.dispose(), () => viewerBrowser.dispose(), () => meshRepair.dispose(),
+        () => reelsAnalyzer.dispose(), () => mediaManager.dispose(), () => browserWindows.dispose(), () => viewerBrowser.dispose(), () => meshRepair.dispose(),
         // Close the renderer before stopping the API so polling and live streams
         // cannot keep submitting requests during Uvicorn's shutdown.
         () => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.destroy(); }],

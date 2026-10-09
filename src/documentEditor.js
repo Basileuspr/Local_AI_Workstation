@@ -14,6 +14,7 @@ import { DocumentStyles, DOCUMENT_FONTS } from './documentStyles';
 import { DocumentReferences, Bookmark, TableOfContents, safeDocumentLink, normalizeReferences } from './documentReferences';
 import { DocumentNotes, DocumentNote, normalizeNotes } from './documentNotes';
 import { DocumentCitations, DocumentCitation, DocumentBibliography, normalizeCitations } from './documentCitations';
+import { DocumentCaptions, DocumentCaption, DocumentCrossReference, normalizeCaptions } from './documentCaptions';
 
 export { DOCUMENT_FONTS };
 export const DEFAULT_PAGE = { paper: 'Letter', orientation: 'portrait', top: 1, bottom: 1, left: 1, right: 1, ...PAGE_DETAIL_DEFAULTS };
@@ -66,7 +67,7 @@ export function documentExtensions() {
   TextAlign.configure({ types: ['heading', 'paragraph'], defaultAlignment: null }), Highlight.configure({ multicolor: true }),
   LocalImage.configure({ allowBase64: true }), TableKit.configure({ table: { resizable: true, cellMinWidth: 24, View: DocumentTableView }, tableCell: false, tableHeader: false }),
   DocumentTableCell, DocumentTableHeader, DocumentTableProperties,
-  Subscript, Superscript, ParagraphLayout, PageBreak, DocumentStyles, DocumentReferences, Bookmark, TableOfContents, DocumentNotes, DocumentNote, DocumentCitations, DocumentCitation, DocumentBibliography];
+  Subscript, Superscript, ParagraphLayout, PageBreak, DocumentStyles, DocumentReferences, Bookmark, TableOfContents, DocumentNotes, DocumentNote, DocumentCitations, DocumentCitation, DocumentBibliography, DocumentCaptions, DocumentCaption, DocumentCrossReference];
 }
 
 export function resetDocumentContent(editor, content) {
@@ -79,6 +80,8 @@ export function resetDocumentContent(editor, content) {
   if (notes) state = EditorState.create({ schema: state.schema, doc: notes.doc, plugins: previous.plugins });
   const citations = normalizeCitations(state);
   if (citations) state = EditorState.create({ schema: state.schema, doc: citations.doc, plugins: previous.plugins });
+  const captions = normalizeCaptions(state);
+  if (captions) state = EditorState.create({ schema: state.schema, doc: captions.doc, plugins: previous.plugins });
   editor.view.updateState(state);
 }
 

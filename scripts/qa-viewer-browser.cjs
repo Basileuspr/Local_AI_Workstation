@@ -41,7 +41,8 @@ app.whenReady().then(async()=>{
   const trusted=event=>!win.isDestroyed() && event.sender===win.webContents && event.senderFrame===win.webContents.mainFrame && event.senderFrame.url.startsWith(host+'/');
   ipcMain.on('app:connection',(event)=>{console.log('QA: preload connection');event.returnValue=trusted(event)?{}:null;});
   ipcMain.handle('app:capabilities',()=>({features:{}}));ipcMain.handle('app:startup-status',()=>({state:'ready'}));
-  for(const action of ['start','state','place','navigate','inspect','source','command','clearData'])ipcMain.handle(`viewer-browser:${action}`,async(event,value)=>{
+  for(const action of ['start','state','place','navigate','inspect','source','command','clearData','profiles','createProfile','selectProfile',
+    'startWorkflow','browserTool','workflowState','cancelWorkflow','resumeWorkflow','clearWorkflowMedia'])ipcMain.handle(`viewer-browser:${action}`,async(event,value)=>{
     if(!trusted(event))return {error:'Desktop access required.'};
     try{return await browser[action](value);}catch(error){return {error:error.message};}
   });
@@ -95,6 +96,41 @@ app.whenReady().then(async()=>{
   assert.equal(await remote.executeJavaScript("localStorage.getItem('qa-persistent')"),null);
   assert.equal(await remote.executeJavaScript('document.cookie'),'');
   checks.push('Close/reopen preserves profile; explicit clear removes cookies and site storage; inspection debugger detaches');
+  await click('Add isolated profile');await select('[aria-label="New profile label"]','UI fixture account');await click('Create and select');
+  await until(()=>browser.state().selected!=='default' && browser.state().ready,'UI profile selection');
+  await until(async()=>await js("document.querySelector('[aria-label=\"Account profile\"]').value")===browser.state().selected,'React profile observation');
+  assert.equal(await js("document.querySelector('[aria-label=\"Account profile\"]').value"),browser.state().selected);
+  await select('[aria-label="Page address"]',site);await click('Go');await until(()=>!browser.state().loading && browser.state().title==='Browser fixture','selected profile page');
+  await click('Start browser workflow');await until(()=>browser.state().workflow?.status==='running','workflow UI start');
+  await until(()=>js("document.querySelector('[aria-label=\"Web browser\"]').textContent.includes('running · ready')"),'workflow React state');
+  assert.equal(await js("!!document.querySelector('[aria-label=\"Account identity element\"]')"),false);
+  await click('Check account');await until(()=>browser.state().workflow?.status==='running'&&!browser.state().workflow.accountBound,'unidentified account check');
+  await until(()=>js("document.querySelector('.browser-account-check')?.textContent.includes('Signed-in account could not be identified')"),'plain unsupported account status');
+  await remote.executeJavaScript("document.body.insertAdjacentHTML('afterbegin','<button aria-label=\"Current account\">Owned fixture user</button>')");
+  await click('Check account');await until(()=>browser.state().workflow?.accountBound===true,'actual visible account identity');
+  await until(()=>js("document.querySelector('.browser-account-check')?.textContent.includes('Signed-in account identified.')"),'identified account UI');
+  checks.push('Plain Check account UI replaces arbitrary element dropdown; visible identity binds while unidentified pages remain unbound');
+  await sleep(100);
+  fs.writeFileSync(path.join(work,'workflow.png'),(await win.webContents.capturePage(undefined,{stayHidden:true,stayAwake:true})).toPNG());
+  await click('Cancel workflow');await until(()=>browser.state().workflow?.status==='cancelled','workflow UI cancel');
+  const cancelled=browser.state().workflow.id;
+  await select('[aria-label="Page address"]',site+'/reel/new-fixture/');await click('Go');
+  await until(()=>!browser.state().loading&&browser.state().url.endsWith('/reel/new-fixture/'),'new reel after cancelled checkpoint');
+  await click('Start browser workflow');await until(()=>browser.state().workflow?.status==='running','fresh workflow on new reel');
+  assert.notEqual(browser.state().workflow.id,cancelled);assert.equal(browser.state().workflow.source.path,'/reel/new-fixture/');
+  await select('[aria-label="Page address"]',site+'/second');await click('Go');await until(()=>browser.state().workflow?.status==='paused'&&!browser.state().loading,'manual page pause');
+  await click('Open saved page and resume');await until(()=>browser.state().workflow?.status==='running'&&browser.state().url.endsWith('/reel/new-fixture/'),'UI checkpoint page restoration');
+  await select('[aria-label="Page address"]',site+'/second');await click('Go');await until(()=>browser.state().workflow?.status==='paused'&&!browser.state().loading,'fresh choice pause');
+  await click('Start new on this page');await until(()=>browser.state().workflow?.status==='running'&&browser.state().workflow.source.path==='/second','fresh current-page choice');
+  await click('Cancel workflow');await until(()=>browser.state().workflow?.status==='cancelled','recovery workflow UI cancel');
+  checks.push('Real React starts fresh after a terminal checkpoint, restores a paused saved page, and can explicitly start fresh on the current page');
+  await click('Browser privacy');await click('Clear workflow media and extracted files');await click('Show workflow checkpoints');
+  const attacker=new BrowserWindow({show:false,webPreferences:{preload:path.join(__dirname,'../electron/preload.js'),sandbox:true,contextIsolation:true,nodeIntegration:false}});
+  await attacker.loadURL(`${host}/tests/fixtures/viewerBrowser.html`);
+  assert.deepEqual(await attacker.webContents.executeJavaScript("window.workstationDesktop.createViewerBrowserProfile('unauthorized')"),{error:'Desktop access required.'});
+  assert.deepEqual(await attacker.webContents.executeJavaScript("window.workstationDesktop.startBrowserWorkflow({profileId:'default'})"),{error:'Desktop access required.'});
+  attacker.destroy();assert.equal(browser.profiles().profiles.length,2);
+  checks.push('Real React profile creation/selection, workflow start/cancel, media-only cleanup and checkpoint controls; untrusted IPC sender denied');
   if(process.env.LAW_BROWSER_PUBLIC_QA==='1'){
     await browser.dispose();browser=createViewerBrowser({WebContentsView:TestView,session,dialog:testDialog,getWindow:()=>win});
     await browser.navigate('https://example.com');

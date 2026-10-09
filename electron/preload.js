@@ -43,7 +43,7 @@ contextBridge.exposeInMainWorld("workstationDesktop", {
     openLogs: () => ipcRenderer.invoke("app:open-logs"),
     renderingStatus: () => ipcRenderer.invoke('app:rendering-status'),
     setRenderingMode: mode => ipcRenderer.invoke('app:rendering-mode', mode),
-    repaintWindow: () => ipcRenderer.send('app:window-repaint'),
+    repaintWindow: (reason='interaction') => ipcRenderer.send('app:window-repaint',reason),
     onWindowLayout: callback => {
         const listener = () => callback();
         ipcRenderer.on('app:window-layout', listener);
@@ -74,13 +74,52 @@ contextBridge.exposeInMainWorld("workstationDesktop", {
     startMediaManager: () => ipcRenderer.invoke("media-manager:start"),
     mediaManagerStatus: () => ipcRenderer.invoke("media-manager:status"),
     startViewerBrowser: () => ipcRenderer.invoke('viewer-browser:start'),
+    reelsState: () => ipcRenderer.invoke('reels:state'),
+    webBackground: enabled => ipcRenderer.invoke('web-research:background',enabled),
+    readWebResearchBrowser: id => ipcRenderer.invoke('web-research:read',id),
+    discoverReels: value => ipcRenderer.invoke('reels:discover',value),
+    reelsAccountControls: value => ipcRenderer.invoke('reels:controls',value),
+    startReels: value => ipcRenderer.invoke('reels:start',value),
+    pauseReels: () => ipcRenderer.invoke('reels:pause'),
+    resumeReels: value => ipcRenderer.invoke('reels:resume',value),
+    cancelReels: () => ipcRenderer.invoke('reels:cancel'),
+    clearReelsCache: () => ipcRenderer.invoke('reels:clear'),
     viewerBrowserState: () => ipcRenderer.invoke('viewer-browser:state'),
     placeViewerBrowser: value => ipcRenderer.invoke('viewer-browser:place',value),
     navigateViewerBrowser: url => ipcRenderer.invoke('viewer-browser:navigate',url),
     inspectViewerBrowser: () => ipcRenderer.invoke('viewer-browser:inspect'),
     viewerBrowserSource: id => ipcRenderer.invoke('viewer-browser:source',id),
     viewerBrowserCommand: action => ipcRenderer.invoke('viewer-browser:command',action),
+    createViewerBrowserTab: url => ipcRenderer.invoke('viewer-browser:createTab',url),
+    newViewerBrowserWindow: () => ipcRenderer.invoke('browser-window:new'),
+    onViewerBrowserNewWindow: callback => {
+        const listener=()=>callback();ipcRenderer.on('viewer-browser:new-window',listener);
+        return ()=>ipcRenderer.removeListener('viewer-browser:new-window',listener);
+    },
+    selectViewerBrowserTab: id => ipcRenderer.invoke('viewer-browser:selectTab',id),
+    closeViewerBrowserTab: id => ipcRenderer.invoke('viewer-browser:closeTab',id),
+    viewerBrowserTabShortcut: action => ipcRenderer.invoke('viewer-browser:shortcut',action),
+    setViewerBrowserTabSettings: value => ipcRenderer.invoke('viewer-browser:setTabSettings',value),
+    onViewerBrowserTabShortcut: callback => {
+        const listener=(_event,value)=>{if(['new','close','next','previous'].includes(value))callback(value);};
+        ipcRenderer.on('viewer-browser:tab-shortcut',listener);
+        return ()=>ipcRenderer.removeListener('viewer-browser:tab-shortcut',listener);
+    },
     clearViewerBrowserData: kind => ipcRenderer.invoke('viewer-browser:clearData',kind),
+    browserBookmarks: () => ipcRenderer.invoke('browser-bookmarks:list'),
+    saveBrowserBookmark: value => ipcRenderer.invoke('browser-bookmarks:save',value),
+    removeBrowserBookmark: id => ipcRenderer.invoke('browser-bookmarks:remove',id),
+    createBrowserBookmarkFolder: value => ipcRenderer.invoke('browser-bookmarks:createFolder',value),
+    importBrowserBookmarks: () => ipcRenderer.invoke('browser-bookmarks:import'),
+    viewerBrowserProfiles: () => ipcRenderer.invoke('viewer-browser:profiles'),
+    createViewerBrowserProfile: name => ipcRenderer.invoke('viewer-browser:createProfile',name),
+    selectViewerBrowserProfile: id => ipcRenderer.invoke('viewer-browser:selectProfile',id),
+    startBrowserWorkflow: value => ipcRenderer.invoke('viewer-browser:startWorkflow',value),
+    browserTool: value => ipcRenderer.invoke('viewer-browser:browserTool',value),
+    browserWorkflowState: () => ipcRenderer.invoke('viewer-browser:workflowState'),
+    cancelBrowserWorkflow: value => ipcRenderer.invoke('viewer-browser:cancelWorkflow',value),
+    resumeBrowserWorkflow: value => ipcRenderer.invoke('viewer-browser:resumeWorkflow',value),
+    clearBrowserWorkflowMedia: () => ipcRenderer.invoke('viewer-browser:clearWorkflowMedia'),
     onViewerBrowserAddress: callback => {
         const listener=()=>callback();ipcRenderer.on('viewer-browser:address',listener);
         return ()=>ipcRenderer.removeListener('viewer-browser:address',listener);

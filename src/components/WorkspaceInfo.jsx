@@ -12,6 +12,12 @@ export function WorkspaceHelpContent({ tab, learningRate }) {
   if (!guide) return null;
   return <div className="workspace-info-content">
     <div className="workspace-info-purpose">{guide.purpose}</div>
+    <HelpSections sections={[["Working alongside other tabs", [
+      ["Side pane", tab === "chats"
+        ? "Choose Workspace options → Side pane to keep a tool beside this chat. The selection and divider sizes are remembered for this chat."
+        : "Use the Side pane selector in the top toolbar to keep another workspace visible, such as Browser beside Generate. Each workspace remembers its selection and divider sizes. Choose None or Unpin × to close the side pane."],
+      ["Resize / switch tabs", "Drag the divider to share the available space. Narrow windows stack the panes vertically and allow scrolling. Switching tabs keeps workspace drafts and submitted image generation available; Stop explicitly cancels generation. Model jobs share the Prompt Queue, so GPU work may wait for another job."],
+    ]]]} />
     <HelpSections sections={guide.sections} />
     {tab === "generate" && <ImageGenerationHelp />}
     {tab === "lora" && <LoraHelp learningRate={learningRate} />}

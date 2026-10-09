@@ -29,6 +29,25 @@ Inputs are limited to 24 megapixels and 40 MiB. A dedicated worker keeps image
 processing out of the interface thread. Closing the app releases the edit session;
 export a copy to keep the result.
 
+## Cropping
+
+Choose **Crop** beside Undo/Redo. Draw a rectangle on the edited preview, drag
+the selection to move it, or drag a corner to resize it. **Left**, **Top**,
+**Width** and **Height** let you enter exact pixel bounds. Cropping works in
+Fit, 100% and 200% views, including after rotation. The selected pixels retain
+their resolution and transparency; cropping does not stretch or resample them.
+
+**Apply crop** locks any current adjustments and adds a crop stage. Subsequent
+adjustments, color areas, rotations and crops use that result. Undo restores the
+entire previous edit state; Redo reapplies the crop. **Cancel crop** or Escape
+discards an unapplied selection. **Remove last crop** removes the most recent
+stage when it is a crop and the current adjustment pass is clear. Crop stages
+cannot be repeated with Repeat locked change. The 16-stage limit also applies
+to crops; a crop needs two free stages when there are unlocked adjustments.
+Reset clears the current adjustments; Start from original also removes crops.
+Original comparison always shows the uncropped imported image. Export, chat
+saving, GIF Maker and Magic Edit receive the cropped result.
+
 ## Locked changes
 
 **Lock current change** saves the current pass as a stage and treats its result
@@ -84,6 +103,19 @@ compatible; the new UI uses the revision-checked POST route.
 
 ## Verification
 
+- Crop geometry/stage tests cover pixel bounds, chained rotations/crops, current
+  adjustments, removing a crop and the stage limit. The focused editor, stage,
+  crop, detail, worker-recovery and Magic Edit tests passed (54 tests).
+- `scripts/qa-image-editor-crop.cjs` uses the real editor and worker in an isolated,
+  hidden Electron profile, with generated RGBA images and no backend. It checks
+  drawing/moving/resizing, exact bounds, Undo/Redo, cancel/Escape, repeated crops,
+  rotation order, subsequent contrast/color edits, original comparison, large
+  Fit previews, one-pixel/thin crops, chat save callbacks and narrow layout.
+  Pillow verifies exported dimensions, retained pixels and alpha. Build its
+  fixture with `node_modules\.bin\vite.cmd build --config tests/fixtures/imageEditor.config.mjs`,
+  then run it with hidden Electron as above. `LAW_IMAGE_CROP_QA_RESULT` can select
+  the result JSON path. This does not verify a live chat backend, GIF handoff or
+  model-generated Magic Edit after cropping.
 - Frontend tests verify neutral pixels, red reduction, linear exposure, contrast,
   saturation, alpha preservation and output naming.
 - Character Parts tests inspect actual ZIP contents for all scopes, validation,

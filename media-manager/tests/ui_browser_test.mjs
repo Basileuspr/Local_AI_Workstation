@@ -32,7 +32,7 @@ try {
   await mkdir('test-work/ui-qa', { recursive: true });
   await page.screenshot({ path: 'test-work/ui-qa/desktop-empty.png', fullPage: true });
   await page.getByRole('button', { name: 'Scan & preview' }).click();
-  assert.match(await page.locator('#mo-status').innerText(), /both a source and a destination/);
+  assert.match(await page.locator('#mo-status').innerText(), /source folder/);
   await page.getByLabel('Source folder', { exact: true }).fill(fixture.source);
   await page.getByLabel('Destination folder', { exact: true }).fill(fixture.destination);
   await page.getByRole('button', { name: 'Scan & preview' }).click();

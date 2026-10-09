@@ -242,7 +242,7 @@ def speaker_audio_chunks(handle, turns, duration):
 
 
 def transcribe(path: Path, language="auto", diarize=False, num_speakers=0, model_size='base',
-               acceleration='cpu', cpu_assistance=None):
+               acceleration='cpu', cpu_assistance=None, cancel_event=None):
     global _model, _model_path, _model_key, _progress
     directory = model_directory(model_size)
     if acceleration not in {'auto', 'cpu'}:
@@ -262,6 +262,9 @@ def transcribe(path: Path, language="auto", diarize=False, num_speakers=0, model
     started = time.perf_counter()
     timings = {'decode_seconds':0, 'speaker_seconds':0, 'transcribe_seconds':0}
     execution = None
+    def check_cancel():
+        if cancel_event is not None and cancel_event.is_set():
+            raise AudioError('Transcription cancelled.', 499)
 
     def release_gpu():
         global _model, _model_key
@@ -294,6 +297,7 @@ def transcribe(path: Path, language="auto", diarize=False, num_speakers=0, model
             _model.model.load_model()
 
     try:
+        check_cancel()
         cls = _runtime()
         if not model_ready(directory):
             raise AudioError("Set up the transcription model in the Audio workspace first.", 503)
@@ -348,10 +352,15 @@ def transcribe(path: Path, language="auto", diarize=False, num_speakers=0, model
                     inputs = speaker_audio_chunks(incoming, turns, duration) if incoming else iter_audio_chunks(path)
 
                     def recognize(chunk):
+                        check_cancel()
                         segments, info = _model.transcribe(chunk['audio'], language=detected_language,
                             beam_size=5, temperature=0, vad_filter=not bool(turns),
                             condition_on_previous_text=False, word_timestamps=True)
-                        found = retained_segments(segments, chunk, keep_words=bool(turns))
+                        def checked_segments():
+                            for segment in segments:
+                                check_cancel(); yield segment
+                        found = retained_segments(checked_segments(), chunk, keep_words=bool(turns))
+                        check_cancel()
                         return found, info.language, chunk['end'], chunk['keep_end']
 
                     def accept(value):

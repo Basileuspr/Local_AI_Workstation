@@ -69,7 +69,8 @@ def format_summary(s: dict, run: dict) -> str:
     bar = "=" * 72
     L += [bar, " SCAN COMPLETE - DRY RUN (no media files were moved, renamed or modified)", bar]
     L.append(f"Source:        {run['source_root']}")
-    L.append(f"Destination:   {run['destination_root']}   (nothing is created there during a dry run)")
+    L.append(f"Destination:   {run['destination_root']}   (nothing is created there during a dry run)"
+             if run['destination_root'] else "Destination:   None (scan only; all files stay in place)")
     L.append(f"Run folder:    {run['reports_dir']}")
     L.append(f"Elapsed:       {human_duration(s['elapsed_seconds'])}")
     tools = run.get("tools", {})
@@ -136,9 +137,13 @@ def format_summary(s: dict, run: dict) -> str:
     L.append("")
     L.append("Next steps:")
     L.append("  1. Review manifest.csv (every file, with date/classification evidence and proposed destination).")
-    L.append("  2. Preview the move (still changes nothing) - run from the Media Organizer folder:")
-    L.append(f"       .\\media-organizer move \"{run['reports_dir']}\"")
-    L.append("  3. Execute only when satisfied:")
-    L.append(f"       .\\media-organizer move \"{run['reports_dir']}\" --execute")
+    if run['destination_root']:
+        L.append("  2. Preview the move (still changes nothing) - run from the Media Organizer folder:")
+        L.append(f"       .\\media-organizer move \"{run['reports_dir']}\"")
+        L.append("  3. Execute only when satisfied:")
+        L.append(f"       .\\media-organizer move \"{run['reports_dir']}\" --execute")
+    else:
+        L.append("  2. Browse and review files in their current locations; no archive move is planned.")
+        L.append("  3. To move later, select clips and use Place in folder, or scan again with a destination.")
     L.append(bar)
     return "\n".join(L)

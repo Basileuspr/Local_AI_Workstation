@@ -23,6 +23,13 @@ class Tool:
 
 
 TOOLS = (
+    Tool('web_research', 'Research a current question', 'Web', 'web-system',
+         'Search public web sources, retrieve current evidence and answer with local models and verified citations. Page text is temporary untrusted data. Does not save Knowledge or configure monitors.',
+         'A temporary research job ID. Poll web_research_status.', 'POST', '/web-system/research', effects=('network','compute'), requirements=('Installed local text model', 'Configured search provider or explicit public source URLs')),
+    Tool('web_research_status', 'Read research answer and citations', 'Web', 'web-system',
+         'Read the current temporary research answer, source URLs, retrieval timestamps, coverage and failures.', 'Research status, cited answer and source metadata.', 'GET', '/web-system/research/{ident}'),
+    Tool('web_research_cancel', 'Cancel temporary web research', 'Web', 'web-system',
+         'Stop a research job and discard retrieved page bodies.', 'Cancelled research status.', 'POST', '/web-system/research/{ident}/cancel', effects=('cancels_work',)),
     *(Tool('media.'+name, 'REVIEW: '+name.replace('_',' '), 'Review', 'review', description,
            'Registered media metadata or a reviewed transfer receipt.', method, '/visual-review/workflow/coordinator/'+name,
            effects=effects, requirements=('Registered media IDs',)+(('Human-approved, single-use reviewed plan and destination preset',) if name in ('copy','move') else ()),

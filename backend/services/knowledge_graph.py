@@ -34,6 +34,8 @@ def database():
             connection.execute("BEGIN IMMEDIATE")
             if "z" not in {row[1] for row in connection.execute("PRAGMA table_info(positions)")}:
                 connection.execute("ALTER TABLE positions ADD COLUMN z REAL")
+            if "character_id" not in {row[1] for row in connection.execute("PRAGMA table_info(authored_nodes)")}:
+                connection.execute("ALTER TABLE authored_nodes ADD COLUMN character_id TEXT NOT NULL DEFAULT ''")
             yield connection
     finally:
         connection.close()
@@ -49,7 +51,7 @@ def graph():
     nodes = sorted(kb.list_documents(), key=lambda item: item["filename"].casefold())
     ids = {node["doc_id"] for node in nodes}
     with database() as connection:
-        authored = {doc_id: {"title": title, "kind": kind} for doc_id, title, kind in connection.execute("SELECT doc_id, title, kind FROM authored_nodes")}
+        authored = {doc_id: {"title": title, "kind": kind, "character_id": character_id} for doc_id, title, kind, character_id in connection.execute("SELECT doc_id, title, kind, character_id FROM authored_nodes")}
     aliases = {}
     for node in nodes:
         for alias in _names(node["filename"]):
@@ -89,7 +91,7 @@ def graph():
         positions = {doc_id: {"x": x, "y": y, **({"z": z} if z is not None else {})} for doc_id, x, y, z in connection.execute("SELECT doc_id, x, y, z FROM positions")}
         options = {doc_id: json.loads(value) for doc_id, value in connection.execute("SELECT doc_id, options FROM node_options")}
     return {
-        "nodes": [{**node, "position": positions.get(node["doc_id"]), "options": options.get(node["doc_id"], KnowledgeNodeOptions().model_dump()), "authored": node["doc_id"] in authored, "node_kind": authored.get(node["doc_id"], {}).get("kind"), "unresolved_links": sorted(unresolved[node["doc_id"]])} for node in nodes],
+        "nodes": [{**node, "position": positions.get(node["doc_id"]), "options": options.get(node["doc_id"], KnowledgeNodeOptions().model_dump()), "authored": node["doc_id"] in authored, "node_kind": authored.get(node["doc_id"], {}).get("kind"), "node_title": authored.get(node["doc_id"], {}).get("title"), "character_id": authored.get(node["doc_id"], {}).get("character_id", ""), "unresolved_links": sorted(unresolved[node["doc_id"]])} for node in nodes],
         "edges": [{"source": source, "target": target, "kinds": sorted(kinds)} for (source, target), kinds in sorted(links.items())],
     }
 

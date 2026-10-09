@@ -24,6 +24,8 @@
     "vitest": "^4.1.11"
   },
   "dependencies": {
+    "@spotify/basic-pitch": "1.0.1",
+    "@tensorflow/tfjs": "3.21.0",
     "@tiptap/core": "3.31.4",
     "@tiptap/extension-highlight": "3.31.4",
     "@tiptap/extension-image": "3.31.4",
@@ -35,11 +37,17 @@
     "@tiptap/pm": "3.31.4",
     "@tiptap/react": "3.31.4",
     "@tiptap/starter-kit": "3.31.4",
+    "@tonejs/midi": "2.0.28",
     "linkedom": "0.18.12",
     "manifold-3d": "3.5.4",
     "qrcode": "1.5.4",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "three": "0.186.1"
+  },
+  "overrides": {
+    "@tensorflow/tfjs": {
+      "argparse": "2.0.1"
+    }
   }
 }

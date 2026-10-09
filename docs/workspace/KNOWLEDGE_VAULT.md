@@ -5,20 +5,32 @@ indexed-text reader. Uploads and individual/bulk removal operate on the existing
 RAG index. Removing a document removes its indexed chunks and vault relationships;
 the original source file is unchanged. Use Knowledge in chats controls retrieval.
 
-**Start node** creates a node directly inside Knowledge. Choose Note, Idea, Project,
-Place, Event, or Reference, give it a title, and optionally write or paste content.
-A title alone is enough to start. Each type supplies an initial color, shape, icon,
-and searchable type tag. Node symbol and Customize node let you change these afterward. Creation
+**New node** creates and selects an untitled node immediately, then opens its
+details in the inspector with the title selected for editing. Choose Note,
+Character, Idea, Project, Place, Event, or Reference and add your criteria/content.
+The title and type preview in the graph and list while editing. **Save content**
+persists the changes on that same node. Each type supplies a starting color,
+shape and searchable type tag. Node symbol and Customize node let you change these afterward. Creation
 uses the existing local embedding queue, so the configured embedding model must
-be available. Closing the form preserves an unfinished draft during this session.
+be available. Creating a node and closing its inspector leaves the untitled node
+in the vault. Unsaved detail edits are marked and should be saved before selecting
+another node or reloading. Repeated clicks during creation do not create duplicates;
+if refreshing fails after creation, **Open created node** retries that node.
 
-Created nodes open automatically in the graph. **Edit node content** in their
+Created nodes open automatically in the graph. **Edit node details** in their
 inspector updates the title, type, and original text, then reindexes that document.
 Edits keep its document identity, connections, and 3D position. Type changes update
 color and shape when they still match the previous type's defaults while keeping
 customized fields and the saved symbol. Different nodes can share a title without overwriting documents.
 Use `[[node title]]` to link to a created node; duplicate titles are reported as
 ambiguous. Filename links continue to work for uploaded and character documents.
+
+Choosing **Character** reveals character notes and an optional saved profile
+selector. Linking a profile stores its ID and offers **Open linked character**;
+it preserves your node notes without copying or changing the profile. A character
+node also works without any saved profile. Saving a different node type removes
+that association and keeps the node's content, identity and connections. This
+works for previously authored nodes as well as newly created ones.
 
 **Start character node** creates a document from a saved [Character Creator](../images/CHARACTERS.md)
 profile. Its inspector provides a profile path, **Open character**, **Refresh

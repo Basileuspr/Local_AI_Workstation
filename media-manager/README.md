@@ -11,6 +11,13 @@ duplicate comparison, metadata filters, tags, per-item viewing rotation,
 custom folders, verified moves and undo logs, rename, recoverable Trash/restore,
 snapshots, clips, frame stepping and extraction, and image tools.
 
+Scanning needs only a source folder. Leave **Destination folder** blank to
+browse and review MP4 files in place, including dates, categories and duplicates.
+Reports save in the workspace's own storage; source files remain unchanged.
+Choose **Place in folder** for selected clips later, or add a destination and
+scan again to preview a Year / Category archive move. The command line also
+supports `media-organizer scan SOURCE` without `--dest` for a scan-only report.
+
 ## Delete unwanted media
 
 **Delete** is visible on library cards and enlarged duplicate previews. Select

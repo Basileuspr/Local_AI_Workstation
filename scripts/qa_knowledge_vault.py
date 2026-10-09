@@ -17,6 +17,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from routes.files import router
 from routes import files
 from services import knowledge_base as kb
+from services.faces import bank
+from routes.faces import router as faces_router
 import uvicorn
 
 # Exercise authored-node storage/routes with synthetic embeddings. No live Ollama
@@ -42,11 +44,13 @@ kb._get_collection().add(ids=[f"{id}_0" for id, _, _ in documents], documents=[t
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["app://local"], allow_methods=["*"], allow_headers=["*"])
 app.include_router(router)
+app.include_router(faces_router)
+character = bank.create_character("QA character", bio="A synthetic saved profile.")
 sock = socket.socket(); sock.bind(("127.0.0.1", 0))
 server = uvicorn.Server(uvicorn.Config(app, log_level="error"))
 thread = threading.Thread(target=server.run, kwargs={"sockets": [sock]}, daemon=True); thread.start()
 while not server.started: time.sleep(.02)
-print(json.dumps({"url": f"http://127.0.0.1:{sock.getsockname()[1]}", "directory": str(root)}), flush=True)
+print(json.dumps({"url": f"http://127.0.0.1:{sock.getsockname()[1]}", "directory": str(root), "character_id": character["id"]}), flush=True)
 sys.stdin.readline()
 server.should_exit = True
 thread.join(timeout=10)

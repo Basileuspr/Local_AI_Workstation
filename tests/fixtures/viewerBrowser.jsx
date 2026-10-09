@@ -5,6 +5,7 @@ import AppLayout from '../../src/components/AppLayout';
 import SidebarNavigation from '../../src/components/SidebarNavigation';
 import ViewerBrowser from '../../src/components/ViewerBrowser';
 import CodeViewer from '../../src/components/CodeViewer';
+import BrowserWindow from '../../src/components/BrowserWindow';
 import '../../src/styles.css';
 function Fixture(){
   const [tab,setTab]=useState('browser'),[sources,setSources]=useState({});
@@ -13,4 +14,4 @@ function Fixture(){
     {['html','css','js'].map(kind=><div key={kind} className="pane" data-capture-tab={`${kind}-viewer`} hidden={tab!==`${kind}-viewer`}><CodeViewer kind={kind} incoming={sources[kind]}/></div>)}
   </AppLayout></StoreProvider>;
 }
-createRoot(document.getElementById('root')).render(<Fixture/>);
+createRoot(document.getElementById('root')).render(window.workstationDesktop?.browserWindow?<BrowserWindow/>:<Fixture/>);

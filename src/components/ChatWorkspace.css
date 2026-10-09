@@ -1,6 +1,6 @@
 .workspace-panes { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
 .workspace-panes.split-chat { display: grid; grid-template-columns: minmax(0, var(--chat-share, 1fr)) 10px minmax(0, var(--pinned-share, 1fr)); background: var(--border); }
-.workspace-panes.split-chat > .chat-pane { grid-column: 1; grid-row: 1; }
+.workspace-panes.split-chat > .primary-workspace { grid-column: 1; grid-row: 1; }
 .workspace-panes.split-chat > .pinned-workspace { grid-column: 3; grid-row: 1; background: var(--bg-primary); }
 .workspace-panes.split-chat > .chat-pane-divider { grid-column: 2; grid-row: 1; }
 .workspace-panes.split-chat.split-stacked { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(var(--chat-min-height, 280px), var(--chat-share, 1fr)) 10px minmax(var(--pinned-min-height, 200px), var(--pinned-share, .8fr)); overflow-y: auto; }

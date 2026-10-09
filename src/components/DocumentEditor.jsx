@@ -16,6 +16,8 @@ import { NotesRibbon, NotesPane, NoteNumberFields, DocumentNotesPreview } from '
 import { ReferencesRibbon, ContentsFields, BookmarkFields, HyperlinkFields, InternalLinkCheck } from './DocumentReferenceControls';
 import { citationsIn, saveCitation, removeCitation, saveBibliography, removeBibliography } from '../documentCitations';
 import { CitationsRibbon, SourceManager, CitationFields, BibliographyFields } from './DocumentCitationControls';
+import { captionsIn, saveCaption, removeCaption, saveCaptionNumbering, saveCrossReference, removeCrossReference } from '../documentCaptions';
+import { CaptionsRibbon, CaptionFields, CaptionNumberFields, CaptionManager, CrossReferenceFields, CrossReferenceCheck } from './DocumentCaptionControls';
 
 const TABS = ['File', 'Home', 'Diagram', 'Insert', 'Draw', 'Outlining', 'Design', 'Layout', 'References', 'Mailings', 'Review', 'View', 'Developer'];
 function Group({ name, children, className = '' }) {
@@ -145,6 +147,16 @@ function RichDocumentEditor({ active }) {
     editor.view.dom.addEventListener('document-citation-open', open);
     return () => editor.view.dom.removeEventListener('document-citation-open', open);
   }, [editor]);
+  useEffect(() => {
+    if (!editor) return;
+    const open = event => {
+      const kind = event.detail.kind === 'caption' ? 'captions' : 'references';
+      const item = captionsIn(editor.state.doc)[kind].find(item => item.id === event.detail.id);
+      if (item) openDialog(kind === 'captions' ? 'Edit caption' : 'Edit cross-reference', { ...item.node.attrs });
+    };
+    editor.view.dom.addEventListener('document-caption-open', open);
+    return () => editor.view.dom.removeEventListener('document-caption-open', open);
+  }, [editor]);
   function commitStyle() {
     try {
       const style = Object.fromEntries(Object.keys(DEFAULT_STYLES[0]).map(key => [key, fields[key]]));
@@ -236,7 +248,7 @@ function RichDocumentEditor({ active }) {
   const hasPageDetails = layout.pageNumbers || PAGE_STORIES.some(key => layout[key]);
 
   return <section ref={surface} className={`document-editor ${showMarks ? 'de-show-marks' : ''}`} aria-label="Document Editor">
-    <header className="de-titlebar"><span className="de-logo" aria-hidden="true">D</span><div><h1>Document Editor <span>Phase 8</span></h1>
+    <header className="de-titlebar"><span className="de-logo" aria-hidden="true">D</span><div><h1>Document Editor <span>Phase 9</span></h1>
       <input aria-label="Document name" maxLength={120} value={name} disabled={busy || !!recovery} onChange={event => { setName(event.target.value); changed(); }}/></div>
       <div className="de-quick"><Button label="Undo (Ctrl+Z)" disabled={editDisabled || !editor.can().undo()} onClick={() => run('undo')}>↶</Button><Button label="Redo (Ctrl+Y)" disabled={editDisabled || !editor.can().redo()} onClick={() => run('redo')}>↷</Button>
         <button className="de-primary" disabled={busy || !!recovery} onClick={exportDocument}>Export .docx</button></div>
@@ -287,7 +299,7 @@ function RichDocumentEditor({ active }) {
         <Group name="Paragraph spacing (points)"><label>Before<NumberControl label="Paragraph spacing before" min={0} max={72} value={pa.spaceBefore || 0} disabled={editDisabled} onCommit={n => applyParagraph({ spaceBefore: n })}/></label><label>After<NumberControl label="Paragraph spacing after" min={0} max={72} value={pa.spaceAfter ?? 8} disabled={editDisabled} onCommit={n => applyParagraph({ spaceAfter: n })}/></label></Group>
         <Group name="Paragraph pagination"><Button label="Paragraph line and page breaks" disabled={editDisabled} onClick={() => openDialog('Line and page breaks', Object.fromEntries(PAGINATION_OPTIONS.map(([key]) => [key, pa[key] ?? null])))}>Line and page breaks…</Button><span className="de-shortcut">Keep lines together · Keep with next</span></Group>
       </>}
-      {currentTab === 'References' && <><CitationsRibbon editor={editor} disabled={editDisabled} openDialog={openDialog} Group={Group} Button={Button}/><NotesRibbon editor={editor} disabled={editDisabled} openDialog={openDialog} onOpen={openNote} Group={Group} Button={Button}/><ReferencesRibbon editor={editor} disabled={editDisabled} openDialog={openDialog} Group={Group} Button={Button}/></>}
+      {currentTab === 'References' && <><CaptionsRibbon editor={editor} disabled={editDisabled} openDialog={openDialog} Group={Group} Button={Button}/><CitationsRibbon editor={editor} disabled={editDisabled} openDialog={openDialog} Group={Group} Button={Button}/><NotesRibbon editor={editor} disabled={editDisabled} openDialog={openDialog} onOpen={openNote} Group={Group} Button={Button}/><ReferencesRibbon editor={editor} disabled={editDisabled} openDialog={openDialog} Group={Group} Button={Button}/></>}
       {currentTab === 'Review' && <><Group name="Proofing"><Button label="Show word count" onClick={() => setDialog('Word count')}>Word Count</Button><label><input type="checkbox" checked={spellcheck} onChange={e => setSpellcheck(e.target.checked)}/> Browser spelling</label></Group><Group name="Editing"><label><input type="checkbox" checked={readOnly} onChange={e => setReadOnly(e.target.checked)}/> Read only view</label></Group></>}
       {currentTab === 'View' && <>
         <Group name="Views"><Button label="Page-shaped view" active={view === 'page'} onClick={() => setView('page')}>▤ Page view</Button><Button label="Fit flowing view to workspace" active={view === 'flow'} onClick={() => setView('flow')}>▱ Web view</Button></Group>
@@ -344,6 +356,17 @@ function RichDocumentEditor({ active }) {
     {dialog === 'Convert notes' && <Dialog title={dialog} action="Convert all" onClose={() => setDialog(null)} onSubmit={() => { convertNotes(editor, fields.kind); setDialog(null); }}><label>Convert all notes to<select value={fields.kind} onChange={event => setFields({ kind: event.target.value })}><option value="endnote">Endnotes</option><option value="footnote">Footnotes</option></select></label><p>Keep each note's text and reference position. Numbers update in document order. Undo restores the previous kinds.</p></Dialog>}
     {dialog === 'Notes limit' && <Dialog title={dialog} onClose={() => setDialog(null)}><p>{fields.message}</p></Dialog>}
     {dialog === 'Manage sources' && <Dialog title={dialog} onClose={() => setDialog(null)}><SourceManager editor={editor} disabled={editDisabled}/></Dialog>}
+    {['Insert caption','Edit caption'].includes(dialog) && <Dialog title={dialog} onClose={() => setDialog(null)} action={dialog === 'Insert caption' ? 'Insert caption' : 'Save caption'} onSubmit={editDisabled ? null : () => {
+      try { saveCaption(editor,fields,fields.id || null,fields.position || 'after'); setDialog(null); } catch (failure) { setFields({ ...fields,invalid:failure.message }); }
+    }}><CaptionFields editor={editor} fields={fields} setFields={setFields} disabled={editDisabled} inserting={dialog === 'Insert caption'}/>{dialog === 'Edit caption' && <button type="button" disabled={editDisabled} onClick={() => { removeCaption(editor,fields.id); setDialog(null); }}>Delete caption</button>}</Dialog>}
+    {dialog === 'Manage captions' && <Dialog title={dialog} onClose={() => setDialog(null)}><CaptionManager editor={editor} disabled={editDisabled} openDialog={openDialog}/></Dialog>}
+    {dialog === 'Caption numbering' && <Dialog title={dialog} onClose={() => setDialog(null)} onSubmit={() => {
+      try { saveCaptionNumbering(editor,fields.label,{ format:fields.format,start:Number(fields.start) }); setDialog(null); } catch (failure) { setFields({ ...fields,invalid:failure.message }); }
+    }}><CaptionNumberFields editor={editor} fields={fields} setFields={setFields}/></Dialog>}
+    {['Insert cross-reference','Edit cross-reference'].includes(dialog) && <Dialog title={dialog} onClose={() => setDialog(null)} action={dialog === 'Insert cross-reference' ? 'Insert reference' : 'Save reference'} onSubmit={editDisabled ? null : () => {
+      try { saveCrossReference(editor,fields,fields.id || null); setDialog(null); } catch (failure) { setFields({ ...fields,invalid:failure.message }); }
+    }}><CrossReferenceFields editor={editor} fields={fields} setFields={setFields} disabled={editDisabled}/>{dialog === 'Edit cross-reference' && <button type="button" disabled={editDisabled} onClick={() => { removeCrossReference(editor,fields.id); setDialog(null); }}>Delete cross-reference</button>}</Dialog>}
+    {dialog === 'Check cross-references' && <Dialog title={dialog} onClose={() => setDialog(null)}><CrossReferenceCheck editor={editor} disabled={editDisabled} openDialog={openDialog}/></Dialog>}
     {['Insert citation', 'Edit citation'].includes(dialog) && <Dialog title={dialog} action={dialog === 'Insert citation' ? 'Insert citation' : 'Save citation'} onClose={() => setDialog(null)} onSubmit={editDisabled ? null : () => {
       try { saveCitation(editor, fields, fields.id || null); setDialog(null); } catch (failure) { setFields({ ...fields, invalid: failure.message }); }
     }}><CitationFields editor={editor} fields={fields} setFields={setFields} disabled={editDisabled}/>{dialog === 'Edit citation' && <button type="button" disabled={editDisabled} onClick={() => { removeCitation(editor, fields.id); setDialog(null); }}>Delete citation</button>}</Dialog>}

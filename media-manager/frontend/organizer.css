@@ -58,6 +58,7 @@ media-organizer .mo-step-heading > svg { margin-left: auto; color: var(--text-di
 media-organizer .mo-step-number { font: 10px var(--font-mono); background: var(--bg-card); border: 1px solid var(--border); border-radius: 4px; padding: 3px 5px; color: var(--text-dim); }
 media-organizer .mo-step > p { color: var(--text-dim); font-size: 11px; margin: 8px 0 12px; min-height: 33px; }
 media-organizer .mo-step label { margin-bottom: 6px; }
+media-organizer #mo-destination-hint { display: block; margin-top: 6px; color: var(--text-dim); font-size: 11px; }
 media-organizer .mo-step input, media-organizer .mo-step select { width: 100%; }
 media-organizer .mo-step input { font: 11px/1.8 var(--font-mono); }
 media-organizer .mo-step-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }

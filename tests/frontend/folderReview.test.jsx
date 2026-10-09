@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import FolderReview, { FolderReviewFiles, FolderReviewProcessing } from '../../src/components/FolderReview';
-import { folderReviewDefaults, folderReviewModels, folderReviewRequest, folderReviewResponse, folderReviewRunning } from '../../src/folderReview';
+import { folderReviewDefaults, folderReviewModels, folderReviewRequest, folderReviewResponse, folderReviewRunning, readFolderReviewStatus } from '../../src/folderReview';
 import { appTabs, appTabLabels } from '../../src/navigation';
 import { functionTargets } from '../../src/functionButtons';
 import SidebarNavigation from '../../src/components/SidebarNavigation';
@@ -71,6 +71,29 @@ describe('Folder Review workspace', () => {
     expect(signal.aborted).toBe(false);
     controller.abort();
     expect(signal.aborted).toBe(true);
+  });
+  it('validates status data inside the polling result and retains its cache metadata', async () => {
+    const value = { active: null, reviews: [] }, controller = new AbortController();
+    const fetch = vi.fn().mockResolvedValue({ ok: true, status: 200, headers: new Headers({ ETag: 'review-one' }), json: async () => value });
+    vi.stubGlobal('fetch', fetch);
+    await expect(readFolderReviewStatus({ signal: controller.signal })).resolves.toEqual({ value, etag: 'review-one' });
+    expect(fetch.mock.calls[0][0]).toContain('/folder-review/status');
+    expect(fetch.mock.calls[0][1].signal).toBe(controller.signal);
+  });
+  it('accepts an unchanged status without trying to validate or parse a missing body', async () => {
+    const json = vi.fn(), value = { active: null, reviews: [] };
+    const fetch = vi.fn().mockResolvedValue({ ok: false, status: 304, json });
+    vi.stubGlobal('fetch', fetch);
+    await expect(readFolderReviewStatus({ value, etag: 'review-one' })).resolves.toEqual({ unchanged: true });
+    expect(json).not.toHaveBeenCalled();
+    expect(fetch.mock.calls[0][1].headers).toEqual({ 'If-None-Match': 'review-one' });
+  });
+  it('still reports invalid status data and real backend failures', async () => {
+    const fetch = vi.fn().mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ active: null, reviews: {} }) })
+      .mockResolvedValueOnce({ ok: false, status: 503 });
+    vi.stubGlobal('fetch', fetch);
+    await expect(readFolderReviewStatus()).rejects.toThrow('invalid response');
+    await expect(readFolderReviewStatus()).rejects.toThrow('Could not refresh status (503)');
   });
   it('displays saved-state warnings and provider retries as inert text', () => {
     const html = renderToStaticMarkup(<FolderReviewFiles items={[{ ordinal: 1, path: 'fixture.txt', kind: 'text', status: 'not_reviewed', analysis: 'Saved batch finding.', metadata: {}, coverage: { partial: true, batches_total: 3, batches_completed: 1 }, data_warnings: ['Saved metadata could not be read.'] }]} />);

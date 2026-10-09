@@ -249,6 +249,9 @@ def run_move(opts: MoveOptions, out=print, on_progress=None) -> int:
     run = data["run"]
     run_dir = os.path.dirname(data["_path"])
     dest_root = run["destination_root"]
+    if not dest_root:
+        out("ERROR: this is a scan-only manifest. Scan with a destination before previewing an archive move.")
+        return 2
     if winfs.is_within(dest_root, run["source_root"]):
         out("ERROR: the manifest's destination is inside its source - refusing to move.")
         return 2

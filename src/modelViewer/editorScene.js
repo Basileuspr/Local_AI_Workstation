@@ -11,8 +11,8 @@ export function createEditorScene(host,documentModel,onError,callbacks={}){
   const cameraP=new PerspectiveCamera(40,1,.01,100000),cameraO=new OrthographicCamera(-30,30,30,-30,.01,100000);let camera=cameraP;
   const ambient=new AmbientLight(0xffffff,1.8),light=new DirectionalLight(0xffffff,2.6);scene.add(ambient,light,light.target);light.castShadow=true;light.shadow.mapSize.set(1024,1024);light.shadow.bias=-.0005;
   const raycaster=new Raycaster(),pointer=new Vector2(),loader=new TextureLoader();
-  function invalidate(){if(!disposed&&!frame&&!document.hidden)frame=requestAnimationFrame(render);}
-  function render(){frame=0;if(disposed||document.hidden)return;renderer.render(scene,camera);host.dataset.renderCount=String(++frames);}
+  function invalidate(){if(!disposed&&!frame&&!document.hidden&&host.clientWidth>0&&host.clientHeight>0)frame=requestAnimationFrame(render);}
+  function render(){frame=0;if(disposed||document.hidden||!host.clientWidth||!host.clientHeight)return;renderer.render(scene,camera);host.dataset.renderCount=String(++frames);}
   function disposeMaterial(material){material.userData.closed=true;material.map?.dispose();material.dispose();}
   function disposeMesh(mesh){mesh.geometry.dispose();for(const m of Array.isArray(mesh.material)?mesh.material:[mesh.material])disposeMaterial(m);mesh.removeFromParent();}
   function makeMaterials(object){return object.materials.map(data=>{
@@ -56,7 +56,7 @@ export function createEditorScene(host,documentModel,onError,callbacks={}){
     camera.position.copy(center).addScaledVector(direction,radius/Math.sin(angle)*1.2);camera.up.set(0,0,1);if(Math.abs(direction.z)>.999)camera.up.set(0,1,0);
     camera.zoom=1;camera.lookAt(center);camera.updateProjectionMatrix();controls.target.copy(center);controls.update();invalidate();
   }
-  function resize(){width=Math.max(1,host.clientWidth);height=Math.max(1,host.clientHeight);renderer.setSize(width,height);cameraP.aspect=width/height;cameraP.updateProjectionMatrix();
+  function resize(){if(!host.clientWidth||!host.clientHeight)return;width=host.clientWidth;height=host.clientHeight;renderer.setSize(width,height);cameraP.aspect=width/height;cameraP.updateProjectionMatrix();
     const half=radius*1.25;cameraO.left=-half*Math.max(1,width/height);cameraO.right=-cameraO.left;cameraO.top=half*Math.max(1,height/width);cameraO.bottom=-cameraO.top;cameraO.updateProjectionMatrix();invalidate();}
   function theme(){scene.background=new Color(getComputedStyle(host).getPropertyValue('--bg-card').trim()||'#141c28');invalidate();}
   function visibility(){if(document.hidden){cancelAnimationFrame(frame);frame=0;}else invalidate();}

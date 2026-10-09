@@ -26,7 +26,9 @@ async function until(predicate, label, timeout = 15000) {
 const checked = [];
 const resultFile = process.env.LAW_MEDIA_MANAGER_QA_RESULT || path.join(work, "result.json");
 const startupOnly = process.argv.includes("--startup-only");
-const refreshOnly = process.argv.includes("--refresh-only");
+// Check the real embedded module independently when other work is rebuilding the host renderer.
+const moduleOnly = process.argv.includes("--module-only");
+const refreshOnly = process.argv.includes("--refresh-only") || moduleOnly;
 console.log(`Media Manager QA result: ${resultFile}`);
 app.whenReady().then(async () => {
     backend = http.createServer((_request, response) => {
@@ -57,14 +59,19 @@ app.whenReady().then(async () => {
     ipcMain.handle("maintenance:import-status", () => ({ pending: false }));
     ipcMain.handle("app:startup-status", () => ({ phase: "ready" }));
     ipcMain.handle("app:capabilities", () => ({ features: { media_manager: { available: true } } }));
-    await win.loadURL("app://local/index.html");
+    await win.loadURL(moduleOnly ? "data:text/html,<title>Media Manager test host</title>" : "app://local/index.html");
     // Chromium does not load lazy images in hidden native views, even after
     // scrolling. Show the disposable window without taking keyboard focus.
     if (!startupOnly && !refreshOnly) win.showInactive();
     const host = source => win.webContents.executeJavaScript(source);
-    await until(() => host("!!document.querySelector('[data-media-manager-tab]')"), "React tab");
     assert.equal(win.contentView.children.length, 0, "Lazy launch");
-    await host("localStorage.setItem('host-only-sentinel','private'); document.querySelector('[data-media-manager-tab]').click()");
+    if (moduleOnly) {
+        await manager.start();
+        manager.place({ visible: true, bounds: { x: 0, y: 0, width: 1440, height: 1000 } });
+    } else {
+        await until(() => host("!!document.querySelector('[data-media-manager-tab]')"), "React tab");
+        await host("localStorage.setItem('host-only-sentinel','private'); document.querySelector('[data-media-manager-tab]').click()");
+    }
     await until(() => manager.status().ready, "Media Manager ready");
     const view = win.contentView.children[0], media = source => view.webContents.executeJavaScript(`{ ${source} }`).catch(error => { throw new Error(`Media QA failed: ${source}: ${error.message}`); });
     diagnostics = async () => ({ visible: view.getVisible(), bounds: view.getBounds(), page: await media("({visibility:document.visibilityState,scrollY:window.scrollY,viewport:[innerWidth,innerHeight],thumbnails:[...document.querySelectorAll('#mo-results img')].map(img=>({complete:img.complete,width:img.naturalWidth,loading:img.loading,top:img.getBoundingClientRect().top,srcSet:!!img.src})),failed:document.querySelectorAll('.mo-thumb-failed').length})") });
@@ -118,8 +125,29 @@ app.whenReady().then(async () => {
     const video = path.join(source, "VID_20200615_120000.mp4");
     const generated = spawnSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "color=c=teal:s=320x240:d=1", "-c:v", "libx264", "-pix_fmt", "yuv420p", video], { windowsHide: true });
     assert.equal(generated.status, 0, generated.stderr?.toString());
-    await media(`document.querySelector('#mo-source').value=${JSON.stringify(source)}; document.querySelector('#mo-destination').value=${JSON.stringify(path.join(work, "archive"))}; document.querySelector('#mo-scan').click()`);
+    const videoBefore = fs.readFileSync(video), modifiedBefore = fs.statSync(video).mtimeMs;
+    await media(`document.querySelector('#mo-source').value=${JSON.stringify(source)}; document.querySelector('#mo-destination').value=''; document.querySelector('#mo-scan').click()`);
     await until(() => media("document.querySelectorAll('.mo-media-grid .mo-media-card').length === 1"), "scanned media", 25000);
+    const scanOnlyRun = await media("document.querySelector('media-organizer').data.uiRunId");
+    assert.equal(await media("document.querySelector('media-organizer').data.run.destination_root"), '');
+    assert.equal(await media("document.querySelector('#mo-move').disabled"), true);
+    assert.match(await media("document.querySelector('#mo-phase').textContent"), /files stay in place/);
+    await media("const ui=document.querySelector('media-organizer');ui.showDetail(ui.data.records[0].RecordId)");
+    assert.match(await media("document.querySelector('#mo-detail').textContent"), /No destination selected; file stays in its current folder/);
+    await media("document.querySelector('#mo-detail [data-close]').click();document.querySelector('media-organizer').load('all-scans')");
+    assert.equal(await media("document.querySelector('media-organizer').data.records[0].Available"), true);
+    await media(`document.querySelector('media-organizer').load(${JSON.stringify(scanOnlyRun)})`);
+    assert.equal(await media("document.querySelector('#mo-destination').value"), '');
+    assert.equal(await media("document.querySelector('#mo-move').disabled"), true);
+    assert.deepEqual(fs.readFileSync(video), videoBefore);
+    assert.equal(fs.statSync(video).mtimeMs, modifiedBefore);
+    assert.deepEqual(fs.readdirSync(source), [path.basename(video)]);
+    assert.equal(fs.existsSync(path.join(work, 'archive')), false);
+    checked.push("scan with no destination saves a browseable library, restores blank destination, disables archive move and preserves source bytes and timestamps");
+    await media(`document.querySelector('#mo-destination').value=${JSON.stringify(path.join(work, "archive"))};document.querySelector('#mo-destination').dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#mo-scan').click()`);
+    await until(() => media(`document.querySelector('media-organizer')?.data?.run?.destination_root===${JSON.stringify(path.join(work, "archive"))}`), "archive move plan after scan-only browsing", 25000);
+    assert.equal(await media("document.querySelector('#mo-move').disabled"), false);
+    checked.push("choosing a destination after browsing and scanning again enables the existing reviewed archive move");
     // Thumbnails are lazy: exercise the same viewport entry as a person scrolling.
     if (!refreshOnly) {
         await media("document.querySelector('#mo-results img').scrollIntoView({block:'center'})");

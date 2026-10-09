@@ -1,10 +1,15 @@
-import {useEffect, useRef, useState} from 'react';
+import {useContext, useEffect, useRef, useState} from 'react';
 import {apiUrl} from '../api';
 import {createPlaybackCapture, playbackAvailability} from '../playbackRecording';
 import SoundOutputSettings from './SoundOutputSettings';
 import {audioOutput} from '../audioOutput';
 import './Tools.css';
 import './LinkedApps.css';
+import { takePianoSpotifyReference } from '../pianoSpotifyBridge';
+import { NavigationOpenContext } from './AppLayout';
+import { FloatingToolBoundsContext, avoidFloatingTool } from '../floatingToolBounds';
+import { visibleSurfaceBounds } from '../browserPlacement';
+import { useDispatch } from '../useStore';
 
 async function request(path, options) {
   const response = await fetch(apiUrl('/integrations' + path), options);
@@ -13,6 +18,10 @@ async function request(path, options) {
   return value;
 }
 export default function AppIntegrations({active = true}) {
+  const drawerOpen = useContext(NavigationOpenContext);
+  const floatingTool = useContext(FloatingToolBoundsContext);
+  const dispatch = useDispatch();
+  const [pianoReference,setPianoReference] = useState(false);
   const [tab,setTab] = useState('discord'), [status,setStatus] = useState(null), [error,setError] = useState(''), [notice,setNotice] = useState('');
   const [server,setServer] = useState(''), [spotify,setSpotify] = useState(''), [embed,setEmbed] = useState(null), [busy,setBusy] = useState(false);
   const [message,setMessage] = useState({method:'webhook',webhook:'',bot_token:'',channel_id:'',content:'',title:'',description:''});
@@ -32,22 +41,27 @@ export default function AppIntegrations({active = true}) {
       if (mounted.current) setCaptureSupport({...value,error:value.supported ? '' : value.error || 'Playback recording requires the Windows desktop app.'});
     } catch { if (mounted.current) setCaptureSupport({supported:false,error:'Could not check desktop playback support. Fully restart the desktop app.'}); }
   }
+  useEffect(() => {
+    if (!active) return;
+    const reference = takePianoSpotifyReference();
+    if (reference) { setTab('spotify'); setSpotify(reference.url); setPianoReference(true); setNotice('Track reference from Mini Piano. Press Open Spotify player to load it, then Play to listen.'); }
+  }, [active]);
   useEffect(() => {if(active)refresh();}, [active]);
   useEffect(() => {if(recording || opening)return audioOutput.holdCapture();},[recording,opening]);
   useEffect(() => {if(active && tab==='spotify')void checkCapture();}, [active,tab]);
   useEffect(() => {
     let alive = true;
     const place = () => {
-      const visible = active && embed?.service === tab && !!surface.current && !document.querySelector('dialog[open]');
-      const rect = surface.current?.getBoundingClientRect();
-      desktop?.placeLinkedContent?.({visible,bounds:rect ? {x:rect.x,y:rect.y,width:rect.width,height:rect.height} : undefined}).catch(() => {});
+      const bounds = visibleSurfaceBounds(surface.current);
+      const visible = active && embed?.service === tab && !!bounds && !drawerOpen && !document.querySelector('dialog[open]');
+      desktop?.placeLinkedContent?.({visible,bounds:avoidFloatingTool(bounds,floatingTool)}).catch(() => {});
     };
     place();
     if(!active || embed?.service !== tab) return;
     const timer = setInterval(() => {if(alive)place();}, 200);
     window.addEventListener('resize',place);
     return () => {alive=false; clearInterval(timer); window.removeEventListener('resize',place); desktop?.placeLinkedContent?.({visible:false}).catch(() => {});};
-  },[active,tab,embed]);
+  },[active,tab,embed,drawerOpen,floatingTool]);
   useEffect(() => { mounted.current=true; return () => {
     mounted.current=false;capture.current?.cancel();capture.current=null;
     for(const url of urls.current)URL.revokeObjectURL(url);
@@ -139,6 +153,7 @@ export default function AppIntegrations({active = true}) {
       </fieldset>
     </>}
     {tab==='spotify' && <>
+      {pianoReference && <div className="tools-toolbar"><span>Mini Piano track reference</span><button disabled={!dispatch} onClick={() => dispatch({ type: 'SET_SIDEBAR_TAB', payload: 'break-room' })}>Return to piano</button></div>}
       <fieldset className="linked-fields"><legend>Embedded Spotify player</legend><label>Spotify link<input type="url" value={spotify} onChange={event=>setSpotify(event.target.value)} placeholder="https://open.spotify.com/track/…"/></label><button disabled={busy} onClick={openEmbed}>Open Spotify player</button></fieldset>
       <SoundOutputSettings recording={recording || opening}/>
       <fieldset className="linked-fields linked-capture"><legend>Playback recording</legend>

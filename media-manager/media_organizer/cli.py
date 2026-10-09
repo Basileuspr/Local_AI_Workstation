@@ -1,7 +1,7 @@
 """Command-line interface.
 
   media-organizer check
-  media-organizer scan  SOURCE --dest DEST          (dry run - the default and only scan mode)
+  media-organizer scan  SOURCE [--dest DEST]         (read-only scan, optional move plan)
   media-organizer move  RUN_FOLDER [--execute]       (preview unless --execute)
   media-organizer undo  MOVE_FOLDER [--execute]
   media-organizer snapshot FOLDER --out FILE.json
@@ -289,7 +289,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("scan", parents=[tool_args], help="DRY RUN: inventory, analyse and plan (moves nothing)")
     s.add_argument("source", help="folder to scan recursively")
-    s.add_argument("--dest", required=True, help="destination root for the proposed organisation")
+    s.add_argument("--dest", default="", help="optional destination root for a move plan; omit to scan only")
     s.add_argument("--reports", help=f"where run folders are written (default: {scan.default_reports_dir()})")
     s.add_argument("--workers", type=int, default=4, help="files analysed in parallel (default 4)")
     s.add_argument("--hash-workers", type=int, default=2,

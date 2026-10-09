@@ -6,6 +6,10 @@ export const appTabLabels = { shortcuts: "Shortcut Registry", audio: "Audio", sp
 Object.assign(appTabLabels, { university: 'University', 'agent-university': 'Agent University', 'neural-network': 'Neural Network', 'break-room': 'Break Room' });
 
 appTabs.push('slicer', 'integrations', 'styling-library', 'sound-mixer', 'info-center');
+appTabs.push('reels-analyzer');
+appTabs.push('web-system');
+appTabLabels['web-system'] = 'Web Research & Sources';
+appTabLabels['reels-analyzer'] = 'Reels Analyzer';
 appTabLabels['info-center'] = 'Info Center';
 Object.assign(appTabLabels, {slicer: '3D Slicer', integrations: 'Linked applications', 'styling-library': 'Styling Library', 'sound-mixer':'Sound Mixer'});
 

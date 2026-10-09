@@ -101,7 +101,7 @@ def host_literal(host):
     return candidate
 
 
-def normalize_url(value):
+def normalize_url(value, *, allow_http=False):
     """Validate and canonicalize one public https:// address.
 
     This is the only gate a URL passes through, and every redirect target is
@@ -121,7 +121,7 @@ def normalize_url(value):
         url = httpx.URL(raw)
     except (httpx.InvalidURL, UnicodeError, ValueError) as exc:
         raise WebError("That is not a valid web address.") from exc
-    if url.scheme != "https":
+    if url.scheme not in (("https", "http") if allow_http else ("https",)):
         raise WebError(f"Only https:// pages can be imported. This address uses '{url.scheme or 'no scheme'}'.")
     if url.userinfo:
         raise WebError("Web addresses that embed a username or password are not imported.")
@@ -338,7 +338,8 @@ class WebAccess:
                 raise WebError(f"'{host}' resolves to an address that {rejection}. That destination is blocked.")
         return addresses
 
-    async def _request(self, url, job, delay=INTERVAL, space=True, *, max_bytes=MAX_BYTES, image=False, byte_budget=None):
+    async def _request(self, url, job, delay=INTERVAL, space=True, *, max_bytes=MAX_BYTES, image=False, byte_budget=None,
+                       conditional=None, allow_http=False, accepted_statuses=()):
         async with self.lock:
             limits = self._limits()
             now = self.now()
@@ -348,15 +349,19 @@ class WebAccess:
             if len(limits["requests"]) >= HOURLY_LIMIT:
                 raise WebError(f"Hourly web limit reached ({HOURLY_LIMIT} requests). Try again later.")
             progress = f"Image {job['image_index']} of {job['image_total']} · " if job.get("image_total") else ""
+            # A policy learned after robots.txt also applies to the first page.
+            # next_at records at least INTERVAL seconds after completion.
+            if space and limits.get('last_completed') is not None:
+                limits['next_at']=max(limits['next_at'],limits['last_completed']+max(INTERVAL,delay))
             wait = max(0, limits["next_at"] - now) if space else 0
             if wait:
                 job.update(status="waiting", message=f"{progress}Respecting request spacing ({wait:.0f}s)")
                 await self.sleep(wait)
             original = httpx.URL(url)
-            if original.scheme != "https":
+            if original.scheme not in (("https", "http") if allow_http else ("https",)):
                 raise WebError("Unapproved network destination.")
             hostname = original.raw_host.decode("ascii")
-            addresses = await self._public_addresses(hostname, original.port or 443)
+            addresses = await self._public_addresses(hostname, original.port or (443 if original.scheme=='https' else 80))
             # Pin the checked address; retain hostname for TLS verification/SNI.
             # Resolving again inside the client would reopen the gap between the
             # answer that was checked and the answer that is connected to.
@@ -364,9 +369,14 @@ class WebAccess:
             limits["requests"].append(self.now())
             limits["next_at"] = self.now() + max(INTERVAL, delay)
             atomic_json(self.root / "limits.json", limits)
-            host_header = hostname if original.port is None else f"{hostname}:{original.port}"
+            authority=f'[{hostname}]' if ':' in hostname else hostname
+            host_header = authority if original.port is None else f"{authority}:{original.port}"
             headers = {"Host": host_header, "User-Agent": USER_AGENT,
                        "Accept": "image/png,image/jpeg,image/webp,image/gif" if image else ACCEPT}
+            for key,value in (conditional or {}).items():
+                if key not in ("If-None-Match", "If-Modified-Since") or not isinstance(value,str) or len(value)>1000 or any(ord(c)<32 or ord(c)>126 for c in value):
+                    raise WebError("Invalid conditional request metadata.")
+                headers[key]=value
             job.update(status="fetching", message=f"{progress}Fetching {hostname}")
             try:
                 async with asyncio.timeout(35):
@@ -381,7 +391,7 @@ class WebAccess:
                             if response.status_code in (401, 403):
                                 self._block(3600)
                                 raise WebError("Site denied automated access. Stopped without trying another route.")
-                            if response.status_code in REDIRECT_STATUSES or response.status_code == 404:
+                            if response.status_code in REDIRECT_STATUSES or response.status_code == 404 or response.status_code in accepted_statuses:
                                 return response.status_code, response.headers, b""
                             response.raise_for_status()
                             if image and response.headers.get("content-type", "").split(";")[0].strip().lower() not in IMAGE_TYPES:
@@ -415,6 +425,7 @@ class WebAccess:
             finally:
                 # Completion-to-start spacing also covers errors and cancellation.
                 limits = self._limits()
+                limits['last_completed']=self.now()
                 limits["next_at"] = max(limits["next_at"], self.now() + max(INTERVAL, delay))
                 atomic_json(self.root / "limits.json", limits)
 

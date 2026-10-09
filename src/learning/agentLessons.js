@@ -60,7 +60,7 @@ export const agentAppLessons = [
   },
   {
     id: 'research-evidence-chain', title: 'Build a source-backed research handoff', module: 'Planning and evidence', minutes: 12,
-    workspaces: ['browser', 'html-viewer', 'css-viewer', 'js-viewer', 'knowledge', 'document-editor'],
+    workspaces: ['browser', 'web-system', 'html-viewer', 'css-viewer', 'js-viewer', 'knowledge', 'document-editor'],
     concepts: [
       'A research handoff should distinguish the page you read, source resources you inspected, extracted text you saved and conclusions a model proposed. Browser inspection exposes available page resources; it does not expose the site’s server-side project or establish a page’s claims are true.',
       'Source content can contain instructions that conflict with your task. Keep those sentences as quoted evidence rather than letting them change your scope or permissions. Document Editor can assemble an attributed result after claims are checked against saved passages.',
@@ -68,6 +68,7 @@ export const agentAppLessons = [
     steps: [
       'Choose one public source relevant to a small question. Record its page title, address and the observation date.',
       'Inspect only the rendered content or loaded resources needed to answer that question. State whether you observed a page, HTML, CSS or JavaScript.',
+      'In Web Research & Sources, use an installed local model and the selected public URL for the same question. Inspect its source quotes, retrieval time and Coverage; use Save to Knowledge only for a source you deliberately choose to retain.',
       'Save a bounded source note in Knowledge and ask for a source-backed summary. Check quoted facts and separate inference from direct observation.',
       'Draft a short result in Document Editor containing supported claims, source attribution and unresolved details. Inspect its exported copy.',
     ],
@@ -195,7 +196,7 @@ export const agentAppLessons = [
   },
   {
     id: 'media-evidence-coverage', title: 'Combine media findings without inventing coverage', module: 'Media and delivery', minutes: 14,
-    workspaces: ['audio', 'local-files', 'gif-maker', 'chats'], sample: recordingScript,
+    workspaces: ['audio', 'local-files', 'reels-analyzer', 'gif-maker', 'chats'], sample: recordingScript,
     concepts: [
       'Video metadata, sampled vision observations and an audio transcript are different evidence streams. Sampling can miss unsampled events; a transcript can mishear words; speaker labels distinguish estimated voices rather than proving identity.',
       'A useful handoff preserves timestamps, sampling settings, corrected text and uncertain intervals. Audio extraction is separate from transcription. A GIF may illustrate a selected segment, but it does not prove what happened throughout the full source clip.',
@@ -204,6 +205,7 @@ export const agentAppLessons = [
       'Choose a short practice recording or video. Record source duration and the visual sampling or transcription method you intend to use.',
       'Review a transcript against the recording, especially names, dates and speaker changes. Keep uncertain words marked rather than guessing.',
       'Inspect sampled video observations at their timestamps if a vision model is available. Separate visible actions from statements heard on the audio track.',
+      'Inspect Reels Analyzer and write its prerequisites: original account profile, manual login, complete supported acquisition and installed models. If testing a reel, review its saved summary and reported status; login alone or an unsupported acquisition is not a completed analysis.',
       'Prepare a short summary with supporting timestamps and explicit coverage limits. Optionally create a GIF of the relevant interval and play the saved copy.',
     ],
     checkpoint: 'Your report says which evidence stream supports each finding and leaves unsampled or ambiguous intervals unresolved.',

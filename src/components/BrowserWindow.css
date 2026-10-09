@@ -1,0 +1,7 @@
+.browser-window {display:flex;flex-direction:column;height:100%;min-width:0;}
+.browser-window-heading {display:flex;align-items:center;flex-wrap:wrap;gap:12px;padding:10px 16px;border-bottom:1px solid var(--border);}
+.browser-window-heading>span {flex:1;color:var(--text-dim);font-size:12px;}
+.browser-window-heading>button {padding:6px 10px;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:6px;}
+.browser-window-pane {display:flex;flex:1;min-height:0;min-width:0;overflow:auto;}
+.browser-window-pane[hidden] {display:none;}
+.browser-window-pane>.tools-workspace {flex:1;min-width:0;}

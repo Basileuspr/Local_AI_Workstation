@@ -42,11 +42,46 @@ const responses = {
   '/slicer/status': { available: false, ready: false, jobs: [], detail: 'UI preview; Cura is unavailable.' },
   '/integrations': { applications: [], groups: [] },
 };
+// Opt-in coexistence QA: real UI and native browser, simulated image inference.
+// All stores and browser profiles are still disposable; no model is started.
+const coexistence = new URLSearchParams(location.search).has('coexistence');
+const generation = { backend_id: 'coexistence-fixture', snapshot_sequence: 1, tasks: [] };
+if (coexistence) {
+  responses['/image-generation/models'] = { models, loras: [], runtime: { ready: true, device: 'Fixture; no real inference' } };
+  window.workspaceCoexistenceQA = {
+    generation, stopped: [],
+    advance(step) { generation.snapshot_sequence++; for (const task of generation.tasks) task.progress = {
+      phase: 'Fixture denoising', step, total_steps: 4, elapsed_seconds: step, estimated_remaining_seconds: 4 - step,
+    }; },
+  };
+}
 window.fetch = async (input, options = {}) => {
   const url = new URL(typeof input === 'string' ? input : input.url, location.href);
   if (url.origin === location.origin) return actualFetch(input, options);
   window.workspaceControlsQA.requests.push(url.pathname);
   if (url.origin !== 'http://127.0.0.1:1') return json({ detail: 'External requests are unavailable in this UI preview.' }, 503);
+  if (coexistence) {
+    if (url.pathname === '/sessions/new') return json({ id: 'coexistence-chat', title: 'Fixture chat', revision: 'fixture', messages: [] });
+    if (url.pathname === '/sessions/coexistence-chat') return json({ id: 'coexistence-chat', title: 'Fixture chat', revision: 'fixture', messages: [] });
+    if (url.pathname === '/image-generation/prompt-tokens') return json({
+      prompt: { token_count: 3, chunks_required: 1, native_content_limit: 75 },
+      negative_prompt: { token_count: 0, chunks_required: 1, native_content_limit: 75 },
+      long_prompt_max_chunks: 4, long_prompt_max_tokens: 300,
+    });
+    if (url.pathname === '/image-generation/tasks') {
+      if (options.method === 'POST') {
+        const body = JSON.parse(options.body);
+        generation.tasks.push(...body.requests.map(request => ({ ...request, status: 'running', progress: {
+          phase: 'Fixture denoising', step: 1, total_steps: 4, elapsed_seconds: 1, estimated_remaining_seconds: 3,
+        } })));
+        generation.snapshot_sequence++;
+      }
+      return json(generation);
+    }
+    if (url.pathname.startsWith('/image-generation/stop/')) {
+      window.workspaceCoexistenceQA.stopped.push(url.pathname); return json({ status: 'cancelled' });
+    }
+  }
   if (url.pathname in responses) return json(responses[url.pathname]);
   return json({ detail: 'This UI preview has no live service for this action.' }, 503);
 };

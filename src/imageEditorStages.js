@@ -21,11 +21,21 @@ export function lockEditStage(edit) {
 export function unlockEditStage(edit) {
   if (!edit.stages.length) return edit;
   const last = edit.stages.at(-1);
-  if (last.repeated) return { ...edit, stages: edit.stages.slice(0, -1) };
+  if (last.repeated || last.pass.crop) return { ...edit, stages: edit.stages.slice(0, -1) };
   return { ...edit, settings: { ...last.markers }, anchor: { ...last.beforeAnchor }, colorEdits: last.pass.colorEdits || [], stages: edit.stages.slice(0, -1) };
 }
 export function repeatEditStage(edit) {
-  if (!edit.stages.length || hasCurrentPass(edit)) return edit;
+  if (!edit.stages.length || hasCurrentPass(edit) || edit.stages.at(-1).pass.crop) return edit;
   const last = edit.stages.at(-1);
   return { ...edit, stages: [...edit.stages, { ...last, beforeAnchor: { ...edit.anchor }, markers: { ...edit.settings }, repeated: true }] };
+}
+
+export function cropEditStage(edit, box) {
+  // Freeze existing adjustments first so later color clicks and rotations use
+  // the cropped coordinate frame, without rewriting earlier history.
+  if (edit.stages.length + (hasCurrentPass(edit) ? 2 : 1) > 16) return edit;
+  const locked = lockEditStage(edit);
+  return { ...locked, stages: [...locked.stages, {
+    pass: { crop: [...box] }, beforeAnchor: { ...locked.anchor }, markers: { ...locked.settings },
+  }] };
 }

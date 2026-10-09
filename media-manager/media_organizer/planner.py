@@ -121,6 +121,11 @@ def plan_destinations(records: list, dest_root: str, policy: str = "all", min_co
     taken: dict = {}
     owners: dict = {}
     stats = {"collisions": 0, "existing_conflicts": 0}
+    if not dest_root:
+        for r in records:
+            r.update(Approved="no", OperationStatus="SCAN ONLY: no destination selected; file stays in place",
+                     ProposedDestination="", DestinationFilename="", NameChanged="no", NameChangeReason="")
+        return stats
 
     def names_in(folder: str) -> set:
         key = folder.lower()

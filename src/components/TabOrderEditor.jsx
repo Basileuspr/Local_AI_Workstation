@@ -10,7 +10,7 @@ export default function TabOrderEditor({ value, onSave, onClose }) {
   useEffect(() => { dialog.current.showModal(); }, []);
   function move(section, from, to) {
     setDraft(current => section === 'sections'
-      ? { ...current, sections: reorderIds(current.sections, from, to) }
+      ? { ...current, sections: reorderIds(current.sections, from + 1, to + 1) }
       : { ...current, tabs: { ...current.tabs, [section]: reorderIds(current.tabs[section], from, to) } });
   }
   function row(item, index, length, section) {
@@ -25,10 +25,11 @@ export default function TabOrderEditor({ value, onSave, onClose }) {
     </li>;
   }
   const sections = orderedSections(draft);
+  const movableSections = sections.filter(section => section.icon);
   return createPortal(<dialog ref={dialog} className="tab-order-dialog" aria-label="Arrange app tabs" onCancel={onClose}>
     <header><h2>Arrange app tabs</h2><button type="button" onClick={onClose} aria-label="Close tab arrangement">✕</button></header>
 
-    <h3>Navigation sections</h3><ol aria-label="Section priority">{sections.map((section, index) => row(section, index, sections.length, 'sections'))}</ol>
+    <h3>Navigation sections</h3><ol aria-label="Section priority">{movableSections.map((section, index) => row(section, index, movableSections.length, 'sections'))}</ol>
     {sections.map(section => <section key={section.id}><h3>{section.label}</h3><ol aria-label={`${section.label} tab priority`}>{section.items.map((item, index) => row(item, index, section.items.length, section.id))}</ol></section>)}
     {error && <p role="alert">{error}</p>}
     <footer><button type="button" onClick={() => { setDraft(normalizeNavigationOrder()); setError(''); }}>Reset to default</button><span /><button type="button" onClick={onClose}>Cancel</button><button type="button" onClick={() => {

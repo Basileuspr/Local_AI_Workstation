@@ -68,6 +68,9 @@ async def lock(request: Request):
         from routes.bridge import _instance as bridge
         if bridge and bridge.running:
             raise HTTPException(409, "Stop the PC bridge in Dashboard before reset or backup.")
+        from services.web_background import busy as web_monitor_busy
+        if web_monitor_busy():
+            raise HTTPException(409, 'Disable background monitoring in Web Research & Sources and wait for it to stop before reset or backup.')
         # Block new traffic first; let existing requests finish. Busy inference
         # is never killed just to make the reset available.
         for _ in range(50):

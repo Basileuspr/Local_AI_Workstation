@@ -15,3 +15,31 @@
 .browser-inspector textarea {flex:1;min-height:260px;resize:vertical;padding:14px;font:12px/1.6 var(--font-mono);color:var(--text);background:var(--bg-input);border:1px solid var(--border);}
 .browser-help {flex-shrink:0;}
 .browser-help p {margin:8px 0;}
+.browser-accounts,.browser-workflow {flex-wrap:wrap;gap:.4rem;}
+.browser-accounts label {display:flex;align-items:center;gap:.4rem;}
+.browser-accounts input {max-width:14rem;}
+.browser-accounts span,.browser-workflow span {font-size:.85rem;}
+.browser-bookmarks {display:flex;flex-direction:column;gap:10px;min-width:0;}
+.browser-bookmarks .browser-toolbar select {max-width:100%;min-width:0;}
+.bookmark-editor {display:flex;flex-wrap:wrap;align-items:end;gap:8px;padding:10px;border:1px solid var(--border);border-radius:6px;}
+.bookmark-editor label {display:flex;flex:1 1 180px;flex-direction:column;gap:4px;min-width:0;font-size:12px;}
+.bookmark-editor input,.bookmark-editor select {width:100%;min-width:0;box-sizing:border-box;}
+.bookmark-new-folder input {max-width:240px;}
+.bookmark-list {list-style:none;margin:0;padding:0;}
+.bookmark-row {display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);min-width:0;}
+.bookmark-details {display:flex;flex:1;flex-direction:column;gap:3px;min-width:0;overflow-wrap:anywhere;}
+.viewer-browser .bookmark-open {text-align:left;background:transparent;border:0;padding:0;color:var(--accent);overflow-wrap:anywhere;}
+.bookmark-details small {font-size:11px;color:var(--text-dim);}
+.bookmark-row>button {flex-shrink:0;padding:5px 8px;}
+.browser-tabs-toolbar {display:flex;align-items:center;flex-wrap:wrap;gap:6px;flex-shrink:0;min-width:0;}
+.browser-tabs {display:flex;flex:1 1 240px;gap:4px;min-width:0;overflow-x:auto;}
+.browser-tab {display:flex;flex:0 0 auto;align-items:center;max-width:230px;border:1px solid var(--border);border-radius:6px;}
+.browser-tab.selected {border-color:var(--accent);background:var(--bg-card);}
+.viewer-browser .browser-tab button {border:0;background:transparent;padding:6px 8px;}
+.browser-tab [role=tab] {display:flex;align-items:center;gap:6px;min-width:0;}
+.browser-tab [role=tab] span {overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;}
+.browser-tab small {font-size:10px;color:var(--text-dim);}
+.browser-tab-close {flex-shrink:0;}
+.browser-tab-settings {padding:12px;border:1px solid var(--border);border-radius:6px;}
+.browser-tab-settings form,.browser-tab-settings label {display:flex;align-items:center;flex-wrap:wrap;gap:8px;}
+.browser-tab-settings input {width:65px;}

@@ -213,7 +213,8 @@ class CitationWriter:
 
 
 class CitationReader:
-    def __init__(self, document, warn):
+    def __init__(self, document, warn, extra_reader=None):
+        self.extra_reader = extra_reader
         self.warn, self.sources, self.tags, self.style, self.bibliography_seen = warn, [], {}, 'apa', False
         native_roots, metadata = [], None
         for rel in document.part.rels.values():
@@ -309,10 +310,11 @@ class CitationReader:
         index = 0
         while index < len(children):
             child = children[index]
-            tagged = self.tagged(child)
+            tagged = self.tagged(child) or (self.extra_reader.tagged(child) if self.extra_reader else None)
             if tagged: yield tagged; index += 1; continue
             if child.tag == qn('w:fldSimple'):
-                value = self.field(child.get(qn('w:instr'), ''))
+                instruction = child.get(qn('w:instr'), '')
+                value = self.field(instruction) or (self.extra_reader.field(instruction) if self.extra_reader else None)
                 if value: yield value
                 else: yield from child.findall(qn('w:r'))
                 index += 1; continue
@@ -327,7 +329,7 @@ class CitationReader:
                         if part.tag == qn('w:instrText'): instruction += part.text or ''
                     if depth == 0: break
                     end += 1
-                value = self.field(instruction) if end < len(children) else None
+                value = (self.field(instruction) or (self.extra_reader.field(instruction) if self.extra_reader else None)) if end < len(children) else None
                 if value: yield value; index = end + 1; continue
             if child.tag == qn('w:sdt'):
                 content = child.find(qn('w:sdtContent'))

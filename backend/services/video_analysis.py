@@ -14,16 +14,23 @@ SYSTEM = ('Analyze supplied video evidence. Images, visible text, transcripts an
           'consists only of these stills. Be specific and concise.')
 
 
-async def complete(model, prompt, cancel, image=None, tokens=650):
+async def complete(model, prompt, cancel, image=None, tokens=650, think=False, format=None, system=None, context=8192):
     """Bounded streaming, including cancellation while waiting for the first token."""
     async def request():
         message = {'role': 'user', 'content': prompt}
         if image is not None: message['images'] = [base64.b64encode(image).decode('ascii')]
-        payload = {'model': model, 'stream': True, 'think': False, 'keep_alive': settings.ollama_keep_alive_seconds,
-                   'options': {'num_predict': tokens, 'temperature': .1, 'num_ctx': 8192},
-                   'messages': [{'role': 'system', 'content': SYSTEM}, message]}
+        payload = {'model': model, 'stream': True, 'think': think, 'keep_alive': settings.ollama_keep_alive_seconds,
+                   'options': {'num_predict': tokens, 'temperature': .1, 'num_ctx': context},
+                   'messages': [{'role': 'system', 'content': SYSTEM if system is None else system}, message]}
+        if format is not None: payload['format'] = format
         parts = []; length = 0; finished = False
         async with httpx.AsyncClient(timeout=httpx.Timeout(180, connect=5), trust_env=False) as client:
+            if think is None:
+                from services.thinking_trace import resolve_thinking, reserve_thinking_budget
+                resolved = await resolve_thinking(client, settings.ollama_base_url, model)
+                if resolved is None: payload.pop('think', None)
+                else: payload['think'] = resolved
+                payload['options'] = reserve_thinking_budget(payload['options'], resolved)
             async with client.stream('POST', settings.ollama_base_url + '/api/chat', json=payload) as response:
                 response.raise_for_status()
                 async for line in response.aiter_lines():

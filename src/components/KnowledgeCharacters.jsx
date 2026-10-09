@@ -23,7 +23,7 @@ export function KnowledgeCharacterStart({active,nodes,onSelect,onIndexed}) {
     return () => {disposed = true;};
   },[active,open,workspace?.knowledgeTarget]);
   if (!workspace) return null;
-  const existing = id && nodes.find(node => characterIdFromDocument(node.filename) === id);
+  const existing = id && nodes.find(node => (node.node_kind === 'character' && node.character_id === id) || characterIdFromDocument(node.filename) === id);
   async function start() {
     if (lock.current || !id) return;
     if (existing) {onSelect(existing.doc_id);setOpen(false);return;}

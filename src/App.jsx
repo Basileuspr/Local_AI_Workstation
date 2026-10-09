@@ -5,7 +5,7 @@ import * as api from "./api";
 import { statusObserver } from "./appPolling";
 import { mergeKnownModels, reconcileChatModel, modelInventoryKey } from "./modelCatalog";
 import { pickPreferences, savePreferences } from "./preferences";
-import { clearRefreshNavigation, rememberRefreshNavigation, saveNavigation, resolveActiveTab } from "./navigation";
+import { appTabLabels, clearRefreshNavigation, rememberRefreshNavigation, saveNavigation, resolveActiveTab } from "./navigation";
 import { ChatWorkspaceProvider, useChatWorkspace } from "./ChatWorkspace";
 import { workspaceVisible } from "./chatPins";
 import ChatSideContent from "./components/ChatSideContent";
@@ -45,6 +45,8 @@ import Tools, { MarkdownViewer } from "./components/Tools";
 import ShortcutRegistry from "./components/ShortcutRegistry";
 import CodeViewer from "./components/CodeViewer";
 import ViewerBrowser from './components/ViewerBrowser';
+const ReelsAnalyzer = lazy(() => import('./components/ReelsAnalyzer'));
+const WebWorkspace = lazy(() => import('./components/WebWorkspace'));
 const ModelViewer = lazy(() => import('./components/ModelViewer'));
 const LocalFiles = lazy(() => import('./components/LocalFiles'));
 const DocumentEditor = lazy(() => import('./components/DocumentEditor'));
@@ -74,7 +76,7 @@ function AppInner() {
   const chatWorkspace = useChatWorkspace();
   const chats = useDualChat();
   const chatState = useRef(chats); chatState.current = chats;
-  const dualChat = chatWorkspace.pin?.kind === "chat";
+  const dualChat = state.activeSidebarTab === "chats" && chatWorkspace.pin?.kind === "chat";
   const [secondChatUsed, setSecondChatUsed] = useState(dualChat);
   useEffect(() => { if (dualChat) setSecondChatUsed(true); }, [dualChat]);
   useEffect(() => { if (!dualChat) chats.setFocused("primary"); }, [dualChat, chats.setFocused]);
@@ -392,8 +394,14 @@ function AppInner() {
 
   // Keep chat mounted while dedicated workspaces occupy the main pane.
   const activeTab = resolveActiveTab(state.activeSidebarTab);
-  const visible = tab => workspaceVisible(activeTab, chatWorkspace.pin, tab);
-  const pinnedTab = dualChat ? "second-chat" : chatWorkspace.pin?.kind === "tool" ? chatWorkspace.pin.tab : chatWorkspace.pin ? "chat-attachment" : null;
+  const visible = tab => workspaceVisible(activeTab, chatWorkspace.pin, tab, chatWorkspace.workspacePin);
+  const pinnedTab = activeTab === "chats"
+    ? dualChat ? "second-chat" : chatWorkspace.pin?.kind === "tool" ? chatWorkspace.pin.tab : chatWorkspace.pin ? "chat-attachment" : null
+    : chatWorkspace.workspacePin?.tab || null;
+  const pinnedTitle = activeTab === "chats" ? chatWorkspace.title : appTabLabels[pinnedTab];
+  const [modelViewerUsed, setModelViewerUsed] = useState(false);
+  const modelViewerVisible = visible("3d-viewer");
+  useEffect(() => { if (modelViewerVisible) setModelViewerUsed(true); }, [modelViewerVisible]);
 
   return (
     <ImageGenerationProvider onSessionSaved={handleSessionSaved}>
@@ -401,7 +409,9 @@ function AppInner() {
     <ImageDestinationsProvider>
     <CharacterWorkspaceProvider onNavigate={tab => dispatch({type:'SET_SIDEBAR_TAB',payload:tab})} onOpenDestination={openQueueDestination}>
       <AppLayout activeTab={state.activeSidebarTab} onRefresh={refreshCurrentView} refreshing={refreshing}
-        pinnedTab={pinnedTab} pinnedTitle={chatWorkspace.title} onUnpin={() => chatWorkspace.setPin(null)} pinNotice={chatWorkspace.storageError}
+        pinnedTab={pinnedTab} pinnedTitle={pinnedTitle}
+        onUnpin={() => activeTab === "chats" ? chatWorkspace.setPin(null) : chatWorkspace.setWorkspacePin(null)}
+        pinNotice={activeTab === "chats" ? chatWorkspace.storageError : chatWorkspace.workspaceStorageError}
         sidebar={closeNavigation => <Sidebar
         imagesActive={visible("images")}
         imageLibraryTarget={imageLibraryTarget}
@@ -423,7 +433,9 @@ function AppInner() {
           <div className="pane" data-capture-tab="shortcuts" hidden={!visible("shortcuts")}><ShortcutRegistry /></div>
           <div className="pane" data-capture-tab="markdown" hidden={!visible("markdown")}><MarkdownViewer /></div>
           <div className="pane" data-capture-tab="browser" hidden={!visible("browser")}><ViewerBrowser active={visible("browser")} onOpenSource={openBrowserSource}/></div>
-          <div className="pane" data-capture-tab="3d-viewer" hidden={!visible("3d-viewer")}>{visible("3d-viewer") && <Suspense fallback={<p>Opening 3D Viewer & Editor…</p>}><ModelViewer /></Suspense>}</div>
+          <div className="pane" data-capture-tab="reels-analyzer" hidden={!visible("reels-analyzer")}><Suspense fallback={<p>Opening Reels Analyzer…</p>}><ReelsAnalyzer active={visible("reels-analyzer")} models={state.models} defaultModel={state.summaryModel||state.selectedModel}/></Suspense></div>
+          <div className="pane" data-capture-tab="web-system" hidden={!visible("web-system")}><Suspense fallback={<p>Opening web workspace…</p>}><WebWorkspace active={visible("web-system")} models={state.models} defaultModel={state.summaryModel||state.selectedModel}/></Suspense></div>
+          <div className="pane" data-capture-tab="3d-viewer" hidden={!modelViewerVisible}>{(modelViewerVisible || modelViewerUsed) && <Suspense fallback={<p>Opening 3D Viewer & Editor…</p>}><ModelViewer /></Suspense>}</div>
           <div className="pane" data-capture-tab="local-files" hidden={!visible("local-files")}><Suspense fallback={<p>Opening Local Files…</p>}><LocalFiles active={visible("local-files")}/></Suspense></div>
           <div className="pane" data-capture-tab="document-editor" hidden={!visible("document-editor")}><Suspense fallback={<p>Opening Document Editor…</p>}><DocumentEditor active={visible("document-editor")}/></Suspense></div>
           <div className="pane" data-capture-tab="html-viewer" hidden={!visible("html-viewer")}><CodeViewer kind="html" incoming={viewerInputs.html}/></div>

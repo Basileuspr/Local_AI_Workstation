@@ -126,17 +126,45 @@ history. Lists created before this feature start tracking with their next edit.
 
 ## Side panes and resizing
 
-The **Workspace options → Side pane** selector in Chat opens a tool alongside
-the conversation. You can also choose **Workspace options → Pin beside chat**
-from a tool's workspace. **Unpin ×**
-closes the second pane. The selection is remembered separately for each chat
-on this device; tool drafts remain in their usual workspace. Newly created
+The **Side pane** selector in the top toolbar of any tool workspace opens another
+workspace alongside it. For example, in **Generate**, choose **Browser** to keep
+the page, video and browser controls visible while images generate. Each tool
+workspace remembers its own selection on this device. Choosing **None** or
+**Unpin ×** hides the second pane; it does not close Browser's selected page or
+cancel submitted image generation. Use Browser's **Close page** or Generate's
+**Stop** for those actions. Model jobs continue to use the shared Prompt Queue.
+Within the main workspace, Browser, Reels and Web Research share one selected native browser page. When
+Browser is paired with an account-browser panel, the page stays in Browser and
+the other panel points you to its controls. Hidden account panels do not hide
+the visible Browser. Embedded Browser, Media Manager and Linked Applications
+pages stay within their own pane bounds when scrolling or resizing.
+
+Browser's **New window** button (or **Ctrl+N** while using Browser) opens a separate
+Browser window with its own tab strip, address and page history. Move or resize
+it alongside Generate or another Browser window. Each window supports up to 24
+tabs; up to 8 extra windows can be open. New windows start with a blank tab in
+the originating window's selected account profile. Windows using the same
+profile share website login data and bookmarks. Selecting another profile or
+closing a window leaves other windows' tabs running. Inactive-tab suspension
+applies within each window; each selected tab stays loaded. Extra windows close
+when you quit the app, and open tabs are not restored after quitting.
+
+Use **Browser privacy** in the main workspace to clear profile data. After
+confirmation, its pages, login windows and extra Browser windows using that
+profile close before Chromium clears the selected data. Other profiles remain
+open. The Browser **i** guide includes these window and privacy controls.
+
+In Chat, **Workspace options → Side pane** opens a tool alongside the conversation.
+You can also choose **Workspace options → Pin beside chat** from a tool's workspace.
+Chat's selection is remembered separately for each chat, and tool workspace
+selections do not replace chat attachments or the second chat. Tool drafts remain
+in their usual workspace. Newly created
 Word documents open beside the chat automatically, and existing attachments
 have **Open beside chat**. On narrow windows the panes stack vertically.
 
-Drag the divider between Chat and the pinned pane to change their sizes. On
+Drag the divider between the main workspace and the pinned pane to change their sizes. On
 narrow windows, drag the horizontal divider to adjust their heights. These
-sizes are remembered per chat, with separate settings for wide and narrow
+sizes are remembered per chat or tool workspace, with separate settings for wide and narrow
 layouts. You can also drag the navigation sidebar's right edge to give the
 main workspace more or less room. Use **☰** at the top left to hide or restore
 the sidebar for a minimal chat view; its width and folded state are remembered

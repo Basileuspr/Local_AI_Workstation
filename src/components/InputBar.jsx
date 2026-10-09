@@ -189,7 +189,8 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
     const { dataUrl, base64 } = await readImageFile(blob);
     const lockedStages = settings.stages || [];
     const colorAreas = (settings.colorEdits?.length || 0) + lockedStages.reduce((count, stage) => count + (stage.colorEdits?.length || 0), 0);
-    const summary = `Edited with Image Editor: ${lockedStages.length ? `${lockedStages.length} locked stage(s); current pass: ` : ''}red reduction ${settings.red}%, contrast ${settings.contrast}%, exposure ${settings.exposure} EV, saturation ${settings.saturation}%, rotation ${settings.rotation || 0}°.${colorAreas ? ` ${colorAreas} reference-color area(s) applied.` : ''} Original retained.`;
+    const cropCount = lockedStages.filter(stage => stage.crop).length;
+    const summary = `Edited with Image Editor: ${lockedStages.length ? `${lockedStages.length} locked stage(s); current pass: ` : ''}red reduction ${settings.red}%, contrast ${settings.contrast}%, exposure ${settings.exposure} EV, saturation ${settings.saturation}%, rotation ${settings.rotation || 0}°.${colorAreas ? ` ${colorAreas} reference-color area(s) applied.` : ''}${cropCount ? ` ${cropCount} crop(s) applied.` : ''} Original retained.`;
     const saved = await api.appendSessionMessages(job.sessionId, [
       { id: job.id, role: "user", content: job.text },
       { id: job.replyId, role: "assistant", content: summary, images: [base64], imagePreviews: [{ id: job.imageId, src: dataUrl, name, type: "image/png", size: blob.size }] },

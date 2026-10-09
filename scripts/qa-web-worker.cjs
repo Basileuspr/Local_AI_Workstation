@@ -1,0 +1,43 @@
+const {app,BrowserWindow,WebContentsView,session,ipcMain}=require('electron');
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
+const {createViewerBrowser}=require('../electron/viewerBrowser'),{createWebResearch}=require('../electron/webResearch');
+const work=process.env.LAW_WEB_QA_WORK,site=process.env.LAW_WEB_QA_SITE;let win,browser,remote;
+app.setPath('userData',path.join(work,'profile'));app.commandLine.appendSwitch('host-resolver-rules','MAP browser.example.com 127.0.0.1');app.commandLine.appendSwitch('no-proxy-server');
+const timer=setTimeout(()=>app.exit(1),60000);
+async function api(route,body){const r=await fetch(`http://127.0.0.1:${process.env.LAW_WEB_QA_PORT}${route}`,{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json','x-law-session':'fixture-session','x-local-files':'fixture-native'},body:body===undefined?undefined:JSON.stringify(body)});const data=await r.json();if(!r.ok)throw Error(JSON.stringify(data));return data;}
+async function until(check){for(let i=0;i<200;i++){if(await check())return;await new Promise(r=>setTimeout(r,50));}throw Error('UI condition timed out.');}
+const click=text=>win.webContents.executeJavaScript(`([...document.querySelectorAll('button')].find(b=>b.textContent===${JSON.stringify(text)})||{}).click()`);
+const input=(label,value)=>win.webContents.executeJavaScript(`(()=>{const element=document.querySelector('[aria-label=${JSON.stringify(label)}]');Object.getOwnPropertyDescriptor(element.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype,'value').set.call(element,${JSON.stringify(value)});element.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+app.whenReady().then(async()=>{
+  win=new BrowserWindow({show:false,width:1100,height:850,webPreferences:{sandbox:true,contextIsolation:true,nodeIntegration:false,preload:path.resolve(__dirname,'../electron/preload.js')}});
+  ipcMain.on('app:connection',e=>{e.returnValue={base:`http://127.0.0.1:${process.env.LAW_WEB_QA_PORT}`,token:'fixture-session'};});
+  const View=class extends WebContentsView{constructor(options){super(options);remote=this.webContents;}};
+  const fixtureSessions={fromPartition:(...args)=>{const ses=session.fromPartition(...args);ses.setCertificateVerifyProc((req,cb)=>{const fingerprint=new(require('node:crypto').X509Certificate)(req.certificate.data).fingerprint256.replaceAll(':','').toLowerCase();cb(req.hostname==='browser.example.com'&&fingerprint===process.env.LAW_WEB_QA_CERT?0:-3);});return ses;}};
+  browser=createViewerBrowser({WebContentsView:View,session:fixtureSessions,getWindow:()=>win,profileDirectory:path.join(work,'profile'),workflowDirectory:path.join(work,'workflows'),allowRequest:raw=>new URL(raw).origin===site});
+  await browser.navigate(site+'/release');await until(()=>!browser.state().loading);
+  await remote.session.cookies.set({url:site,name:'fixture_login',value:'preserve',secure:true,expirationDate:Date.now()/1000+3600});
+  const service=createWebResearch({browser,request:(route,body)=>api(route,body)});
+  const trusted=e=>e.sender===win.webContents&&e.senderFrame===win.webContents.mainFrame;
+  ipcMain.handle('web-research:read',async(e,id)=>trusted(e)?service.read(id):{error:'Desktop access required.'});
+  for(const action of ['start','state','place','navigate','profiles','selectProfile','createProfile','command'])ipcMain.handle(`viewer-browser:${action}`,async(e,v)=>trusted(e)?browser[action](v):{error:'Desktop access required.'});
+  await win.loadFile(path.resolve(__dirname,'../tmp/viewer-hardening-qa/tests/fixtures/web.html'));
+  await until(()=>win.webContents.executeJavaScript("document.querySelector('[aria-label=\"Research question\"]')"));
+  await input('Research question','What does the Fixture tool release describe?');await until(()=>win.webContents.executeJavaScript("![...document.querySelectorAll('button')].find(b=>b.textContent==='Research now').disabled"));await click('Research now');
+  await until(()=>win.webContents.executeJavaScript("document.querySelector('.web-research-result')?.textContent.includes('answered')"));
+  assert(!fs.existsSync(path.join(work,'saved-selection.json')),'Research automatically indexed content.');
+  const links=await win.webContents.executeJavaScript("[...document.querySelectorAll('.web-research-result a')].map(a=>a.href)");assert(links.some(u=>u==='https://site.example.com/release'));
+  await win.webContents.executeJavaScript("[...document.querySelectorAll('button')].find(b=>b.textContent==='Save to Knowledge').click()");await until(()=>fs.existsSync(path.join(work,'saved-selection.json')));
+  await click('Use current Browser page');await until(()=>win.webContents.executeJavaScript("document.querySelector('.web-research-result')?.textContent.includes('User-selected browser excerpt')"));
+  const body=await win.webContents.executeJavaScript('document.body.textContent');assert(!/PASSWORD_SECRET|HIDDEN_TOKEN|AUTH_SECRET|token=SECRET/.test(body));
+  await click('Recurring sources');await input('Source name','Owned monitor');await input('Source seed URL','https://site.example.com/release');await click('Add source');
+  await until(()=>win.webContents.executeJavaScript("document.querySelector('.web-monitor-source')?.textContent.includes('Owned monitor')"));
+  await click('Check now');await until(()=>win.webContents.executeJavaScript("document.body.textContent.includes('PENDING')"));await click('Cancel run');
+  await until(()=>win.webContents.executeJavaScript("document.body.textContent.includes('CANCELLED')"));await click('Clear retained content');
+  assert.equal((await remote.session.cookies.get({url:site,name:'fixture_login'}))[0].value,'preserve');
+  assert.equal(await win.webContents.executeJavaScript('document.documentElement.scrollWidth>innerWidth'),false);
+  fs.writeFileSync(path.join(work,'web-sources-ui.png'),(await win.webContents.capturePage()).toPNG());
+  const hostile=new BrowserWindow({show:false,webPreferences:{sandbox:true,contextIsolation:true,nodeIntegration:false,preload:path.resolve(__dirname,'../electron/preload.js')}});await hostile.loadURL('data:text/html,untrusted');
+  assert.equal((await hostile.webContents.executeJavaScript(`workstationDesktop.readWebResearchBrowser('${'a'.repeat(32)}')`)).error,'Desktop access required.');hostile.destroy();
+  await click('Live research');await click('Discard research');await until(()=>win.webContents.executeJavaScript("!document.querySelector('.web-research-result')"));
+  console.log(JSON.stringify({ok:true,checks:['Trusted Electron controls, UI clicks, stale-page-bound rendered fallback','Explicit Knowledge handoff and discarded research','Configured source, pending/cancelled run, independent content clearing','Cookie retained, no horizontal overflow, remote IPC rejection']}));
+}).catch(e=>{console.error(e);process.exitCode=1;}).finally(async()=>{clearTimeout(timer);await browser?.dispose();win?.destroy();app.exit(process.exitCode||0);});

@@ -6,7 +6,8 @@ import KnowledgeGraph from "./KnowledgeGraph";
 import KnowledgeContext from "./KnowledgeContext";
 import KnowledgeNodeEditor from "./KnowledgeNodeEditor";
 import KnowledgeNodeSymbol from "./KnowledgeNodeSymbol";
-import KnowledgeNodeComposer, { KnowledgeNodeContent } from "./KnowledgeNodeComposer";
+import { KnowledgeNodeContent } from "./KnowledgeNodeComposer";
+import { newKnowledgeNodeDraft } from '../knowledgeNodes';
 import { nodeLabel, nodeMatches } from "../knowledgeNodeOptions";
 import { layoutKnowledgeGraph3D } from "../knowledgeGraph3D";
 import BulkActions, { SelectionCheckbox } from "./BulkActions";
@@ -21,7 +22,9 @@ export default function KnowledgeVault({ active }) {
   const characters=useCharacterWorkspace();
   const [graph, setGraph] = useState({ nodes: [], edges: [] });
   const [nodePreview, setNodePreview] = useState(null);
-  const [startingNode, setStartingNode] = useState(false);
+  const [startingNode, setStartingNode] = useState(false), [editingNodeId, setEditingNodeId] = useState('');
+  const [nodeContentPreview, setNodeContentPreview] = useState(null);
+  const newNodeLock = useRef(false), pendingNode = useRef(null);
   const [selectedId, setSelectedId] = useState(() => {
     try { return localStorage.getItem("knowledge-vault-selected-v1") || ""; } catch { return ""; }
   });
@@ -53,7 +56,7 @@ export default function KnowledgeVault({ active }) {
       dispatch({ type: "CLEAR_KNOWLEDGE_NODE_TARGET" });
     }
   }, [active, state.knowledgeNodeTarget, dispatch]);
-  useEffect(() => { setPage(0); setTarget(""); setNodePreview(null); }, [selectedId]);
+  useEffect(() => { setPage(0); setTarget(""); setNodePreview(null); setNodeContentPreview(null); }, [selectedId]);
   useEffect(() => {
     let cancelled = false; setDetail(null); setDetailError("");
     if (active && selectedId) api.knowledgeGraphRequest(`/documents/${encodeURIComponent(selectedId)}?offset=${page * 30}`, undefined, undefined, false)
@@ -75,18 +78,36 @@ export default function KnowledgeVault({ active }) {
       if (result.doc_id) setSelectedId(result.doc_id);
     });
   }
-  const selected = graph.nodes.find(node => node.doc_id === selectedId);
-  async function selectIndexedDocument(docId) {
+  const previewNodes = graph.nodes.map(node => {
+    if (nodeContentPreview?.id !== node.doc_id) return node;
+    const draft = nodeContentPreview.draft;
+    return { ...node, node_kind: draft.kind, character_id: draft.kind === 'character' ? draft.character_id || '' : '',
+      options: { ...node.options, label: !node.options?.label || node.options.label === node.node_title ? draft.title : node.options.label } };
+  });
+  const selected = previewNodes.find(node => node.doc_id === selectedId);
+  const savedSelected = graph.nodes.find(node => node.doc_id === selectedId);
+  async function selectIndexedDocument(docId, select = true) {
     const documents = await api.listKnowledgeBase();
     const data = await api.knowledgeGraphRequest();
     request.current++; setLoading(false); setGraph(data);
     dispatch({type:'SET_KB_DOCUMENTS',payload:documents});
-    setQuery('');setSelectedId(docId);setPage(0);
+    if (select) { setQuery('');setSelectedId(docId);setPage(0); }
+  }
+  async function startNode() {
+    if (newNodeLock.current || busy || batch.busy) return;
+    newNodeLock.current = true; setStartingNode(true); setError('');
+    try {
+      // Retain a successful POST through a failed refresh so retry cannot create a duplicate.
+      pendingNode.current ||= await api.knowledgeGraphRequest('/nodes', 'POST', newKnowledgeNodeDraft(graph.nodes), false);
+      const id = pendingNode.current.doc_id;
+      await selectIndexedDocument(id); setEditingNodeId(id); pendingNode.current = null;
+    } catch (failure) { setError(`${pendingNode.current ? 'The node was created. Click Open created node to finish opening it. ' : ''}${failure.message}`); }
+    finally { newNodeLock.current = false; setStartingNode(false); }
   }
   const connections = graph.edges.filter(edge => edge.source === selectedId || edge.target === selectedId);
-  const visibleNodes = graph.nodes.filter(node => nodeMatches(node, query));
+  const visibleNodes = previewNodes.filter(node => nodeMatches(node, query));
   const selection = useSelection(graph.nodes, node => node.doc_id, "", visibleNodes);
-  const previewGraph = nodePreview?.id === selectedId ? { ...graph, nodes: graph.nodes.map(node => node.doc_id === selectedId ? { ...node, options: nodePreview.options } : node) } : graph;
+  const previewGraph = { ...graph, nodes: previewNodes.map(node => nodePreview?.id === node.doc_id ? { ...node, options: nodePreview.options } : node) };
   async function saveNodePresentation(action) {
     if (nodeSaveLock.current) throw new Error("Wait for the current node save to finish.");
     nodeSaveLock.current = true; setNodeSaving(true);
@@ -124,11 +145,10 @@ export default function KnowledgeVault({ active }) {
   return <section className="knowledge-vault" aria-label="Knowledge vault">
     <header className="vault-header"><div><h1>Knowledge vault</h1><p>{graph.nodes.length} documents · {graph.edges.length} connections · Available to RAG</p></div>
       <KnowledgeContext />
-      <button disabled={busy || batch.busy} aria-expanded={startingNode} onClick={() => setStartingNode(value => !value)}>+ Start node</button>
+      <button disabled={busy || batch.busy || startingNode || nodeSaving} onClick={startNode}>{startingNode ? 'Creating node…' : pendingNode.current ? 'Open created node' : '+ New node'}</button>
       <button disabled={busy} onClick={() => upload.current?.click()}>{busy ? "Working…" : "+ Add document"}</button>
       <input ref={upload} type="file" accept=".txt,.md,.pdf,.docx" hidden onChange={addFile} />
     </header>
-    <KnowledgeNodeComposer open={startingNode} onClose={() => setStartingNode(false)} onCreated={selectIndexedDocument} disabled={busy || batch.busy} />
     <KnowledgeCharacterStart active={active} nodes={graph.nodes} onSelect={id => {setQuery('');setSelectedId(id);}} onIndexed={selectIndexedDocument}/>
     {error && <div className="vault-error" role="alert">{error} <button onClick={refresh}>Retry</button></div>}
     <div className="vault-workspace">
@@ -146,9 +166,9 @@ export default function KnowledgeVault({ active }) {
       <aside className="vault-inspector" aria-label="Document details">
         {!selected ? <div className="vault-inspector-empty"><h2>Select a document</h2></div> : <>
           <div className="vault-inspector-heading"><h2>{selected.authored ? nodeLabel(selected) : selected.filename}</h2><button onClick={() => setSelectedId("")} aria-label="Close document">×</button></div>
-          <KnowledgeNodeSymbol key={`node-symbol:${selectedId}`} node={selected} disabled={busy || batch.busy || nodeSaving} onSave={icon => saveNodeSymbol(selectedId, icon)} />
-          {selected.authored && <KnowledgeNodeContent key={`node-content:${selectedId}`} node={selected} active={active} disabled={busy || batch.busy} onSaved={selectIndexedDocument} />}
-          <KnowledgeNodeEditor key={`node-options:${selectedId}`} node={selected} disabled={busy || batch.busy || nodeSaving} onPreview={options => setNodePreview(options ? { id: selectedId, options } : null)} onSave={options => saveNodeOptions(selectedId, options)} />
+          <KnowledgeNodeSymbol key={`node-symbol:${selectedId}`} node={savedSelected} disabled={busy || batch.busy || nodeSaving} onSave={icon => saveNodeSymbol(selectedId, icon)} />
+          {selected.authored && <KnowledgeNodeContent key={`node-content:${selectedId}`} node={savedSelected} active={active} initiallyOpen={editingNodeId === selectedId} disabled={busy || batch.busy || nodeSaving} onSaved={id => selectIndexedDocument(id, false)} onPreview={draft => setNodeContentPreview(current => draft ? { id: selectedId, draft } : current?.id === selectedId ? null : current)} />}
+          <KnowledgeNodeEditor key={`node-options:${selectedId}`} node={savedSelected} disabled={busy || batch.busy || nodeSaving} onPreview={options => setNodePreview(options ? { id: selectedId, options } : null)} onSave={options => saveNodeOptions(selectedId, options)} />
           <CharacterNodePointer key={selectedId} filename={selected.filename} onIndexed={selectIndexedDocument}/>
           <KnowledgeIndexLinks key={`index-links:${selectedId}`} docId={selectedId} active={active} disabled={busy || batch.busy} />
           <p>{selected.chunks} indexed chunks</p><button className="vault-remove" disabled={batch.busy || busy} onClick={() => removeDocuments([selected])}>Remove from Knowledge</button><h3>Connections</h3>

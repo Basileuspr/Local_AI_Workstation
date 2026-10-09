@@ -29,6 +29,7 @@ from services.document_references import (valid_name, HEADING_ID, ReferenceWrite
                                           validate_references, internal_link, missing_links)
 from services.document_notes import NoteWriter, NoteReader, validate_notes, validate_note_node
 from services.document_citations import CitationWriter, CitationReader, validate_citations
+from services.document_captions import CaptionWriter, CaptionReader, validate_captions
 
 MAX_FILE = 24 * 1024**2
 MAX_MODEL = 32 * 1024**2
@@ -37,7 +38,7 @@ DEFAULT_LAYOUT = {'paper': 'Letter', 'orientation': 'portrait', 'top': 1, 'botto
 ALIGN = {'left': WD_ALIGN_PARAGRAPH.LEFT, 'center': WD_ALIGN_PARAGRAPH.CENTER,
          'right': WD_ALIGN_PARAGRAPH.RIGHT, 'justify': WD_ALIGN_PARAGRAPH.JUSTIFY}
 SUPPORTED = {'doc', 'paragraph', 'heading', 'text', 'hardBreak', 'pageBreak',
-             'bulletList', 'orderedList', 'listItem', 'table', 'tableRow', 'tableCell', 'tableHeader', 'image', 'bookmark', 'tableOfContents', 'documentNote', 'documentCitation', 'documentBibliography'}
+             'bulletList', 'orderedList', 'listItem', 'table', 'tableRow', 'tableCell', 'tableHeader', 'image', 'bookmark', 'tableOfContents', 'documentNote', 'documentCitation', 'documentBibliography', 'documentCaption', 'documentCrossReference'}
 MARKS = {'bold', 'italic', 'underline', 'strike', 'subscript', 'superscript', 'textStyle', 'highlight', 'link'}
 COPY_NOTICE = ('This is an editable copy. Export creates a new DOCX containing the supported content. '
                'The original file is unchanged. Named paragraph styles retain supported formatting; pagination, themes and advanced Word features are not reproduced exactly.')
@@ -117,8 +118,8 @@ def image_bytes(src):
 
 def validate_model(doc):
     counts = {'nodes': 0, 'text': 0, 'images': 0}
-    children = {'doc': {'paragraph', 'heading', 'bulletList', 'orderedList', 'table', 'image', 'pageBreak', 'tableOfContents', 'documentBibliography'},
-                'paragraph': {'text', 'hardBreak', 'bookmark', 'documentNote', 'documentCitation'}, 'heading': {'text', 'hardBreak', 'bookmark', 'documentNote', 'documentCitation'},
+    children = {'doc': {'paragraph', 'heading', 'bulletList', 'orderedList', 'table', 'image', 'pageBreak', 'tableOfContents', 'documentBibliography', 'documentCaption'},
+                'paragraph': {'text', 'hardBreak', 'bookmark', 'documentNote', 'documentCitation', 'documentCrossReference'}, 'heading': {'text', 'hardBreak', 'bookmark', 'documentNote', 'documentCitation', 'documentCrossReference'},
                 'bulletList': {'listItem'}, 'orderedList': {'listItem'},
                 'listItem': {'paragraph', 'heading', 'bulletList', 'orderedList'},
                 'table': {'tableRow'}, 'tableRow': {'tableCell', 'tableHeader'},
@@ -201,6 +202,7 @@ def validate_model(doc):
     validate_references(doc)
     validate_notes(doc)
     validate_citations(doc)
+    validate_captions(doc)
 
 
 def _element(tag, **attrs):
@@ -259,6 +261,7 @@ def export_docx(model, layout):
     write_page_details(document, layout)
     notes = NoteWriter(document, model, write_text_run)
     citations = CitationWriter(document, model, write_text_run)
+    captions = CaptionWriter(document, model, references)
 
     def numbering(kind, start):
         root = document.part.numbering_part.element
@@ -303,6 +306,8 @@ def export_docx(model, layout):
                 notes.reference(p, child); continue
             if child['type'] == 'documentCitation':
                 citations.citation(p, child['attrs']); continue
+            if child['type'] == 'documentCrossReference':
+                captions.reference(p, child['attrs']); continue
             write_text_run(p, child)
         return p
 
@@ -334,6 +339,8 @@ def export_docx(model, layout):
                 references.contents(parent, attrs)
             elif kind == 'documentBibliography':
                 citations.bibliography(parent, attrs)
+            elif kind == 'documentCaption':
+                captions.caption(parent, attrs)
     write(document, model.get('content', []))
     if not document.paragraphs and not document.tables:
         document.add_paragraph()
@@ -428,7 +435,8 @@ def import_docx(raw):
         return marks
 
     notes = NoteReader(document, warn, run_marks, safe_link)
-    citations = CitationReader(document, warn)
+    captions = CaptionReader(document, warn)
+    citations = CitationReader(document, warn, captions)
 
     def paragraph(p):
         style = style_reader.read(p.style)
@@ -544,6 +552,9 @@ def import_docx(raw):
             if child.tag == qn('w:p'): yield Paragraph(child, parent)
             elif child.tag == qn('w:tbl'): yield Table(child, parent)
             elif child.tag == qn('w:sdt'):
+                if parent is document and depth == 0:
+                    caption = captions.tagged(child, block=True)
+                    if caption: yield caption; continue
                 bibliography = citations.tagged(child, block=parent is document and depth == 0)
                 if bibliography and bibliography['type'] == 'documentBibliography': yield bibliography; continue
                 toc = references.contents(child, parent is document and depth == 0)
@@ -584,8 +595,9 @@ def import_docx(raw):
         raise ValueError('Document exceeds 20,000 paragraphs, runs or cells.')
     content = blocks(document) or [{'type': 'paragraph'}]
     notes.finish()
-    model = {'type': 'doc', 'attrs': {'styles': list(style_reader.catalog.values()), 'noteSettings': notes.settings, 'sources': citations.sources, 'citationStyle': citations.style}, 'content': content}
+    model = {'type': 'doc', 'attrs': {'styles': list(style_reader.catalog.values()), 'noteSettings': notes.settings, 'sources': citations.sources, 'citationStyle': citations.style, 'captionSettings': captions.settings}, 'content': content}
     citations.finish(model)
+    captions.finish(model)
     validate_model(model)
     if missing_links(model): warn('Some internal links have missing destinations. Use References → Check internal links to review them.')
     return {'document': model, 'layout': layout, 'warnings': warnings}

@@ -26,6 +26,7 @@ export const linkedToolHelp = {
     ['Phone / scrcpy readiness', 'Shows whether the supplied Windows release and separate source checkout are available. Opening this tab does not connect a device or start mirroring.'],
   ]], ['Spotify and playback recording', [
     ['Spotify link / Open Spotify player', 'Open a supported Spotify link in the official embedded player, then press Play in that player. Opening the link alone does not start playback.'],
+    ['Mini Piano track reference / Return to piano', 'Open in Linked Applications from a piano lesson selects Spotify and fills its track link. Open Spotify player loads the reference for separate listening; Return to piano returns to Break Room. Note conversion uses local files and does not import Spotify streams.'],
     ['Recording source', 'Windows playback requests audio on the Windows default output, including other apps and notifications. Embedded Spotify player requests audio from this app’s open Spotify player only.'],
     ['Check recording requirements', 'Checks desktop capture support and whether the embedded player is open. It does not confirm an audio signal; start recording and check the live level meter.'],
     ['Start playback recording', 'Use the Windows desktop app with an unlocked desktop and an actively playing, unmuted source. For Windows playback, send the source to the Windows default output. Microphone access and transcription models are not required to record.'],

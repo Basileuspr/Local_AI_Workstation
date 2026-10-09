@@ -3,7 +3,7 @@ import "./SidebarNavigation.css";
 import { filterNavigationSections, loadNavigationOrder, orderedSections, NAVIGATION_ORDER_KEY } from "../navigationOrder";
 import TabOrderEditor from "./TabOrderEditor";
 import ResizableDivider from "./ResizableDivider";
-import { loadSidebarMenuSizes, saveSidebarMenuSizes, SIDEBAR_MENU_SIZE_KEY, SIDEBAR_MENU_DEFAULT, SIDEBAR_MENU_MIN, SIDEBAR_MENU_MAX } from "../sidebarNavigationSizing";
+import { loadSidebarNavigationSize, saveSidebarNavigationSize, SIDEBAR_NAVIGATION_SIZE_KEY, SIDEBAR_NAVIGATION_MIN } from "../sidebarNavigationSizing";
 
 function NavIcon({ kind }) {
   return <svg className="sidebar-nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -17,18 +17,17 @@ export default function SidebarNavigation({ activeTab, onSelect }) {
   const [order, setOrder] = useState(loadNavigationOrder);
   const [arranging, setArranging] = useState(false);
   const [query, setQuery] = useState("");
-  const [menuSizes, setMenuSizes] = useState(loadSidebarMenuSizes);
+  const [paneSize, setPaneSize] = useState(loadSidebarNavigationSize);
   const [resizing, setResizing] = useState(false);
-  const [menuLimit, setMenuLimit] = useState(SIDEBAR_MENU_MAX);
-  const [navigationLimit, setNavigationLimit] = useState(640);
+  const [navigationBounds, setNavigationBounds] = useState({ max: 640, default: 400, height: 400 });
   const navigation = useRef(null);
   const searchInput = useRef(null);
   const arrangeButton = useRef(null);
-  const lists = useRef({});
   const sections = orderedSections(order);
   const groups = sections.filter(section => section.icon);
   const searching = !!query.trim();
   const visibleSections = searching ? filterNavigationSections(sections, query) : sections;
+  const navigationLimit = Math.min(navigationBounds.max, paneSize.expanded ? navigationBounds.max : paneSize.height ?? navigationBounds.default);
   const resultCount = visibleSections.reduce((count, section) => count + section.items.length, 0);
   useEffect(() => {
     const refresh = event => { if (!event.key || event.key === NAVIGATION_ORDER_KEY) setOrder(loadNavigationOrder()); };
@@ -41,19 +40,16 @@ export default function SidebarNavigation({ activeTab, onSelect }) {
     const nav = navigation.current, parent = nav?.parentElement;
     if (!nav || !parent) return;
     const measure = () => {
-      const otherHeight = [...parent.children].filter(node => node !== nav && node.id !== "sidebar-content")
+      const otherHeight = [...parent.children].filter(node => node !== nav && node.id !== "sidebar-content" && !node.classList.contains("sidebar-navigation-divider"))
         .reduce((height, node) => height + node.getBoundingClientRect().height, 0);
       // Leave the conversation collection usable even when navigation itself
       // needs to scroll in a short window.
-      const reserve = parent.querySelector('#sidebar-content') ? Math.min(120, parent.clientHeight * .2) : 0;
-      const budget = Math.max(120, Math.floor(Math.min(640, window.innerHeight * .6,
-        parent.id === "sidebar" ? parent.clientHeight - otherHeight - reserve : Infinity)));
-      setNavigationLimit(current => current === budget ? current : budget);
-      const list = lists.current[openGroup];
-      if (!list) { setMenuLimit(SIDEBAR_MENU_MAX); return; }
-      const fixedHeight = nav.scrollHeight - list.clientHeight;
-      const limit = Math.max(32, Math.min(SIDEBAR_MENU_MAX, Math.floor(budget - fixedHeight)));
-      setMenuLimit(current => current === limit ? current : limit);
+      const reserve = parent.querySelector('#sidebar-content') ? Math.min(96, parent.clientHeight * .2) : 0;
+      const max = Math.max(120, Math.floor(parent.id === "sidebar" ? parent.clientHeight - otherHeight - reserve - 10 : window.innerHeight * .85));
+      const defaultHeight = Math.min(max, Math.floor(window.innerHeight * .6));
+      const height = Math.round(nav.getBoundingClientRect().height);
+      setNavigationBounds(current => current.max === max && current.default === defaultHeight && current.height === height
+        ? current : { max, default: defaultHeight, height });
     };
     const observer = new ResizeObserver(measure);
     observer.observe(nav); observer.observe(parent);
@@ -61,10 +57,12 @@ export default function SidebarNavigation({ activeTab, onSelect }) {
     measure();
     window.addEventListener("resize", measure);
     return () => { observer.disconnect(); window.removeEventListener("resize", measure); };
-  }, [openGroup, searching]);
-  useEffect(() => saveSidebarMenuSizes(menuSizes), [menuSizes]);
+  }, [openGroup, searching, paneSize]);
+  useEffect(() => saveSidebarNavigationSize(paneSize), [paneSize]);
   useEffect(() => {
-    const refresh = event => { if (!event.key || event.key === SIDEBAR_MENU_SIZE_KEY) setMenuSizes(loadSidebarMenuSizes()); };
+    const refresh = event => {
+      if (!event.key || event.key === SIDEBAR_NAVIGATION_SIZE_KEY) setPaneSize(loadSidebarNavigationSize());
+    };
     window.addEventListener("storage", refresh);
     return () => window.removeEventListener("storage", refresh);
   }, []);
@@ -72,13 +70,14 @@ export default function SidebarNavigation({ activeTab, onSelect }) {
   // reveal the selected tool just like a click in this menu does.
   useEffect(() => { setOpenGroup(selectedGroup); setQuery(""); }, [activeTab, selectedGroup]);
   useEffect(() => {
-    const list = lists.current[openGroup], current = list?.querySelector('[aria-current="page"]');
+    const current = navigation.current?.querySelector(`#sidebar-group-${openGroup} [aria-current="page"]`);
     if (!current) return;
-    // Reveal only inside this menu; do not move the chat or the outer sidebar.
-    const item = current.getBoundingClientRect(), bounds = list.getBoundingClientRect();
-    if (item.top < bounds.top) list.scrollTop -= bounds.top - item.top;
-    else if (item.bottom > bounds.bottom) list.scrollTop += item.bottom - bounds.bottom;
-  }, [activeTab, openGroup, searching, menuLimit]);
+    // Reveal the selected button inside the tab pane without moving the chat.
+    const body = navigation.current.querySelector('.sidebar-nav-sections');
+    const visibleItem = current.getBoundingClientRect(), visibleBody = body.getBoundingClientRect();
+    if (visibleItem.top < visibleBody.top) body.scrollTop -= visibleBody.top - visibleItem.top;
+    else if (visibleItem.bottom > visibleBody.bottom) body.scrollTop += visibleItem.bottom - visibleBody.bottom;
+  }, [activeTab, openGroup, searching, navigationBounds.height]);
 
   function selectItem(id) {
     const focusResult = searching && navigation.current?.querySelector('.sidebar-nav-sections')?.contains(document.activeElement);
@@ -101,11 +100,12 @@ export default function SidebarNavigation({ activeTab, onSelect }) {
       onClick={() => selectItem(item.id)}>{item.label}</button>;
   }
 
-  return <nav ref={navigation} className={`sidebar-navigation${resizing ? " sidebar-menu-resizing" : ""}`} aria-label="Workstation tools" style={{ maxHeight: `${navigationLimit}px` }}
+  return <><nav id="sidebar-tool-navigation" ref={navigation} className={`sidebar-navigation${resizing ? " sidebar-menu-resizing" : ""}`} aria-label="Workstation tools"
+    style={{ maxHeight: `${navigationLimit}px`, height: paneSize.expanded || paneSize.height !== null ? `${navigationLimit}px` : undefined }}
     onKeyDown={event => {
       if (event.key === "Escape" && query && !arranging) { event.preventDefault(); event.stopPropagation(); setQuery(""); searchInput.current?.focus(); }
     }}>
-    <div className="sidebar-nav-toolbar"><div className="sidebar-tab-search">
+    <div className="sidebar-nav-header"><div className="sidebar-nav-toolbar"><div className="sidebar-tab-search">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="10" cy="10" r="6" /><path d="m15 15 6 6" /></svg>
       <input ref={searchInput} type="text" aria-label="Find a tab" placeholder="Find a tab…" value={query} autoComplete="off" spellCheck={false}
         aria-controls="sidebar-tab-sections" onChange={event => setQuery(event.target.value)}
@@ -114,16 +114,23 @@ export default function SidebarNavigation({ activeTab, onSelect }) {
           else if (searching && event.key === "ArrowDown" && resultCount) { event.preventDefault(); navigation.current.querySelector('.sidebar-nav-sections .sidebar-nav-item')?.focus(); }
         }} />
       {query && <button type="button" aria-label="Clear tab search" onClick={() => { setQuery(""); searchInput.current?.focus(); }}>×</button>}
-    </div><button ref={arrangeButton} className="sidebar-arrange-tabs" type="button" aria-label="Arrange tabs" title="Arrange tabs" onClick={() => setArranging(true)}>Arrange</button></div>
+    </div><button className="sidebar-expand-tabs" type="button" aria-label={paneSize.expanded ? "Collapse tab pane" : "Expand tab pane"}
+      aria-pressed={paneSize.expanded} aria-controls="sidebar-tab-sections" title={paneSize.expanded ? "Restore tab pane height" : "Expand tabs to the available sidebar height"}
+      onClick={() => setPaneSize(current => ({ ...current, expanded: !current.expanded }))}>
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+        {paneSize.expanded ? <path d="m4 2 4 4 4-4M4 14l4-4 4 4" /> : <path d="m4 6 4-4 4 4M4 10l4 4 4-4" />}
+      </svg>
+    </button><button ref={arrangeButton} className="sidebar-arrange-tabs" type="button" aria-label="Arrange tabs" title="Arrange tabs" onClick={() => setArranging(true)}>Arrange</button></div>
     <span className="sidebar-search-status" role="status">{searching ? `${resultCount} ${resultCount === 1 ? "tab" : "tabs"} found` : ""}</span>
+    {!searching && <div className="sidebar-utilities">{sections.find(section => section.id === 'utilities').items.map(itemButton)}</div>}
+    </div>
     {searching && !resultCount && <p className="sidebar-no-tabs">No tabs found. Try another name.</p>}
     <div id="sidebar-tab-sections" className={`sidebar-nav-sections${searching ? " is-searching" : ""}`}>{visibleSections.map(group => {
       if (searching) return <div className="sidebar-search-group" key={group.id}>
         <div className="sidebar-search-heading">{group.label}</div>{group.items.map(itemButton)}
       </div>;
-      if (!group.icon) return <div key={group.id} className={group.id === 'utilities' ? 'sidebar-utilities' : 'sidebar-functions'}>{group.items.map(itemButton)}</div>;
+      if (!group.icon) return null;
       const open = openGroup === group.id;
-      const height = open ? Math.min(menuSizes[group.id], menuLimit) : menuSizes[group.id];
       const selected = group.items.find(item => item.id === activeTab);
       return <div className={`sidebar-nav-group${open ? " is-open" : ""}${selected ? " contains-current" : ""}`} key={group.id}>
         <button type="button" className="sidebar-group-toggle" aria-expanded={open} aria-controls={`sidebar-group-${group.id}`} title={selected && !open ? `${group.label}: ${selected.label}` : group.label}
@@ -133,17 +140,15 @@ export default function SidebarNavigation({ activeTab, onSelect }) {
           <svg className="sidebar-group-chevron" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m6 3 5 5-5 5" /></svg>
         </button>
         <div id={`sidebar-group-${group.id}`} className="sidebar-group-items" hidden={!open}>
-          <div id={`sidebar-group-list-${group.id}`} className="sidebar-group-list" ref={node => { lists.current[group.id] = node; }}
-            style={{ maxHeight: `${height}px` }}>{group.items.map(itemButton)}</div>
-          <ResizableDivider label={`Resize ${group.label} menu`} orientation="horizontal" className="sidebar-group-divider"
-            hidden={!open} controls={`sidebar-group-list-${group.id}`} value={height} min={Math.min(SIDEBAR_MENU_MIN, menuLimit)} max={menuLimit}
-            defaultValue={SIDEBAR_MENU_DEFAULT} step={8} valueText={`${height} pixels`}
-            onChange={height => setMenuSizes(current => ({ ...current, [group.id]: Math.max(SIDEBAR_MENU_MIN, Math.round(height)) }))} onDragging={setResizing}
-            pointerValue={event => event.clientY - lists.current[group.id].getBoundingClientRect().top - 8} />
+          <div id={`sidebar-group-list-${group.id}`} className="sidebar-group-list">{group.items.map(itemButton)}</div>
         </div>
       </div>;
     })}</div>
     {arranging && <TabOrderEditor value={order} onClose={closeArrangement} onSave={value => { setOrder(value); closeArrangement(); }} />}
 
-  </nav>;
+  </nav><ResizableDivider label="Resize tab pane and collections" orientation="horizontal" className="sidebar-navigation-divider"
+    controls="sidebar-tool-navigation sidebar-content" value={navigationBounds.height} min={Math.min(SIDEBAR_NAVIGATION_MIN, navigationBounds.max)} max={navigationBounds.max}
+    defaultValue={navigationBounds.default} step={12} valueText={`${navigationBounds.height} pixels`}
+    onChange={height => setPaneSize(current => ({ ...current, height: Math.round(height), expanded: false }))} onDragging={setResizing}
+    pointerValue={event => event.clientY - navigation.current.getBoundingClientRect().top} /></>;
 }

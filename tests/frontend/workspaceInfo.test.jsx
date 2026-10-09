@@ -6,6 +6,15 @@ import { workspaceHelp } from "../../src/workspaceHelp";
 import WorkspaceInfo, { WorkspaceHelpContent } from "../../src/components/WorkspaceInfo";
 
 describe("workspace information", () => {
+  it("explains visible workspace pairing and the distinction between hiding and stopping Browser or Generate", () => {
+    for (const tab of ["generate", "browser", "audio"]) {
+      const html = renderToStaticMarkup(<WorkspaceHelpContent tab={tab} />);
+      expect(html).toContain("Side pane selector in the top toolbar");
+      expect(html).toContain("Model jobs share the Prompt Queue");
+    }
+    expect(renderToStaticMarkup(<WorkspaceHelpContent tab="browser" />)).toContain("use Close page to close it");
+    expect(renderToStaticMarkup(<WorkspaceHelpContent tab="generate" />)).toContain("while images generate");
+  });
   it("provides an explicit guide for every registered tab", () => {
     expect(Object.keys(workspaceHelp).sort()).toEqual([...appTabs].sort());
     for (const tab of appTabs) {

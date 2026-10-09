@@ -11,6 +11,34 @@ function setup(dialog) {
   return {ses,wc,policy};
 }
 describe('persistent browser permission policy',()=>{
+  it('routes shared-profile permission dialogs to each owner and preserves other grants on detach',async()=>{
+    const parents=[],second={name:'second'};
+    const {ses,wc,policy}=setup({showMessageBox:async parent=>{parents.push(parent);return {response:1};}});
+    const wc2={...wc,id:2},owned2=new Set([wc2]);
+    const next=installBrowserSession({browserSession:ses,owned:owned2,getWindow:()=>second,
+      dialog:{showMessageBox:async parent=>{parents.push(parent);return {response:1};}}});
+    const ask=contents=>new Promise(resolve=>ses.PermissionRequest(contents,'geolocation',resolve,{}));
+    expect(await ask(wc)).toBe(true);expect(await ask(wc2)).toBe(true);
+    expect(parents).toEqual([null,second]);
+    policy.detach();
+    expect(ses.PermissionCheck(wc,'geolocation','https://example.com',{})).toBe(false);
+    expect(ses.PermissionCheck(wc2,'geolocation','https://example.com',{})).toBe(true);
+    next.revoke(wc2);expect(await ask(wc2)).toBe(true);
+    expect(ses.listenerCount('will-download')).toBe(1);
+    next.detach();expect(ses.listenerCount('will-download')).toBe(0);
+    expect(await ask(wc2)).toBe(false);
+  });
+  it('routes downloads to the owning window and does not cancel another window download',async()=>{
+    const {ses,wc,policy}=setup(),parent={name:'second'},wc2={...wc,id:2},notices=[];
+    let chosen;
+    const next=installBrowserSession({browserSession:ses,owned:new Set([wc2]),getWindow:()=>parent,
+      dialog:{showSaveDialog:async actual=>{expect(actual).toBe(parent);return new Promise(resolve=>{chosen=resolve;});}},notify:value=>notices.push(value)});
+    const item=new EventEmitter();Object.assign(item,{pause(){},getFilename:()=> 'clip.mp4',cancel(){throw Error('Another owner must not cancel this download');},setSavePath(value){this.path=value;},resume(){this.resumed=true;}});
+    ses.emit('will-download',{preventDefault(){throw Error('Owned download denied');}},item,wc2);
+    policy.detach();chosen({filePath:'chosen.mp4'});await new Promise(resolve=>setImmediate(resolve));
+    expect(item.resumed).toBe(true);expect(item.path).toBe('chosen.mp4');
+    item.emit('done',null,'completed');expect(notices.at(-1)).toBe('Download saved.');next.detach();
+  });
   it('redacts auth headers, cookies, OAuth callback values and password fields',()=>{
     for(const value of ['Authorization: Basic SECRET','Cookie: session=SECRET; other=SECRET','Set-Cookie: session=SECRET','{"password":"SECRET"}','https://example.com/callback?code=SECRET&state=SECRET#access_token=SECRET','Bearer SECRET','X-LAW-Session: SECRET'])expect(redactSecrets(value)).not.toContain('SECRET');
     expect(redactSecrets('Window started')).toBe('Window started');

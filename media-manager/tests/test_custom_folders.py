@@ -69,6 +69,23 @@ class CustomFolderTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'already been used'):
             self.execute(plan)
 
+    def test_scan_only_can_move_selection_to_a_folder_chosen_later(self):
+        source = self.root / 'source'
+        path, _ = scan.run_scan(scan.ScanOptions(str(source), '', str(self.state.reports),
+                                                ffprobe='missing-test-tool', allow_missing_tools=True,
+                                                use_exiftool=False, quiet=True), out=lambda *_: None)
+        self.run_id = Path(path).name
+        self.records = self.state.library(self.run_id)['records']
+        self.assertTrue(all(not row['ProposedDestination'] for row in self.records))
+        plan = self.preview()
+        self.assertEqual(self.execute(plan)['status'], 'complete')
+        fresh = UIState(str(self.state.reports))
+        moved, untouched = fresh.library(self.run_id)['records']
+        self.assertEqual(moved['CustomFolderId'], self.folder['id'])
+        self.assertEqual(fresh.media_path(self.run_id, moved['RecordId']).read_bytes(), self.originals[moved['OriginalPath']])
+        self.assertEqual(untouched['CurrentPath'], untouched['OriginalPath'])
+        self.assertEqual(Path(untouched['OriginalPath']).read_bytes(), self.originals[untouched['OriginalPath']])
+
     def test_same_names_and_new_collision_do_not_overwrite(self):
         plan = self.preview([row['RecordId'] for row in self.records])
         self.assertNotEqual(plan['files'][0]['destination'], plan['files'][1]['destination'])

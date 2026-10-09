@@ -80,6 +80,18 @@ function nativeWindow() {
     destroy: () => { destroyed = true; window.emit('closed'); }, display: value => { display = { ...display, ...value }; } };
 }
 describe('window drawing and display lifecycle', () => {
+  it('lets native video present frames without passive full-window repaint recovery, retaining explicit redraws',()=>{
+    vi.useFakeTimers();const mock=nativeWindow(),child=new EventEmitter();
+    child.isDestroyed=()=>false;child.setBackgroundThrottling=vi.fn();
+    mock.window.contentView={children:[{webContents:child,getVisible:()=>true}]};
+    const controller=attachWindowRendering(mock);
+    vi.advanceTimersByTime(200);child.emit('media-started-playing');mock.wc.invalidate.mockClear();
+    for(let i=0;i<20;i++){controller.repaint({passive:true});vi.advanceTimersByTime(500);}
+    expect(mock.wc.invalidate).not.toHaveBeenCalled();expect(controller.state().nativeMediaPlaying).toBe(true);
+    controller.repaint();vi.advanceTimersByTime(80);expect(mock.wc.invalidate).toHaveBeenCalledOnce();
+    child.emit('media-paused');vi.advanceTimersByTime(1000);expect(mock.wc.invalidate.mock.calls.length).toBeGreaterThan(1);
+    child.emit('destroyed');expect(child.eventNames()).toEqual([]);mock.destroy();expect(vi.getTimerCount()).toBe(0);
+  });
   it('allows the first hidden window to paint before ready-to-show, then sleeps in the tray', () => {
     vi.useFakeTimers(); const mock = nativeWindow(); mock.show(false);
     attachWindowRendering(mock); mock.wc.emit('did-finish-load');
@@ -157,6 +169,13 @@ function changingPage() {
 }
 
 describe('redrawing text and controls without resizing or replacing the page', () => {
+  it('distinguishes passive clock/content updates from interaction and keeps an interaction queued during a content burst',()=>{
+    vi.useFakeTimers();const mock=changingPage();
+    mock.observer.callback([{type:'characterData',target:{nodeType:3,parentElement:mock.root}}]);mock.flush();
+    expect(mock.window.workstationDesktop.repaintWindow).toHaveBeenLastCalledWith('content');
+    mock.document.dispatchEvent(new Event('input'));mock.observer.callback([{type:'childList',target:mock.root}]);mock.flush();
+    expect(mock.window.workstationDesktop.repaintWindow).toHaveBeenLastCalledWith('interaction');mock.controller();
+  });
   it('observes streaming text and merges many changes into one repaint after rendering', () => {
     vi.useFakeTimers(); const mock = changingPage();
     expect(mock.observer.observe).toHaveBeenCalledWith(mock.root, expect.objectContaining({ characterData: true, childList: true, subtree: true }));

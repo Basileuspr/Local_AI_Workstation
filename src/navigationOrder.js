@@ -3,6 +3,7 @@ const groups = [
     { id: "chats", label: "Chats" },
     { id: "library", label: "Index" },
     { id: "knowledge", label: "Knowledge" },
+    { id: "web-system", label: "Web Research & Sources" },
     { id: "canvas", label: "Canvas" },
     { id: "converter", label: "File Converter" },
     { id: "local-files", label: "Local Files" },
@@ -11,6 +12,7 @@ const groups = [
     { id: "hash-auditor", label: "Hash Auditor" },
     { id: "folder-review", label: "Folder Review" },
     { id: "audio", label: "Audio" },
+    { id: "reels-analyzer", label: "Reels Analyzer" },
     { id: "sound-mixer", label: "Sound Mixer", title: "Sound Mixer · soundboard, audio channels, EQ and recording" },
     { id: "slicer", label: "3D Slicer" },
     { id: "integrations", label: "Linked applications" },
@@ -51,14 +53,13 @@ const groups = [
 ];
 
 export const navigationSections = [
-  { id: 'utilities', label: 'Dashboard & Queue', items: [{ id: 'dashboard', label: 'Dashboard' }, { id: 'queue', label: 'Prompt Queue' }, { id: 'info-center', label: 'Info Center', title: 'Info Center · feature use cases, examples and help' }] },
+  { id: 'utilities', label: 'Utilities', items: [{ id: 'dashboard', label: 'Dashboard' }, { id: 'queue', label: 'Prompt Queue' }, { id: 'tools', label: 'Functions' }, { id: 'info-center', label: 'Info Center', title: 'Info Center · feature use cases, examples and help' }] },
   ...groups,
-  { id: 'functions', label: 'Functions', items: [{ id: 'tools', label: 'Functions' }] },
 ];
 export const NAVIGATION_ORDER_KEY = 'local-ai-workstation-tab-order-v1';
 const complete = (saved, defaults) => [...new Set([...(Array.isArray(saved) ? saved.filter(id => defaults.includes(id)) : []), ...defaults])];
 export function normalizeNavigationOrder(value) {
-  return { sections: complete(value?.sections, navigationSections.map(section => section.id)),
+  return { sections: ['utilities', ...complete(value?.sections, groups.map(section => section.id))],
     tabs: Object.fromEntries(navigationSections.map(section => [section.id, complete(value?.tabs?.[section.id], section.items.map(item => item.id))])) };
 }
 export function loadNavigationOrder(storage = globalThis.localStorage) {

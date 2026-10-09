@@ -2,6 +2,7 @@ import { Extension, Node, getMarkRange } from '@tiptap/core';
 import { Plugin, TextSelection } from '@tiptap/pm/state';
 import { Mapping } from '@tiptap/pm/transform';
 import { paragraphStyle } from './documentStyles';
+import { captionContext, CAPTION_ID } from './documentCaptions';
 
 export const BOOKMARK_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,39}$/;
 const HEADING_ID = /^LAW_H[0-9a-f]{32}$/;
@@ -33,6 +34,7 @@ export function documentReferences(doc) {
       }
     }
   });
+  for (const item of captionContext(doc).captions) targets.set(item.id, { name: item.id, text: item.full, pos: item.pos });
   return { headings, bookmarks, targets, toc, links, broken: links.filter(link => !targets.has(link.href.slice(1))) };
 }
 
@@ -104,13 +106,13 @@ export function goToReference(editor, name) {
     // ProseMirror does not own the browser selection in a read-only view.
     // Scroll the actual destination block rather than a stale browser caret.
     const $pos = editor.state.doc.resolve(target.pos);
-    editor.view.nodeDOM($pos.depth ? $pos.before($pos.depth) : target.pos)?.scrollIntoView({ block: 'center', inline: 'nearest' });
+    editor.view.nodeDOM?.($pos.depth ? $pos.before($pos.depth) : target.pos)?.scrollIntoView?.({ block: 'center', inline: 'nearest' });
   } else editor.commands.focus();
   return true;
 }
 
 export function bookmarkError(name, doc, previous = '') {
-  if (!/^[A-Za-z][A-Za-z0-9_]{0,39}$/.test(name) || HEADING_ID.test(name)) return 'Use 1–40 letters, numbers or underscores, starting with a letter. This name must not be a reserved heading ID.';
+  if (!/^[A-Za-z][A-Za-z0-9_]{0,39}$/.test(name) || HEADING_ID.test(name) || CAPTION_ID.test(name)) return 'Use 1–40 letters, numbers or underscores, starting with a letter. This name must not be a reserved heading or caption ID.';
   const { bookmarks, targets } = documentReferences(doc);
   if ([...targets.keys()].some(key => key !== previous && key.toLowerCase() === name.toLowerCase())) return 'A bookmark with this name already exists.';
   if (!previous && bookmarks.length >= 100) return 'This document already has 100 bookmarks.';
@@ -129,6 +131,7 @@ export function saveBookmark(editor, name, previous = '') {
       const mark = tr.doc.nodeAt(link.pos).marks.find(mark => mark.type.name === 'link');
       tr.addMark(link.pos, link.pos + link.size, editor.schema.marks.link.create({ ...mark.attrs, href: '#' + name }));
     }
+    tr.doc.descendants((node, pos) => { if (node.type.name === 'documentCrossReference' && node.attrs.target === previous) tr.setNodeMarkup(pos, undefined, { ...node.attrs, target: name }); });
   } else {
     if (!editor.state.selection.$from.parent.isTextblock) throw new Error('Place the cursor in a text paragraph first.');
     // Do not replace selected text when adding a point bookmark.

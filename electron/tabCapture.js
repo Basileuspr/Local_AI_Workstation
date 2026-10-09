@@ -5,6 +5,7 @@ const TAB_LABELS = { shortcuts: "Shortcut Registry", audio: "Audio", spreadsheet
 
 Object.assign(TAB_LABELS, { university: 'University', 'agent-university': 'Agent University', 'neural-network': 'Neural Network', 'break-room': 'Break Room' });
 TAB_LABELS['info-center'] = 'Info Center';
+Object.assign(TAB_LABELS, {'reels-analyzer': 'Reels Analyzer', 'web-system': 'Web Research & Sources'});
 
 Object.assign(TAB_LABELS, {slicer: '3D Slicer', integrations: 'Linked applications', 'styling-library': 'Styling Library', 'sound-mixer':'Sound Mixer'});
 

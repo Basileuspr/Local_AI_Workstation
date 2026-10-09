@@ -86,6 +86,10 @@
 .vault-compose-form fieldset { border: 0; padding: 10px 0; margin: 0; min-width: 0; display: grid; gap: 8px; }
 .vault-compose-legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 .vault-compose-heading { display: grid; grid-template-columns: minmax(0, 2fr) minmax(110px, 1fr); gap: 10px; }
+.vault-inspector .vault-compose-heading { grid-template-columns: minmax(0, 1fr); }
+.vault-node-character-fields { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--border); border-radius: 6px; min-width: 0; }
+.vault-node-character-fields small, .vault-node-kind-hint, .vault-node-dirty { font-size: 11px; line-height: 1.5; color: var(--text-dim); }
+.vault-inspector .vault-node-dirty { color: var(--yellow); }
 .vault-compose-form label { display: grid; gap: 6px; font-size: 11px; min-width: 0; }
 .vault-compose-form input, .vault-compose-form select, .vault-compose-form textarea { width: 100%; min-width: 0; box-sizing: border-box; padding: 8px; font: inherit; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-input); color: var(--text); }
 .vault-compose-form textarea { resize: vertical; }

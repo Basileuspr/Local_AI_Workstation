@@ -10,7 +10,7 @@ import time
 import unittest
 from unittest.mock import patch
 
-from media_organizer import mover, scan
+from media_organizer import mover, scan, tools
 from media_organizer.ui_server import make_server
 from tests.mp4build import build
 
@@ -156,6 +156,58 @@ class UIServerTests(unittest.TestCase):
         self.assertEqual(self.request("/api/scan", {"source": "", "destination": ""})[0], 400)
         self.assertEqual(self.request("/api/scan", {"source": str(self.source), "destination": str(self.source / "inside")})[0], 400)
         self.assertEqual(self.request("/api/scan", {"source": str(self.source), "destination": str(self.root)})[0], 400)
+
+    def test_scan_without_destination_is_saved_playable_and_not_an_archive_move(self):
+        source = self.root / 'scan-only-source'
+        source.mkdir()
+        clip = source / 'VID_20200615_120000.mp4'
+        clip.write_bytes(self.content)
+        before = clip.stat()
+        missing = tools.ToolInfo('ffprobe', status='missing')
+        disabled = tools.ToolInfo('exiftool', status='disabled')
+        with patch('media_organizer.scan.detect_tools', return_value=(missing, disabled)):
+            for destination in ({}, {'destination': ''}, {'destination': None}, {'destination': '  '}):
+                with self.subTest(destination=destination):
+                    code, _, _ = self.request('/api/scan', dict(source=str(source), **destination))
+                    self.assertEqual(code, 202)
+                    for _ in range(200):
+                        if self.server.state.job['status'] != 'running':
+                            break
+                        time.sleep(.02)
+                    self.assertEqual(self.server.state.job['status'], 'complete')
+                    run_id = self.server.state.job['runId']
+                    code, raw, _ = self.request('/api/library?runId=' + run_id)
+                    self.assertEqual(code, 200)
+                    data = json.loads(raw)
+                    self.assertEqual(data['run']['destination_root'], '')
+                    row = data['records'][0]
+                    self.assertEqual(row['CurrentPath'], str(clip))
+                    self.assertTrue(row['Available'])
+                    self.assertFalse(row['ProposedDestination'])
+                    url = f"/api/media?runId={run_id}&recordId={row['RecordId']}"
+                    self.assertEqual(self.request(url)[1], self.content)
+                    self.assertEqual(self.request('/api/move', dict(runId=run_id, confirmation='MOVE'))[0], 400)
+                    self.assertFalse((self.server.state.run_path(run_id) / 'moves').exists())
+        from media_organizer.ui_server import UIState
+        reopened = UIState(str(self.server.state.reports))
+        self.assertEqual(reopened.media_path(run_id, row['RecordId']), clip)
+        combined = reopened.library('all-scans')
+        record = next(row for row in combined['records'] if row['CurrentPath'] == str(clip))
+        self.assertEqual(reopened.media_path('all-scans', record['RecordId']), clip)
+        self.assertEqual(clip.read_bytes(), self.content)
+        self.assertEqual(clip.stat().st_mtime_ns, before.st_mtime_ns)
+        self.assertEqual(sorted(path.name for path in source.iterdir()), [clip.name])
+
+    def test_blank_destination_does_not_allow_media_from_server_working_directory(self):
+        state = self.server.state
+        row = dict(RecordId='unscanned', Available=True, CurrentPath=str(Path.cwd() / 'unscanned.mp4'))
+        data = dict(run=dict(source_root=str(self.source), destination_root=''), records=[row])
+        with self.assertRaisesRegex(ValueError, 'outside this scan'):
+            state.media_path(self.run_id, row['RecordId'], data)
+        row.update(ScanSource=str(self.source), ScanDestination='')
+        data['aggregate'] = True
+        with self.assertRaisesRegex(ValueError, 'outside this scan'):
+            state.media_path('all-scans', row['RecordId'], data)
 
     def test_image_thumbnail_route_validates_session_batch_index_and_source(self):
         source = self.root / 'thumbnail-fixture.png'

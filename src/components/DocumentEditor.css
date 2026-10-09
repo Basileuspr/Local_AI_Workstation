@@ -231,4 +231,14 @@
 .de-citation-picker input[type=checkbox] { flex: 0 0 auto; }
 .de-citation-picker small { color: #657084; }
 .de-citation-preview { padding: 12px; border: 1px dashed #b6c4d6; background: #f7f9fc; overflow-wrap: anywhere; }
+.de-caption button { font: inherit; font-style: italic; color: #36506d; text-align: left; background: transparent; border: 0; padding: 4px 0; cursor: pointer; white-space: pre-wrap; overflow-wrap: anywhere; }
+.de-caption button:hover { background: #edf3f9; }
+.de-cross-reference button { font: inherit; background: #edf3f9; border: 0; padding: 0 2px; cursor: pointer; }
+.de-cross-reference.is-link button { color: #0563c1; text-decoration: underline; }
+.de-caption-fields { border: 0; padding: 0; min-width: 0; }
+.de-caption-fields select { max-width: 100%; }
+.de-reference-list { list-style: none; padding: 0; }
+.de-reference-list li { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid #d9e1e9; }
+.de-reference-list strong { flex: 1 1 100%; overflow-wrap: anywhere; }
+.de-reference-list button { padding: 6px 10px; border: 1px solid #b6c4d6; border-radius: 4px; background: white; color: #263b57; }
 @media (max-width: 850px) { .de-notes-pane { width: 280px; flex-basis: 280px; padding: 10px; } }

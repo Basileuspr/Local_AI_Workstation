@@ -1,7 +1,12 @@
 .info-center { padding: clamp(16px, 3vw, 32px); overflow: auto; min-height: 0; color: var(--text); scrollbar-gutter: stable; }
 .info-center-heading { max-width: 780px; margin-bottom: 24px; }
 .info-center-eyebrow { color: var(--accent); font-size: 11px; letter-spacing: .12em; }
-.info-center h1 { font-size: 30px; margin: 8px 0; }
+.info-center h1 { display: flex; align-items: center; gap: 12px; font-size: 30px; margin: 8px 0; }
+.info-center h1 .info-feature-icon { width: 32px; height: 32px; color: var(--accent); }
+.info-feature-icon { flex-shrink: 0; vertical-align: middle; }
+.info-center-legend { display: flex; flex-wrap: wrap; gap: 10px 24px; margin-top: 16px; color: var(--text-dim); font-size: 12px; }
+.info-center-legend > span { display: inline-flex; align-items: center; gap: 7px; }
+.info-center-legend .info-feature-icon { width: 17px; height: 17px; color: var(--accent); }
 .info-center p, .info-center li { line-height: 1.6; overflow-wrap: anywhere; }
 .info-center-heading p, .info-center-count { color: var(--text-dim); }
 .info-center button, .info-center input, .info-center select { font-size: 13px; color: var(--text); background: var(--bg-input); border: 1px solid var(--border); border-radius: 7px; padding: 9px 12px; min-width: 0; }
@@ -19,18 +24,41 @@
 .info-center-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 350px), 1fr)); gap: 14px; align-items: start; }
 .info-center-card { min-width: 0; padding: 18px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-card); }
 .info-center-card > header { display: flex; justify-content: space-between; align-items: start; gap: 10px; margin-bottom: 10px; }
-.info-center-card h3 { font-size: 17px; overflow-wrap: anywhere; }
+.info-center-card h3 { display: flex; align-items: center; gap: 9px; font-size: 17px; overflow-wrap: anywhere; }
+.info-center-icon-badge { display: inline-flex; padding: 7px; border-radius: 9px; color: var(--accent); background: var(--accent-dim); flex-shrink: 0; }
 .info-center-card .info-center-open { flex-shrink: 0; color: var(--accent); background: var(--accent-dim); padding: 6px 10px; }
 .info-center-card > p { color: var(--text-dim); font-size: 13px; }
 .info-center-card h4 { font-size: 12px; margin: 14px 0 6px; }
 .info-center-card ul { padding-left: 19px; font-size: 13px; }
 .info-center-card li + li { margin-top: 5px; }
 .info-center-example { margin: 14px 0; border-left: 2px solid var(--accent); padding: 1px 0 1px 12px; }
-.info-center-example h4 { margin-top: 0; color: var(--accent); }
+.info-center-example h4 { display: flex; align-items: center; gap: 6px; margin-top: 0; color: var(--accent); }
+.info-center-example h4 .info-feature-icon { width: 15px; height: 15px; }
 .info-center-example p { font-size: 13px; }
 .info-center-guide-button { width: 100%; text-align: left; }
 .info-center-card .workspace-info-content { padding: 14px 0 0; }
 .info-center-empty { padding: 28px; text-align: center; border: 1px dashed var(--border); border-radius: 10px; }
 .info-center-empty p { margin: 10px 0 16px; }
 .info-center-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.info-visual { margin: 16px 0; padding: 10px 12px 8px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg-surface); color: var(--accent); }
+.info-example-picture { display: block; width: 100%; height: 92px; }
+.info-visual figcaption { display: grid; grid-template-columns: 1fr auto 1fr; align-items: start; gap: 8px; text-align: center; color: var(--text); font-size: 11px; line-height: 1.4; }
+.info-visual-action { color: var(--accent); font-size: 10px; padding: 2px 6px; border: 1px solid var(--border); border-radius: 20px; }
+.info-visual-note { display: block; margin-top: 9px; text-align: center; color: var(--text-dim); font-size: 10px; }
+/* One short demonstration per hover/focus; no page-wide autoplay loops. */
+.info-center-card:is(:hover, :focus-within) .info-motion-flow .info-flow-arrow { animation: info-flow 1.8s ease-in-out; }
+.info-center-card:is(:hover, :focus-within) .info-motion-flow .info-network-node { animation: info-pulse 1.6s ease-in-out var(--bar-delay); }
+.info-center-card:is(:hover, :focus-within) .info-motion-wave .info-wave-bar { transform-box: fill-box; transform-origin: center; animation: info-wave 1.4s ease-in-out var(--bar-delay); }
+.info-center-card:is(:hover, :focus-within) .info-motion-frames .info-picture-sun { animation: info-sun 1.8s steps(6); }
+.info-center-card:is(:hover, :focus-within) .info-motion-pulse .info-picture-result { animation: info-pulse 1.8s ease-in-out; }
+.info-center-card:is(:hover, :focus-within) .info-motion-scan .info-picture-result { animation: info-pulse 1.8s steps(5); }
+@keyframes info-flow { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(7px); } }
+@keyframes info-wave { 0%, 100% { transform: scaleY(1); } 30% { transform: scaleY(.4); } 65% { transform: scaleY(.8); } }
+@keyframes info-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
+@keyframes info-sun { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-18px); } }
+@media (prefers-reduced-motion: reduce) {
+  .info-center .info-visual * { animation: none !important; }
+  .info-motion-hint { display: none; }
+}
+@media (hover: none) { .info-motion-hint { display: none; } }
 @media (max-width: 560px) { .info-center-filters label { flex: 1 1 100%; } .info-center-card { padding: 14px; } }

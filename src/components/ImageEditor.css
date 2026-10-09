@@ -94,3 +94,18 @@
 
 .ie-main-history { position:sticky; top:0; z-index:10; flex-wrap:wrap; margin:0 0 12px; padding:10px; background:var(--bg-card); border:1px solid var(--border); border-radius:8px; box-shadow:0 4px 10px #0003; }
 .ie-rotation-controls { display:flex; flex-wrap:wrap; gap:8px; margin-left:auto; }
+.ie-main-history button[aria-pressed=true] { border-color:var(--accent); color:var(--accent); }
+.ie-stage { position:relative; }
+.ie-crop-overlay { position:absolute; touch-action:none; cursor:crosshair; overflow:visible; }
+.ie-crop-selection { fill:transparent; stroke:var(--accent); stroke-width:2; cursor:move; }
+.ie-crop-handle { fill:var(--accent); stroke:#0b1723; stroke-width:1; }
+.ie-crop-nw, .ie-crop-se { cursor:nwse-resize; }
+.ie-crop-ne, .ie-crop-sw { cursor:nesw-resize; }
+.ie-crop-tools { padding:12px; border:1px solid var(--border); border-top:0; background:var(--bg-card); font-size:12px; }
+.ie-crop-tools p { color:var(--text-dim); line-height:1.5; margin:0 0 10px; }
+.ie-crop-fields { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; border:0; padding:0; margin:0; }
+.ie-crop-fields label { display:grid; gap:5px; min-width:0; }
+.ie-crop-fields input { width:100%; min-width:0; padding:7px; color:var(--text); background:var(--bg-input); border:1px solid var(--border); border-radius:6px; font:inherit; }
+.ie-crop-actions { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-top:10px; }
+.ie-crop-actions output { margin-right:auto; color:var(--accent); }
+@media (max-width:550px) { .ie-crop-fields { grid-template-columns:repeat(2,minmax(0,1fr)); } }

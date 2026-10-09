@@ -19,7 +19,7 @@ it("restores sidebar preferences and independent chat sizes for both arrangement
 });
 it("rejects damaged values and bounds saved sizes so the controls remain usable", () => {
   storage({ sidebarWidth: 9000, sidebarCollapsed: "false", splits: { a: { horizontal: -1, vertical: 99 }, b: [], c: { horizontal: "65" } } });
-  expect(loadWorkspaceLayout()).toEqual({ sidebarCollapsed: false, sidebarWidth: 480, splits: { a: { horizontal: 20, vertical: 80 } } });
+  expect(loadWorkspaceLayout()).toEqual({ sidebarCollapsed: false, sidebarWidth: 640, splits: { a: { horizontal: 20, vertical: 80 } } });
   vi.stubGlobal("localStorage", { getItem: () => "bad json", setItem: () => { throw Error("denied"); } });
   expect(loadWorkspaceLayout()).toEqual({ sidebarCollapsed: false, sidebarWidth: 260, splits: {} });
   expect(() => saveWorkspaceLayout({})).not.toThrow();
@@ -54,4 +54,17 @@ it("keeps hidden navigation mounted and exposes keyboard accessible dividers", (
   expect(html).toContain('aria-label="Resize chat and pinned pane"');
   expect(html.match(/nav draft/g)).toHaveLength(1);
   expect(html.match(/tool draft/g)).toHaveLength(1);
+});
+it("splits a tool workspace with Browser using its own saved size and a single copy of each pane", () => {
+  storage({ splits: { "workspace:generate": { horizontal: 60 }, draft: { horizontal: 35 } } });
+  const html = renderToStaticMarkup(<AppLayout activeTab="generate" pinnedTab="browser" pinnedTitle="Browser" sidebar={() => null}>
+    <div className="pane" data-capture-tab="browser"><textarea defaultValue="browser state" /></div>
+    <div className="pane chat-pane" data-capture-tab="chats" hidden><textarea defaultValue="chat draft" /></div>
+    <div className="pane" data-capture-tab="generate"><textarea defaultValue="generate draft" /></div>
+  </AppLayout>);
+  expect(html).toContain('class="pane primary-workspace" data-capture-tab="generate"');
+  expect(html).toContain('class="pane pinned-workspace" data-capture-tab="browser"');
+  expect(html).toContain('aria-label="Resize Generate Images and Browser"');
+  expect(loadWorkspaceLayout().splits["workspace:generate"].horizontal).toBe(60);
+  for (const value of ["browser state", "generate draft", "chat draft"]) expect(html.match(new RegExp(value, "g"))).toHaveLength(1);
 });

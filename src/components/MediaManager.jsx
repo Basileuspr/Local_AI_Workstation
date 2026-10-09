@@ -4,6 +4,7 @@ import "./MediaManager.css";
 import { useDesktopCapabilities } from "./Compatibility";
 import { WINDOW_LAYOUT_EVENT } from '../windowRendering';
 import { FloatingToolBoundsContext, avoidFloatingTool } from '../floatingToolBounds';
+import { visibleSurfaceBounds } from '../browserPlacement';
 
 export default function MediaManager({ active }) {
   const drawerOpen = useContext(NavigationOpenContext);
@@ -34,13 +35,14 @@ export default function MediaManager({ active }) {
   useEffect(() => {
     if (!desktop?.placeMediaManager) return;
     const position = () => {
-      const bounds = container.current?.getBoundingClientRect();
-      desktop.placeMediaManager({ visible: active && status.ready && !drawerOpen,
-        bounds: bounds && avoidFloatingTool({ x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height }, floatingTool) }).catch(() => {});
+      const bounds = visibleSurfaceBounds(container.current);
+      desktop.placeMediaManager({ visible: active && status.ready && !drawerOpen && !!bounds,
+        bounds: avoidFloatingTool(bounds, floatingTool) }).catch(() => {});
     };
     position();
     const resize = new ResizeObserver(position);
     if (container.current) resize.observe(container.current);
+    if (container.current?.parentElement) resize.observe(container.current.parentElement);
     window.addEventListener("resize", position);
     window.addEventListener('scroll', position, true);
     window.addEventListener(WINDOW_LAYOUT_EVENT, position);

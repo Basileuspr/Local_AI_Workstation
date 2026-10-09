@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { useStore, useDispatch } from "./useStore";
-import { CHAT_PINS_KEY, loadChatPins, validChatPin, pinnableTabs } from "./chatPins";
-import { appTabLabels } from "./navigation";
+import { CHAT_PINS_KEY, WORKSPACE_PINS_KEY, loadChatPins, loadWorkspacePins, validChatPin, validWorkspacePin, pinnableTabs, workspacePinnableTabs } from "./chatPins";
+import { appTabLabels, resolveActiveTab } from "./navigation";
 
 const Context = createContext(null);
 export const useChatWorkspace = () => useContext(Context);
@@ -9,6 +9,10 @@ export const useChatWorkspace = () => useContext(Context);
 export function ChatWorkspaceProvider({ children, remember = true }) {
   const state = useStore(), dispatch = useDispatch();
   const [pins, setPins] = useState(() => remember ? loadChatPins() : {}), [storageError, setStorageError] = useState("");
+  const [workspacePins, setWorkspacePins] = useState(() => remember ? loadWorkspacePins() : {});
+  const [workspaceStorageError, setWorkspaceStorageError] = useState("");
+  const activeTab = resolveActiveTab(state.activeSidebarTab);
+  const workspacePin = workspacePins[activeTab] || null;
   const key = state.currentSessionId || "draft";
   const previous = useRef(state.currentSessionId), seen = useRef(null);
   const checklistDrafts = useRef(new Map());
@@ -17,11 +21,24 @@ export function ChatWorkspaceProvider({ children, remember = true }) {
     const clean = validChatPin(value);
     setPins(current => { const next = { ...current }; if (clean) next[key] = clean; else delete next[key]; return next; });
   }
+  function setWorkspacePin(value) {
+    const clean = validWorkspacePin(activeTab, value);
+    setWorkspacePins(current => {
+      const next = { ...current };
+      if (clean) next[activeTab] = clean; else delete next[activeTab];
+      return next;
+    });
+  }
   useEffect(() => {
     if (!remember) return;
     try { localStorage.setItem(CHAT_PINS_KEY, JSON.stringify(pins)); setStorageError(""); }
     catch { setStorageError("The side pane works, but its selection could not be remembered on this device."); }
   }, [pins, remember]);
+  useEffect(() => {
+    if (!remember) return;
+    try { localStorage.setItem(WORKSPACE_PINS_KEY, JSON.stringify(workspacePins)); setWorkspaceStorageError(""); }
+    catch { setWorkspaceStorageError("The side pane works, but its selection could not be remembered on this device."); }
+  }, [workspacePins, remember]);
   useEffect(() => {
     if (!previous.current && state.currentSessionId) setPins(current => {
       if (!current.draft) return current;
@@ -43,7 +60,20 @@ export function ChatWorkspaceProvider({ children, remember = true }) {
   const message = pin?.kind === "message" ? state.conversationHistory.find(item => item.id === pin.messageId) : null;
   const title = pin?.kind === "chat" ? "Chat B · Separate conversation" : pin?.kind === "tool" ? appTabLabels[pin.tab] : pin?.kind === "document" ? artifact?.name || "Document" : "Checklist";
   function pinTool(tab) { setPin({ kind: "tool", tab }); dispatch({ type: "SET_SIDEBAR_TAB", payload: "chats" }); }
-  return <Context.Provider value={{ pin, setPin, pinTool, artifact, message, title, storageError, checklistDrafts }}>{children}</Context.Provider>;
+  return <Context.Provider value={{ pin, setPin, pinTool, artifact, message, title, storageError, checklistDrafts,
+    workspacePin, setWorkspacePin, workspaceStorageError }}>{children}</Context.Provider>;
+}
+
+export function WorkspacePinControls({ activeTab }) {
+  const workspace = useChatWorkspace();
+  if (!workspace || activeTab === "chats") return null;
+  return <label className="chat-pin-picker">Side pane
+    <select aria-label="Side pane workspace" value={workspace.workspacePin?.tab || ""}
+      onChange={event => workspace.setWorkspacePin(event.target.value ? { kind: "tool", tab: event.target.value } : null)}>
+      <option value="">None</option>
+      {workspacePinnableTabs.filter(tab => tab !== activeTab).map(tab => <option value={tab} key={tab}>{appTabLabels[tab]}</option>)}
+    </select>
+  </label>;
 }
 
 export function ChatPinControls({ activeTab }) {

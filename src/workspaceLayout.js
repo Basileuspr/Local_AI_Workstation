@@ -2,7 +2,7 @@ export const WORKSPACE_LAYOUT_KEY = "local-ai-workstation-layout-v1";
 export const DIVIDER_SIZE = 10;
 export const SIDEBAR_DEFAULT = 260;
 export const SIDEBAR_MIN = 180;
-export const SIDEBAR_MAX = 480;
+export const SIDEBAR_MAX = 640;
 export const SPLIT_DEFAULTS = { horizontal: 50, vertical: 55 };
 
 export function clampLayoutValue(value, min, max) {

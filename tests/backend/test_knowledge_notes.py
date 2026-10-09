@@ -88,3 +88,46 @@ def test_routes_create_read_update_and_validate(note_index, monkeypatch):
         assert client.put("/files/knowledge-base/nodes/missing", json={"title": "No"}).status_code == 404
         imported = kb.add_document("Imported source", "imported.md")
         assert client.get(f'/files/knowledge-base/nodes/{imported["doc_id"]}').status_code == 404
+
+
+def test_existing_node_can_become_character_and_other_kinds_without_losing_identity(note_index, monkeypatch):
+    from services.faces import bank
+    profile_id = "a" * 32
+    monkeypatch.setattr(bank, "get_character", lambda id: {"id": id, "name": "Mara"} if id == profile_id else (_ for _ in ()).throw(ValueError("Missing character")))
+    created = notes.save_node(notes.KnowledgeNodeDraft(title="Untitled node"))
+    other = notes.save_node(notes.KnowledgeNodeDraft(title="Reference"))
+    vault.set_position(created["doc_id"], 12, 24, 36)
+    vault.set_link(created["doc_id"], other["doc_id"])
+    vault.set_options(created["doc_id"], KnowledgeNodeOptions(label="Untitled node", color="#ff0000", icon="check", tags=["note", "favorite"], locked=True))
+    character = notes.save_node(notes.KnowledgeNodeDraft(title="Mara", kind="character", text="My own biography", character_id=profile_id), created["doc_id"])
+    assert character["doc_id"] == created["doc_id"] and character["filename"] == created["filename"]
+    assert notes.read_node(created["doc_id"])["character_id"] == profile_id
+    node = next(node for node in vault.graph()["nodes"] if node["doc_id"] == created["doc_id"])
+    assert node["node_kind"] == "character" and node["character_id"] == profile_id
+    assert node["node_title"] == "Mara" and node["options"]["tags"] == ["character", "favorite"]
+    assert node["options"]["color"] == "#ff0000" and node["options"]["icon"] == "check" and node["options"]["locked"]
+    assert node["position"] == {"x": 12, "y": 24, "z": 36} and len(vault.graph()["edges"]) == 1
+    assert f"Character profile ID: {profile_id}" in vault.document(created["doc_id"])["chunks"][0]["text"]
+    for kind in ("project", "idea", "event", "place", "reference", "note", "character"):
+        changed = notes.save_node(notes.KnowledgeNodeDraft(title="Mara", kind=kind, text="My own biography"), created["doc_id"])
+        assert changed["doc_id"] == created["doc_id"]
+        assert notes.read_node(created["doc_id"])["character_id"] == ""
+        assert notes.read_node(created["doc_id"])["text"] == "My own biography"
+    assert len(vault.graph()["nodes"]) == 2
+    before = notes.read_node(created["doc_id"])
+    with pytest.raises(ValueError, match="Missing character"):
+        notes.save_node(notes.KnowledgeNodeDraft(title="Missing", kind="character", character_id="b" * 32), created["doc_id"])
+    assert notes.read_node(created["doc_id"]) == before
+    for draft in ({"title": "x", "kind": "note", "character_id": profile_id}, {"title": "x", "kind": "character", "character_id": "../profile"}):
+        with pytest.raises(ValueError): notes.KnowledgeNodeDraft(**draft)
+
+
+def test_old_authored_node_schema_migrates_without_changing_content(note_index):
+    import sqlite3
+    with sqlite3.connect(kb.KB_DIR / "vault.sqlite3") as connection:
+        connection.execute("CREATE TABLE authored_nodes (doc_id TEXT PRIMARY KEY, filename TEXT NOT NULL, title TEXT NOT NULL, kind TEXT NOT NULL, text TEXT NOT NULL)")
+        connection.execute("INSERT INTO authored_nodes VALUES ('old', 'Old.md', 'Old', 'note', 'Keep these notes')")
+    with vault.database() as connection:
+        assert connection.execute("SELECT title, text, character_id FROM authored_nodes WHERE doc_id = 'old'").fetchone() == ("Old", "Keep these notes", "")
+    with vault.database() as connection:
+        assert connection.execute("SELECT COUNT(*) FROM authored_nodes").fetchone()[0] == 1

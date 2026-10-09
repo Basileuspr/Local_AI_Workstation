@@ -1,5 +1,6 @@
 """Real disposable Git remotes verify privacy/history; validation tools are mocked."""
 import importlib.util
+import hashlib
 import json
 from pathlib import Path
 import subprocess
@@ -74,6 +75,52 @@ def test_source_snapshot_keeps_bundled_asset_licenses(repositories):
     assert not {'data/fonts/LICENSE', 'node_modules/font/LICENSE'} & paths
     capture = Path(result['folder']) / 'capture'
     assert (capture / 'src/fonts/LICENSE').read_text() == 'Copyright and redistribution notice.\n'
+
+
+def test_verified_bundled_binary_is_preserved_and_tampering_is_blocked(repositories, monkeypatch):
+    source, _, remote, storage, _ = repositories
+    name = 'src/assets/piano-model/basic-pitch.bin'
+    raw = b'\x00verified\r\nasset\xff'
+    monkeypatch.setattr(publisher, 'BUNDLED_ASSETS', {name: (len(raw), hashlib.sha256(raw).hexdigest())})
+    target = source / name
+    target.parent.mkdir(parents=True)
+    target.write_bytes(raw)
+    with (source / '.gitignore').open('a') as handle:
+        handle.write('*.bin\n!' + name + '\n')
+    assert publisher.allowed(name)
+    assert not publisher.allowed('src/assets/piano-model/other.bin')
+    assert publisher.privacy_problem(name, raw + b'changed')
+    result = publisher.prepare(source, storage)
+    folder = Path(result['folder'])
+    assert (folder / 'capture' / name).read_bytes() == raw
+    publisher.publish(source, folder, ['.gitignore', name], 'Include verified bundled dependency')
+    assert subprocess.check_output(['git', '-C', str(remote), 'show', 'main:' + name]) == raw
+    target.write_bytes(raw + b'changed')
+    rejected = publisher.prepare(source, storage)['preview']
+    assert name not in {item['path'] for item in rejected['changes']}
+    assert any(item['path'] == name and 'checksum' in item['reason'] for item in rejected['blocked'])
+
+
+def test_generated_public_snapshots_survive_shared_local_excludes(repositories, monkeypatch):
+    source, _, remote, storage, _ = repositories
+    with (source / '.git/info/exclude').open('a') as handle:
+        handle.write('\n/docs/application-review/snapshots/\n')
+    result = publisher.prepare(source, storage)
+    original_run = publisher.subprocess.run
+    def public_metadata(command, **options):
+        if command[-1] == 'build':
+            docs = Path(options['cwd']) / 'docs/application-review'
+            (docs / 'snapshots').mkdir(parents=True)
+            (docs / 'review.json').write_text('{}')
+            (docs / 'snapshots/generated.json').write_text(json.dumps({
+                'commits': [{'hash': result['preview']['base']}], 'git': {'head': result['preview']['base']},
+                'committed_baseline': {'git': {'head': result['preview']['base']}}
+            }))
+        return original_run(command, **options)
+    monkeypatch.setattr(publisher.subprocess, 'run', public_metadata)
+    publisher.publish(source, Path(result['folder']), ['src/ready.js'], 'Publish public reader snapshot')
+    assert 'snapshots/generated.json' in git(remote, 'ls-tree', '-r', '--name-only', 'main')
+    assert '/docs/application-review/snapshots/' in (source / '.git/info/exclude').read_text()
 
 
 def test_source_snapshot_blocks_credentials_and_excludes_private_history(repositories):

@@ -7,6 +7,14 @@ functionality; no separate Desktop application installation is needed.
 The host supplies a place to display the module and owns its process lifetime.
 The module retains its folder pickers, thumbnail viewer, duplicates, filters and
 custom-folder actions. Opening the tab does not scan or move anything.
+Choose a **Source folder** and click **Scan & preview** to browse MP4 files and
+their dates, categories, integrity and duplicates. **Destination folder** is
+optional: leave it blank to scan and review files in their current locations.
+Scan reports and catalog entries still save in Media Manager's own storage.
+To organize files later, select clips and use **Place in folder**, or enter a
+destination and scan again for an archive move preview. **Review move** requires
+a scan with a destination and eligible files; moves still require confirmation.
+
 **Review & classify** adds slideshow ratings, captions, tags, and local face and
 scene grouping through a restricted server-side bridge. This first video
 pipeline analyzes one preview frame per video. See [Visual Review](../images/VISUAL_REVIEW.md)

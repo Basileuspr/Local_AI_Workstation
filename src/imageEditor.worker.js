@@ -1,5 +1,6 @@
 import { adjustPixels, MAX_EDITOR_PIXELS } from "./imageEditor";
 import { colorRegion } from "./imageEditorColors";
+import { cropPixelRect } from "./imageEditorCrop";
 
 let original, preview, previewPixels;
 self.onmessage = async ({ data: { id, action, bitmap, settings } }) => {
@@ -24,7 +25,7 @@ self.onmessage = async ({ data: { id, action, bitmap, settings } }) => {
       self.postMessage({id, width:original.width, height:original.height, blob:await original.convertToBlob({type:"image/png"})});
       return;
     }
-    const full = [settings, ...(settings?.stages || [])].some(p => p?.sharpness || p?.clarity || p?.deblur || p?.refinement) || action === "export" || action === "inspect" || settings?.colorEdits?.length || settings?.stages?.some(pass => pass.colorEdits?.length);
+    const full = [settings, ...(settings?.stages || [])].some(p => p?.crop || p?.sharpness || p?.clarity || p?.deblur || p?.refinement) || action === "export" || action === "inspect" || settings?.colorEdits?.length || settings?.stages?.some(pass => pass.colorEdits?.length);
     const source = full ? original.getContext("2d").getImageData(0, 0, original.width, original.height) : previewPixels;
     let pixels = source;
     let output;
@@ -43,10 +44,17 @@ self.onmessage = async ({ data: { id, action, bitmap, settings } }) => {
       const areaSource = pixels.data;
       for (const edit of pass.colorEdits || []) pixels = new ImageData(colorRegion(pixels.data, pixels.width, pixels.height, edit, edit.sampleId ? areaSource : pixels.data), pixels.width, pixels.height);
       context.putImageData(pixels, 0, 0);
+      if (pass.crop) {
+        const rect = cropPixelRect(pass.crop, output.width, output.height);
+        if (!rect) throw new Error("Choose a crop at least one pixel wide and high.");
+        pixels = context.getImageData(rect.x, rect.y, rect.width, rect.height);
+        output = new OffscreenCanvas(rect.width, rect.height);
+        output.getContext("2d").putImageData(pixels, 0, 0);
+      }
     }
     const width=output.width,height=output.height;
     if(action!=="export" && action!=="inspect" && Math.max(width,height)>1400){
-      const scale=1400/Math.max(width,height),small=new OffscreenCanvas(Math.round(width*scale),Math.round(height*scale));
+      const scale=1400/Math.max(width,height),small=new OffscreenCanvas(Math.max(1,Math.round(width*scale)),Math.max(1,Math.round(height*scale)));
       const context=small.getContext('2d');context.imageSmoothingQuality='high';context.drawImage(output,0,0,small.width,small.height);output=small;
     }
     self.postMessage({ id, width, height, blob: await output.convertToBlob({ type: "image/png" }) });
