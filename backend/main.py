@@ -855,6 +855,8 @@ async def _chat(request: ChatRequest, client_request: Request):
     create_word = word_operation is not None
     from services.chat_canvas import wants_canvas_edit, instruction as canvas_instruction, stream_canvas
     edit_canvas = bool(request.canvas_context and wants_canvas_edit(last_prompt))
+    from services.image_transcription import wants_transcription, stream_transcription
+    transcribe_images = not (create_word or edit_canvas) and wants_transcription(last_prompt) and any(m.images for m in request.messages)
     # Images travel as blob references so megabytes of base64 never cross the
     # wire or sit in renderer memory. Ollama needs the payload, so references
     # are expanded here, at the last possible moment.
@@ -864,6 +866,8 @@ async def _chat(request: ChatRequest, client_request: Request):
             if image_store.is_reference(value):
                 payload = image_store.get_base64(value)
                 if payload is None:
+                    if transcribe_images:
+                        raise ValueError("An attached image is missing or locked. Attach a readable, unlocked image and request transcription again.")
                     logger.warning("Image %s is referenced but missing; skipping it", value)
                     continue
                 resolved.append(payload)
@@ -871,6 +875,8 @@ async def _chat(request: ChatRequest, client_request: Request):
                 from services.image_vault import is_locked
                 import hashlib
                 raw = image_store.decode_payload(value)
+                if transcribe_images and raw is not None and is_locked(hashlib.sha256(raw).hexdigest()):
+                    raise ValueError("An attached image is locked. Restore it in Locked Images before requesting transcription.")
                 if raw is None or not is_locked(hashlib.sha256(raw).hexdigest()): resolved.append(value)
         return resolved
 
@@ -881,6 +887,31 @@ async def _chat(request: ChatRequest, client_request: Request):
         if images:
             message["images"] = images
         messages_to_send.append(message)
+
+    if transcribe_images:
+        async def transcription_stream():
+            job = queue.find(kind="chat", request_id=request.request_id)
+
+            async def prepare(model, limit):
+                if job and (request.exclusive_model or model != request.model):
+                    async for status in prepare_chat_model(job, model, OLLAMA_BASE_URL,
+                                                          options={"num_ctx": limit}, request_queue=queue):
+                        yield status
+
+            def progress(model, detail):
+                if job:
+                    queue.set_stage(job, "responding", detail)
+                    return {**chat_runtime_activity(job), "model": model}
+                return {"model": model, "stage": "responding", "detail": detail}
+
+            try:
+                async with httpx.AsyncClient(timeout=httpx.Timeout(600.0, connect=10.0), trust_env=False) as client:
+                    async for data in stream_transcription(client, OLLAMA_BASE_URL, messages_to_send, request.model,
+                            client_request.is_disconnected, prepare=prepare, progress=progress):
+                        yield data
+            except (httpx.HTTPError, ValueError) as exc:
+                yield f"data: {json.dumps({'token': f'[Error: {exc}]', 'error': str(exc), 'done': True})}\n\n"
+        return StreamingResponse(transcription_stream(), media_type="text/event-stream")
 
     # --- Structured memory: persist the new message and inject durable context ---
     def _load_durable_memory():

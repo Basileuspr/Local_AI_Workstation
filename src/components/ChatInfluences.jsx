@@ -46,10 +46,12 @@ export function ReplyInfluences({message}){
   const actual=message.influence_receipt,configured=message.influence_settings;
   if(!actual)return <details className="reply-influences"><summary>Response influences · not recorded</summary><p>This reply has no backend request record. Current chat settings cannot tell us exactly what was supplied for it.</p></details>;
   const local=actual.mode==='image_conversion';
-  return <details className="reply-influences"><summary>Response influences · {local?'local conversion':`${configured?.roleplay?.name?configured.roleplay.name+' · ':''}${actual.model||'model request'}`}</summary>
+  const transcription=actual.mode==='image_transcription';
+  return <details className="reply-influences"><summary>Response influences · {local?'local conversion':`${transcription?'image transcription · ':configured?.roleplay?.name?configured.roleplay.name+' · ':''}${actual.model||'model request'}`}</summary>
     {local?<p>Local image conversion. No chat model, roleplay prompt, or retrieved context was used.</p>:<>
       <p>Request assembled {new Date(actual.prepared_at).toLocaleString()} for this reply. This records app inputs, not proof that the model followed every source. Provider errors may mean the request was not processed.</p>
-      {configured&&<p>At Send: {configured.roleplay?`Roleplay ${configured.roleplay.name}`:'Roleplay off'}; general prompt {configured.generalPrompt?'included':'off'}; style {configured.responseStyle||'off'}.</p>}
+      {transcription&&<p>Image transcription uses your transcription request and attached pixels. This record shows the latest image request in the batch.</p>}
+      {configured&&!transcription&&<p>At Send: {configured.roleplay?`Roleplay ${configured.roleplay.name}`:'Roleplay off'}; general prompt {configured.generalPrompt?'included':'off'}; style {configured.responseStyle||'off'}.</p>}
       <p>Saved user memories: <strong>{actual.durable_memory?.status||'not recorded'}</strong>. Knowledge: <strong>{actual.knowledge?.status||'not recorded'}</strong> ({actual.knowledge?.mode||'unknown'} scope).</p>
       {actual.knowledge?.sources?.length>0&&<ul>{actual.knowledge.sources.map((source,index)=><li key={index}>{source.filename} · excerpt {source.chunk_index+1} · {source.characters} characters</li>)}</ul>}
       {(actual.notices||[]).map((notice,index)=><p key={index}>{notice.message}</p>)}

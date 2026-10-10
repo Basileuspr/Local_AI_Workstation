@@ -58,4 +58,11 @@ describe('chat influence contract',()=>{
     const old=renderToStaticMarkup(<ReplyInfluences message={{content:'Old answer'}}/>);
     expect(old).toContain('not recorded');expect(old).toContain('Current chat settings cannot');
   });
+  it('identifies the actual OCR reader without attributing transcription to configured roleplay',()=>{
+    const html=renderToStaticMarkup(<ReplyInfluences message={{influence_settings:{roleplay:{name:'Unrelated character'},generalPrompt:true},influence_receipt:{model:'local-ocr',prepared_at:'2026-01-01T00:00:00Z',mode:'image_transcription',message_count:1,image_count:1,messages:[],durable_memory:{status:'off'},knowledge:{status:'off',mode:'off'}}}}/>);
+    expect(html).toContain('image transcription · local-ocr');
+    expect(html).toContain('latest image request in the batch');
+    expect(html).not.toContain('Unrelated character');
+    expect(html).not.toContain('At Send');
+  });
 });
