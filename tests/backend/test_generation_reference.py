@@ -17,8 +17,11 @@ from test_image_generation_cancel import configure_manager, generation_options
 
 @pytest.fixture(autouse=True)
 def isolated_blobs(tmp_path, monkeypatch):
+    references.preparation_cache.clear()
     monkeypatch.setattr(image_store, 'BLOBS_DIR', tmp_path / 'blobs')
     monkeypatch.setattr(image_vault, 'is_locked', lambda _: False)
+    from services import image_generation_cache
+    monkeypatch.setattr(image_generation_cache, 'memory_headroom', lambda: 256 * 1024 ** 2)
 
 
 def png(size=(120, 60), color='red'):

@@ -8,6 +8,7 @@ export const creativeHelp = {
     ['Generate / Stop', 'Submits the current settings to the shared queue. Stop cancels remaining work while retaining completed images.'],
     ['Browser alongside Generate', 'Choose Browser in the top toolbar’s Side pane selector to keep its page, video and browser controls visible while images generate. Closing the side pane hides Browser; Close page in Browser closes its selected page.'],
     ['Batch / increments', 'Starts with current settings, then advances each enabled increment together for successive images. A blank starting seed uses 1 when Seed increments are enabled.'],
+    ['Automatic RAM reuse', 'Repeated SDXL prompts and prepared reference images reuse exact results in small RAM caches. Model or LoRA changes invalidate prompt results; low RAM bypasses caching. This helps repeated requests without changing steps, sampling or precision. Runtime reset clears both caches.'],
     ['Preview / Image N of M', 'Select completed results while later images continue. Click a preview to enlarge it or use Edit to open the image editor.'],
     ['Output folder / Use library', 'Selects where new export copies are saved. Generated results also remain available in the Gallery.'],
     ['Analyze & Iterate', 'Uses an installed chat model to propose revised prompts. Review and apply suggestions explicitly; model, LoRA, seed and generation settings stay selected.'],

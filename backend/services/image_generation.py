@@ -164,6 +164,9 @@ class ImageGenerationManager:
         self._model_id: str | None = None
         self._pipeline_type = "StableDiffusionXLPipeline"
         self._lora_id: str | None = None
+        self._lora_scale: float | None = None
+        from services.image_generation_cache import PreparationCache
+        self._conditioning_cache = PreparationCache()
         self._compel = None
         self._offload_strategy = "model"
         self._lock = threading.Lock()
@@ -197,7 +200,12 @@ class ImageGenerationManager:
             "offload_strategy": self._offload_strategy if self._pipeline is not None else "automatic",
             "active_request_id": self.active_request_id(),
             "resolution_limits": current_resolution_limits(),
+            "preparation_cache": self._preparation_cache_status(),
         }
+
+    def _preparation_cache_status(self):
+        from services.generation_reference import preparation_cache
+        return {"conditioning": self._conditioning_cache.status(), "reference": preparation_cache.status()}
 
     def _unload(self) -> None:
         pipeline = self._active_pipeline
@@ -209,6 +217,8 @@ class ImageGenerationManager:
         self._model_id = None
         self._pipeline_type = "StableDiffusionXLPipeline"
         self._lora_id = None
+        self._lora_scale = None
+        self._conditioning_cache.clear()
         if pipeline is not None and hasattr(pipeline, "remove_all_hooks"):
             try:
                 pipeline.remove_all_hooks()
@@ -283,6 +293,9 @@ class ImageGenerationManager:
         self._pipeline_type = model.get("pipeline", "StableDiffusionXLPipeline")
         if is_ernie:
             self._offload_strategy = "mixed"
+        else:
+            from services.image_generation_cache import cache_sdxl_prompt_encoding
+            cache_sdxl_prompt_encoding(pipeline, self._conditioning_cache)
         self._enable_offload(pipeline)
         pipeline.set_progress_bar_config(disable=True)
 
@@ -320,6 +333,8 @@ class ImageGenerationManager:
                    "sequential" if allow_long_wait else image_offload_strategy(current_resolution_limits()["vram_bytes"]))
         if desired == self._offload_strategy:
             return
+        self._conditioning_cache.clear()
+        self._compel = None
         # Shared workflow modules must have only one active offload hook chain.
         if self._active_pipeline is not None:
             self._active_pipeline.remove_all_hooks()
@@ -365,6 +380,8 @@ class ImageGenerationManager:
             # Share weights and preserve component dtypes; one active offload chain.
             self._workflow_pipelines[operation] = cls.from_pipe(
                 self._pipeline, torch_dtype=None, add_watermarker=False)
+            from services.image_generation_cache import cache_sdxl_prompt_encoding
+            cache_sdxl_prompt_encoding(self._workflow_pipelines[operation], self._conditioning_cache)
         return self._workflow_pipelines[operation]
 
     def unload_for_training(self) -> None:
@@ -442,6 +459,8 @@ class ImageGenerationManager:
             return False
         try:
             self._unload()
+            from services.generation_reference import preparation_cache
+            preparation_cache.clear()
             return True
         finally:
             self._lock.release()
@@ -450,6 +469,11 @@ class ImageGenerationManager:
         """Encode SDXL prompts beyond CLIP's native 77-token window."""
         if self._pipeline is None:
             raise RuntimeError("Image pipeline is not loaded")
+        from services.image_generation_cache import conditioning_key, copy_conditioning, store_conditioning
+        key = conditioning_key(self._pipeline, "compel", {"prompt": prompt, "negative_prompt": negative_prompt or ""})
+        cached = self._conditioning_cache.get(key, lambda value: copy_conditioning(value, "cuda"))
+        if cached is not None:
+            return cached
         try:
             from compel import CompelForSDXL
         except ImportError as exc:
@@ -460,12 +484,14 @@ class ImageGenerationManager:
                 provider = compel.conditioning_provider
                 provider.text_encoder = _ExecutionDeviceTextEncoder(provider.text_encoder, "cuda")
         conditioning = self._compel(prompt, negative_prompt=negative_prompt or "")
-        return {
+        result = {
             "prompt_embeds": conditioning.embeds,
             "pooled_prompt_embeds": conditioning.pooled_embeds,
             "negative_prompt_embeds": conditioning.negative_embeds,
             "negative_pooled_prompt_embeds": conditioning.negative_pooled_embeds,
         }
+        store_conditioning(self._conditioning_cache, key, result)
+        return result
 
     def _set_lora(self, lora_id: str | None, scale: float) -> None:
         """Load at most one locally trained adapter into the current pipeline."""
@@ -473,11 +499,17 @@ class ImageGenerationManager:
             return
         if self._lora_id == lora_id:
             if lora_id and hasattr(self._pipeline, "set_adapters"):
+                if self._lora_scale != scale:
+                    self._conditioning_cache.clear()
+                    self._compel = None
                 self._pipeline.set_adapters(["local-lora"], adapter_weights=[scale])
+                self._lora_scale = scale
             return
+        self._conditioning_cache.clear()
         if self._lora_id and hasattr(self._pipeline, "unload_lora_weights"):
             self._pipeline.unload_lora_weights()
         self._lora_id = None
+        self._lora_scale = None
         self._workflow_pipelines.clear()
         self._compel = None
         if not lora_id:
@@ -493,6 +525,7 @@ class ImageGenerationManager:
         if hasattr(self._pipeline, "set_adapters"):
             self._pipeline.set_adapters(["local-lora"], adapter_weights=[scale])
         self._lora_id = lora_id
+        self._lora_scale = scale
 
     def generate(
         self,

@@ -50,6 +50,49 @@ chat. Existing request and Prompt Queue controls provide progress and cancellati
 inference uses the existing serial queue. Per-image labels are saved in chat,
 without appending those labels to the model prompt.
 
+### Automatic CPU and RAM preparation reuse
+
+SDXL keeps exact prompt conditioning in a disposable CPU RAM cache (up to 16
+entries / 64 MiB), including Generate's long-prompt Compel path and native
+short-prompt workflow encoding. Repeated prompts can reuse conditioning when
+seeds, dimensions, steps or guidance amounts change; classifier-free guidance
+on/off, negative prompts, secondary prompts, clip skip and encoding batch size
+remain distinct. Model unload, offload-strategy changes, LoRA selection and LoRA
+weight changes invalidate conditioning. Explicit embedding inputs and transient
+Diffusers LoRA scaling keep their native encoding path. ERNIE retains its existing
+conditioning cache.
+
+Generate's reference preparation has a separate 8-entry / 64 MiB RAM cache.
+It reuses the exact EXIF-oriented, alpha-composited and fitted RGB pixels for
+the same source, dimensions and fit choice. Every use still reads and verifies
+the original bytes and vault access. A changed, missing or locked source cannot
+be served from cached pixels. Originals are preserved.
+
+Both caches return independent copies, evict older results and bypass caching
+when RAM is tight. The existing RAM guard reserves the larger of 2 GiB or 20%
+of system RAM; the extra preparation caches together retain at most 128 MiB.
+Runtime reset clears both. Prompt keys are hashed; cache contents stay in this
+backend process and are never saved to disk. `/image-generation/models`
+reports entries, retained bytes, hits and misses under `runtime.preparation_cache`.
+
+This reduces repeated preparation; a new prompt still requires encoding and
+GPU denoising still dominates many requests. The first request can include the
+small CPU-copy cost. Steps, scheduler, seed, precision, offload strategy and the
+serial GPU queue are unchanged. Reference preparation and PNG saving remain
+CPU work; this does not run a second model alongside an active generation.
+
+`test_image_generation_cache.py` checks exact tensor values, independent copies,
+argument separation, LoRA/reset invalidation, RAM limits, allocation failures,
+reference access checks and seeded pixel equality through the installed native
+Diffusers SDXL pipeline using tiny local CPU weights. Those fixtures establish
+cache behavior, not full-model GPU quality or end-to-end speed on every model.
+
+CPU measurement on 2026-10-09, five samples with an 11 MiB synthetic 2560 × 1440
+PNG fitted to 1024 × 1024 with Extend edges: median preparation was 189 ms without
+caching and 25 ms with a warm cache, with identical output pixel hashes. The
+first cached preparation took 190 ms. This measures reference preparation only;
+it is not a claim of a comparable improvement in total generation time.
+
 ### LoRA training guide
 
 The **Settings guide** button at the top of LoRA explains each setting, including

@@ -6,6 +6,9 @@ from PIL import Image, ImageOps
 
 from services import image_store, image_vault
 from services.image_workflows.store import MAX_UPLOAD_BYTES, _inspect_image
+from services.image_generation_cache import PreparationCache
+
+preparation_cache = PreparationCache(max_entries=8)
 
 
 def store_reference(name, content):
@@ -28,7 +31,23 @@ def reference_bytes(reference):
 
 
 def prepare_reference(reference, width, height, fit):
-    content = reference_bytes(reference)
+    # Re-read and verify the source, including vault access, on every hit.
+    try:
+        content = reference_bytes(reference)
+    except ValueError:
+        preparation_cache.clear()
+        raise
+    key = (reference, width, height, fit)
+    cached = preparation_cache.get(key, lambda image: image.copy())
+    if cached is not None:
+        return cached
+    prepared = _prepare_reference_content(content, width, height, fit)
+    # Pillow's RGB core uses four bytes per pixel, despite three-byte exports.
+    preparation_cache.put(key, prepared, prepared.width * prepared.height * 4, lambda image: image.copy())
+    return prepared
+
+
+def _prepare_reference_content(content, width, height, fit):
     _inspect_image("reference", content)
     with Image.open(io.BytesIO(content)) as original:
         oriented = ImageOps.exif_transpose(original).convert("RGBA")
