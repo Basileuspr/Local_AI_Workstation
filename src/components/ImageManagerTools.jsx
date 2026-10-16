@@ -7,7 +7,7 @@ const defaults={format:'png',standardize:false,width:1024,height:1024,fit:'conta
 const ratios={'1:1':[1,1],'4:3':[4,3],'3:4':[3,4],'16:9':[16,9],'9:16':[9,16]};
 
 export default function ImageManagerTools({Dialog,folders,selected,folderId,outputId,job,disabled,chooseSource,chooseOutput,scan,start,onClose}){
-  const [scope,setScope]=useState(selected.length?'selected':folderId||folders.find(folder=>folder.purpose==='source')?.id||'');
+  const [scope,setScope]=useState(selected.length?'selected':folders.some(folder=>folder.id===folderId)?folderId:'');
   const [rows,setRows]=useState([]),[error,setError]=useState(''),[loading,setLoading]=useState(true);
   const [options,setOptions]=useState(defaults),[ratio,setRatio]=useState('1:1'),[destination,setDestination]=useState(folders.some(folder=>folder.id===outputId&&folder.purpose==='output')?outputId:'');
   const [submitted,setSubmitted]=useState(''),[pending,setPending]=useState(false),[recursive,setRecursive]=useState(true),[revision,setRevision]=useState(0),[shown,setShown]=useState(100);

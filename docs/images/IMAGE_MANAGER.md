@@ -74,7 +74,14 @@ inside **Snapshots**.
 
 1. Add one or more source folders. Check the folders to process, choose whether
    to include subfolders, and click **Scan folders**.
-2. Browse thumbnails; filter filenames/tags, folder, format, month or favorites.
+2. **Browse folder** chooses what is displayed: one saved folder or **All catalog
+   folders**. The workspace starts with **No folder selected**; adding a source
+   explicitly selects that folder for browsing. Choose **No folder selected** or
+   **Reset filters** to clear the view and image selection without removing saved
+   folders or metadata. Scan checkboxes only choose folders for scan tasks; they
+   do not control browsing. Image tools uses an explicitly selected folder or
+   images, and does not fall back to the first saved source.
+   Browse thumbnails; filter filenames/tags, format, month or favorites.
    **Untagged only** temporarily displays only images with no catalog tags, before pagination.
    Newly tagged selections disappear while this filter is on. View tabs, filters
    and tagging/selection controls stay visible as you scroll through images.
@@ -206,9 +213,11 @@ When running the backend directly, the default is a sibling of app data named
 it does not import or copy originals. Browsing creates JPEG previews in memory,
 limited to 128 entries / 24 MiB with at most two decoders. It writes no thumbnail
 files. Older `thumbnails` folders are no longer used and are preserved.
-Forgetting a source folder removes
-its catalog entries and metadata, preserving original files. Saved functions
-referencing that folder must be edited to choose a current source.
+**Folders & scan settings** lists every registered source and output folder with
+a **Forget** button. Forgetting either kind removes its catalog entries and
+metadata, preserving original files. Saved functions referencing that folder
+must be edited to choose a current source or output. If recoverable Trash or a
+running task blocks forgetting, the confirmation dialog displays the reason.
 
 Image Manager keeps its folders, catalog entries, tags, favorites, hidden state
 and recoverable external Trash automatically across app-data reset and backup
@@ -236,7 +245,11 @@ rescan after external edits. Plans recheck actual source bytes before applying.
 ## Verification
 
 - `venv\Scripts\python.exe -m pytest tests/backend/test_image_manager.py tests/backend/test_image_manager_tools.py`
-- `npm test -- tests/frontend/imageManager.test.jsx`
+- `npm test -- tests/frontend/imageManager.test.jsx tests/frontend/imageManagerFolders.test.jsx tests/frontend/imageManagerTools.test.jsx`
+- After `npm run build`, run
+  `node_modules\electron\dist\electron.exe scripts/qa-image-manager-folders.cjs`
+  to verify explicit browsing, three registered source/output folders, and
+  forgetting an output folder while preserving its file bytes.
 - Build to `tmp/image-manager-build`, then run
   `node_modules\electron\dist\electron.exe scripts/qa-image-manager.cjs`.
 

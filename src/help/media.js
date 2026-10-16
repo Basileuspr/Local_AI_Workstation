@@ -75,7 +75,9 @@ export const mediaHelp = {
     ['Workflow Images', 'Browse completed workflow outputs and stitched references separately. Keep or save a stitched PNG to use it as a later reference.'],
   ]]],
   'image-manager': [['Folders and catalog', [
-    ['Add source folder / Scan folders', 'Scans checked folders for still images. Originals stay in place; opening the workspace never starts a scan.'],
+    ['Add source folder / Scan folders', 'Checkboxes choose sources for scanning, separately from the browsing view. Originals stay in place; opening the workspace never starts a scan.'],
+    ['Browse folder / Reset filters', 'Starts with No folder selected. Choose one saved folder or All catalog folders to browse. No folder selected or Reset filters clears the view and image selection without removing saved metadata. Image tools also waits for an explicit folder or image selection.'],
+    ['Folders & scan settings / Forget', 'Lists every saved source and output folder, each with Forget. Forget removes that folder and its catalog metadata while leaving files in place. If recoverable Trash blocks forgetting, the dialog explains what needs restoring.'],
     ['Catalog coverage', 'Scans skip animated/multiple-frame images, directory links and NVIDIA paths. Previews respect EXIF orientation.'],
     ['Search / All tags', 'Filters catalog matches. Saved tag choices cover the available catalog, including hidden images. Choosing a tag clears Untagged only.'],
     ['More filters', 'Contains date, format, favorites and Untagged only filters. The summary shows active filters.'],

@@ -1,0 +1,101 @@
+// Real renderer/backend; all catalog entries, profiles and files are disposable.
+const { app, BrowserWindow, ipcMain, protocol, net } = require('electron');
+const fs = require('node:fs'), os = require('node:os'), path = require('node:path');
+const { spawn } = require('node:child_process');
+const { pathToFileURL } = require('node:url');
+const assert = require('node:assert/strict');
+const { appAsset, APP_HEADERS } = require('../electron/security');
+const root = path.resolve(__dirname, '..');
+const work = fs.mkdtempSync(path.join(os.tmpdir(), 'law-image-folders-'));
+app.setPath('userData', path.join(work, 'profile'));
+protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
+let win, child;
+const checks = [];
+const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
+async function until(fn, label) {
+  const end = Date.now() + 30000;
+  while (Date.now() < end) { if (await fn()) return; await pause(80); }
+  throw Error('Timed out: ' + label);
+}
+app.whenReady().then(async () => {
+  child = spawn(path.join(root, 'venv/Scripts/python.exe'), [path.join(root, 'scripts/qa-image-manager-fixture.py'), work], { cwd: root, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
+  let stderr = '';
+  child.stderr.on('data', data => { stderr += data; });
+  const connection = await new Promise((resolve, reject) => {
+    let text = '';
+    const timer = setTimeout(() => reject(Error('Fixture startup failed: ' + stderr.slice(-1500))), 30000);
+    child.stdout.on('data', data => { text += data; if (text.includes('\n')) { clearTimeout(timer); resolve(JSON.parse(text.split('\n')[0])); } });
+    child.once('error', reject);
+  });
+  protocol.handle('app', async request => {
+    const response = await net.fetch(pathToFileURL(appAsset(path.join(root, process.env.LAW_QA_IMAGE_BUILD || 'dist'), request.url)).toString());
+    return new Response(response.body, { headers: { ...Object.fromEntries(response.headers), ...APP_HEADERS } });
+  });
+  win = new BrowserWindow({ show: false, width: 1200, height: 950, webPreferences: { preload: path.join(root, 'electron/preload.js'), contextIsolation: true, nodeIntegration: false, offscreen: true, backgroundThrottling: false } });
+  ipcMain.on('app:connection', event => { event.returnValue = event.sender === win.webContents ? connection : null; });
+  ipcMain.handle('app:startup-status', () => ({ state: 'ready' }));
+  ipcMain.handle('app:capabilities', () => ({ features: {} }));
+  for (const name of ['media-manager:place', 'viewer-browser:place', 'linked-content:place']) ipcMain.handle(name, () => {});
+  ipcMain.handle('maintenance:import-status', () => ({ active: false }));
+  ipcMain.handle('github-publication:state', () => ({ status: 'idle' }));
+  ipcMain.handle('function-workflows:state', () => null);
+  ipcMain.handle('sound-mixer:configure', () => ({ ok: true }));
+  ipcMain.handle('image-manager:choose-folder', (_event, purpose) => ({ path: path.join(work, purpose === 'source' ? 'image-source' : 'image-output') }));
+  const js = code => win.webContents.executeJavaScript(code);
+  const click = async (text, scope = '.image-manager') => {
+    const find = `(()=>[...document.querySelector(${JSON.stringify(scope)}).querySelectorAll('button')].find(b=>b.textContent.trim()===${JSON.stringify(text)}))()`;
+    await until(() => js(`!!${find} && !${find}.disabled`), text);
+    await js(`${find}.click()`);
+  };
+  const select = (label, value) => js(`(()=>{const e=document.querySelector('select[aria-label=${JSON.stringify(label)}]');e.value=${JSON.stringify(value)};e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  const api = async (route, method = 'GET', body) => {
+    const response = await fetch(connection.base + '/image-manager' + route, { method, headers: { 'X-LAW-Session': connection.token, 'Content-Type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}) });
+    const value = await response.json(); assert(response.ok, JSON.stringify(value)); return value;
+  };
+  const task = async (kind, payload) => {
+    const { job_id } = await api('/tasks', 'POST', { kind, ...payload });
+    await until(async () => { const job = (await api('/state')).job; return job?.id === job_id && job.status !== 'running'; }, kind);
+    const job = (await api('/state')).job; assert.equal(job.status, 'complete', job.message); return job.result;
+  };
+  await win.loadURL('app://local/index.html');
+  await until(() => js("!!document.querySelector('.image-manager')"), 'manager mount');
+  await js("document.querySelector('[data-sidebar-route=image-manager]').click()");
+  await until(() => js("document.querySelector('[data-capture-tab=image-manager]')?.hidden===false"), 'manager visible');
+  assert.equal(await js("document.querySelector('[aria-label=\"Filter image folder\"]').value"), '__none__');
+  assert.equal((await api('/state')).job, null);
+  await click('+ Add source folder'); await click('Choose output folder'); await click('Scan folders');
+  await until(() => js("document.querySelectorAll('.im-grid article').length===3"), 'source thumbnails');
+  let state = await api('/state');
+  const output = state.folders.find(folder => folder.purpose === 'output');
+  const other = await api('/folders', 'POST', { path: path.join(work, 'scroll-source'), purpose: 'output' });
+  const rows = (await api('/images')).images;
+  const result = await task('plan', { ids: rows.map(row => row.id), output_id: output.id, layout: 'folders', mode: 'copy' });
+  await task('apply', { plan_id: result.plan_id, confirmation: 'COPY 3' });
+  const saved = fs.readdirSync(output.path).map(name => ({ path: path.join(output.path, name), bytes: fs.readFileSync(path.join(output.path, name)) }));
+  await until(() => js("document.querySelectorAll('.im-folder-list > div').length===3"), 'all source/output rows');
+  await js("document.querySelector('.im-folders').open=true");
+  fs.writeFileSync(path.join(work, 'folders.png'), (await win.webContents.capturePage()).toPNG());
+  await select('Filter image folder', output.id);
+  await until(() => js("document.querySelectorAll('.im-grid article').length===3"), 'output browsing');
+  await click('Select page'); await select('Filter image folder', '__none__');
+  await until(() => js("document.querySelectorAll('.im-grid article').length===0 && document.querySelector('.im-selection').textContent.includes('0 selected')"), 'clear browsing and selection');
+  await click('Image tools');
+  await until(() => js("document.querySelector('.im-tools-dialog')?.open"), 'tools open');
+  assert.equal(await js("document.querySelector('[aria-label=\"Image tools source\"]').value"), '');
+  await js("document.querySelector('.im-tools-dialog [aria-label=\"Close dialog\"]').click()");
+  checks.push('Three saved folders are manageable; clearing browsing clears thumbnails/selection; Image tools stays unselected');
+  const forgetOutput = () => js(`document.querySelector(${JSON.stringify(`button[aria-label=${JSON.stringify('Forget ' + output.path)}]`)}).click()`);
+  await forgetOutput(); await click('Cancel', '.im-dialog');
+  assert.equal((await api('/state')).folders.length, 3);
+  await forgetOutput(); await click('Forget folder', '.im-dialog');
+  await until(async () => (await api('/state')).folders.length === 2, 'output forgotten');
+  assert((await api('/state')).folders.some(folder => folder.id === other.id));
+  assert.equal((await api('/images?folder_id=' + output.id)).total, 0);
+  for (const file of saved) assert.deepEqual(fs.readFileSync(file.path), file.bytes);
+  checks.push('Forget output: Cancel preserves catalog; confirmation removes only its entries and preserves every output file byte');
+  await win.reload();
+  await until(() => js("!!document.querySelector('[aria-label=\"Filter image folder\"]')"), 'reload');
+  assert.equal(await js("document.querySelector('[aria-label=\"Filter image folder\"]').value"), '__none__');
+  fs.writeFileSync(path.join(work, 'result.json'), JSON.stringify({ ok: true, checks }, null, 2));
+  console.log(JSON.stringify({ ok: true, checks, work }));
+}).catch(error => { console.error(error.stack); process.exitCode = 1; }).finally(() => { if (child) child.kill(); if (win && !win.isDestroyed()) win.destroy(); app.exit(process.exitCode || 0); });

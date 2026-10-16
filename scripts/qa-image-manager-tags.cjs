@@ -76,6 +76,8 @@ app.whenReady().then(async () => {
     await win.loadURL('app://local/index.html');
     await until(()=>js("!!document.querySelector('[data-sidebar-route=image-manager]')"),'navigation');
     await js("document.querySelector('[data-sidebar-route=image-manager]').click()");
+    await until(()=>js("document.querySelector('[aria-label=\"Filter image folder\"]')?.options.length>2"),'catalog folders');
+    await js("(()=>{const e=document.querySelector('[aria-label=\"Filter image folder\"]');e.value='';e.dispatchEvent(new Event('change',{bubbles:true}))})()");
     await until(()=>js(`document.querySelectorAll('.im-grid article').length===${count}`),'image library');
   };
   const click = text => js(`(()=>{const b=[...document.querySelector('.image-manager').querySelectorAll('button')].find(b=>b.textContent.trim()===${JSON.stringify(text)});if(!b||b.disabled)throw Error('Button unavailable');b.click()})()`);
@@ -124,6 +126,7 @@ app.whenReady().then(async () => {
   await js("document.querySelector('.im-extra-filters').open=true;[...document.querySelectorAll('.im-extra-filters label')].find(e=>e.textContent.includes('Untagged only')).querySelector('input').click()");
   await until(()=>js("document.querySelectorAll('.im-grid article').length===1 && !!document.querySelector('[aria-label=\"Select portrait.jpg\"]') && [...document.querySelectorAll('.im-selection button')].find(b=>b.textContent==='Show tagged images').getAttribute('aria-pressed')==='false'"),'untagged filter clears tagged view');
   await click('Reset filters');
+  await js("(()=>{const e=document.querySelector('[aria-label=\"Filter image folder\"]');e.value='';e.dispatchEvent(new Event('change',{bubbles:true}))})()");
   await until(()=>js("document.querySelectorAll('.im-grid article').length===3"),'normal visible library restored');
   await api('/metadata','PATCH',{ids:[first.id,second.id],hidden:true});
   await openManager(1);

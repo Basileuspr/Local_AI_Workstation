@@ -12,7 +12,7 @@ import './ImageManager.css';
 import {useRangeSelection} from '../useRangeSelection';
 import {preventSelectionText} from '../fileSelection';
 
-const emptyFilters = { search: '', folder_id: '', tag: '', format: '', month: '', favorite: false, hide_tagged: false, tagged_only: false, duplicates: false, digest: '', sort: 'date' };
+const emptyFilters = { search: '', folder_id: images.NO_IMAGE_FOLDER, tag: '', format: '', month: '', favorite: false, hide_tagged: false, tagged_only: false, duplicates: false, digest: '', sort: 'date' };
 const emptyPage = { images: [], total: 0, offset: 0, months: [], formats: [], tags: [] };
 const emptyState = { folders: [], summary: { images: 0, bytes: 0, favorites: 0 }, functions: [], duplicates: [], receipts: [], plans: [] };
 const layouts = { month: 'Year / month', day: 'Year / month / day', format: 'Image format', folders: 'Keep relative folders' };
@@ -22,7 +22,7 @@ export function ImageManagerFilters({ filters, page, folders, view, onFilter, on
   const tags = page.tags || [];
   return <>
     <div className="im-filters"><input aria-label="Search images or tags" placeholder="Search filenames or tags…" value={filters.search} onChange={event => onFilter('search', event.target.value)} maxLength={200}/>
-      <select aria-label="Filter image folder" value={filters.folder_id} onChange={event => onFilter('folder_id', event.target.value)}><option value="">All catalog folders</option>{folders.map(folder => <option key={folder.id} value={folder.id}>{folder.path}</option>)}</select>
+      <label>Browse folder<select aria-label="Filter image folder" value={filters.folder_id} onChange={event => onFilter('folder_id', event.target.value)}><option value={images.NO_IMAGE_FOLDER}>No folder selected</option><option value="">All catalog folders</option>{folders.map(folder => <option key={folder.id} value={folder.id}>{folder.path}</option>)}</select></label>
       <select aria-label="Filter image tag" value={filters.tag} onChange={event => onFilter('tag', event.target.value)}><option value="">All tags</option>{filters.tag && !tags.includes(filters.tag) && <option value={filters.tag}>{filters.tag} (no matches)</option>}{tags.map(tag => <option key={tag} value={tag}>{tag}</option>)}</select>
       <select aria-label="Sort images" value={filters.sort} onChange={event => onFilter('sort', event.target.value)}>{Object.entries({ date: 'Newest first', name: 'Filename', size: 'Largest files', dimensions: 'Largest dimensions' }).map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select>
       <label className="im-page-size">Images per page<select aria-label="Images per page" value={pageSize} onChange={event => onPageSize?.(event.target.value)}>{images.IMAGE_PAGE_SIZES.map(size => <option value={size} key={size}>{size.toLocaleString()}</option>)}</select></label>
@@ -117,6 +117,7 @@ export default function ImageManager({ active = true }) {
   }, [active]);
   useEffect(() => {
     if (!active) return;
+    if (filters.folder_id === images.NO_IMAGE_FOLDER) { setPage(emptyPage); return; }
     const controller = new AbortController();
     const timer = setTimeout(() => images.request(`/images?${new URLSearchParams({ ...filters, visibility: images.imageVisibility(filters, view), offset, limit: pageSize })}`, 'GET', undefined, controller.signal).then(value => {
       if (controller.signal.aborted) return;
@@ -147,7 +148,8 @@ export default function ImageManager({ active = true }) {
     images.request(`/plans/${plan.id}`).then(value => { if (alive) setPlan(value); }).catch(error => { if (alive) setError(error.message); });
     return () => { alive = false; };
   }, [state.job?.id, state.job?.status]);
-  function filter(key, value) { setFilters(current => images.updateImageFilters(current, key, value)); setOffset(0); if (['hide_tagged', 'tag', 'tagged_only'].includes(key)) setSelected([]); }
+  function filter(key, value) { setFilters(current => images.updateImageFilters(current, key, value)); setOffset(0); if (['folder_id', 'hide_tagged', 'tag', 'tagged_only'].includes(key)) setSelected([]); if (key === 'folder_id') { setPage(emptyPage); setPreview(null); } }
+  function resetFilters() { setFilters(emptyFilters); setOffset(0); setSelected([]); setPage(emptyPage); setPreview(null); }
   function changePageSize(value) {
     const size = images.imagePageSize(value);
     setPageSize(size); setOffset(0); images.saveImagePageSize(size);
@@ -170,7 +172,7 @@ export default function ImageManager({ active = true }) {
     if (result.error) throw new Error(result.error);
     if (result.canceled || !result.path) return;
     const folder = await images.request('/folders', 'POST', { path: result.path, purpose });
-    if (purpose === 'source') setSourceIds(current => current.includes(folder.id) ? current : [...current, folder.id]);
+    if (purpose === 'source') { setSourceIds(current => current.includes(folder.id) ? current : [...current, folder.id]); filter('folder_id', folder.id); }
     else setOutputId(folder.id);
     await refresh();
     return folder;
@@ -184,11 +186,13 @@ export default function ImageManager({ active = true }) {
     setNotice(`Added “${existingTag}” to ${count} selected image${count === 1 ? '' : 's'}.`);
   }
   async function hideTagged() {
+    if (filters.folder_id === images.NO_IMAGE_FOLDER) return;
     const result = await images.request('/visibility/hide-tagged', 'POST', { folder_id: filters.folder_id });
     setSelected([]); setOffset(0); setRevision(v => v + 1); await refresh();
     setNotice(`${result.updated} tagged image${result.updated === 1 ? '' : 's'} hidden. Restore them from Hidden.`);
   }
   async function unhideImages() {
+    if (filters.folder_id === images.NO_IMAGE_FOLDER) return;
     const result = await images.request('/visibility/unhide', 'POST', { folder_id: filters.folder_id });
     setSelected([]); setOffset(0); setRevision(v => v + 1); await refresh();
     setNotice(`${result.updated} image${result.updated === 1 ? '' : 's'} unhidden.`);
@@ -209,14 +213,16 @@ export default function ImageManager({ active = true }) {
     setPreview(null);
   }
   const disabled = running || busy;
+  const browsing = filters.folder_id !== images.NO_IMAGE_FOLDER;
   return <section className="image-manager" data-density={density} aria-label="Image Manager">
     <header className="im-heading"><div><h2>Image Manager</h2></div><button onClick={() => setToolsOpen(true)}>Image tools</button></header>
     <VisualReview source="image-manager" active={active} ids={selected.length ? selected : page.images.map(image=>image.id)} onChanged={()=>setRevision(value=>value+1)} />
 
     <div className="im-stats"><span>{state.summary.images.toLocaleString()} images</span><span>{images.bytesLabel(state.summary.bytes)}</span><span>{state.summary.favorites} favorites</span><span>{state.duplicates.length} exact duplicate groups</span></div>
     <details className="im-folders" open={state.folders.length === 0}><summary>Folders & scan settings ({state.folders.length})</summary>
+      <p className="im-note">Checkboxes choose sources for scanning. Browse folder controls the images shown below; choose No folder selected to clear the view. Saved folders stay in the catalog until you forget them.</p>
       <div className="im-controls"><button disabled={disabled} onClick={() => perform(() => choose('source'))}>+ Add source folder</button><button disabled={disabled} onClick={() => perform(() => choose('output'))}>Choose output folder</button><label className="im-check"><input type="checkbox" checked={recursive} onChange={event => setRecursive(event.target.checked)} />Include subfolders</label><button disabled={disabled || !sourceIds.length} onClick={() => perform(() => start('scan', scope))}>Scan folders</button></div>
-      <div className="im-folder-list">{state.folders.filter(folder => folder.purpose === 'source').map(folder => <div key={folder.id}><label className="im-check"><input type="checkbox" checked={sourceIds.includes(folder.id)} onChange={event => setSourceIds(current => event.target.checked ? [...current, folder.id] : current.filter(id => id !== folder.id))} /><span title={folder.path}>{folder.path}</span><small>{folder.count} images</small></label><button disabled={disabled} onClick={() => setForget(folder)}>Forget</button></div>)}</div>
+      <div className="im-folder-list">{state.folders.map(folder => <div key={folder.id}><label className="im-check">{folder.purpose === 'source' && <input type="checkbox" aria-label={`Scan ${folder.path}`} checked={sourceIds.includes(folder.id)} onChange={event => setSourceIds(current => event.target.checked ? [...current, folder.id] : current.filter(id => id !== folder.id))} />}<span title={folder.path}>{folder.path}</span><small>{folder.purpose === 'source' ? 'Source' : 'Output'} · {folder.count} images</small></label><button disabled={disabled} aria-label={`Forget ${folder.path}`} onClick={() => { setError(''); setForget(folder); }}>Forget</button></div>)}</div>
       <label>Output folder<select value={outputId} onChange={event => setOutputId(event.target.value)}><option value="">Choose an output folder</option>{state.folders.map(folder => <option key={folder.id} value={folder.id}>{folder.path}</option>)}</select></label>
 
     </details>
@@ -232,11 +238,11 @@ export default function ImageManager({ active = true }) {
     <div className="im-sticky-controls">
     <nav className="im-tabs" aria-label="Image Manager views">{['library', 'duplicates', 'hidden', 'organize', 'functions', 'history', 'trash'].map(id => <button key={id} aria-current={view === id ? 'page' : undefined} onClick={() => chooseView(id)}>{id[0].toUpperCase() + id.slice(1)}{['trash', 'hidden'].includes(id) ? ` (${state.summary[id] || 0})` : ''}</button>)}</nav>
       {['library', 'duplicates', 'hidden'].includes(view) && <>
-      <ImageManagerFilters filters={filters} page={page} folders={state.folders} view={view} onFilter={filter} onReset={() => { if (filters.tagged_only) setSelected([]); setFilters(emptyFilters); setOffset(0); }} pageSize={pageSize} onPageSize={changePageSize} density={density} onDensity={changeDensity}/>
+      <ImageManagerFilters filters={filters} page={page} folders={state.folders} view={view} onFilter={filter} onReset={resetFilters} pageSize={pageSize} onPageSize={changePageSize} density={density} onDensity={changeDensity}/>
       <div className="im-selection"><span title="Ctrl-click toggles files. Shift-click selects a range on the shown page. Ctrl+Shift adds a range.">{selected.length} selected · <span role="status">Showing {page.images.length} of {page.total} matches</span></span><button disabled={!page.images.length} onClick={() => setSelected(current => [...new Set([...current, ...page.images.map(image => image.id)])].slice(0, 1000))}>Select page</button>
-        {view !== 'hidden' && <button disabled={disabled} title={`Hide every tagged image in ${filters.folder_id ? 'the chosen folder' : 'all catalog folders'}, across all pages and filters. Originals stay in place.`} onClick={() => perform(hideTagged)}>Hide tagged images</button>}
+        {view !== 'hidden' && <button disabled={disabled || !browsing} title={`Hide every tagged image in ${filters.folder_id ? 'the chosen folder' : 'all catalog folders'}, across all pages and filters. Originals stay in place.`} onClick={() => perform(hideTagged)}>Hide tagged images</button>}
         {view !== 'hidden' && <button aria-pressed={filters.tagged_only} title="Show images with tags, including hidden images, within the current filters" onClick={() => filter('tagged_only', !filters.tagged_only)}>Show tagged images</button>}
-        <button disabled={disabled || !state.summary.hidden} title={`Unhide every hidden image in ${filters.folder_id ? 'the chosen folder' : 'all catalog folders'}, across all pages and filters`} onClick={() => perform(unhideImages)}>Unhide images</button>
+        <button disabled={disabled || !browsing || !state.summary.hidden} title={`Unhide every hidden image in ${filters.folder_id ? 'the chosen folder' : 'all catalog folders'}, across all pages and filters`} onClick={() => perform(unhideImages)}>Unhide images</button>
         {(view === 'hidden' || filters.tagged_only) && <button disabled={disabled || !selected.length} onClick={() => perform(() => annotate({ hidden: false }))}>Unhide selected</button>}
         {selected.length > 0 && <><button onClick={() => setSelected([])}>Clear selection</button>
           <details className="im-selected-tags"><summary>Tag selected images</summary><div className="im-controls">
@@ -257,7 +263,7 @@ export default function ImageManager({ active = true }) {
       </>}
     </div>
     {['library', 'duplicates', 'hidden'].includes(view) && <>
-      {view === 'duplicates' && <div className="im-duplicates"><div className="im-controls"><button disabled={disabled || !sourceIds.length} onClick={() => perform(() => start('duplicates', scope))}>Find exact duplicates</button><button onClick={() => { setFilters({ ...emptyFilters, duplicates: true }); setOffset(0); }}>Show all checked duplicates</button><button disabled={disabled || !state.duplicates.length || !state.folders.some(folder => folder.purpose === 'source')} onClick={() => setDuplicateFolder({ sourceId: state.folders.find(folder => folder.id === filters.folder_id && folder.purpose === 'source')?.id || sourceIds[0] || state.folders.find(folder => folder.purpose === 'source')?.id || '', mode: 'move', members: 'extra' })}>Send duplicates to folder</button></div>{state.duplicates.map(group => <button className={filters.digest === group.sha256 ? 'selected' : ''} key={group.sha256} onClick={() => { setFilters({ ...emptyFilters, digest: group.sha256 }); setOffset(0); }}>{group.count} files · {images.bytesLabel(group.bytes)} each · {group.sha256.slice(0, 12)}…</button>)}</div>}
+      {view === 'duplicates' && <div className="im-duplicates"><div className="im-controls"><button disabled={disabled || !sourceIds.length} onClick={() => perform(() => start('duplicates', scope))}>Find exact duplicates</button><button onClick={() => { setFilters({ ...emptyFilters, folder_id: '', duplicates: true }); setOffset(0); setSelected([]); }}>Show all checked duplicates</button><button disabled={disabled || !state.duplicates.length || !state.folders.some(folder => folder.purpose === 'source')} onClick={() => setDuplicateFolder({ sourceId: state.folders.find(folder => folder.id === filters.folder_id && folder.purpose === 'source')?.id || sourceIds[0] || state.folders.find(folder => folder.purpose === 'source')?.id || '', mode: 'move', members: 'extra' })}>Send duplicates to folder</button></div>{state.duplicates.map(group => <button className={filters.digest === group.sha256 ? 'selected' : ''} key={group.sha256} onClick={() => { setFilters({ ...emptyFilters, folder_id: '', digest: group.sha256 }); setOffset(0); setSelected([]); }}>{group.count} files · {images.bytesLabel(group.bytes)} each · {group.sha256.slice(0, 12)}…</button>)}</div>}
       <div className="im-grid">{page.images.map(image => <article key={image.id} className={selected.includes(image.id) ? 'selected' : ''}>
         <div className="im-card-controls">
         <label className="im-select"><input type="checkbox" aria-label={`Select ${image.relative}`} checked={selected.includes(image.id)} onMouseDown={preventSelectionText} onClick={event => toggleImage(image.id,event)} onChange={() => {}} /></label>
@@ -266,7 +272,7 @@ export default function ImageManager({ active = true }) {
         <button className="im-image" onMouseDown={preventSelectionText} onClick={event => toggleImage(image.id,event)} aria-label={`Select image ${image.relative}`} aria-pressed={selected.includes(image.id)}><ImageThumbnail src={images.imageUrl(image, density === 'extra-comfortable')} alt={image.relative} /></button>
         <button className="im-name" title={`${image.folder_path} / ${image.relative}`} onMouseDown={preventSelectionText} onClick={event => toggleImage(image.id,event)} aria-pressed={selected.includes(image.id)}>{image.favorite ? '★ ' : ''}{image.relative}</button>{Boolean(image.hidden) && <small>Hidden</small>}<small>{image.width} × {image.height} · {image.format} · {images.bytesLabel(image.bytes)}</small><small>{image.date.slice(0, 10)} · {image.date_source}</small>{image.tags.length > 0 && <small className="im-tags">{image.tags.join(' · ')}</small>}<button className="im-preview-button" onClick={() => setPreview(image)} aria-label={`Preview ${image.relative}`}>Preview</button>
       </article>)}</div>
-      {!page.total && <p className="im-empty">{state.summary.images ? 'No images match these filters.' : 'Add a source folder and scan it to browse your still images here.'}</p>}
+      {!page.total && <p className="im-empty">{!browsing ? 'No folder selected. Choose a Browse folder or All catalog folders to view saved images.' : state.summary.images ? 'No images match these filters.' : 'Add a source folder and scan it to browse your still images here.'}</p>}
       {page.total > pageSize && <div className="im-pagination"><button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - pageSize))}>Previous</button><span>{(page.offset || 0) + 1}–{(page.offset || 0) + page.images.length} of {page.total}</span><button disabled={offset + pageSize >= page.total} onClick={() => setOffset(offset + pageSize)}>Next</button></div>}
     </>}
     {view === 'organize' && <div className="im-organize"><h3>Prepare an organization plan</h3><p>{selected.length} selected images. Choose an output folder outside their source folder trees.</p><div className="im-controls"><label>Layout<select value={layout} onChange={event => setLayout(event.target.value)}>{Object.entries(layouts).map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label><label>Action<select value={mode} onChange={event => setMode(event.target.value)}><option value="copy">Copy</option><option value="move">Move</option></select></label><button disabled={disabled || !selected.length || !outputId} onClick={() => perform(async () => { setPlan(null);  await start('plan', { ...scope, ids: selected }); })}>Prepare plan</button></div>
@@ -282,7 +288,7 @@ export default function ImageManager({ active = true }) {
     {preview && <Dialog title={preview.relative} onClose={() => setPreview(null)}><img className="im-preview" src={images.imageUrl(preview, true)} alt={preview.relative} /><p>{preview.width} × {preview.height} · {preview.format} · {images.bytesLabel(preview.bytes)} · {preview.date_source}: {preview.date.slice(0, 10)}</p><p className="im-path">{preview.folder_path} / {preview.relative}</p><div className="im-controls"><button disabled={busy} onClick={() => perform(async () => { const result = await window.workstationDesktop?.revealManagedImage(preview.id); if (!result || result.error) throw new Error(result?.error || 'Show in folder requires the desktop app.'); })}>Show in folder</button><button disabled={busy} onClick={() => perform(async () => { await destinations.take(images.originalImage(preview), 'editor'); setPreview(null); })}>Edit image</button><button disabled={busy} onClick={() => perform(() => stage(preview))}>Add to chat draft</button><button disabled={busy} onClick={() => perform(async () => { await destinations.take(images.originalImage(preview), 'folder'); setPreview(null); })}>Save copy to Gallery</button></div>{error && <p role="alert" className="im-error">{error}</p>}</Dialog>}
     {duplicateFolder && <Dialog title="Send duplicates to folder" onClose={() => setDuplicateFolder(null)}><label>Source folder<select value={duplicateFolder.sourceId} onChange={event => setDuplicateFolder(current => ({ ...current, sourceId: event.target.value }))}>{state.folders.filter(folder => folder.purpose === 'source').map(folder => <option key={folder.id} value={folder.id}>{folder.path}</option>)}</select></label><label>Images to send<select value={duplicateFolder.members} onChange={event => setDuplicateFolder(current => ({ ...current, members: event.target.value }))}><option value="extra">Extra copies — keep one per group in source</option><option value="all">Every matching image</option></select></label><label>Action<select value={duplicateFolder.mode} onChange={event => setDuplicateFolder(current => ({ ...current, mode: event.target.value }))}><option value="move">Move</option><option value="copy">Copy</option></select></label><p className="im-path">Destination: {state.folders.find(folder => folder.id === duplicateFolder.sourceId)?.path} / Duplicates</p>{error && <p role="alert" className="im-error">{error}</p>}<footer><button onClick={() => setDuplicateFolder(null)}>Cancel</button><button disabled={disabled || !duplicateFolder.sourceId} onClick={() => perform(async () => { setPlan(null);  await start('duplicate-plan', { folder_ids: [duplicateFolder.sourceId], mode: duplicateFolder.mode, duplicate_members: duplicateFolder.members }); setDuplicateFolder(null); setView('organize'); })}>Prepare duplicate-folder plan</button></footer></Dialog>}
     {recipe && <RecipeEditor value={recipe.create ? null : recipe} folders={state.folders} sourceIds={sourceIds} outputId={outputId} recursive={recursive} onClose={() => setRecipe(null)} onSave={async value => { await images.request('/functions', 'POST', value); await refresh(); }} />}
-    {forget && <Dialog title="Forget catalog folder" onClose={() => setForget(null)}><p>Remove {forget.path} and its image metadata from this catalog? Original files stay in place. Functions using this folder will need another source.</p><footer><button onClick={() => setForget(null)}>Cancel</button><button disabled={busy} onClick={() => perform(async () => { await images.request(`/folders/${forget.id}`, 'DELETE'); setSourceIds(ids => ids.filter(id => id !== forget.id)); if (outputId === forget.id) setOutputId(''); setSelected([]); setFilters(emptyFilters); setOffset(0); setForget(null); setRevision(v => v + 1); await refresh(); })}>Forget folder</button></footer></Dialog>}
+    {forget && <Dialog title="Forget catalog folder" onClose={() => setForget(null)}><p>Remove {forget.path} and its image metadata from this catalog? Original files stay in place. Functions using this folder will need another source or output.</p>{error && <p role="alert" className="im-error">{error}</p>}<footer><button onClick={() => setForget(null)}>Cancel</button><button disabled={disabled} onClick={() => perform(async () => { await images.request(`/folders/${forget.id}`, 'DELETE'); setSourceIds(ids => ids.filter(id => id !== forget.id)); if (outputId === forget.id) setOutputId(''); resetFilters(); setForget(null); setRevision(v => v + 1); await refresh(); })}>Forget folder</button></footer></Dialog>}
     {deleteRecipe && <Dialog title="Delete image function" onClose={() => setDeleteRecipe(null)}><p>Delete “{deleteRecipe.name}”?</p><footer><button onClick={() => setDeleteRecipe(null)}>Cancel</button><button disabled={busy} onClick={() => perform(async () => { await images.request(`/functions/${deleteRecipe.id}`, 'DELETE'); setDeleteRecipe(null); await refresh(); })}>Delete function</button></footer></Dialog>}
     {view === 'trash' && <section className="im-trash" aria-label="Deleted images">
       <h3>Recoverable Trash · {trash.length} files</h3>

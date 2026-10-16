@@ -113,14 +113,14 @@ app.whenReady().then(async () => {
   await until(() => js("document.querySelectorAll('.im-grid article').length===2"), 'tagged image hidden');
   await js("document.querySelector('.im-image').click()"); await set('[aria-label="Selected image tags"]', 'Reviewed too'); await click('Set tags');
   await until(() => js("document.querySelectorAll('.im-grid article').length===1 && document.querySelector('.im-selection').textContent.includes('0 selected')"), 'new tags hide and selection clears');
-  await click('Reset filters'); await until(() => js("document.querySelectorAll('.im-grid article').length===3"), 'tags restored by reset');
+  await click('Reset filters'); await set('[aria-label="Filter image folder"]', ''); await until(() => js("document.querySelectorAll('.im-grid article').length===3"), 'tags restored by reset and explicit browsing');
   checks.push('Image clicks toggle selection; Untagged only filters entries and clears selection after tagging');
   const untagged = (await api('/images')).images.find(image => !image.tags.length);
   await set('[aria-label="Search images or tags"]', untagged.relative);
   await until(() => js("document.querySelectorAll('.im-grid article').length===1"), 'search one untagged image');
   await click('Select page'); await click('Hide tagged images');
   await until(async () => (await api('/images?visibility=hidden')).total === 2, 'all tagged images hidden despite unrelated selection/search');
-  await click('Reset filters'); await until(() => js("document.querySelectorAll('.im-grid article').length===1 && document.querySelector('.im-selection').textContent.includes('0 selected')"), 'saved hiding survives reset');
+  await click('Reset filters'); await set('[aria-label="Filter image folder"]', ''); await until(() => js("document.querySelectorAll('.im-grid article').length===1 && document.querySelector('.im-selection').textContent.includes('0 selected')"), 'saved hiding survives reset');
   await click('Scan folders');
   await until(async () => (await api('/state')).job?.status === 'complete' && (await api('/images')).total === 1, 'saved hiding survives rescan');
   await click('Hidden (2)');

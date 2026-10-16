@@ -1,5 +1,8 @@
 import { apiUrl } from './api';
 
+// An empty folder ID explicitly means all catalog folders to the backend.
+export const NO_IMAGE_FOLDER = '__none__';
+
 export const IMAGE_PAGE_SIZES = [24, 48, 96, 192, 500, 1000];
 const PAGE_SIZE_KEY = 'local-ai-workstation-image-manager-page-size-v1';
 export const imagePageSize = value => IMAGE_PAGE_SIZES.includes(Number(value)) ? Number(value) : 48;
