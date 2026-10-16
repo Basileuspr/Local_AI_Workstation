@@ -22,10 +22,13 @@ import { isReviewUpload } from "../imageReview";
 import "./ImageLibrary.css";
 import { useImageDestinations } from "../ImageDestinations";
 import ImageReview from './ImageReview';
+import ImageStitcher, { StitchFrameButton } from './ImageStitcher';
+import { useImageStitcher, selectionInPickOrder } from '../imageStitcher';
 
 export default function ImageGallery({ images, onOpen, onRemove, onDelete, onImagesRemoved, active = true, workspaceTarget, onNavigate }) {
   const iterate = useAnalyzeIterate();
   const destinations = useImageDestinations();
+  const stitcher = useImageStitcher();
   const [folder, setFolder] = useState("general");
   const [selectedImageId, setSelectedImageId] = useState(null);
   const [query, setQuery] = useState("");
@@ -94,6 +97,7 @@ export default function ImageGallery({ images, onOpen, onRemove, onDelete, onIma
     <header className="image-library-header"><div><p className="image-library-eyebrow">Image library</p><h1>{title}</h1></div>
       </header>
     <div className="image-library-toolbar">
+      <button type="button" className="stitcher-launch" aria-pressed={stitcher.enabled} disabled={stitcher.busy} onClick={() => stitcher.setEnabled(!stitcher.enabled)}>Image stitcher{stitcher.frames.length ? ` (${stitcher.frames.length})` : ''}</button>
       <button type="button" disabled={!destinations} onClick={() => destinations.openGifMaker()}>GIF Maker</button>
       <label className="image-library-mobile-collection">Collection<select aria-label="Image collection" value={folder} onChange={event => chooseFolder(event.target.value)}>
         {collections.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
@@ -112,15 +116,16 @@ export default function ImageGallery({ images, onOpen, onRemove, onDelete, onIma
       </div></details>}
     </div>
     {(error || library.error) && <p role="alert">{error || library.error}</p>}
+    <ImageStitcher stitcher={stitcher} active={active} />
     {folder === 'review' && <ImageReview active={active} />}
-    {folder === "workflows" && <WorkflowImageLibrary active={active} onFile={setFiling} onLock={lockImages} searchQuery={query} workspace />}
+    {folder === "workflows" && <WorkflowImageLibrary active={active} stitcher={stitcher} onFile={setFiling} onLock={lockImages} searchQuery={query} workspace />}
     {folder === "locked" && <LockedImages active={active} searchQuery={query} />}
     {active && locking && <LockedImages active pendingOnly pending={locking.items} onCancel={cancelLocking} onImported={result => setLocking(current => {
       if (!current) return null;
       const items = current.items.filter(image => !result.succeeded.some(done => done.id === image.id));
       return items.length ? { ...current, items } : null;
     })} />}
-    {(selectedFolder || ["saved", "liked", "disliked"].includes(folder)) && <CollectionImages key={folder} active={active} title={title} searchQuery={query} compactView={compact} workspace
+    {(selectedFolder || ["saved", "liked", "disliked"].includes(folder)) && <CollectionImages key={folder} active={active} stitcher={stitcher} title={title} searchQuery={query} compactView={compact} workspace
       images={library.images.filter(image => !image.hidden && (selectedFolder ? image.folder_ids.includes(selectedFolder.id) : folder === "saved" ? !isReviewUpload(image) : image.rating === folder))}
       folderId={selectedFolder?.id} folders={library.folders} tags={library.tags} onLock={lockImages} onOpenSource={onOpen} />}
     {folderEditor && <FolderEditor folder={folderEditor.id ? folderEditor : null} onClose={() => setFolderEditor(null)} onSaved={saved => { setFolderEditor(null); setFolder(`folder:${saved.id}`); }} />}
@@ -130,6 +135,7 @@ export default function ImageGallery({ images, onOpen, onRemove, onDelete, onIma
       <span className="image-library-result-count">{filtered.length} {query ? "matching " : ""}image{filtered.length === 1 ? "" : "s"}</span>
       <CollectionPager label="images" page={currentPage} pages={pages} onChange={setPage} />
       <BulkActions selection={selection} items={filtered} label="images" batch={batch} actions={[
+        { label: "Add selected to stitcher", onClick: () => stitcher.add(selectionInPickOrder(selection)) },
         ...(destinations ? [{ label: "Make GIF from selected", onClick: images => destinations.openGifMaker({ images }) }] : []),
         {label:hidden ? "Restore selected images" : "Hide selected images", onClick:items => hidden ? restoreSelected(items) : removeSelected(items, false)},
         {label:"Add selected to folder", onClick:setFiling},
@@ -152,6 +158,7 @@ export default function ImageGallery({ images, onOpen, onRemove, onDelete, onIma
               <span className="gallery-meta">{image.session_title || image.source || "Saved image"}</span>
             </span>
           </button>
+          <StitchFrameButton stitcher={stitcher} image={image} />
           {selection.has(image) && <ImageItemActions image={image} />}
         </div>
       ))}
@@ -159,6 +166,7 @@ export default function ImageGallery({ images, onOpen, onRemove, onDelete, onIma
     </div>
     <ImageViewer images={filtered.map(image => ({...image, caption: image.session_title}))} selectedId={selectedImageId}
       onAnalyze={iterate?.image}
+      stitcher={stitcher}
       active={active && ["general", "hidden"].includes(folder) && !selection.enabled} onSelect={setSelectedImageId} onClose={() => setSelectedImageId(null)} onOpenSource={onOpen} actions={image => <>
         <button type="button" onClick={() => { setSelectedImageId(null); setFiling([image]); }}>Add to folder</button><button type="button" onClick={() => lockImages([image], () => setSelectedImageId(image.id))}>Lock image</button>
         <button type="button" disabled={batch.busy} onClick={event => hidden ? restoreSelected([image]) : image.library ? removeSelected([image], false) : onRemove(image, event)}>{hidden ? "Restore to gallery" : "Hide from gallery"}</button>

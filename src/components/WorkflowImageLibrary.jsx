@@ -12,6 +12,8 @@ import { useAnalyzeIterate } from "../AnalyzeIterateContext";
 import BulkActions from "./BulkActions";
 import { useSelection } from "../useSelection";
 import { useImageDestinations } from "../ImageDestinations";
+import { StitchFrameButton } from './ImageStitcher';
+import { selectionInPickOrder } from '../imageStitcher';
 
 export function workflowViewerImages(runs) {
   return runs.flatMap(run => [...run.outputs.map(output => ({ ...output, name: `Stage ${output.stage_number}` })),
@@ -20,7 +22,7 @@ export function workflowViewerImages(runs) {
       caption: `${run.workflow_name} · Run ${run.id.slice(0, 8)}`, run })));
 }
 
-export function WorkflowImageCards({ runs, onOpen, selection, onRemove }) {
+export function WorkflowImageCards({ runs, onOpen, selection, onRemove, stitcher }) {
   return runs.map(run => <section className="workflow-library-run" key={`${run.workflow_id}:${run.id}`}>
     <h3>{run.workflow_name}</h3>
     <small>Run {run.id.slice(0, 8)} · {new Date(run.created_at).toLocaleString()}</small>
@@ -32,13 +34,13 @@ export function WorkflowImageCards({ runs, onOpen, selection, onRemove }) {
           onMouseDown={preventSelectionText} onClick={event => onOpen({ run, image },event)}>
           <span className="gallery-thumbnail"><ImageThumbnail loading="lazy" src={apiUrl(image.url)} alt={`${run.workflow_name} · ${image.name}`} /></span>
           <span className="gallery-details"><span className="gallery-name">{image.name}</span></span>
-        </button>{onRemove && <button type="button" onClick={()=>onRemove([{id:`${run.workflow_id}:${run.id}:${image.id}`}])} aria-label={`Remove ${image.name} from view`}>Remove</button>}{selection?.ids.has(`${run.workflow_id}:${run.id}:${image.id}`) && <ImageItemActions image={{ ...image, run, id: `${run.workflow_id}:${run.id}:${image.id}`, url: apiUrl(image.url) }} />}</div>)}
+        </button><StitchFrameButton stitcher={stitcher} image={{ ...image, run, id: `${run.workflow_id}:${run.id}:${image.id}`, url: apiUrl(image.url) }} />{onRemove && <button type="button" onClick={()=>onRemove([{id:`${run.workflow_id}:${run.id}:${image.id}`}])} aria-label={`Remove ${image.name} from view`}>Remove</button>}{selection?.ids.has(`${run.workflow_id}:${run.id}:${image.id}`) && <ImageItemActions image={{ ...image, run, id: `${run.workflow_id}:${run.id}:${image.id}`, url: apiUrl(image.url) }} />}</div>)}
     </div>
     <button type="button" onClick={() => onOpen({ run, image: null })}>Save / stitch this run ({run.outputs.length})</button>
   </section>);
 }
 
-export default function WorkflowImageLibrary({ active, onFile, onLock, searchQuery, workspace = false }) {
+export default function WorkflowImageLibrary({ active, onFile, onLock, searchQuery, workspace = false, stitcher }) {
   const iterate = useAnalyzeIterate();
   const destinations = useImageDestinations();
   const [runs, setRuns] = useState([]);
@@ -101,6 +103,7 @@ export default function WorkflowImageLibrary({ active, onFile, onLock, searchQue
     </div>
 
     {<BulkActions selection={selection} items={workflowViewerImages(filtered)} label="workflow images" actions={[
+      ...(stitcher ? [{ label: 'Add selected to stitcher', onClick: () => stitcher.add(selectionInPickOrder(selection)) }] : []),
       {label:"Remove selected from view",onClick:removeImages},
       ...(destinations ? [{ label: "Make GIF from selected", onClick: images => destinations.openGifMaker({ images }) }] : []),
       ...(onFile ? [{label:"Add selected to folder", onClick:onFile}] : []),
@@ -111,7 +114,7 @@ export default function WorkflowImageLibrary({ active, onFile, onLock, searchQue
     {warnings.map(warning => <p className="workflow-error" key={warning}>{warning}</p>)}
     {!loaded && !error && <p role="status">Loading workflow images…</p>}
     {loaded && !filtered.length && <p className="gallery-empty">{query ? "No matching workflows." : "Completed workflow images will appear here automatically."}</p>}
-    <WorkflowImageCards runs={filtered.slice(currentPage * 4, currentPage * 4 + 4)} selection={selection} onRemove={removeImages} onOpen={(picked,event) => {
+    <WorkflowImageCards stitcher={stitcher} runs={filtered.slice(currentPage * 4, currentPage * 4 + 4)} selection={selection} onRemove={removeImages} onOpen={(picked,event) => {
       if (picked.image) {
         const id = `${picked.run.workflow_id}:${picked.run.id}:${picked.image.id}`;
         selection.activate(allImages.find(image => image.id === id),event,()=>setSelectedImageId(id));
@@ -119,6 +122,7 @@ export default function WorkflowImageLibrary({ active, onFile, onLock, searchQue
     }} />
     <ImageViewer images={workflowViewerImages(filtered)} selectedId={selectedImageId} active={active && !selection.enabled}
       onAnalyze={iterate?.image}
+      stitcher={stitcher}
       onSelect={setSelectedImageId} onClose={() => setSelectedImageId(null)}
       actions={image => <><button type="button" onClick={()=>removeImages([image])}>Remove from view</button><button type="button" onClick={() => { setSelectedImageId(null); setSelected({run:image.run, image:null}); }}>Save / stitch this run</button>
         {onFile && <button type="button" onClick={() => { setSelectedImageId(null); onFile([image]); }}>Add to folder</button>}

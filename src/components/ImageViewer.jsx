@@ -6,6 +6,7 @@ import ImageItemActions from "./ImageItemActions";
 import ImageSeedControls from "./ImageSeedControls";
 import {useImageRemoval} from "./ImageRemovalControls";
 import { imagePreviewUrl } from "../imageSources";
+import { StitchFrameButton } from './ImageStitcher';
 
 export function adjacentImageId(images, selectedId, direction) {
   const index = images.findIndex(image => image.id === selectedId);
@@ -13,7 +14,7 @@ export function adjacentImageId(images, selectedId, direction) {
   return images[(index + direction + images.length) % images.length].id;
 }
 
-export default function ImageViewer({ images, selectedId, onSelect, onClose, onOpenSource, onAnalyze, active = true, actions, renderImage, onRemove, previewOnly = false }) {
+export default function ImageViewer({ images, selectedId, onSelect, onClose, onOpenSource, onAnalyze, active = true, actions, renderImage, onRemove, previewOnly = false, stitcher }) {
   const dialog = useRef(null);
   const refs = useRefs();
   const destinations = useImageDestinations();
@@ -72,6 +73,12 @@ export default function ImageViewer({ images, selectedId, onSelect, onClose, onO
         {!previewOnly && <button type="button" className="image-viewer-arrow next" aria-label="Next image" disabled={images.length < 2} onClick={() => step(1)}>›</button>}
       </div>
       {!previewOnly && <>
+        {stitcher && <div className="image-destination-bar" aria-label="Stitch this scene">
+          <StitchFrameButton stitcher={stitcher} image={image} always />
+          <span aria-live="polite">{stitcher.frames.length} frames chosen · Browse past unwanted attempts</span>
+          <button type="button" disabled={stitcher.busy || stitcher.frames.length < 2} onClick={() => { onClose(); stitcher.setOpen(true); }}>Preview stitch</button>
+          {stitcher.error && <span role="alert">{stitcher.error}</span>}
+        </div>}
         {destinations && <div className="image-destination-bar" aria-label="Use this image"><button disabled={sending} onClick={() => take("workflow")}>Start Workflow</button><button disabled={sending} onClick={() => take("editor")}>Edit Image</button><button disabled={sending} onClick={() => take("gif")}>GIF Maker</button>{sending && <span role="status">Opening image…</span>}</div>}
         <ImageItemActions image={image} chat={!!image.chat_session_id} onChatEdit={onClose} onGenerate={onClose} />
         <ImageSeedControls key={image.id} seed={image.seed} onReuse={onClose} />

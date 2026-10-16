@@ -27,6 +27,19 @@ export const deleteTag = id => request(`/tags/${id}`, "DELETE");
 export const edit = (id, values) => request(`/images/${id}`, "PATCH", values);
 export const remove = id => request(`/images/${id}`, "DELETE");
 export const importSource = (source, folderId) => request("/import", "POST", { ...source, folder_id: folderId || undefined });
+export const previewStitch = (body, signal) => request('/stitch/preview', 'POST', body, undefined, { signal });
+export const saveStitch = body => request('/stitch', 'POST', body);
+
+export async function downloadImage(image) {
+  const response = await fetch(imageSourceUrl(image.url), { cache: 'no-store' });
+  if (!response.ok) throw new Error('This image is unavailable or locked.');
+  const url = URL.createObjectURL(await response.blob());
+  const link = document.createElement('a');
+  link.href = url; link.download = image.name || 'Stitched.png';
+  document.body.appendChild(link);
+  try { link.click(); }
+  finally { link.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000); }
+}
 export function upload(files) {
   const body = new FormData();
   Array.from(files || []).forEach(file => body.append("files", file));

@@ -1,0 +1,28 @@
+.image-stitcher-tray { margin: 14px 0; padding: 14px; border: 1px solid var(--accent); border-radius: 10px; background: var(--bg-secondary); }
+.image-stitcher-tray header, .image-stitcher-dialog header, .image-stitcher-dialog footer { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.image-stitcher-tray header strong, .image-stitcher-dialog h2 { margin: 0 auto 0 0; }
+.image-stitcher-tray p, .image-stitcher-dialog p { font-size: 12px; line-height: 1.6; color: var(--text-secondary); }
+.image-stitcher-tray button, .image-stitcher-dialog button, .stitch-frame-toggle, .stitcher-launch { padding: 6px 9px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-input); color: var(--text-primary); font: inherit; font-size: 12px; cursor: pointer; }
+.stitch-frame-toggle { margin-top: 6px; width: 100%; }
+.stitch-frame-toggle[aria-pressed="true"], .stitcher-launch[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
+.image-viewer .stitch-frame-toggle { width: auto; margin: 0; }
+.image-stitcher-tray button:disabled, .image-stitcher-dialog button:disabled { opacity: .45; cursor: default; }
+.image-stitcher-tray button:focus-visible, .image-stitcher-dialog :is(button, select):focus-visible, .stitch-frame-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.stitch-frame-list { display: flex; gap: 10px; padding: 5px 0 10px; margin: 10px 0 0; overflow-x: auto; list-style: none; }
+.stitch-frame-list li { flex: 0 0 112px; min-width: 0; border: 1px solid var(--border); border-radius: 7px; padding: 6px; }
+.stitch-frame-list img { width: 98px; height: 68px; object-fit: contain; background: var(--bg-input); }
+.stitch-frame-list .image-thumbnail { width: 98px; height: 68px; min-height: 0; }
+.stitch-frame-name { display: block; max-width: 100px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12px; margin: 6px 0; }
+.stitch-frame-list li > div { display: flex; gap: 4px; }
+.image-stitcher-dialog { width: min(960px, 94vw); max-height: 92vh; margin: auto; padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-primary); color: var(--text-primary); overflow: auto; }
+.image-stitcher-dialog::backdrop { background: rgb(0 0 0 / .7); }
+.image-stitcher-dialog h2 { font-size: 20px; }
+.stitch-options { display: flex; flex-wrap: wrap; gap: 12px; border: 1px solid var(--border); border-radius: 8px; margin: 12px 0; }
+.stitch-options label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; }
+.stitch-options select { padding: 7px; background: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border); border-radius: 5px; }
+.stitch-preview { margin: 12px 0; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-secondary); text-align: center; }
+.stitch-preview img { max-width: 100%; max-height: 45vh; object-fit: contain; }
+.stitch-preview figcaption { font-size: 12px; margin-top: 10px; }
+.image-stitcher-dialog [role="alert"], .image-stitcher-tray [role="alert"] { color: var(--error, #f88); }
+.image-library-workspace .gallery-item-row:has(> .stitch-frame-toggle) { display: flex; flex-direction: column; }
+.image-library-workspace .gallery-item-row:has(> .stitch-frame-toggle) > .gallery-item { flex: 1; height: auto; }

@@ -4,6 +4,37 @@ The Images tab opens a full image library in the main workspace. The sidebar con
 
 Opening a thumbnail enlarges it with previous/next navigation. Image details and individual actions appear in the viewer; while **Select images** is active, clicking a thumbnail changes its selection. Bulk actions appear only in selection mode.
 
+## Stitch chosen scene frames
+
+Choose **Image stitcher** in the gallery toolbar to reveal **Add to stitcher**
+on thumbnails. The enlarged viewer also offers **Add to stitcher**, so you can
+browse with the arrows, skip unsuitable generations, and add only the frames
+that continue your scene. **Add selected to stitcher** also accepts a bulk
+selection in selection order. Selecting the same source again removes it.
+
+The tray numbers each frame in the order you pick it. Selections stay across
+searches, pages and collections during the current app session, including
+General, Hidden, Saved, Liked, Disliked, custom folders and Workflow Images.
+Use the earlier/later arrows, **Reverse order**, or remove individual frames.
+**Collapse stitcher** keeps the tray contents; **Clear frames** resets them.
+
+With 2–64 frames, choose **Preview stitch**. Select a horizontal strip, vertical
+strip or grid, optional column count, frame size, spacing and background.
+Frames keep their proportions inside equal cells, without cropping or stretching.
+Small sources are not enlarged. Larger layouts automatically reduce cell size
+to fit a 24-megapixel canvas and a maximum edge of 16,384 pixels; the preview
+reports the final dimensions and any reduction. No frame numbers or names are
+printed on the output. Previewing does not save images.
+
+**Save stitched image** creates an independent PNG in **Saved Images** and the
+general gallery; **Download PNG** exports that saved copy. Original bytes and
+metadata stay unchanged. Composites have their own privacy state, like other
+transformed copies. The stitcher accepts existing public still images within
+the library's 20 MiB / 24-megapixel per-image limits, up to 128 MiB of source
+bytes per stitch. Missing or locked sources stop the operation with an error;
+frames are never silently skipped. If the final PNG exceeds 20 MiB, reduce
+**Frame size** before saving. No image model or GPU inference is needed.
+
 ## Finding and organizing images
 
 - **General Images** contains chat/generation images. **Workflow Images** keeps workflow outputs and stitched runs together. Image Review uploads (including older uploads) stay out of General Images and the ordinary Saved Images list.

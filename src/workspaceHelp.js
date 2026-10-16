@@ -71,8 +71,8 @@ const overview = {
     example: 'Open a Spotify link and press Play in its embedded player. Choose Embedded Spotify player as the recording source, start recording and confirm Audio signal received. Stop, listen to the preview, then save the recording locally. Use shared Sound output controls to adjust preview volume and its playback device.',
   },
   images: {
-    purpose: "Browse images saved in the app’s gallery.",
-    example: "Find a generated image, open its preview, then send it to Editor to make a local adjustment.",
+    purpose: "Browse images saved in the app’s gallery and stitch chosen frames into a strip or grid.",
+    example: "Open a generated image and Add to stitcher. Browse past unsuitable attempts, add the next useful scene, then Preview stitch, adjust the order and Save stitched image.",
   },
   generate: {
     purpose: "Generate images with a local image model, with optional references and a compatible LoRA adapter.",

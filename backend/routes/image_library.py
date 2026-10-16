@@ -2,7 +2,7 @@ from fastapi.responses import StreamingResponse
 from starlette.background import BackgroundTask
 from typing import Literal
 from fastapi import APIRouter, Depends, File, Header, HTTPException, Response, UploadFile
-from pydantic import BaseModel, Field, StrictBool
+from pydantic import BaseModel, Field, StrictBool, ConfigDict
 from starlette.concurrency import run_in_threadpool
 from services import image_library as library, image_vault as vault
 from services.app_logging import get_logger
@@ -62,6 +62,33 @@ class Source(BaseModel):
     layout: Literal["grid", "row", "column"] | None = None
     name: str | None = Field(default=None, max_length=240)
     folder_id: str | None = Field(default=None, max_length=100)
+
+
+class StitchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    sources: list[Source] = Field(min_length=2, max_length=64)
+    layout: Literal["row", "column", "grid"] = "row"
+    columns: int = Field(default=0, ge=0, le=64, strict=True)
+    tile_size: int = Field(default=1024, ge=64, le=2048, strict=True)
+    gap: int = Field(default=0, ge=0, le=64, strict=True)
+    background: Literal["dark", "white", "transparent"] = "dark"
+
+
+def stitch_request(request, preview):
+    from services.image_stitcher import compose
+    values = request.model_dump(exclude_none=True)
+    sources = values.pop("sources")
+    return call(compose, sources, values, preview=preview)
+
+
+@router.post("/stitch/preview")
+def preview_stitch(request: StitchRequest):
+    return stitch_request(request, True)
+
+
+@router.post("/stitch")
+def save_stitch(request: StitchRequest):
+    return stitch_request(request, False)
 
 
 @router.get("")
