@@ -1,6 +1,8 @@
 import { defaultRoleplayConfig, mergeRoleplayConfig } from "./roleplayPrompt";
 import { defaultAppearance, normalizeAppearance } from "./appearance";
 import {defaultMixerSettings, normalizeMixerSettings} from './mixerSettings';
+import { defaultImageSettings } from './imageGenerationDefaults';
+export { defaultImageSettings } from './imageGenerationDefaults';
 
 export const PREFERENCES_STORAGE_KEY = "local-ai-workstation-preferences-v1";
 export const LEGACY_ROLEPLAY_STORAGE_KEY = "local-ai-workstation-roleplay";
@@ -32,22 +34,6 @@ export function normalizeVoiceOutput(value = {}) {
     acceleration: value.acceleration === 'cpu' ? 'cpu' : 'auto',
   };
 }
-
-export const defaultImageSettings = {
-  modelId: "",
-  prompt: "",
-  negativePrompt: "",
-  width: 1024,
-  height: 1024,
-  steps: 24,
-  guidanceScale: 5.5,
-  seed: "",
-  loraId: "",
-  loraScale: 1,
-  longPrompt: true,
-  allowLongWait: false,
-  outputDir: "",
-};
 
 const DEFAULT_PREFERENCES = {
   startupBehavior: "new",

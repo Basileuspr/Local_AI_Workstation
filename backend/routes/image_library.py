@@ -1,7 +1,7 @@
 from fastapi.responses import StreamingResponse
 from starlette.background import BackgroundTask
 from typing import Literal
-from fastapi import APIRouter, Depends, File, Header, HTTPException, Response, UploadFile
+from fastapi import APIRouter, Depends, File, Header, HTTPException, Request, Response, UploadFile
 from pydantic import BaseModel, Field, StrictBool, ConfigDict
 from starlette.concurrency import run_in_threadpool
 from services import image_library as library, image_vault as vault
@@ -66,11 +66,11 @@ class Source(BaseModel):
 
 class StitchRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    sources: list[Source] = Field(min_length=2, max_length=64)
+    sources: list[Source] = Field(min_length=2)
     layout: Literal["row", "column", "grid"] = "row"
-    columns: int = Field(default=0, ge=0, le=64, strict=True)
-    tile_size: int = Field(default=1024, ge=64, le=2048, strict=True)
-    gap: int = Field(default=0, ge=0, le=64, strict=True)
+    columns: int = Field(default=0, ge=0, strict=True)
+    tile_size: int = Field(default=1024, ge=0, strict=True)
+    gap: int = Field(default=0, ge=0, strict=True)
     background: Literal["dark", "white", "transparent"] = "dark"
 
 
@@ -143,9 +143,37 @@ async def upload(files: list[UploadFile] = File(...)):
 
 
 @router.get("/images/{image_id}/content")
-def content(image_id: str, thumbnail: bool = False):
-    data, item = call(library.image_bytes, image_id)
-    return image_response(data, item["type"], thumbnail)
+@router.head("/images/{image_id}/content")
+def content(image_id: str, request: Request = None, thumbnail: bool = False, preview: bool = False, download: bool = False):
+    stream, item = call(library.image_stream, image_id)
+    headers = {'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Content-Length': str(item['size'])}
+    if download:
+        from urllib.parse import quote
+        headers['Content-Disposition'] = "attachment; filename*=UTF-8''" + quote(item['name'], safe='')
+    if request is not None and request.method == 'HEAD':
+        stream.close()
+        return Response(media_type=item['type'], headers=headers)
+    if (thumbnail or preview) and not download:
+        try:
+            if item.get('stitch_preview_sha256'):
+                import hashlib
+                data = call(library.preview_path, item).read_bytes()
+                if hashlib.sha256(data).hexdigest() != item['stitch_preview_sha256']:
+                    raise HTTPException(422, 'Stored preview has changed')
+                call(vault.require_public, item['sha256'])
+                call(vault.require_public, item['stitch_preview_sha256'])
+                return image_response(data, 'image/png', thumbnail)
+            return image_response(stream.read(), item['type'], thumbnail)
+        finally:
+            stream.close()
+    def chunks():
+        try:
+            while chunk := stream.read(1024 * 1024):
+                yield chunk
+        finally:
+            stream.close()
+    return StreamingResponse(chunks(), media_type=item['type'], background=BackgroundTask(stream.close),
+        headers=headers)
 
 
 @router.patch("/images/{image_id}")

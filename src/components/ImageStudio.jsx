@@ -7,6 +7,7 @@ import { useDispatch, useRefs, useStore, profiles } from "../useStore.jsx";
 import * as api from "../api";
 import { imageSourceUrl } from "../imageSources";
 import ImageGenerationStatus from "./ImageGenerationStatus";
+import ImageGenerationTimings from './ImageGenerationTimings';
 import ImageSettingsControls from "./ImageSettingsControls";
 import CustomProfileControls from "./CustomProfileControls";
 import { useImageGeneration } from "../ImageGenerationContext";
@@ -260,6 +261,7 @@ export default function ImageStudio({ active = true }) {
             <ImageSeedControls seed={result.seed} showMissing />
             {editError && <p role="alert">{editError}</p>}
             {result.output_warning && <p role="alert">{result.output_warning}</p>}
+            <ImageGenerationTimings result={result} />
             <p>{result.filename} {size ? `| ${size.width} × ${size.height} pixels` : ""} {result.generation_seconds != null ? `| generated in ${result.generation_seconds.toFixed(1)}s` : ""} {result.peak_vram_bytes ? `| peak ${(result.peak_vram_bytes / 1024 ** 3).toFixed(2)} GiB` : ""}</p>
 
           </> : <p className="image-studio-empty">Generated images will appear here and in the Images gallery.</p>}

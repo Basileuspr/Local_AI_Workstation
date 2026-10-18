@@ -167,6 +167,8 @@ app.include_router(tool_registry_router)
 app.include_router(request_queue_router)
 from routes.bridge import router as bridge_router
 app.include_router(bridge_router)
+from routes.mobile import router as mobile_router
+app.include_router(mobile_router)
 from routes.image_library import router as image_library_router
 app.include_router(image_library_router)
 from routes.image_manager import router as image_manager_router

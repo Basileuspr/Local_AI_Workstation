@@ -1,8 +1,9 @@
 // Real Chromium, gallery components and API in an isolated profile with synthetic images.
-const { app, BrowserWindow, protocol } = require('electron');
+const { app, BrowserWindow, protocol, ipcMain } = require('electron');
 const fs = require('node:fs'), path = require('node:path'), os = require('node:os'), net = require('node:net');
 const { spawn } = require('node:child_process'), assert = require('node:assert/strict');
-const { appAsset, APP_HEADERS } = require('../electron/security');
+const { appAsset, APP_HEADERS, trustedUrl } = require('../electron/security');
+const { registerLibraryDownloadIpc } = require('../electron/libraryDownloads');
 const root = path.resolve(__dirname, '..'), work = fs.mkdtempSync(path.join(os.tmpdir(), 'law-stitcher-qa-'));
 app.setPath('userData', path.join(work, 'profile'));
 protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
@@ -19,7 +20,12 @@ app.whenReady().then(async () => {
   let log = ''; backend.stderr.on('data', data => log += data);
   for (let i = 0; ; i++) { try { if ((await fetch(base + '/image-library')).ok) break; } catch {} if (i >= 300) throw Error(log); await sleep(50); }
   protocol.handle('app', request => { const file = appAsset(buildDir, request.url); return new Response(fs.readFileSync(file), { headers: { ...APP_HEADERS, 'Content-Type': ({ '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css' }[path.extname(file)] || 'application/octet-stream') } }); });
-  win = new BrowserWindow({ show: false, width: 1360, height: 1000, webPreferences: { offscreen: true, sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false } });
+  const trustedDesktop = event => event.sender === win?.webContents && event.senderFrame === event.sender.mainFrame && trustedUrl(event.senderFrame.url);
+  ipcMain.on('app:connection', event => { event.returnValue = trustedDesktop(event) ? { base, token: '' } : null; });
+  registerLibraryDownloadIpc({ ipcMain, trustedDesktop, getConnection: () => ({ base, token: '' }) });
+  win = new BrowserWindow({ show: false, width: 1360, height: 1000, webPreferences: { preload: path.join(root, 'electron/preload.js'), offscreen: true, sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false } });
+  win.webContents.on('will-navigate', (event, url) => { if (!trustedUrl(url)) event.preventDefault(); });
+  win.webContents.on('will-frame-navigate', event => { if (!trustedUrl(event.url)) event.preventDefault(); });
   win.webContents.on('console-message', event => { if (event.level === 'error' || event.level === 3) errors.push(event.message); });
   const js = code => win.webContents.executeJavaScript(code);
   const until = async (code, label) => { for (let i = 0; i < 200; i++) { if (await js(code)) return; await sleep(50); } throw Error(label + '\n' + await js('document.body.innerText')); };
@@ -61,6 +67,7 @@ app.whenReady().then(async () => {
   await textClick('Download PNG');
   for (let i = 0; i < 100 && !download; i++) await sleep(50);
   assert.equal(download, 'completed');
+  assert(trustedUrl(win.webContents.getURL()), 'download must not navigate the renderer');
   const result = await (await fetch(base + '/fixture/check')).json();
   assert.equal(result.originals_unchanged, true);
   assert.equal(result.stitches.length, 1);

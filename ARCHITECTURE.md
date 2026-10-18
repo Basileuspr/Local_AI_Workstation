@@ -10,6 +10,7 @@ historical sections; current source and focused tests resolve discrepancies.
 |---|---|
 | `electron/` | Desktop shell, backend lifecycle, native dialogs and guarded IPC |
 | `src/` | React renderer, workspace controls, state and HTTP client |
+| `mobile/` | Separate phone PWA; built into `dist/mobile` and served by the opt-in companion gateway |
 | `backend/` | FastAPI routes, service logic, persistence and model coordination |
 | `media-manager/` | Bundled media application with its own frontend and storage |
 | `scripts/` | Setup, review capture, publication and isolated QA helpers |
@@ -28,6 +29,8 @@ pass through explicit preload/IPC contracts.
 
 - Normal desktop API access is loopback-bound and uses a session credential.
   [PC bridge](docs/setup/PC_BRIDGE.md) is a separate, explicitly enabled service.
+  [Mobile companion](docs/setup/MOBILE_COMPANION.md) has its own HTTPS/browser
+  security boundary and uses the existing session, gallery and GPU-queue services.
 - Session history, durable memory, media catalogs and file bytes have distinct
   storage owners. Read the relevant service before changing persistence.
 - [Storage libraries](docs/workspace/WORKSPACE_GUIDE.md#storage-libraries) route

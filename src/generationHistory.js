@@ -1,6 +1,10 @@
 export const emptyGenerationHistory = { images: [], result: null, batch: null };
 
 export function generationHistoryReducer(state, action) {
+  if (action.type === 'external-complete') {
+    const next = generationHistoryReducer(action.activate ? {...state, batch:null} : state, {type:'complete', image:action.image});
+    return action.activate ? next : {...next, result:state.result, batch:state.batch};
+  }
   if (action.type === 'clear') return emptyGenerationHistory;
   if (action.type === 'restore') return action.history;
   if (action.type === 'remove') {

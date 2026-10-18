@@ -21,14 +21,14 @@ it('skips failed attempts, appends picks in click order and deduplicates renamed
   expect(stitchReducer(state, { type: 'move', key: stitchKey(images[2]), direction: -1 })).toBe(state);
 });
 
-it('retains a tray while collapsed and refuses an oversized batch without dropping picks', () => {
+it('retains a tray while collapsed and accepts selections beyond the old cap', () => {
   let state = add(initialStitchState, images);
   state = stitchReducer(state, { value: { enabled: false } });
   expect(state.frames).toEqual(images);
   const oversized = Array.from({ length: 65 }, (_, index) => ({ id: String(index), library: true }));
   const result = add(state, oversized);
-  expect(result.frames).toEqual(images);
-  expect(result.error).toContain('64');
+  expect(result.frames).toEqual([...images, ...oversized]);
+  expect(result.error).toBe('');
   expect(stitchReducer(state, { type: 'reverse' }).frames).toEqual([...images].reverse());
 });
 

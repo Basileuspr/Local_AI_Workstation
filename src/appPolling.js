@@ -16,3 +16,8 @@ export const imageTasksObserver = clientId => sharedPollingObserver(`image-tasks
   read: options => readPollingJson(apiUrl(`/image-generation/tasks?client_id=${encodeURIComponent(clientId)}`), options),
   interval: (value, context) => inventoryDelay("images", value, context), active: pendingImages,
 });
+export const mobileImageTasksObserver = () => sharedPollingObserver("mobile-image-tasks", {
+  read: options => readPollingJson(apiUrl("/mobile/image-tasks"), options),
+  interval: (value, context) => context.failures ? inventoryDelay("images", value, context) : context.hidden ? 10000 : 2000,
+  active: pendingImages,
+});

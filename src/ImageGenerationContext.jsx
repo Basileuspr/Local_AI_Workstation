@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useReducer, useRef, useState } from "react";
 import { useDispatch, useRefs, useStore } from "./useStore";
 import * as api from "./api";
-import { imageTasksObserver } from "./appPolling";
+import { imageTasksObserver, mobileImageTasksObserver } from "./appPolling";
 import { invalidatePolling } from "./polling";
 import { createMessageId } from "./messageIds";
 import { imageRequest, reconcileImageLora, validateImageSelection } from "./chatImageGeneration";
@@ -32,6 +32,9 @@ export function ImageGenerationProvider({ children, onSessionSaved }) {
   const submitting = useRef(false), referenceUploads = useRef(new WeakMap());
   useEffect(() => () => { if (referenceImage?.url) URL.revokeObjectURL(referenceImage.url); }, [referenceImage]);
   const activeRequests = useRef([]);
+  const desktopRequests = useRef([]), phoneRequests = useRef([]);
+  const phoneSnapshot = useRef(null), pendingPhoneSnapshot = useRef(null);
+  const phoneStatuses = useRef(new Map()), hiddenPhoneRequests = useRef(new Set());
   const taskStatuses = useRef(new Map());
   const taskSnapshot = useRef(null);
   // After clearing, only later submissions may repopulate this tab's output.
@@ -113,9 +116,41 @@ export function ImageGenerationProvider({ children, onSessionSaved }) {
   function stop(id) {
     const targets = typeof id === "string" ? [id] : activeRequests.current.map(request => request.id);
     for (const target of targets) {
-      void api.stopImageGeneration(target).catch((error) => toast(error.message));
+      void stopRequest(target).catch((error) => toast(error.message));
     }
   }
+  function stopRequest(id) {
+    return id.startsWith('mobile-') ? api.stopMobileImageGeneration(id.slice(7)) : api.stopImageGeneration(id);
+  }
+  const publishRequests = useCallback(() => {
+    const pending = [...desktopRequests.current, ...phoneRequests.current];
+    activeRequests.current = pending;
+    setRequests(pending);
+    refs.imageGenerationRequestId = pending[0]?.id || null;
+  }, [refs]);
+  const acceptPhoneTasks = useCallback(snapshot => {
+    // Let the desktop's initial history restore finish before merging phone output.
+    if (!hydratedTasks.current) { pendingPhoneSnapshot.current = snapshot; return; }
+    const next = newerImageTaskSnapshot(phoneSnapshot.current, snapshot);
+    if (next === phoneSnapshot.current) return;
+    const first = phoneSnapshot.current === null;
+    phoneSnapshot.current = next;
+    phoneRequests.current = activeImageTasks(next.tasks || []);
+    publishRequests();
+    let completed = false;
+    for (const task of next.tasks || []) {
+      if (phoneStatuses.current.get(task.request_id) === task.status) continue;
+      phoneStatuses.current.set(task.request_id, task.status);
+      if (task.status === 'completed' && task.result) {
+        if (!hiddenPhoneRequests.current.has(task.request_id)) updateHistory({type:'external-complete', image:task.result,
+          activate: !desktopRequests.current.length && !submitting.current && (!first || (!submittedHere.current && !taskSnapshot.current?.tasks?.length))});
+        completed = true;
+      } else if (!first && task.status === 'failed') {
+        dispatch({type:'SHOW_TOAST',payload:{message:task.error || 'Phone image generation failed',type:'error'}});
+      }
+    }
+    if (completed) void Promise.allSettled([sessionSaved.current?.()]);
+  }, [dispatch, publishRequests]);
   const acceptTasks = useCallback(snapshot => {
     const next = newerImageTaskSnapshot(taskSnapshot.current, snapshot);
     if (next === taskSnapshot.current) return;
@@ -132,10 +167,8 @@ export function ImageGenerationProvider({ children, onSessionSaved }) {
       updateHistory(newest.batch_id ? {type:'start-batch',id:newest.batch_id,
         requestIds:tasks.filter(task => task.batch_id === newest.batch_id).sort((a,b) => a.batch_index-b.batch_index).map(task => task.request_id)} : {type:'start-single'});
     }
-    const pending = activeImageTasks(tasks);
-    activeRequests.current = pending;
-    setRequests(pending);
-    refs.imageGenerationRequestId = pending[0]?.id || null;
+    desktopRequests.current = activeImageTasks(tasks);
+    publishRequests();
     let completed = false;
     for (const task of tasks) {
       if (taskStatuses.current.get(task.request_id) === task.status) continue;
@@ -152,13 +185,18 @@ export function ImageGenerationProvider({ children, onSessionSaved }) {
       }
     }
     if (completed) void Promise.allSettled([sessionSaved.current?.()]);
+    if (pendingPhoneSnapshot.current) {
+      const phone = pendingPhoneSnapshot.current;
+      pendingPhoneSnapshot.current = null;
+      acceptPhoneTasks(phone);
+    }
     setConnectionError('');
-  }, [dispatch, refs]);
+  }, [dispatch, publishRequests, acceptPhoneTasks]);
 
   // This subscription belongs to the app, never to the visible Generate pane.
   // Unmount/refresh only detaches the UI; Stop is a separate server command.
   useEffect(() => {
-    const stopAll = () => { for (const request of activeRequests.current) void api.stopImageGeneration(request.id).catch(() => {}); };
+    const stopAll = () => { for (const request of activeRequests.current) void stopRequest(request.id).catch(() => {}); };
     refs.imageResetUi = stopAll;
     refs.imageAbortController = {abort:stopAll};
     const detach = imageTasksObserver(clientId).subscribe({ data: acceptTasks,
@@ -169,6 +207,7 @@ export function ImageGenerationProvider({ children, onSessionSaved }) {
       if (refs.imageResetUi === stopAll) { refs.imageResetUi = null; refs.imageAbortController = null; }
     };
   }, [refs, clientId, acceptTasks]);
+  useEffect(() => mobileImageTasksObserver().subscribe({data:acceptPhoneTasks}), [acceptPhoneTasks]);
 
   async function submit(items, {onSubmitted, batchId, reference = null, strength = .3, fit = 'contain'} = {}) {
     if (submitting.current) return false;
@@ -241,6 +280,7 @@ export function ImageGenerationProvider({ children, onSessionSaved }) {
   function clear() {
     if (submitting.current) return false;
     visibleRequests.current = new Set();
+    for (const task of (phoneSnapshot.current || pendingPhoneSnapshot.current)?.tasks || []) hiddenPhoneRequests.current.add(task.request_id);
     historyRefresh.current++;
     updateHistory({type:'clear'});
     setReferenceImage(null); setReferenceStrength(.3); setReferenceFit('contain');

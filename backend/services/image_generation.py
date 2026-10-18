@@ -361,7 +361,7 @@ class ImageGenerationManager:
                     pipeline = self._pipeline_for_operation(operation)
                     self._activate_pipeline(pipeline)
                     yield pipeline
-                    pipeline.maybe_free_model_hooks()
+                    # Diffusers already cleans up after a successful call.
                 except BaseException:
                     self._unload()
                     raise
@@ -465,12 +465,13 @@ class ImageGenerationManager:
         finally:
             self._lock.release()
 
-    def _long_prompt_embeddings(self, prompt: str, negative_prompt: str | None) -> dict:
+    def _long_prompt_embeddings(self, prompt: str, negative_prompt: str | None, pipeline=None) -> dict:
         """Encode SDXL prompts beyond CLIP's native 77-token window."""
-        if self._pipeline is None:
+        pipeline = pipeline if pipeline is not None else self._pipeline
+        if pipeline is None:
             raise RuntimeError("Image pipeline is not loaded")
         from services.image_generation_cache import conditioning_key, copy_conditioning, store_conditioning
-        key = conditioning_key(self._pipeline, "compel", {"prompt": prompt, "negative_prompt": negative_prompt or ""})
+        key = conditioning_key(pipeline, "compel", {"prompt": prompt, "negative_prompt": negative_prompt or ""})
         cached = self._conditioning_cache.get(key, lambda value: copy_conditioning(value, "cuda"))
         if cached is not None:
             return cached
@@ -478,8 +479,9 @@ class ImageGenerationManager:
             from compel import CompelForSDXL
         except ImportError as exc:
             raise RuntimeError("Long-prompt support is unavailable; install the image-generation requirements") from exc
-        if self._compel is None:
-            self._compel = CompelForSDXL(self._pipeline, device="cuda")
+        if self._compel is None or getattr(self, '_compel_pipeline_id', id(pipeline)) != id(pipeline):
+            self._compel = CompelForSDXL(pipeline, device="cuda")
+            self._compel_pipeline_id = id(pipeline)
             for compel in (self._compel.compel_1, self._compel.compel_2):
                 provider = compel.conditioning_provider
                 provider.text_encoder = _ExecutionDeviceTextEncoder(provider.text_encoder, "cuda")
@@ -547,7 +549,10 @@ class ImageGenerationManager:
         source_image_ref: str | None = None,
         strength: float = 0.3,
         source_fit: str = "contain",
+        timing=None,
     ) -> dict:
+        from services.generation_timing import GenerationTiming, PipelineTiming
+        timing = timing if timing is not None else GenerationTiming()
         from services.image_generation_limits import current_resolution_limits, validate_dimensions
         validate_dimensions(width, height, allow_long_wait, current_resolution_limits())
         models = {model["id"]: model for model in discover_models()}
@@ -567,7 +572,8 @@ class ImageGenerationManager:
             if not 0.05 <= strength <= 1 or int(steps * strength) < 1:
                 raise ValueError("Increase Steps or Change amount to allow at least one image-to-image step.")
             from services.generation_reference import prepare_reference
-            source = prepare_reference(source_image_ref, width, height, source_fit)
+            with timing.measure('reference_preparation'):
+                source = prepare_reference(source_image_ref, width, height, source_fit)
             effective_steps = int(steps * strength)
 
         request_id = request_id or uuid.uuid4().hex
@@ -589,14 +595,18 @@ class ImageGenerationManager:
                     raise ImageGenerationCancelled("Image generation stopped")
                 if training_manager.is_active():
                     raise RuntimeError("Image generation is paused while local LoRA training owns the GPU.")
-                self._load(model)
-                self._configure_wait_mode(allow_long_wait)
-                self._activate_pipeline(self._pipeline)
+                with timing.measure('model_loading'):
+                    self._load(model)
+                with timing.measure('pipeline_setup'):
+                    self._configure_wait_mode(allow_long_wait)
+                    # Keep the active variant on identical reference repeats.
+                    if self._lora_id != lora_id or (lora_id and self._lora_scale != lora_scale):
+                        self._activate_pipeline(self._pipeline)
+                        self._set_lora(lora_id, lora_scale)
+                    pipeline = self._pipeline_for_operation("img2img" if source is not None else "txt2img")
+                    self._activate_pipeline(pipeline)
                 if cancel_event.is_set():
                     raise ImageGenerationCancelled("Image generation stopped")
-                self._set_lora(lora_id, lora_scale)
-                pipeline = self._pipeline_for_operation("img2img" if source is not None else "txt2img")
-                self._activate_pipeline(pipeline)
                 self._update_progress(request_id, phase="Preparing prompt")
                 import torch
 
@@ -614,7 +624,8 @@ class ImageGenerationManager:
                         f"Long prompts are limited to {token_status['long_prompt_max_tokens']} content tokens on this model. Shorten the prompt or disable long-prompt encoding."
                     )
 
-                torch.cuda.empty_cache()
+                # Reuse allocator blocks; provider cleanup and cross-provider
+                # handoff still offload models and release unused GPU memory.
                 torch.cuda.reset_peak_memory_stats()
                 if seed is None:
                     seed = secrets.randbelow(2_147_483_648)
@@ -622,6 +633,8 @@ class ImageGenerationManager:
 
                 def step_completed(_pipeline, step, _timestep, callback_kwargs):
                     self._raise_if_cancelled(cancel_event, callback_kwargs)
+                    if step + 1 >= effective_steps:
+                        pipeline_timing.finish_denoising()
                     self._update_progress(request_id, step=min(step + 1, effective_steps), step_elapsed=time.monotonic() - denoising_started,
                                           phase="Decoding image" if step + 1 >= effective_steps else "Generating image")
                     return callback_kwargs
@@ -644,21 +657,25 @@ class ImageGenerationManager:
                     # Encode before starting the denoising clock. The local
                     # ERNIE runtime reuses CPU conditioning across a batch,
                     # including the usually empty negative prompt.
-                    pipeline_args["prompt_embeds"] = pipeline.encode_prompt(prompt, pipeline._execution_device)
+                    with timing.measure('prompt_encoding', torch.cuda.synchronize):
+                        pipeline_args["prompt_embeds"] = pipeline.encode_prompt(prompt, pipeline._execution_device)
                     if cancel_event.is_set():
                         raise ImageGenerationCancelled("Image generation stopped")
                     if guidance_scale > 1:
-                        pipeline_args["negative_prompt_embeds"] = pipeline.encode_prompt(
-                            negative_prompt or "", pipeline._execution_device)
+                        with timing.measure('prompt_encoding', torch.cuda.synchronize):
+                            pipeline_args["negative_prompt_embeds"] = pipeline.encode_prompt(
+                                negative_prompt or "", pipeline._execution_device)
                 elif long_prompt and needs_long_prompt:
-                    pipeline_args.update(self._long_prompt_embeddings(prompt, negative_prompt))
+                    with timing.measure('prompt_encoding', torch.cuda.synchronize):
+                        pipeline_args.update(self._long_prompt_embeddings(prompt, negative_prompt, pipeline))
                 else:
                     pipeline_args.update(prompt=prompt, negative_prompt=negative_prompt or None)
                 if cancel_event.is_set():
                     raise ImageGenerationCancelled("Image generation stopped")
                 denoising_started = time.monotonic()
                 self._update_progress(request_id, phase="Generating image", denoising_started=denoising_started)
-                result = pipeline(**pipeline_args)
+                with PipelineTiming(pipeline, timing, torch.cuda.synchronize) as pipeline_timing:
+                    result = pipeline(**pipeline_args)
                 if cancel_event.is_set():
                     raise ImageGenerationCancelled("Image generation stopped")
                 torch.cuda.synchronize()
@@ -692,8 +709,9 @@ class ImageGenerationManager:
             metadata.add_text("local_ai_generation", json.dumps(recipe, ensure_ascii=False))
             partial_path = output_path.with_suffix(".png.part")
             try:
-                image.save(partial_path, format="PNG", pnginfo=metadata)
-                partial_path.replace(output_path)
+                with timing.measure('png_save'):
+                    image.save(partial_path, format="PNG", pnginfo=metadata)
+                    partial_path.replace(output_path)
             finally:
                 partial_path.unlink(missing_ok=True)
 
@@ -706,6 +724,7 @@ class ImageGenerationManager:
                 "seed": seed,
                 "peak_vram_bytes": peak_vram_bytes,
                 "generation_seconds": round(time.monotonic() - started, 2),
+                "stage_seconds": timing.snapshot(),
                 "long_prompt_used": bool(long_prompt and needs_long_prompt),
                 "generation_recipe": recipe,
                 "url": f"/image-generation/outputs/{filename}",

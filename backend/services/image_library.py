@@ -4,6 +4,7 @@ import io
 import json
 import os
 import re
+import shutil
 import tempfile
 import threading
 import time
@@ -108,6 +109,8 @@ def decorate(item, *, include_names=True):
             "url": f"/image-library/images/{item['id']}/content"}
     if include_names:
         value = visual_review_names.library_index({**read_index(), 'images': [value]})['images'][0]
+    if item.get('stitch_preview_sha256'):
+        value['preview_url'] = value['url'] + '?preview=true'
     return value
 
 
@@ -166,6 +169,77 @@ def image_bytes(item_id):
         data = image_path(item).read_bytes()
         if hashlib.sha256(data).hexdigest() != item["sha256"]: raise ValueError("Stored image has changed")
         return data, item
+
+
+def preview_path(item):
+    return storage.resolve(ROOT / 'images' / (identity(item['id']) + '.preview.png'))
+
+
+def image_stream(item_id):
+    """Authorize and verify an owned file without materializing its bytes in RAM."""
+    from services import image_vault
+    with LOCK:
+        item = next((item for item in read_index()['images'] if item['id'] == identity(item_id)), None)
+        if not item:
+            raise ValueError('Image no longer exists')
+        image_vault.require_public(item['sha256'])
+        state = media_record(item)['file_state']
+        if state != 'present':
+            raise ValueError('Image file is missing. Restore its storage and refresh REVIEW.' if state == 'missing' else 'Image storage is unavailable. Reconnect its storage and refresh REVIEW.')
+        stream = image_path(item).open('rb')
+        try:
+            if hashlib.file_digest(stream, 'sha256').hexdigest() != item['sha256']:
+                raise ValueError('Stored image has changed')
+            image_vault.require_public(item['sha256'])
+            stream.seek(0)
+            return stream, item
+        except BaseException:
+            stream.close()
+            raise
+
+
+def import_composite(path, preview, width, height, origin):
+    """Register our streamed PNG; upload byte/pixel limits do not apply to exports."""
+    from services import image_vault
+    with path.open('rb') as stream:
+        digest = hashlib.file_digest(stream, 'sha256').hexdigest()
+    image_vault.require_public(digest)
+    preview_digest = hashlib.sha256(preview).hexdigest()
+    image_vault.require_public(preview_digest)
+    with LOCK:
+        index = read_index()
+        existing = next((item for item in index['images'] if item['sha256'] == digest), None)
+        if existing:
+            return decorate(existing)
+        item = dict(id=uuid.uuid4().hex, name=f"Stitched-{origin['options']['layout']}.png",
+                    sha256=digest, size=path.stat().st_size, width=width, height=height, type='image/png',
+                    created_at=datetime.now(timezone.utc).isoformat(), origin=origin, folder_ids=[], rating=None,
+                    annotations={}, schema_version=1, category='', project='', favorite=False,
+                    review_status='unreviewed', stitch_preview_sha256=preview_digest)
+        destination = storage.resolve(ROOT / 'images' / (item['id'] + '.image'), create=True)
+        thumbnail = storage.resolve(ROOT / 'images' / (item['id'] + '.preview.png'), create=True)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        created = False
+        try:
+            with destination.open('xb') as output:
+                created = True
+                with path.open('rb') as source:
+                    shutil.copyfileobj(source, output, length=1024 * 1024)
+                    output.flush()
+                    os.fsync(output.fileno())
+            atomic(thumbnail, preview)
+            image_vault.require_public(digest)
+            for source_hash in origin.get('source_hashes', []):
+                image_vault.require_public(source_hash)
+            item.update(media_id='library:'+item['id'], media_type='image', path=str(destination.absolute()), file_state='present')
+            index['images'].append(item)
+            save_index(index)
+        except BaseException:
+            if created:
+                destination.unlink(missing_ok=True)
+                thumbnail.unlink(missing_ok=True)
+            raise
+        return decorate(item)
 
 
 def edit_image(item_id, *, rating=None, folder_ids=None, set_rating=False, hidden=None, caption=None, tag_ids=None, category=None, project=None, favorite=None, review_status=None):
@@ -277,7 +351,8 @@ def delete_folder(folder_id):
 
 def delete_image(item_id):
     with LOCK:
-        _, item = image_bytes(item_id)  # Validate ownership and prevent unauthenticated vault changes.
+        stream, item = image_stream(item_id)
+        stream.close()
         index = read_index()
         index["images"] = [item for item in index["images"] if item["id"] != item_id]
         save_index(index)
@@ -285,6 +360,8 @@ def delete_image(item_id):
         # app-created transfer or the original library copy is owned here.
         if not item.get('review_location') or item.get('review_location_owned',False):
             image_path(item).unlink(missing_ok=True)
+        if item.get('stitch_preview_sha256'):
+            preview_path(item).unlink(missing_ok=True)
 
 
 def source_bytes(source):

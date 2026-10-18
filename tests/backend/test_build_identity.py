@@ -92,6 +92,10 @@ def test_capture_does_not_hash_its_generated_identity_or_invent_creation_dates()
     assert not capture.included("build-info.json")
     assert not capture.included("dist/build-info.json")
     assert capture.included("RELEASES.md")
+    for name in ("mobile/src/Companion.jsx", "mobile/public/manifest.webmanifest", "mobile/public/icon-192.png", "mobile/public/icon-512.png"):
+        assert capture.included(name)
+    assert not capture.included("dist/mobile/index.html")
+    assert not capture.included("mobile/data/session.json")
 
 
 @pytest.mark.parametrize("name", [

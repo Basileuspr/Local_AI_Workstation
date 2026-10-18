@@ -46,9 +46,10 @@ files and binary outputs are excluded. Detected credentials, personal paths and
 non-test email addresses block a file. These pattern checks supplement reviewing
 the source; they cannot prove that arbitrary source contains no private text.
 
-The offline piano converter's licensed Basic Pitch weights are the single bundled
-binary exception. Publication checks their exact size and SHA-256 before capture
-and in the outgoing tree; other model weights remain excluded. Regenerated public
+The bundled binary exceptions are the offline piano converter's licensed Basic
+Pitch weights and the mobile companion's two generated install icons. Publication
+checks their exact size and SHA-256 before capture and in the outgoing tree; other
+model weights and arbitrary generated media remain excluded. Regenerated public
 review-reader assets are staged explicitly even when local Git excludes hide them.
 
 The button does not infer whether another chat has finished a feature. Select

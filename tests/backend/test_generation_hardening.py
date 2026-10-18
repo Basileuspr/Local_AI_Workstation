@@ -85,6 +85,7 @@ def test_workflow_failure_discards_shared_runtime(monkeypatch,phase):
     with pytest.raises(RuntimeError):
         with manager.workflow_pipeline({'id':'fixture'},'txt2img',context):
             if phase == 'infer': raise RuntimeError('inference failed')
+            pipeline.maybe_free_model_hooks()  # Called inside native inference.
     assert manager._pipeline is None and manager._model_id is None
     assert calls == ['detach']
 

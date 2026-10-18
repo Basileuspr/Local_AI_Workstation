@@ -81,7 +81,7 @@ export default function ImageStitcher({ stitcher, active }) {
   function option(name, value) { setOptions(current => ({ ...current, [name]: value })); }
   return <>
     {stitcher.enabled && <section className="image-stitcher-tray" aria-label="Image stitcher selections">
-      <header><strong>Stitcher · {stitcher.frames.length}/64 frames</strong>
+      <header><strong>Stitcher · {stitcher.frames.length} frames</strong>
         <button type="button" disabled={stitcher.busy || !enough} onClick={() => stitcher.setOpen(true)}>Preview stitch</button>
         <button type="button" disabled={stitcher.busy || !enough} onClick={stitcher.reverse}>Reverse order</button>
         <button type="button" disabled={stitcher.busy || !stitcher.frames.length} onClick={stitcher.clear}>Clear frames</button>
@@ -97,21 +97,18 @@ export default function ImageStitcher({ stitcher, active }) {
         <fieldset disabled={stitcher.busy} className="stitch-options"><legend>Layout</legend>
           <label>Arrangement<select aria-label="Stitch layout" value={options.layout} onChange={event => option('layout', event.target.value)}>
             <option value="row">Horizontal strip</option><option value="column">Vertical strip</option><option value="grid">Grid</option></select></label>
-          {options.layout === 'grid' && <label>Columns<select aria-label="Stitch columns" value={options.columns} onChange={event => option('columns', Number(event.target.value))}>
-            <option value={0}>Auto</option>{Array.from({ length: 8 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}</option>)}</select></label>}
-          <label>Frame size<select aria-label="Stitch frame size" value={options.tile_size} onChange={event => option('tile_size', Number(event.target.value))}>
-            {[256, 512, 1024, 2048].map(size => <option key={size} value={size}>Up to {size} px</option>)}</select></label>
-          <label>Spacing<select aria-label="Stitch spacing" value={options.gap} onChange={event => option('gap', Number(event.target.value))}>
-            {[0, 4, 8, 16, 32, 64].map(gap => <option key={gap} value={gap}>{gap} px</option>)}</select></label>
+          {options.layout === 'grid' && <label>Columns · 0 = auto<input type="number" min="0" step="1" aria-label="Stitch columns" value={options.columns} onChange={event => option('columns', Number(event.target.value))} /></label>}
+          <label>Frame size · 0 = original<input type="number" min="0" step="1" aria-label="Stitch frame size" value={options.tile_size} onChange={event => option('tile_size', Number(event.target.value))} /></label>
+          <label>Spacing (px)<input type="number" min="0" step="1" aria-label="Stitch spacing" value={options.gap} onChange={event => option('gap', Number(event.target.value))} /></label>
           <label>Background<select aria-label="Stitch background" value={options.background} onChange={event => option('background', event.target.value)}>
             <option value="dark">Dark</option><option value="white">White</option><option value="transparent">Transparent</option></select></label>
         </fieldset>
-        <p>Frames fit inside equal cells without cropping or stretching. Grid order reads left to right, then down. Originals are preserved.</p>
+        <p>Frames fit inside equal cells without cropping or stretching. Grid order reads left to right, then down. Larger selections take longer and use temporary disk space; the saved image keeps your chosen size. Originals are preserved.</p>
         {!enough ? <p role="status">Choose at least two frames to stitch.</p> : !privacy.ready ? <p role="status">Checking image access…</p> : !preview && !error && <p role="status">Preparing preview…</p>}
         {error && <p role="alert">{error} <button type="button" disabled={stitcher.busy} onClick={() => setRetry(value => value + 1)}>Retry preview</button></p>}
         {enough && preview && !locked && <figure className="stitch-preview"><img src={preview.preview} alt="Stitched image preview"
           onError={() => setFailure({ key, message: 'Could not display the preview. Try again before saving.' })} />
-          <figcaption>{preview.width} × {preview.height} px · {stitcher.frames.length} frames{preview.reduced ? ' · Frame size reduced to fit one image' : ''}</figcaption></figure>}
+          <figcaption>{preview.width} × {preview.height} px · {stitcher.frames.length} frames · Preview scaled for display</figcaption></figure>}
         <footer><button type="button" disabled={stitcher.busy || !enough || !preview || !!error} onClick={save}>{stitcher.busy ? 'Working…' : 'Save stitched image'}</button>
           {savedImage && <><span role="status">Saved in Saved Images: {savedImage.name}</span><button type="button" disabled={stitcher.busy} onClick={download}>Download PNG</button></>}
         </footer>

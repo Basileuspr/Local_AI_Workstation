@@ -27,6 +27,7 @@ const { createFaceImports, saveFaceFolder } = require("./faceFiles");
 const { createMaintenance } = require("./maintenance");
 const { clearDesktopStorage } = require("./maintenanceStorage");
 const { trustedUrl, externalUrl, appAsset, APP_HEADERS } = require("./security");
+const { registerLibraryDownloadIpc } = require('./libraryDownloads');
 const { migratePreferences } = require("./preferenceMigration");
 const { createMediaManager } = require("./mediaManager");
 const { installAudioPermissions } = require('./audioPermissions');
@@ -420,6 +421,9 @@ ipcMain.handle("hash-auditor:export", async (event, scope, mode) => {
         });
         return { started: true };
     } catch (error) { return { error: error.message }; }
+});
+registerLibraryDownloadIpc({ ipcMain, trustedDesktop,
+    getConnection: () => ({ base: `http://127.0.0.1:${CONFIG.backendPort}`, token: sessionToken }),
 });
 ipcMain.handle("dashboard:drive-scan-status", (event, id) => trustedDesktop(event) ? driveSpace.status(id) : { error: "Desktop access required." });
 ipcMain.handle("dashboard:cancel-drive-scan", (event, id) => trustedDesktop(event) ? driveSpace.cancel(id) : { error: "Desktop access required." });

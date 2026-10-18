@@ -1,0 +1,187 @@
+# Mobile companion
+
+Workstation Companion is a phone PWA with Chat, Create, Gallery and Jobs views.
+The desktop owns model execution, the shared GPU queue, conversations and media.
+Access stays **off after every desktop restart** until explicitly enabled in
+**Dashboard → Mobile companion**. The PC bridge and normal desktop API retain
+their existing access rules.
+
+## Build and start
+
+Run `npm run build` to build both desktop and phone clients. `npm run build:mobile`
+rebuilds only the phone client. Fully quit and restart Electron after backend or
+Dashboard changes. Do not rebuild while a phone is using an old application bundle.
+
+A phone needs a browser-trusted HTTPS origin. Plain LAN HTTP does not provide
+the secure context needed for installation, service workers and secure cookies.
+See [MDN service workers](https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API/Using_Service_Workers).
+
+### Private remote access using Tailscale Serve
+
+This setup requires explicit approval and your own signed-in private VPN devices.
+The application does not install or configure Tailscale. Perform these steps only
+as part of an approved setup; the progress log records what has actually been done.
+
+1. Install and sign in to Tailscale on the desktop and phone using your intended
+   private tailnet. Review its device-access rules and restrict access to devices
+   you control. Enabling HTTPS certificates makes the device's certificate name
+   visible in public certificate-transparency logs; choose its name accordingly.
+2. On the desktop, configure **Tailscale Serve**, using its current instructions,
+   to reverse proxy HTTPS to `http://127.0.0.1:8766`. The usual command is
+   `tailscale serve --bg http://127.0.0.1:8766`. Inspect `tailscale serve status`
+   and ensure the service is private to your tailnet. Do not enable Funnel.
+3. In Dashboard → Mobile companion, enter the exact HTTPS origin reported by
+   Serve, such as `https://desktop.your-tailnet.ts.net` (no path). Keep listen
+   address `127.0.0.1` and port `8766`; leave certificate paths blank.
+4. Choose **Start mobile connection**. Open the HTTPS address on the phone while
+   connected to the VPN. Resolve certificate or connectivity errors before pairing.
+
+[Tailscale Serve](https://tailscale.com/docs/features/tailscale-serve) is designed
+to share a local service within the private tailnet. Its separate
+[HTTPS guidance](https://tailscale.com/docs/how-to/set-up-https-certificates)
+explains certificate-name disclosure. VPN account setup and actual device/network
+reachability require verification on your devices.
+
+### Direct private LAN HTTPS
+
+Use a specific private IPv4 address, an unused port, and certificate/private-key
+files for that IP address. The phone must already trust the issuing certificate
+authority. Enter an exact origin such as `https://192.168.1.20:8766` and the same
+address/port in the desktop panel. Broad `0.0.0.0` and public-address binds are
+rejected. Any firewall rule or phone certificate-trust installation requires
+separate review; the application never performs it.
+
+Do not expose the normal desktop API or Ollama, forward router ports, or bypass
+browser certificate warnings to make phone access work. IPv6 and arbitrary
+reverse-proxy hostnames are not supported by this first gateway.
+
+## Pair, install and disconnect
+
+Create a phone invitation in the desktop panel. On the phone, enter a device name
+and paste the invitation into the HTTPS page. The invitation is single-use and
+expires after five minutes. A new invitation invalidates the previous one.
+
+Phone access uses a secure HttpOnly same-site cookie and lasts up to 30 days.
+The desktop retains only a hash of that credential. The PWA does not place
+credentials, chats or images in local/session storage or service-worker caches.
+Only its application shell is available offline.
+
+Use your browser's **Install app** / **Add to Home screen** on Android. On iPhone,
+open the address in Safari and choose **Share → Add to Home Screen**. Install
+support and native file sharing depend on the phone/browser; test them on your
+device. A browser-to-installed-app transition may require pairing again if it
+uses a different cookie store.
+
+**Disconnect this phone** revokes its access. The desktop can revoke any named
+phone. Revocation stops future requests and active observation streams; it does
+not erase downloaded files or cancel already accepted desktop jobs. Finish or
+cancel jobs before stopping the listener. Stop Mobile companion before backup,
+reset or import; desktop maintenance enforces this boundary.
+
+## Chat and image generation
+
+Choose an existing conversation or create a new one. Chat uses the chosen
+desktop-hosted model, streams response snapshots and appends the result to the
+same desktop conversation. Concurrent desktop edits are preserved; a changed
+revision requires refreshing before a new mobile submission. This first client
+passes text conversation history, with no attachment upload, Knowledge retrieval,
+durable-memory lookup or desktop tool execution.
+
+In **Create**, choose an installed image model, prompt, optional negative prompt,
+compatible LoRA and strength, and long-prompt encoding. Canvas ratios, dimensions,
+resolution, steps, guidance and seed reuse the desktop's controls and hardware
+limits. The default canvas is 1024 × 1024, with 24 steps and guidance 5.5.
+Both prompts and all selected settings remain after each generation so you can
+adjust them and run again. Reference uploads, batch tools and desktop filesystem
+destinations remain desktop workflows.
+
+A successful image is saved to the selected conversation and appears in Gallery
+and the desktop Generate output without opening Gallery. Generate also observes
+phone job progress and can cancel it. An active desktop batch keeps its output
+slots; the phone result joins generation history. Clear suppresses late output
+from phone jobs already observed, without deleting saved images or stopping work.
+Generation uses the existing image-task service and GPU coordination; no models
+are downloaded or copied.
+
+The desktop observes mobile changes approximately every three seconds while
+visible. Both chat panes refresh additive results when idle, preserving active
+desktop streams and local edits. Reload a conversation explicitly if an edited
+local copy prevents an automatic refresh.
+
+Jobs continue after the phone sleeps, reloads or disconnects. On reconnection,
+the client fetches authoritative history and job status. If submission delivery
+is uncertain, **Retry same submission** keeps the original job ID. Do not create
+a replacement job just because a connection was lost. After a page reload, check
+Jobs for accepted work before resubmitting a prompt.
+
+The desktop must remain awake and running. A desktop restart retains completed
+jobs and marks unfinished ones **interrupted**, preserving saved partial chat
+output in the job record. Computation is not checkpointed or automatically replayed.
+Cancellation is pending until desktop confirmation. **Dismiss job** removes a
+finished entry from the visible job history while retaining a deduplication
+receipt; it does not delete the conversation or image. At most eight mobile jobs
+may be outstanding and 200 remain visible in history.
+
+## Gallery, originals and sharing
+
+Gallery combines visible chat images and Saved Images, supports searching and
+paging, and loads thumbnails. It excludes hidden, locked and review-only images.
+Opening an image fetches its original bytes. **Download original** keeps the full
+resolution. **Prepare to share** retrieves the original file; tap **Share image**
+once it is ready to invoke the phone's native share sheet. If file sharing is
+unsupported, download and share from the phone's file app.
+
+Image authorization is checked again when bytes are requested; an older gallery
+page cannot bypass a newly applied vault lock. There is no phone vault-unlock,
+arbitrary-file, shell, reset, backup or maintenance endpoint.
+
+## Verification and current limits
+
+### Android device acceptance
+
+Install [Tailscale for Android](https://tailscale.com/docs/install/android), sign
+in with the same account as the desktop, and connect the VPN. Use Chrome for the
+first phone test. Keep the desktop application running and awake during testing.
+
+1. On home Wi-Fi, open the exact private HTTPS address from the desktop panel.
+   Confirm it opens without a certificate warning, then pair using a fresh
+   desktop invitation. In Chrome's menu, choose **Add to Home screen** or
+   **Install app**, and open the installed companion. Pair again if requested.
+2. Open or create a test conversation, choose an installed chat model, and send a
+   short message. Confirm streamed text appears and the same completed turn is
+   visible on the desktop. Reload the phone page and confirm history remains.
+3. In **Create**, choose an installed model and a small supported canvas for a
+   test image. Submit once, then lock the phone while it runs. Unlock and reopen
+   the companion: the same job should show progress or its completed result,
+   with one generated image rather than a duplicate submission.
+4. Find that result in **Gallery**, open it, and choose **Download original**.
+   Open the downloaded file in the phone's file/gallery app and confirm its pixel
+   dimensions match the generation settings. Choose **Prepare to share**, then
+   **Share image**, and verify the native share sheet opens; cancel it if no
+   actual sharing is intended.
+5. Turn phone Wi-Fi off while leaving Tailscale connected. Over cellular data,
+   reopen the companion and repeat a short chat and original-image download.
+   Restore Wi-Fi afterward. Record Wi-Fi and cellular results separately.
+6. Temporarily disconnect the phone's VPN and confirm the companion reports the
+   lost connection. Reconnect it and confirm state recovers. Finally revoke the
+   test phone from the desktop and confirm further API access requires pairing.
+
+Record each observed result in the roadmap. Do not mark installation, native
+sharing, sleep/reconnection or remote access as verified from desktop emulation.
+
+### Automated and local inference checks
+
+See the [roadmap and progress log](../development/MOBILE_COMPANION_ROADMAP.md)
+for current evidence and remaining work. Reproducible checks include:
+
+- `npm test -- tests/frontend/mobileApi.test.js`
+- `npm run test:backend -- tests/backend/test_mobile_companion.py`
+- `npm run build:mobile`, then
+  `node_modules\.bin\electron.cmd scripts\qa-mobile-companion.cjs`
+- Optional real inference, only while the desktop is idle:
+  `venv\Scripts\python.exe scripts\qa-mobile-inference.py --chat-model <installed-model> --image-model <installed-image-id>`
+
+The inference script uses temporary app data and installed model weights, opens
+no listener, and reports the directory containing results. Chromium QA uses a
+temporary HTTPS fixture and synthetic inference. Neither substitutes for actual
+phone installation, VPN/LAN connectivity, mobile sleep/reconnect and native sharing.

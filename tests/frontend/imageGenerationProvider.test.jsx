@@ -5,10 +5,10 @@ import {afterEach,beforeEach,expect,it,vi} from 'vitest';
 import {ImageGenerationProvider,useImageGeneration} from '../../src/ImageGenerationContext';
 import * as api from '../../src/api';
 
-let state,refs,dispatch,subscriber,context,root;
+let state,refs,dispatch,subscriber,phoneSubscriber,context,root;
 vi.mock('../../src/useStore',()=>({useStore:()=>state,useRefs:()=>refs,useDispatch:()=>dispatch}));
-vi.mock('../../src/appPolling',()=>({imageTasksObserver:()=>({subscribe:listener=>{subscriber=listener;return ()=>{};}})}));
-vi.mock('../../src/api',()=>({loadImageGenerationModels:vi.fn(),listSessionImageInventory:vi.fn(),loadSession:vi.fn(),imageGenerationTasks:vi.fn(),stopImageGeneration:vi.fn()}));
+vi.mock('../../src/appPolling',()=>({imageTasksObserver:()=>({subscribe:listener=>{subscriber=listener;return ()=>{};}}),mobileImageTasksObserver:()=>({subscribe:listener=>{phoneSubscriber=listener;return ()=>{};}})}));
+vi.mock('../../src/api',()=>({loadImageGenerationModels:vi.fn(),listSessionImageInventory:vi.fn(),loadSession:vi.fn(),imageGenerationTasks:vi.fn(),stopImageGeneration:vi.fn(),stopMobileImageGeneration:vi.fn()}));
 const catalog={models:[{id:'fixture',name:'Fixture'}],loras:[],runtime:{ready:true}};
 function Harness(){context=useImageGeneration();return <p>{context.batch?.slots.map(slot=>slot.status).join(',')}</p>;}
 beforeEach(()=>{
@@ -20,7 +20,48 @@ beforeEach(()=>{
   api.loadImageGenerationModels.mockResolvedValue(catalog);
   api.listSessionImageInventory.mockResolvedValue({images:[],hiddenImages:[]});
   api.loadSession.mockResolvedValue({id:'chat',revision:'saved',messages:[],title:'Fixture'});
+  api.stopMobileImageGeneration.mockResolvedValue({});
+  api.stopImageGeneration.mockResolvedValue({});
   root=createRoot(document.getElementById('root'));
+});
+
+const phoneTask = (id, status='completed') => ({request_id:`mobile-${id}`,session_id:'phone-chat',prompt:'Phone fixture',label:'Phone',status,
+  result:status==='completed'?{url:`/phone-${id}.png`,session_id:'phone-chat',request_id:`mobile-${id}`} : null});
+const phoneSnapshot = (sequence, tasks) => ({backend_id:'phone-run',snapshot_sequence:sequence,tasks});
+it('shows phone output in Generate without opening Gallery, even if its snapshot arrives first',async()=>{
+  await mount();
+  await act(async()=>phoneSubscriber.data(phoneSnapshot(1,[phoneTask('a')])));
+  await act(async()=>subscriber.data({backend_id:'run',snapshot_sequence:1,tasks:[]}));
+  expect(context.result.url).toBe('/phone-a.png');
+  expect(context.generatedImages).toHaveLength(1);
+  await act(async()=>phoneSubscriber.data(phoneSnapshot(2,[phoneTask('a')])));
+  expect(context.generatedImages).toHaveLength(1);
+});
+it('keeps desktop batch slots while tracking and stopping phone work separately',async()=>{
+  await mount();
+  const desktop = {request_id:'pc-job',session_id:'chat',status:'running',batch_id:'pc-batch',batch_index:0,batch_count:1};
+  await act(async()=>subscriber.data({backend_id:'run',snapshot_sequence:1,tasks:[desktop]}));
+  await act(async()=>phoneSubscriber.data(phoneSnapshot(1,[phoneTask('b','running')])));
+  expect(context.requests.map(task=>task.id)).toEqual(['pc-job','mobile-b']);
+  await act(async()=>context.stop());
+  expect(api.stopImageGeneration).toHaveBeenCalledWith('pc-job');
+  expect(api.stopMobileImageGeneration).toHaveBeenCalledWith('b');
+  await act(async()=>phoneSubscriber.data(phoneSnapshot(2,[phoneTask('b')])));
+  expect(context.batch.id).toBe('pc-batch');
+  expect(context.batch.slots[0].status).toBe('pending');
+  expect(context.generatedImages[0].url).toBe('/phone-b.png');
+  expect(context.requests).toHaveLength(1);
+});
+it('respects Clear for known phone jobs, then shows a new phone result',async()=>{
+  await mount();
+  await act(async()=>subscriber.data({backend_id:'run',snapshot_sequence:1,tasks:[]}));
+  await act(async()=>phoneSubscriber.data(phoneSnapshot(1,[phoneTask('old','running')])));
+  await act(async()=>context.clear());
+  await act(async()=>phoneSubscriber.data(phoneSnapshot(2,[phoneTask('old')])));
+  expect(context.result).toBeNull();
+  await act(async()=>phoneSubscriber.data(phoneSnapshot(3,[phoneTask('old'),phoneTask('new')])));
+  expect(context.result.url).toBe('/phone-new.png');
+  expect(context.generatedImages).toHaveLength(1);
 });
 afterEach(async()=>{await act(async()=>root.unmount());vi.unstubAllGlobals();});
 async function mount(){await act(async()=>root.render(<ImageGenerationProvider><Harness/></ImageGenerationProvider>));}

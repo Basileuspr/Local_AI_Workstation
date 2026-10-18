@@ -25,6 +25,7 @@ ROOT_FILES.update({"docs/application-review/benchmarks/session-metadata.json",
                    "docs/application-review/changes/R02-session-metadata.md",
                    "docs/application-review/changes/R01-build-identity.md",
                    "docs/application-review/changes/R03-session-revisions.md", ".gitignore"})
+ROOT_FILES.update({"mobile/public/manifest.webmanifest", "mobile/public/icon-192.png", "mobile/public/icon-512.png"})
 PY_PACKAGES = ["fastapi", "uvicorn", "torch", "torchvision", "diffusers", "transformers", "accelerate", "compel", "onnxruntime", "onnxruntime-gpu", "chromadb", "faster-whisper", "ctranslate2", "sherpa-onnx", "numpy", "huggingface-hub", "peft", "pillow", "cryptography"]
 
 
@@ -50,7 +51,7 @@ def included(name):
             marker in path.name.upper() for marker in ("HANDOFF", "ARCHITECTURE_CURRENT", "ROADMAP_ORIGINAL")
         )
     return (name in ROOT_FILES or (len(path.parts) == 1 and (name.startswith("requirements") or path.suffix == ".md"))
-            or name.startswith(("src/", "backend/", "electron/", "tests/", "scripts/", "media-manager/frontend/", "media-manager/tests/", "media-manager/media_organizer/"))
+            or name.startswith(("src/", "mobile/", "backend/", "electron/", "tests/", "scripts/", "media-manager/frontend/", "media-manager/tests/", "media-manager/media_organizer/"))
             or name in {"media-manager/package.json", "media-manager/README.md"})
 
 

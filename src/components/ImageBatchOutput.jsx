@@ -1,6 +1,7 @@
 import GeneratedImagePreview from "./GeneratedImagePreview";
 import { imageSourceUrl as apiUrl } from "../imageSources";
 import ImageSeedControls from "./ImageSeedControls";
+import ImageGenerationTimings from './ImageGenerationTimings';
 import {usePromptQueue} from './PromptQueue';
 import {useImageRemoval} from './ImageRemovalControls';
 import {formatImageEstimate, imageRemainingSeconds} from '../imageProgress';
@@ -38,6 +39,7 @@ export default function ImageBatchOutput({ batch, requests = [], onOpen, onEdit,
             <button type="button" disabled={copying} onClick={() => onCopy(slot.image)}>Copy Image</button>
           </div>
           <ImageSeedControls seed={slot.image.seed} showMissing />
+          <ImageGenerationTimings result={slot.image} />
           {slot.image.output_warning && <small role="alert">{slot.image.output_warning}</small>}
         </> : <div className="image-batch-output-placeholder">
           <span>{slot.status === "removed" ? "Removed from selection" : slot.status === "failed" ? "Failed" : slot.status === "stopped" ? "Stopped" : slot.status === "deleted" ? "Deleted" : waiting}</span>

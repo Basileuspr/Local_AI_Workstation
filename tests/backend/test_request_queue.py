@@ -20,7 +20,7 @@ def test_image_route_groups_matching_settings_without_logging_prompts(monkeypatc
     from routes import image_generation as images
     queue = RequestQueue(GpuCoordinator())
     monkeypatch.setattr(images, "queue", queue)
-    monkeypatch.setattr(images, "_generate_image", lambda *_: {"ok": True})
+    monkeypatch.setattr(images, "_generate_image", lambda *_, **kwargs: {"ok": True})
     async def prepare(_kind):
         pass
     monkeypatch.setattr(images, "prepare_runtime", prepare)
@@ -292,7 +292,7 @@ def test_mixed_routes_run_in_order_and_training_holds_until_worker_exit(monkeypa
                 yield 'data: {"token":"ok","done":true}\n\n'
             return StreamingResponse(tokens())
         monkeypatch.setattr(main, "_chat", fake_chat)
-        def generate(request, event):
+        def generate(request, event, **kwargs):
             assert gpu.acquire(f"image-generation:{request.request_id}")
             starts.append("image")
             assert image_release.wait(5)
@@ -353,7 +353,7 @@ def test_image_cancellation_keeps_queue_slot_until_worker_cleanup(monkeypatch, c
         started = threading.Event()
         cleanup = threading.Event()
         event_loop_thread = threading.get_ident()
-        def generate(request, event):
+        def generate(request, event, **kwargs):
             assert threading.get_ident() != event_loop_thread
             assert gpu.acquire(f"image-generation:{request.request_id}")
             started.set()
@@ -423,7 +423,7 @@ def test_image_response_finishes_when_disconnect_probe_swallows_cancellation(mon
                         pass
                 return disconnect
 
-        def generate(*_args):
+        def generate(*_args, **kwargs):
             assert probing.wait(2)
             if provider_error:
                 raise RuntimeError("fixture provider failed")

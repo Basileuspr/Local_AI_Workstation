@@ -238,7 +238,7 @@ def test_worker_executes_through_real_local_routes_and_shared_queue(tmp_path, mo
     image_bytes = io.BytesIO()
     Image.new("RGB", (8, 8), "green").save(image_bytes, format="PNG")
     png = "data:image/png;base64," + base64.b64encode(image_bytes.getvalue()).decode()
-    monkeypatch.setattr(image_generation, "_generate_image", lambda *args: {"data_url": png, "seed": 42})
+    monkeypatch.setattr(image_generation, "_generate_image", lambda *args, **kwargs: {"data_url": png, "seed": 42})
     bridge = Bridge(tmp_path, "http://127.0.0.1:8000", "test-session-token", local_transport=httpx.ASGITransport(app=main.app))
 
     async def capabilities():

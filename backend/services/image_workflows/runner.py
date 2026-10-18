@@ -2,6 +2,7 @@
 import asyncio
 import hashlib
 import secrets
+import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -128,6 +129,21 @@ def _patch(workflow_id, job_id, **changes):
         return record
 
 
+def progress_writer(workflow_id, job_id, interval=0.75):
+    """Coalesce intermediate steps; persist phase changes and final steps immediately."""
+    last_time, last_phase = 0.0, None
+
+    def report(**values):
+        nonlocal last_time, last_phase
+        now = time.monotonic()
+        phase = values.get('phase', last_phase)
+        final = values.get('total_steps', 0) > 0 and values.get('step', 0) >= values['total_steps']
+        if phase != last_phase or final or now - last_time >= interval:
+            _patch(workflow_id, job_id, **values)
+            last_time, last_phase = now, phase
+    return report
+
+
 def list_jobs(workflow_id):
     jobs = store.list_jobs(workflow_id)
     for job in jobs:
@@ -248,7 +264,7 @@ class Runner:
                                           ExecutionContext(job_id, directory, job.cancel_event))
                     await prepare_runtime("analysis" if stage.operation == "describe" else "workflow")
                 context = ExecutionContext(job_id, directory, job.cancel_event,
-                    lambda **values: _patch(workflow.id, job_id, **values))
+                    progress_writer(workflow.id, job_id))
                 context.check_cancelled()
                 result = await provider.execute(request, context)
                 context.check_cancelled()

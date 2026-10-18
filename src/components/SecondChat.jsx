@@ -7,6 +7,7 @@ import { chatModelChoice } from "../chatModelChoices";
 import { reconcileChatModel } from "../modelCatalog";
 import * as api from "../api";
 import { recentTurnStart } from '../contextMemory';
+import { useMobileSync } from '../useMobileSync';
 import Header from "./Header";
 import SettingsPanel from "./SettingsPanel";
 import MessageList from "./MessageList";
@@ -16,6 +17,7 @@ import "./DualChat.css";
 
 function SecondChatSession({ active, primarySessionId, targetSessionId, onSelection, onSessionSaved }) {
   const state = useStore(), dispatch = useDispatch(), refs = useRefs(), chats = useDualChat();
+  useMobileSync(state, dispatch);
   const current = useRef(state); current.current = state;
   const primary = useRef(primarySessionId); primary.current = primarySessionId;
   const visible = useRef(active); visible.current = active;

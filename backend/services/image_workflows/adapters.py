@@ -126,6 +126,8 @@ class SDXLProvider:
 
     def generate(self, request, context):
         stage, prompts = request.stage, request.prompt_settings
+        from services.generation_timing import GenerationTiming, PipelineTiming
+        timing = GenerationTiming()
         validate_dimensions(stage.width, stage.height, stage.allow_long_wait, current_resolution_limits())
         model = next((m for m in sdxl_models() if m["id"] == stage.model_id), None)
         if model is None:
@@ -154,11 +156,14 @@ class SDXLProvider:
                 if not torch.cuda.is_available():
                     raise RuntimeError("This SDXL provider requires CUDA")
                 resident = manager.workflow_pipeline(model, stage.operation, context, allow_long_wait=stage.allow_long_wait)
-                pipeline = resident.__enter__()
+                with timing.measure('model_loading'):
+                    pipeline = resident.__enter__()
                 context.check_cancelled()
 
                 def step_end(_pipeline, step, timestep, callback_kwargs):
                     context.check_cancelled()
+                    if step + 1 >= total_steps:
+                        pipeline_timing.finish_denoising()
                     context.progress(phase="Denoising", step=step + 1,
                                      total_steps=total_steps)
                     return callback_kwargs
@@ -175,15 +180,13 @@ class SDXLProvider:
                 from services.image_generation import prompt_token_status
                 tokens = prompt_token_status(stage.model_id, prompts.prompt, prompts.negative_prompt)
                 if max(tokens["prompt"]["chunks_required"], tokens["negative_prompt"]["chunks_required"]) > 1:
-                    from compel import CompelForSDXL
-                    conditioning = CompelForSDXL(pipeline, device="cuda")(prompts.prompt, negative_prompt=prompts.negative_prompt)
-                    args.update(prompt_embeds=conditioning.embeds, pooled_prompt_embeds=conditioning.pooled_embeds,
-                                negative_prompt_embeds=conditioning.negative_embeds, negative_pooled_prompt_embeds=conditioning.negative_pooled_embeds)
-                    del conditioning
+                    with timing.measure('prompt_encoding', torch.cuda.synchronize):
+                        args.update(manager._long_prompt_embeddings(prompts.prompt, prompts.negative_prompt, pipeline))
                 else:
                     args.update(prompt=prompts.prompt, negative_prompt=prompts.negative_prompt or None)
                 context.check_cancelled()
-                result = pipeline(**args)
+                with PipelineTiming(pipeline, timing, torch.cuda.synchronize) as pipeline_timing:
+                    result = pipeline(**args)
                 context.check_cancelled()
                 output = result.images[0].convert("RGB")
                 if output.size != (stage.width, stage.height):
@@ -194,9 +197,11 @@ class SDXLProvider:
                 torch.cuda.synchronize()
             context.check_cancelled()
             path = context.output_dir / f"{uuid.uuid4().hex}.png"
-            output.save(path, "PNG")
+            with timing.measure('png_save'):
+                output.save(path, "PNG")
             context.check_cancelled()
             return StageResult((path,), metadata={"provider": self.key, "model_id": stage.model_id,
+                "stage_seconds": timing.snapshot(),
                 "seed": prompts.seed, "steps": prompts.steps, "guidance": prompts.guidance,
                 "strength": stage.strength if source is not None else None, "width": stage.width, "height": stage.height,
                 "identity_conditioning": "previous frame and explicit text; saved identity references are not applied by this adapter",
@@ -206,7 +211,8 @@ class SDXLProvider:
             args.clear()
             result = None
             if resident is not None:
-                resident.__exit__(None, None, None)
+                import sys
+                resident.__exit__(*sys.exc_info())
 
 
 class OllamaProvider:

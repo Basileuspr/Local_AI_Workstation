@@ -69,7 +69,7 @@ export default function ImageViewer({ images, selectedId, onSelect, onClose, onO
       <div className="image-viewer-stage">
         {!previewOnly && <button type="button" className="image-viewer-arrow previous" aria-label="Previous image" disabled={images.length < 2} onClick={() => step(-1)}>‹</button>}
         {renderImage ? renderImage(image) : failedSource === source ? <div role="alert"><p>This image could not be loaded. You can still browse the other images.</p><button type="button" onClick={() => { setFailedSource(null); setRetry(value => value + 1); }}>Reload image</button></div>
-          : <ProtectedImage key={`${source}:${retry}`} src={imagePreviewUrl(image.url, {retry})} alt={image.name} rotateView={!previewOnly} onError={() => setFailedSource(source)} />}
+          : <ProtectedImage key={`${source}:${retry}`} src={imagePreviewUrl(image.preview_url || image.url, {retry})} alt={image.name} rotateView={!previewOnly} onError={() => setFailedSource(source)} />}
         {!previewOnly && <button type="button" className="image-viewer-arrow next" aria-label="Next image" disabled={images.length < 2} onClick={() => step(1)}>›</button>}
       </div>
       {!previewOnly && <>

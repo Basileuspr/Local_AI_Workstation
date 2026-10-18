@@ -102,7 +102,13 @@ class ImageTasks:
                                             **({"generationRecipe": generated["generation_recipe"]} if generated.get("generation_recipe") else {}),
                                             **({"seed": seed} if seed is not None else {})}]}
             session_id = task.request["session_id"]
+            import time
+            persistence_started = time.perf_counter()
             saved = await run_in_threadpool(session_store.append_messages, session_id, [message], model)
+            persistence_seconds = time.perf_counter() - persistence_started
+            generated.setdefault('stage_seconds', {})['chat_persistence'] = round(persistence_seconds, 4)
+            if 'request_seconds' in generated:
+                generated['request_seconds'] = round(generated['request_seconds'] + persistence_seconds, 4)
             if saved is None:
                 raise ValueError("Image generated, but the submitting chat was removed")
             task.result = {key: value for key, value in generated.items() if key not in {"data_url", "image_ref"}}

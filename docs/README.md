@@ -53,6 +53,7 @@ dates and limits. Use source and focused checks to confirm current behavior.
 ## Setup and recovery
 
 - [PC bridge: manual delegation](setup/PC_BRIDGE.md)
+- [Mobile companion: private phone access](setup/MOBILE_COMPANION.md)
 - [Setup and optional runtimes](setup/SETUP.md)
 - [Windows compatibility and recovery](setup/WINDOWS_COMPATIBILITY.md)
 - [Window rendering](setup/WINDOW_RENDERING.md)
@@ -63,6 +64,7 @@ dates and limits. Use source and focused checks to confirm current behavior.
 - [Architecture reference](development/ARCHITECTURE_REFERENCE.md)
 - [Browser audit and remediation](development/BROWSER_SECURITY.md)
 - [Development and verification](development/DEVELOPMENT.md)
+- [Mobile companion roadmap and progress](development/MOBILE_COMPANION_ROADMAP.md)
 - [Publish Application to GitHub](development/GITHUB_PUBLICATION.md)
 - [Internet access and data scraping](development/INTERNET_ACCESS_PROPOSAL.md)
 - [Local chat tools, document understanding and image profiles](development/LOCAL_TOOL_EXECUTION.md)

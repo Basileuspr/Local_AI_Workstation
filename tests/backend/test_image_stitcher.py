@@ -89,15 +89,17 @@ def test_mixed_aspect_transparency_spacing_and_exif_orientation(client):
         assert image.getpixel((22, 10))[3] == 0
 
 
-def test_fits_large_strip_and_grid_without_dropping_frames(client):
+def test_large_preview_preserves_requested_dimensions_without_dropping_frames(client):
     frame = source('red', (64, 64))
-    # 64 sources at maximum spacing and size are still bounded by shared layout rules.
+    # Preview remains small, while reported/export dimensions keep every pixel.
     large = source('blue', (2048, 2048))
     response = client.post('/image-library/stitch/preview', json={'sources': [large] * 64, 'tile_size': 2048})
     assert response.status_code == 200, response.text
     result = response.json()
-    assert result['reduced'] and result['columns'] == 64
-    assert result['width'] <= 16384 and result['width'] * result['height'] <= library.MAX_PIXELS
+    assert not result['reduced'] and result['columns'] == 64
+    assert (result['width'], result['height']) == (131072, 2048)
+    with Image.open(io.BytesIO(base64.b64decode(result['preview'].split(',')[1]))) as preview:
+        assert max(preview.size) <= 1600
     result = client.post('/image-library/stitch/preview', json={'sources': [frame] * 3, 'layout': 'grid', 'columns': 2, 'gap': 4}).json()
     assert (result['width'], result['height'], result['rows']) == (132, 132, 2)
 
@@ -138,7 +140,7 @@ def test_workflow_outputs_can_be_picked_across_runs(client):
         assert image.getpixel((36, 8)) == (0, 0, 255, 255)
 
 
-def test_oversized_encoded_output_rejects_save_without_a_partial_copy(client, monkeypatch):
+def test_owned_output_does_not_use_upload_byte_limits(client, monkeypatch):
     frames = []
     for seed in (1, 2):
         with Image.frombytes('RGB', (24, 16), random.Random(seed).randbytes(24 * 16 * 3)) as image:
@@ -148,8 +150,10 @@ def test_oversized_encoded_output_rejects_save_without_a_partial_copy(client, mo
     before = library.read_index()
     monkeypatch.setattr(library, 'MAX_BYTES', 1500)
     response = client.post('/image-library/stitch', json={'sources': frames})
-    assert response.status_code == 422 and 'Reduce Frame size' in response.text
-    assert library.read_index() == before
+    assert response.status_code == 200, response.text
+    assert response.json()['size'] > library.MAX_BYTES
+    assert len(library.read_index()['images']) == len(before['images']) + 1
+    assert client.get(response.json()['url']).status_code == 200
 
 
 def test_missing_changed_and_locked_frames_fail_without_partial_save(client):
@@ -172,23 +176,77 @@ def test_missing_changed_and_locked_frames_fail_without_partial_save(client):
 
 
 @pytest.mark.parametrize('override', [
-    {'sources': []}, {'sources': [{'kind': 'library', 'id': '0' * 32}] * 65},
-    {'layout': 'unknown'}, {'columns': -1}, {'columns': 2.5}, {'gap': 65},
-    {'tile_size': 4096}, {'background': 'url(http://example.com)'}, {'path': '../private'},
+    {'sources': []}, {'layout': 'unknown'}, {'columns': -1}, {'columns': 2.5}, {'gap': -1},
+    {'tile_size': -1}, {'background': 'url(http://example.com)'}, {'path': '../private'},
 ])
 def test_invalid_requests_are_rejected_before_reading_images(client, override):
     response = client.post('/image-library/stitch', json={'sources': [source(), source('blue')], **override})
     assert response.status_code == 422
 
 
-def test_budget_and_missing_workflow_errors_preserve_storage(client, monkeypatch):
+def test_missing_workflow_preserves_storage_and_large_selection_succeeds(client):
     before = library.read_index()
     response = client.post('/image-library/stitch', json={'sources': [
         {'kind': 'workflow', 'workflow_id': '0' * 32, 'job_id': '1' * 32, 'output_id': '2' * 32}] * 2})
     assert response.status_code == 422 and 'Frame 1' in response.text
     assert library.read_index() == before
+    frames = [source(), source('blue')] * 40
+    response = client.post('/image-library/stitch', json={'sources': frames, 'tile_size': 0, 'gap': 65})
+    assert response.status_code == 200, response.text
+    assert response.json()['width'] == 80 * 24 + 79 * 65
+
+
+def test_disk_canvas_exceeds_previous_edge_and_pixel_caps(client):
+    frame = source('blue', (1024, 1024))
+    response = client.post('/image-library/stitch', json={'sources': [frame] * 25, 'tile_size': 0})
+    assert response.status_code == 200, response.text
+    item = response.json()
+    assert (item['width'], item['height']) == (25600, 1024)
+    with Image.open(io.BytesIO(client.get(item['url']).content)) as image:
+        assert image.size == (25600, 1024)
+        assert image.getpixel((25599, 1023)) == (0, 0, 255, 255)
+    for url in [item['preview_url'], item['url'] + '?thumbnail=true']:
+        preview = client.get(url)
+        assert preview.status_code == 200
+        with Image.open(io.BytesIO(preview.content)) as image:
+            assert max(image.size) <= 1600
+
+
+def test_streamed_png_exceeds_twenty_mebibytes_without_changing_pixels(client):
+    frames, expected = [], []
+    for seed in (11, 29):
+        pixels = random.Random(seed).randbytes(2048 * 2048 * 3)
+        with Image.frombytes('RGB', (2048, 2048), pixels) as image:
+            buffer = io.BytesIO(); image.save(buffer, 'PNG')
+        item = library.import_image(buffer.getvalue(), 'noise.png', {'kind': 'fixture'})
+        frames.append({'kind': 'library', 'id': item['id']})
+        expected.append(hashlib.sha256(pixels).hexdigest())
+    response = client.post('/image-library/stitch', json={'sources': frames, 'tile_size': 0})
+    assert response.status_code == 200, response.text
+    item = response.json()
+    assert item['size'] > 20 * 1024 * 1024
+    original = client.get(item['url'])
+    assert int(original.headers['content-length']) == item['size'] == len(original.content)
+    with Image.open(io.BytesIO(original.content)) as image:
+        for index, digest in enumerate(expected):
+            with image.crop((index * 2048, 0, (index + 1) * 2048, 2048)).convert('RGB') as frame:
+                assert hashlib.sha256(frame.tobytes()).hexdigest() == digest
+
+
+def test_stitch_failure_removes_owned_files_and_preview_requires_original_access(client, monkeypatch):
     frames = [source(), source('blue')]
-    before = library.read_index()
-    monkeypatch.setattr(image_stitcher, 'MAX_SOURCE_BYTES', 1)
-    assert client.post('/image-library/stitch', json={'sources': frames}).status_code == 422
-    assert library.read_index() == before
+    original_save = library.save_index
+    def fail(_): raise OSError('disk full')
+    monkeypatch.setattr(library, 'save_index', fail)
+    before = set((library.ROOT / 'images').iterdir())
+    assert client.post('/image-library/stitch', json={'sources': frames}).status_code == 500
+    assert set((library.ROOT / 'images').iterdir()) == before
+    monkeypatch.setattr(library, 'save_index', original_save)
+    item = client.post('/image-library/stitch', json={'sources': frames}).json()
+    original_require = vault.require_public
+    def locked(digest):
+        if digest == item['sha256']: raise vault.LockedImageError('locked')
+        return original_require(digest)
+    monkeypatch.setattr(vault, 'require_public', locked)
+    assert client.get(item['preview_url']).status_code == 403
+    assert client.get(item['url'] + '?thumbnail=true').status_code == 403

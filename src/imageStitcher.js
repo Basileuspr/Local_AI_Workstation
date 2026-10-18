@@ -1,7 +1,6 @@
 import { useReducer, useState } from 'react';
 import { sourceFor } from './imageLibraryApi';
 
-export const MAX_STITCH_FRAMES = 64;
 export function stitchKey(image) {
   const { name, ...source } = sourceFor(image);
   return JSON.stringify(source);
@@ -20,7 +19,6 @@ export function stitchReducer(state, action) {
       const key = stitchKey(image);
       if (!keys.has(key)) { frames.push(image); keys.add(key); }
     }
-    if (frames.length > MAX_STITCH_FRAMES) return { ...state, enabled: true, error: 'Choose up to 64 frames. Remove some frames before adding more.' };
     return { ...state, frames, enabled: true, error: '' };
   }
   if (action.type === 'remove') return { ...state, frames: state.frames.filter(image => stitchKey(image) !== action.key), error: '' };

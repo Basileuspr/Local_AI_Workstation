@@ -70,6 +70,10 @@ export const workstationHelp = {
     ['Create invitation / pair', 'Use the other PC’s invitation to approve delegation in both directions. Keep the invitation private.'],
     ['Send bridge job', 'Sends the chosen prompt and settings. It does not send chat history, attachments, memories, Knowledge, LoRAs or training datasets.'],
     ['Results / Save to Chats', 'Bridge results stay in Bridge until you explicitly save them to Chats. Keep both apps open; reconnection resumes status without automatically replacing a disconnected job.'],
+  ]], ['Mobile companion', [
+    ['Start mobile connection', 'Opens the separate phone gateway only when explicitly started. Use trusted private HTTPS, through a separately configured private VPN proxy or a LAN certificate. The normal desktop API remains on loopback.'],
+    ['Pair / revoke phone', 'A five-minute, single-use code grants a named phone access to conversations, unlocked gallery images and bounded chat/image jobs. Access expires after 30 days. Revoke blocks future access but does not cancel accepted jobs or erase downloaded files.'],
+    ['Phone jobs and downloads', 'Jobs continue while the phone disconnects and results save to desktop chats. Phone images also appear in Generate output; phone and desktop share size, steps, guidance and seed controls. Both image prompts remain after each generation. Desktop restarts mark unfinished work interrupted without replay. Download original preserves full resolution. Keep the desktop awake and stop mobile access before data backup, reset or import.'],
   ]]],
   queue: [['Requests', [
     ['Pending / active', 'GPU requests run in submission order. GIF exports use a separate serial CPU queue that can run alongside GPU work.'],

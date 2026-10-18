@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld("workstationDesktop", {
     requestPlaybackCapture: value => ipcRenderer.invoke('playback-capture:arm', value),
     playbackCaptureStatus: () => ipcRenderer.invoke('playback-capture:status'),
     saveConvertedImage: id => ipcRenderer.invoke('converted-image:save', id),
+    downloadLibraryImage: id => ipcRenderer.invoke('image-library:download', id),
     cancelPlaybackCapture: () => ipcRenderer.invoke('playback-capture:cancel'),
     save3DEditorFile: request => ipcRenderer.invoke('model-editor:save', request),
     savePaintFile: request => ipcRenderer.invoke('paint:save', request),

@@ -68,6 +68,7 @@ def fake_sdxl(tmp_path, monkeypatch):
             calls.append(kwargs)
             kwargs["callback_on_step_end"](self, 0, 1, {})
             size = kwargs["image"].size if "image" in kwargs else (kwargs["width"], kwargs["height"])
+            self.maybe_free_model_hooks()  # Native Diffusers owns successful cleanup.
             return SimpleNamespace(images=[Image.new("RGB", size, "red")])
     monkeypatch.setitem(sys.modules, "diffusers", SimpleNamespace(
         DiffusionPipeline=Pipeline, StableDiffusionXLInpaintPipeline=Pipeline, StableDiffusionXLImg2ImgPipeline=Pipeline))
@@ -182,7 +183,9 @@ def test_cancel_with_long_wait_releases_workflow(request_context, fake_sdxl):
     with pytest.raises(WorkflowCancelled):
         adapters.SDXLProvider().generate(request, context)
     assert not list(context.output_dir.iterdir())
-    assert fake_sdxl[-1] == 'offload'
+    from services import image_generation
+    assert image_generation.manager._pipeline is None
+    assert fake_sdxl[-1] == 'empty_cache'
 
 
 def test_successful_workflow_description_retains_model(request_context, monkeypatch):

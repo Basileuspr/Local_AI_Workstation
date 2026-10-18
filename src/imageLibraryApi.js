@@ -31,14 +31,22 @@ export const previewStitch = (body, signal) => request('/stitch/preview', 'POST'
 export const saveStitch = body => request('/stitch', 'POST', body);
 
 export async function downloadImage(image) {
-  const response = await fetch(imageSourceUrl(image.url), { cache: 'no-store' });
+  const url = new URL(imageSourceUrl(image.url));
+  url.searchParams.set('download', 'true');
+  const response = await fetch(url.href, { method: 'HEAD', cache: 'no-store' });
   if (!response.ok) throw new Error('This image is unavailable or locked.');
-  const url = URL.createObjectURL(await response.blob());
+  if (globalThis.window?.workstationDesktop?.downloadLibraryImage) {
+    const result = await window.workstationDesktop.downloadLibraryImage(image.id);
+    if (!result?.started) throw new Error(result?.error || 'Image download could not start.');
+    return;
+  }
   const link = document.createElement('a');
-  link.href = url; link.download = image.name || 'Stitched.png';
+  // The attachment response streams to the browser download manager, avoiding
+  // a second whole-image Blob allocation for very large stitches.
+  link.href = url.href; link.download = image.name || 'Stitched.png';
   document.body.appendChild(link);
   try { link.click(); }
-  finally { link.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000); }
+  finally { link.remove(); }
 }
 export function upload(files) {
   const body = new FormData();

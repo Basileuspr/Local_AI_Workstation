@@ -176,3 +176,6 @@
 .reference-analysis textarea { width: 100%; box-sizing: border-box; }
 #image-studio .reference-detail-choice { display: flex; flex-direction: row; align-items: center; gap: 8px; margin-top: 10px; }
 #image-studio .reference-detail-choice input { width: auto; }
+.image-generation-timings { max-width: 38rem; margin: 8px auto; text-align: left; }
+.image-generation-timings dl > div { display: flex; justify-content: space-between; gap: 24px; }
+.image-generation-timings dd { font-variant-numeric: tabular-nums; }

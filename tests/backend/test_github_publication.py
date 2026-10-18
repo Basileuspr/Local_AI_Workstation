@@ -63,6 +63,18 @@ def test_private_and_escaping_paths_excluded(path):
     assert not publisher.allowed(path)
 
 
+def test_mobile_sources_and_exact_icons_are_publishable_but_runtime_is_not():
+    for name in ('mobile/src/Companion.jsx', 'mobile/vite.config.mjs', 'mobile/public/manifest.webmanifest'):
+        assert publisher.allowed(name)
+    for name in ('mobile/public/icon-192.png', 'mobile/public/icon-512.png'):
+        raw = (ROOT / name).read_bytes()
+        assert publisher.allowed(name)
+        assert publisher.privacy_problem(name, raw) is None
+        assert publisher.privacy_problem(name, raw + b'changed')
+    for name in ('mobile/data/session.json', 'mobile/.env', 'mobile/dist/index.html', 'mobile/public/private-photo.png', 'mobile/identity.key'):
+        assert not publisher.allowed(name)
+
+
 def test_source_snapshot_keeps_bundled_asset_licenses(repositories):
     source, _, _, storage, _ = repositories
     for name in ('src/fonts/LICENSE', 'src/fonts/NOTICE', 'data/fonts/LICENSE', 'node_modules/font/LICENSE'):

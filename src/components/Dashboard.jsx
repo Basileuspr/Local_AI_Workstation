@@ -7,6 +7,7 @@ import DriveFolderSizes from "./DriveFolderSizes";
 import StorageLibraries from "./StorageLibraries";
 import { CapabilityReadings } from "./Compatibility";
 import PCBridge from "./PCBridge";
+import MobileCompanion from "./MobileCompanion";
 import { apiUrl } from "../api";
 import { createPollingObserver, readPollingJson } from "../polling";
 import { formatBytes, formatNumber, formatSystemSpecs } from "../systemSpecs";
@@ -199,6 +200,7 @@ export default function Dashboard({ active = true }) {
     <ToolRegistry active={active} />
     <CapabilityReadings />
     <PCBridge active={active} />
+    <MobileCompanion active={active} />
     <SoftwareSpecs />
     {stats ? <DashboardReadings stats={stats} /> : <p className="dashboard-note">{error ? "Waiting for the local backend." : "Collecting CPU, GPU, memory and drive readings…"}</p>}
   </section>;

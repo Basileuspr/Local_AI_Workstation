@@ -52,6 +52,30 @@ without appending those labels to the model prompt.
 
 ### Automatic CPU and RAM preparation reuse
 
+Completed Generate images and batch tiles offer **Generation timing**. The API
+returns `stage_seconds` for measured queue/runtime preparation, model reuse,
+prompt/reference encoding, denoising, decoding, offload cleanup and output stages,
+plus `request_seconds` including queue wait. Stage-boundary measurements include
+transfers and synchronization; they are not isolated kernel timings, and their sum
+need not equal the total because orchestration is separate. GPU synchronization
+is at stage boundaries, not every denoising step. Workflow stage metadata also
+contains the measured pipeline stages. Older results may not have these fields.
+
+Identical reference generations retain the active pipeline variant. Workflow
+long prompts share the same exact conditioning cache and execution-device
+handling as Generate. Native Diffusers owns successful offload cleanup; failures
+still discard the affected runtime. Intermediate workflow progress writes are
+coalesced to 750 ms, with phase changes and final steps persisted immediately.
+Background Generate tasks omit the unused base64 PNG copy; the direct generation
+endpoint retains it for existing callers. Sampling, precision and all selected
+generation settings remain unchanged.
+
+`scripts/qa-sdxl-denoiser.py` benchmarks an installed SDXL UNet with fixed synthetic
+conditioning and compares output tensors between contiguous, channels-last and
+optional compiled execution. Run only with the desktop GPU queue idle. Reports
+are private temporary files. This is a denoiser microbenchmark, not a full-image
+quality benchmark; experimental layouts/compilation are not enabled by it.
+
 SDXL keeps exact prompt conditioning in a disposable CPU RAM cache (up to 16
 entries / 64 MiB), including Generate's long-prompt Compel path and native
 short-prompt workflow encoding. Repeated prompts can reuse conditioning when

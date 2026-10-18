@@ -18,22 +18,27 @@ General, Hidden, Saved, Liked, Disliked, custom folders and Workflow Images.
 Use the earlier/later arrows, **Reverse order**, or remove individual frames.
 **Collapse stitcher** keeps the tray contents; **Clear frames** resets them.
 
-With 2–64 frames, choose **Preview stitch**. Select a horizontal strip, vertical
+With two or more frames, choose **Preview stitch**. Select a horizontal strip, vertical
 strip or grid, optional column count, frame size, spacing and background.
 Frames keep their proportions inside equal cells, without cropping or stretching.
-Small sources are not enlarged. Larger layouts automatically reduce cell size
-to fit a 24-megapixel canvas and a maximum edge of 16,384 pixels; the preview
-reports the final dimensions and any reduction. No frame numbers or names are
+Small sources are not enlarged. Frame size **0** keeps original sizes; columns
+**0** chooses an automatic grid. Layouts keep the selected size regardless of
+frame count; only the displayed preview is reduced. No frame numbers or names are
 printed on the output. Previewing does not save images.
 
 **Save stitched image** creates an independent PNG in **Saved Images** and the
 general gallery; **Download PNG** exports that saved copy. Original bytes and
 metadata stay unchanged. Composites have their own privacy state, like other
-transformed copies. The stitcher accepts existing public still images within
-the library's 20 MiB / 24-megapixel per-image limits, up to 128 MiB of source
-bytes per stitch. Missing or locked sources stop the operation with an error;
-frames are never silently skipped. If the final PNG exceeds 20 MiB, reduce
-**Frame size** before saving. No image model or GPU inference is needed.
+transformed copies. There are no application frame-count, combined-source-byte,
+output-byte or megapixel caps. Large canvases are composed through temporary
+disk storage and encoded incrementally; original PNG downloads stream from disk.
+Gallery previews remain small even for a very large saved image. More frames
+take longer and need more free disk space. Physical disk/decoder memory and the
+PNG format's dimension boundary still apply. Temporary files are removed on
+success or failure; a failed save never registers a partial image.
+Missing or locked sources stop the operation; frames are never silently skipped.
+Ordinary uploads retain their existing limits. No image model or GPU inference
+is needed.
 
 ## Finding and organizing images
 

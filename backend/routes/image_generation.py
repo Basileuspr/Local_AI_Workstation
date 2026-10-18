@@ -158,6 +158,10 @@ async def image_task_snapshot(client_id: str = Query(min_length=1, max_length=10
 
 @router.post("/generate")
 async def generate_image(request: ImageGenerationRequest, client_request: Request):
+    from services.generation_timing import GenerationTiming
+    timing = GenerationTiming()
+    import time
+    request_started = time.perf_counter()
     if request.source_image_ref:
         from services.generation_reference import reference_bytes
         try:
@@ -191,15 +195,20 @@ async def generate_image(request: ImageGenerationRequest, client_request: Reques
             except asyncio.TimeoutError:
                 pass
     try:
-        await queue.wait(job, client_request)
+        with timing.measure('queue_wait'):
+            await queue.wait(job, client_request)
         monitor = asyncio.create_task(watch_disconnect())
-        await prepare_runtime("image")
+        with timing.measure('runtime_preparation'):
+            await prepare_runtime("image")
         if job.cancel_event.is_set():
             raise QueueCancelled()
-        worker = asyncio.create_task(run_in_threadpool(_generate_image, request, job.cancel_event))
+        worker = asyncio.create_task(run_in_threadpool(_generate_image, request, job.cancel_event,
+            timing=timing, include_data_url=not isinstance(client_request, BackendImageClient)))
         result = await asyncio.shield(worker)
         if job.cancel_event.is_set():
             raise QueueCancelled()
+        result['stage_seconds'] = timing.snapshot()
+        result['request_seconds'] = round(time.perf_counter() - request_started, 4)
         return result
     except (QueueCancelled, asyncio.CancelledError):
         job.cancel_event.set()
@@ -224,7 +233,9 @@ async def generate_image(request: ImageGenerationRequest, client_request: Reques
             queue.finish(job, error)
 
 
-def _generate_image(request: ImageGenerationRequest, cancellation_event=None):
+def _generate_image(request: ImageGenerationRequest, cancellation_event=None, *, timing=None, include_data_url=True):
+    from services.generation_timing import GenerationTiming
+    timing = timing if timing is not None else GenerationTiming()
     try:
         destination = None
         if request.output_dir:
@@ -235,41 +246,48 @@ def _generate_image(request: ImageGenerationRequest, cancellation_event=None):
         # The session identifies the queue's chat destination, not a pipeline option.
         job = queue.find(kind="image", request_id=request.request_id) if request.request_id else None
         result = manager.generate(**request.model_dump(exclude={"session_id", "output_dir", "request_label"}),
+                                  timing=timing,
                                   cancellation_event=cancellation_event,
                                   on_gpu_complete=(lambda: queue.release_gpu_for_output(job)) if job else None)
         output_path = storage.resolve(OUTPUT_DIR / result["filename"])
-        data = output_path.read_bytes()
+        with timing.measure('output_read'):
+            data = output_path.read_bytes()
 
         # Registered in the blob store so the chat can reference it instead of
         # carrying a base64 copy inside the session JSON. The PNG under
         # data/generated_images stays as the browsable output.
-        reference = image_store.put_bytes(data)
+        with timing.measure('output_registration'):
+            reference = image_store.put_bytes(data)
 
         # Keep the managed original for chat/gallery and export an unchanged PNG.
         # Never overwrite an existing file in the user-selected folder.
         if destination:
             target = destination / result["filename"]
             try:
-                if target.resolve() != output_path.resolve():
-                    with target.open("xb") as stream:
-                        try:
-                            stream.write(data)
-                            stream.flush()
-                        except OSError:
-                            stream.close()
-                            target.unlink(missing_ok=True)
-                            raise
+                with timing.measure('output_copy'):
+                    if target.resolve() != output_path.resolve():
+                        with target.open("xb") as stream:
+                            try:
+                                stream.write(data)
+                                stream.flush()
+                            except OSError:
+                                stream.close()
+                                target.unlink(missing_ok=True)
+                                raise
                 result["output_path"] = str(target)
             except OSError as exc:
                 result["output_warning"] = f"Image saved in the app, but could not save to the selected output folder: {exc}"
 
-        encoded = base64.b64encode(data).decode("ascii")
+        inline = {}
+        if include_data_url:
+            with timing.measure('inline_encoding'):
+                encoded = base64.b64encode(data).decode("ascii")
+                inline['data_url'] = f"data:image/png;base64,{encoded}"
         return {
             **result,
             "image_ref": reference,
-            # Retained so the studio can show the result immediately without a
-            # second request; it is not what gets persisted.
-            "data_url": f"data:image/png;base64,{encoded}",
+            "stage_seconds": timing.snapshot(),
+            **inline,
         }
     except HTTPException:
         raise

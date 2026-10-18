@@ -21,6 +21,11 @@ GENERATED_DOCS = {'docs/application-review/index.html', 'docs/application-review
 # Public, licensed dependency asset required by the offline piano converter.
 # Exact bytes are checked before capture and again in the outgoing tree.
 BUNDLED_ASSETS = {'src/assets/piano-model/basic-pitch.bin': (742392, 'b142a95737a52e1e412d5f92e73d8bb80dfe8d04941acc0702f11f4524fb377c')}
+# Reproducible application icons; do not allow arbitrary generated media.
+BUNDLED_ASSETS.update({
+    'mobile/public/icon-192.png': (1075, 'e3ea611f29e5f8aa8d7461a7f723d360b64909a00c01580c023981130a69d85e'),
+    'mobile/public/icon-512.png': (3197, '3a5508dc51f8fd7742c172328bf268442488febf3c3e3379a1b7537ca1d71372'),
+})
 TOKEN = re.compile(r'-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,}|hf_[A-Za-z0-9]{25,}|sk-(?:proj-)?[A-Za-z0-9_-]{30,}|AKIA[A-Z0-9]{16}|eyJ[A-Za-z0-9_-]{15,}\.[A-Za-z0-9_-]{15,}\.[A-Za-z0-9_-]{15,}')
 HOME = re.compile(r'(?i)[a-z]:[\\/]+Users[\\/]+(?!Public\b|Default\b)[^\\/\s"\'<>]+|/(?:home|Users)/[^/\s"\'<>]+')
 SECRET = re.compile(r'''(?i)(?:api[_-]?key|access[_-]?token|password|secret)\s*[:=]\s*["'][^"'\r\n]{8,}["']''')
@@ -43,9 +48,11 @@ def allowed(name):
         return True
     if name in ROOT_FILES:
         return True
+    if name == 'mobile/public/manifest.webmanifest':
+        return True
     if len(path.parts) == 1:
         return path.suffix == '.md' or (name.startswith('requirements') and path.suffix == '.txt')
-    return (path.suffix.lower() in EXTENSIONS or path.name in {'LICENSE', 'NOTICE'}) and (path.parts[0] in {'src', 'backend', 'electron', 'scripts', 'tests', 'docs'} or name.startswith(('media-manager/frontend/', 'media-manager/tests/', 'media-manager/media_organizer/')) or name in {'media-manager/package.json', 'media-manager/README.md'})
+    return (path.suffix.lower() in EXTENSIONS or path.name in {'LICENSE', 'NOTICE'}) and (path.parts[0] in {'src', 'mobile', 'backend', 'electron', 'scripts', 'tests', 'docs'} or name.startswith(('media-manager/frontend/', 'media-manager/tests/', 'media-manager/media_organizer/')) or name in {'media-manager/package.json', 'media-manager/README.md'})
 
 
 def privacy_problem(name, raw):

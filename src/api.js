@@ -543,6 +543,12 @@ export async function stopImageGeneration(requestId) {
   return await res.json();
 }
 
+export async function stopMobileImageGeneration(jobId) {
+  const res = await fetchWorkload(apiUrl(`/mobile/image-tasks/${encodeURIComponent(jobId)}/cancel`), { method: 'POST' });
+  if (!res.ok) throw new Error('Could not stop phone image generation');
+  return res.json();
+}
+
 export async function imageGenerationTasks(clientId, submission) {
   const url = apiUrl(`/image-generation/tasks${submission ? '' : `?client_id=${encodeURIComponent(clientId)}`}`);
   const body = submission && JSON.stringify({...submission, client_id:clientId});

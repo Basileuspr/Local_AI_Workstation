@@ -14,6 +14,7 @@ import ChatActivityNotice from "./components/ChatActivityNotice";
 import { DualChatProvider, ChatPaneProvider, useDualChat } from "./ChatPane";
 import { chatModelChoice } from "./chatModelChoices";
 import { recentTurnStart } from './contextMemory';
+import { useMobileSync } from './useMobileSync';
 
 import { ImageGenerationProvider } from "./ImageGenerationContext";
 import { AnalyzeIterateProvider } from "./AnalyzeIterateContext";
@@ -83,6 +84,7 @@ function AppInner() {
   const latestState = useRef(state);
   latestState.current = state;
   const dispatch = useDispatch();
+  useMobileSync(state, dispatch);
   const refs = useRefs();
   const sessionNavigation = useRef(0);
   const [startupNavigation] = useState(state.startupNavigation);
