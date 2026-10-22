@@ -42,6 +42,12 @@ async def chat(_request, _client):
 
 def generate(request, *args, **kwargs):
     import time
+    if os.environ.get("LAW_MOBILE_QA_HOLD_IMAGES") == "1":
+        deadline = time.monotonic() + 60
+        while not (work / "release-image-jobs").exists():
+            if time.monotonic() > deadline:
+                raise RuntimeError("Image queue fixture was not released")
+            time.sleep(.05)
     time.sleep(1)
     (work / "image-request.json").write_text(json.dumps(request.model_dump(), default=str))
     data = io.BytesIO()

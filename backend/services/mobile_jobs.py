@@ -120,12 +120,13 @@ class MobileJobs:
                     raise ValueError("Job ID already belongs to another request.")
                 return self.public(existing, detail=True)
             if any(job["status"] not in TERMINAL and job["payload"]["session_id"] == spec.session_id
+                   and (spec.kind == "chat" or job["payload"]["kind"] == "chat")
                    for job in self.store.jobs("incoming")):
                 raise ValueError("This conversation already has an active mobile job.")
             session = await run_in_threadpool(session_store.get_session, spec.session_id)
             if session is None:
                 raise ValueError("The conversation is no longer available.")
-            if session["revision"] != spec.expected_revision:
+            if spec.kind == "chat" and session["revision"] != spec.expected_revision:
                 raise session_store.SessionConflict(session["revision"])
             # Persist a receipt BEFORE changing the chat or starting computation.
             # A crash at any later point leaves an interrupted, non-replayed job.
@@ -134,9 +135,13 @@ class MobileJobs:
             message = {"id": ("image-request-" + request_id if spec.kind == "image" else request_id + "-user"),
                        "role": "user", "content": ("[Image generation] " if spec.kind == "image" else "") + spec.prompt}
             try:
-                saved = await run_in_threadpool(session_store.update_session, spec.session_id,
-                    [*session["messages"], message], model=spec.model if spec.kind == "chat" else None,
-                    expected_revision=spec.expected_revision)
+                if spec.kind == "image":
+                    # Image prompts do not consume chat history. Merge their stable
+                    # IDs into current history while earlier queued results arrive.
+                    saved = await run_in_threadpool(session_store.append_messages, spec.session_id, [message])
+                else:
+                    saved = await run_in_threadpool(session_store.update_session, spec.session_id,
+                        [*session["messages"], message], model=spec.model, expected_revision=spec.expected_revision)
                 if saved is None:
                     raise ValueError("The conversation was removed before submission.")
                 self.changed()

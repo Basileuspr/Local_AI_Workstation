@@ -120,10 +120,13 @@ export default function Companion() {
     request("/api/models", { signal: controller.signal }).then(value => { setModels(value); setChatModel(current => current || value.chat_models?.[0]?.id || ""); setImageSettings(current => ({ ...current, modelId: current.modelId || value.image_models?.[0]?.id || "" })); }).catch(failure => { if (failure.name !== "AbortError") setError(failure.message); });
     return () => controller.abort();
   }, [auth, online]);
-  const active = (state?.jobs || []).find(job => job.session_id === session?.id && !finished(job.status));
+  const sessionJobs = (state?.jobs || []).filter(job => job.session_id === session?.id && !finished(job.status));
+  const active = sessionJobs.find(job => job.status === "running") || sessionJobs.at(-1);
+  const activeChat = sessionJobs.some(job => job.kind === "chat");
+  const pendingImages = sessionJobs.filter(job => job.kind === "image").length;
   useEffect(() => {
     setLive(null); if (!active?.id || !auth) return;
-    return observeJob(active.id, job => { setLive(job); if (finished(job.status)) { setEpoch(value => value + 1); loadSession(job.session_id).catch(failure => setError(failure.message)); } }, failure => setStatus(failure.message));
+    return observeJob(active.id, job => { setLive(job); if (finished(job.status)) { setEpoch(value => value + 1); if (selected.current === job.session_id) loadSession(job.session_id).catch(failure => setError(failure.message)); } }, failure => setStatus(failure.message));
   }, [active?.id, auth]);
 
   async function createChat() {
@@ -141,20 +144,27 @@ export default function Companion() {
   }
   async function deliver(receipt) {
     setBusy(true); setError("");
-    try { await receipt.send(); pendingRef.current = null; setPending(null); if (receipt.body.kind === "chat") setPrompt(""); else setTab("jobs"); setEpoch(value => value + 1); }
+    try {
+      const job = await receipt.send();
+      setState(current => current ? { ...current, jobs: [job, ...(current.jobs || []).filter(item => item.id !== job.id)] } : current);
+      pendingRef.current = null; setPending(null);
+      if (receipt.body.kind === "chat") setPrompt("");
+      setEpoch(value => value + 1);
+    }
     catch (failure) {
       if (failure.status && failure.status < 500) { pendingRef.current = null; setPending(null); }
-      setError(failure.status === 409 ? "This conversation changed. Review the refreshed history, then send again." : failure.message);
-      if (failure.status === 409) loadSession(receipt.body.session_id).catch(() => {});
+      setError(failure.message);
+      if (failure.status === 409 && selected.current === receipt.body.session_id) loadSession(receipt.body.session_id).catch(() => {});
     } finally { setBusy(false); }
   }
   async function cancel(job) { try { await request(`/api/jobs/${job.id}/cancel`, { method: "POST" }); setEpoch(value => value + 1); } catch (failure) { setError(failure.message); } }
-  const disabled = !online || busy || !!pending || !!active;
+  const submitting = !online || busy || !!pending;
+  const disabled = submitting || !!active;
 
   return <div className="companion"><header><div className="brand"><img src="/icon.svg" alt="" /><div><h1>Workstation<span>COMPANION</span></h1></div></div><button className="connection" onClick={() => setConnection(value => !value)} aria-label="Connection details"><span className={online ? "dot online" : "dot"} />{online ? "Desktop" : "Offline"}</button></header><div className="connection-status" role="status">{status}</div><main>{connection && <section className="panel"><h2>Connection</h2><p>{state?.device?.name || "Unpaired device"}</p><p>Desktop jobs continue when this page closes. The desktop must stay awake. On reconnect, the same jobs and conversation history are loaded.</p><p>Install from your browser's menu or Add to Home Screen. Only the app shell is cached for offline use.</p><button onClick={() => setEpoch(value => value + 1)}>Reconnect now</button>{auth && <button onClick={async () => { try { await request("/api/logout", { method: "POST" }); setAuth(false); setState(null); setSession(null); setLive(null); setPrompt(""); setImageSettings({ ...defaultImageSettings }); setEpoch(value => value + 1); } catch (failure) { setError(failure.message); } }}>Disconnect this phone</button>}</section>}{error && <p role="alert" className="error banner">{error}</p>}{pending && <div className="panel"><p>Delivery is unconfirmed. Retry uses the same job ID and cannot generate a second result.</p><button disabled={busy || !online} onClick={() => deliver(pending)}>Retry same submission</button></div>}{!auth ? <Pair onPaired={() => setEpoch(value => value + 1)} /> : <>
       {(tab === "chat" || tab === "generate") && <div className="session-picker"><label>Conversation<select value={session?.id || ""} onChange={event => { setSession(null); loadSession(event.target.value).catch(failure => setError(failure.message)); }}><option value="">Choose a conversation</option>{(state?.sessions || []).map(item => <option key={item.id} value={item.id}>{item.title || "Untitled chat"}</option>)}</select></label><button disabled={!online || busy} onClick={createChat} aria-label="New conversation">＋ New</button></div>}
       {tab === "chat" && <section><div className="section-heading"><div><span className="eyebrow">THINK TOGETHER</span><h2>{session?.title || "A new perspective"}</h2></div></div><ModelSelect models={models.chat_models} value={chatModel} onChange={setChatModel} />{models.chat_error && <p className="error">{models.chat_error}</p>}<div className="messages" ref={messagesElement} onScroll={event => { const element = event.currentTarget; followLatest.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80; }}>{!session?.messages?.length && <p className="empty">Choose or create a conversation.<br />Your desktop history stays in sync.</p>}{(session?.messages || []).map(message => <article key={message.id} className={`message ${message.role}`}><span className="eyebrow">{message.role === "user" ? "YOU" : "WORKSTATION"}</span><div>{message.content}</div>{(message.images || []).map(item => <button className="image-preview" key={item.id} onClick={() => setView(item)} aria-label={`View ${item.name}`}><img src={mediaUrl(item.url) + "?thumbnail=true"} alt={item.name} /></button>)}</article>)}{live?.text && <article className="message assistant"><span className="eyebrow">WORKSTATION · {live.status}</span><div>{live.text}</div></article>}{active && !live?.text && <p role="status" className="muted">{live?.progress?.detail || "Your desktop is working…"}</p>}</div><form className="composer panel" onSubmit={event => send(event, "chat")}><label className="sr-only" htmlFor="chat-prompt">Message</label><textarea id="chat-prompt" value={prompt} maxLength={12000} onChange={event => setPrompt(event.target.value)} rows={3} placeholder="Ask your workstation…" /><div className="row"><span className="muted">Runs on your desktop</span><button className="primary" disabled={disabled || !session || !chatModel || !prompt.trim()}>Send ↗</button></div></form>{view && <FullImage item={view} onClose={() => setView(null)} />}</section>}
-      {tab === "generate" && <ImageGenerationForm settings={imageSettings} onChange={changeImageSettings} catalog={imageCatalog} error={models.image_error} disabled={disabled || !session} onSubmit={event => send(event, "image")} />}
+      {tab === "generate" && <ImageGenerationForm settings={imageSettings} onChange={changeImageSettings} catalog={imageCatalog} error={models.image_error} disabled={submitting || activeChat || !session} pendingImages={pendingImages} activeChat={activeChat} onOpenJobs={() => setTab("jobs")} onSubmit={event => send(event, "image")} />}
       {tab === "gallery" && <Gallery online={online} refreshKey={epoch} sessions={state?.sessions || []} filters={galleryFilters} onFiltersChange={setGalleryFilters} />}
       {tab === "jobs" && <section><div className="section-heading"><div><span className="eyebrow">WORK CONTINUES HERE</span><h2>Desktop jobs</h2></div><button onClick={() => setEpoch(value => value + 1)}>Refresh</button></div>{!(state?.jobs || []).length && <p className="empty">Your chat and image jobs will appear here.</p>}{(state?.jobs || []).map(job => <JobCard key={job.id} job={job} onCancel={cancel} onDismiss={async job => { try { await request(`/api/jobs/${job.id}`, { method: "DELETE" }); setEpoch(value => value + 1); } catch (failure) { setError(failure.message); } }} onOpen={job => { setTab("chat"); loadSession(job.session_id).catch(failure => setError(failure.message)); }} />)}</section>}
     </>}</main>{auth && <nav aria-label="Companion navigation">{tabs.map(([id, label, icon]) => <button key={id} aria-current={tab === id ? "page" : undefined} onClick={() => setTab(id)}><span aria-hidden="true">{icon}</span>{label}{id === "jobs" && (state?.jobs || []).some(job => !finished(job.status)) && <i />}</button>)}</nav>}</div>;

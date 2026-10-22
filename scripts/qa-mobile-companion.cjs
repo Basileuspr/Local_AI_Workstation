@@ -11,7 +11,7 @@ const guard = setTimeout(() => { backend?.kill(); app.exit(1); }, 150000);
 app.whenReady().then(async () => {
   const localPort = await freePort(), mobilePort = await freePort();
   backend = spawn(path.join(root, 'venv/Scripts/python.exe'), ['-B', 'tests/fixtures/mobile_backend.py'], { cwd: root, windowsHide: true,
-    env: { ...process.env, PYTHONPATH: path.join(root, 'backend'), LAW_DATA_DIR: path.join(work, 'data'), LAW_MODELS_DIR: path.join(work, 'models'), LAW_LOG_DIR: path.join(work, 'logs'), LAW_PORT: String(localPort), LAW_SESSION_TOKEN: 'isolated-mobile-qa', LAW_MOBILE_QA_DIR: work, LAW_MOBILE_QA_PORT: String(mobilePort) } });
+    env: { ...process.env, PYTHONPATH: path.join(root, 'backend'), LAW_DATA_DIR: path.join(work, 'data'), LAW_MODELS_DIR: path.join(work, 'models'), LAW_LOG_DIR: path.join(work, 'logs'), LAW_PORT: String(localPort), LAW_SESSION_TOKEN: 'isolated-mobile-qa', LAW_MOBILE_QA_DIR: work, LAW_MOBILE_QA_PORT: String(mobilePort), LAW_MOBILE_QA_HOLD_IMAGES: '1' } });
   let log = ''; backend.stderr.on('data', data => log += data); backend.stdout.on('data', data => log += data);
   for (let i = 0; !fs.existsSync(path.join(work, 'ready.json')); i++) { if (i > 400 || backend.exitCode !== null) throw Error(log); await pause(50); }
   const fixture = JSON.parse(fs.readFileSync(path.join(work, 'ready.json')));
@@ -89,18 +89,30 @@ app.whenReady().then(async () => {
   assert.equal(await js('document.documentElement.scrollWidth<=innerWidth'), true, 'generation phone horizontal overflow');
   await capture('generate-controls.png');
   await click('Generate image ✧');
-  await until("document.querySelector('.job')?.textContent.includes('completed')", 'image job complete');
+  await until("document.querySelector('.generation')?.textContent.includes('1 image pending')", 'Create stays open after submission');
+  assert.equal(await js("document.querySelector('.session-picker select').value"), fixture.session_id);
+  await set('[aria-label="Image prompt"]', 'Second watercolor landscape');
+  await click('Queue another image ✧');
+  await until("document.querySelector('.generation')?.textContent.includes('2 images pending')", 'second image queued in same chat');
+  await capture('same-chat-image-queue.png');
+  await click('View jobs');
+  await until("[...document.querySelectorAll('.job')].filter(job=>job.querySelector('.eyebrow').textContent==='IMAGE').length===2", 'both image jobs visible');
+  assert.equal(await js("[...document.querySelectorAll('.job')].filter(job=>job.querySelector('.eyebrow').textContent==='IMAGE').every(job=>!job.querySelector('.badge').textContent.includes('completed'))"), true);
+  fs.writeFileSync(path.join(work, 'release-image-jobs'), 'ready');
+  await until("[...document.querySelectorAll('.job .badge')].every(badge=>badge.textContent==='completed')", 'both image jobs complete');
   const generated = JSON.parse(fs.readFileSync(path.join(work, 'image-request.json')));
   assert.deepEqual([generated.width, generated.height, generated.steps, generated.guidance_scale, generated.seed, generated.lora_id, generated.lora_scale], [1024, 1024, 200, 5.6, 0, 'fixture-adapter', 0.75]);
   const desktopTasks = await fetch(`http://127.0.0.1:${localPort}/mobile/image-tasks`, { headers: { 'X-LAW-Session': 'isolated-mobile-qa' } }).then(response => response.json());
-  assert.equal(desktopTasks.tasks[0].status, 'completed');
+  assert.equal(desktopTasks.tasks.length, 2);
+  assert(desktopTasks.tasks.every(task => task.status === 'completed' && task.session_id === fixture.session_id));
+  assert.deepEqual(desktopTasks.tasks.map(task => task.prompt), ['A calm watercolor landscape', 'Second watercolor landscape']);
   assert(desktopTasks.tasks[0].result.url.startsWith('/sessions/'), 'phone output is available to desktop Generate');
   await click('✧Create');
-  assert.equal(await js(`document.querySelector('[aria-label="Image prompt"]').value`), 'A calm watercolor landscape');
+  assert.equal(await js(`document.querySelector('[aria-label="Image prompt"]').value`), 'Second watercolor landscape');
   assert.equal(await js(`document.querySelector('[aria-label="Negative prompt"]').value`), 'Blur and noise');
   assert.equal(await js('document.querySelector("[aria-label=Steps]").value'), '200');
   await click('▧Gallery');
-  await until("document.querySelectorAll('.image-tile').length===7", 'gallery includes result');
+  await until("document.querySelectorAll('.image-tile').length===8", 'gallery includes both queued results');
   assert.equal(await js("document.querySelector('.image-tile span').textContent"), 'Mobile creation.png', 'new generation is first');
   await capture('gallery.png');
   assert.equal(await js('document.documentElement.scrollWidth<=innerWidth'), true, 'phone horizontal overflow');
@@ -112,7 +124,7 @@ app.whenReady().then(async () => {
   await set('[aria-label="Image source"]', 'session');
   await set('[aria-label="Gallery conversation"]', fixture.session_id);
   await set('[aria-label="Image date range"]', '7');
-  await until("document.querySelectorAll('.image-tile').length===7", 'combined filters');
+  await until("document.querySelectorAll('.image-tile').length===8", 'combined filters');
   await capture('gallery-filters.png');
   assert.equal(await js('document.documentElement.scrollWidth<=innerWidth'), true, 'filters fit phone viewport');
   await click('◌Chat'); await click('▧Gallery');
@@ -123,7 +135,7 @@ app.whenReady().then(async () => {
   await set('input[type="search"]', 'Color study 6');
   await until("document.querySelectorAll('.image-tile').length===1", 'search filtered across gallery');
   await click('Clear filters');
-  await until("document.querySelectorAll('.image-tile').length===7", 'search cleared');
+  await until("document.querySelectorAll('.image-tile').length===8", 'search cleared');
   await click('Refresh images');
   await until("!document.querySelector('.gallery-section[aria-busy=true]')", 'gallery refreshed');
   assert.equal(await js(`document.querySelector('[aria-label="Sort images"]').value`), 'newest');
@@ -156,6 +168,6 @@ app.whenReady().then(async () => {
   assert.equal(await js("fetch('/api/state').then(response=>response.status)"), 401);
   const actualErrors = errors.filter(error => !/ERR_INTERNET_DISCONNECTED|401|favicon|network error/i.test(error));
   assert.deepEqual(actualErrors, []);
-  fs.writeFileSync(path.join(work, 'result.json'), JSON.stringify({ passed: true, viewport: '390x844', inference: 'synthetic', checked: ['HTTPS pairing', 'secure HttpOnly cookie', 'streaming chat', 'reload during job', 'conversation persistence', 'shared generation controls and forwarded values', 'positive and negative prompt retention', 'desktop Generate task results', 'image queue and gallery', 'newest/oldest image order', 'source/conversation/date/search filters', 'filter retention and reset', 'chat and gallery pinch zoom', 'touch pan and Fit reset', 'original download hash', 'private-cache exclusion', 'offline shell and reconnect', 'logout revocation'] }, null, 2));
+  fs.writeFileSync(path.join(work, 'result.json'), JSON.stringify({ passed: true, viewport: '390x844', inference: 'synthetic', checked: ['HTTPS pairing', 'secure HttpOnly cookie', 'streaming chat', 'reload during job', 'conversation persistence', 'shared generation controls and forwarded values', 'positive and negative prompt retention', 'desktop Generate task results', 'multiple images queued in the same chat', 'image queue and gallery', 'newest/oldest image order', 'source/conversation/date/search filters', 'filter retention and reset', 'chat and gallery pinch zoom', 'touch pan and Fit reset', 'original download hash', 'private-cache exclusion', 'offline shell and reconnect', 'logout revocation'] }, null, 2));
   console.log('Mobile Chromium QA passed: ' + work);
 }).catch(error => { console.error(error); exitCode = 1; }).finally(() => { clearTimeout(guard); win?.destroy(); backend?.kill(); app.exit(exitCode); });

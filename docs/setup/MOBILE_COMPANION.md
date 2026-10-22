@@ -83,7 +83,7 @@ reset or import; desktop maintenance enforces this boundary.
 Choose an existing conversation or create a new one. Chat uses the chosen
 desktop-hosted model, streams response snapshots and appends the result to the
 same desktop conversation. Concurrent desktop edits are preserved; a changed
-revision requires refreshing before a new mobile submission. This first client
+revision requires refreshing before a new chat submission. This first client
 passes text conversation history, with no attachment upload, Knowledge retrieval,
 durable-memory lookup or desktop tool execution.
 
@@ -92,8 +92,15 @@ compatible LoRA and strength, and long-prompt encoding. Canvas ratios, dimension
 resolution, steps, guidance and seed reuse the desktop's controls and hardware
 limits. The default canvas is 1024 × 1024, with 24 steps and guidance 5.5.
 Both prompts and all selected settings remain after each generation so you can
-adjust them and run again. Reference uploads, batch tools and desktop filesystem
-destinations remain desktop workflows.
+adjust them and run again. Create stays open after submitting an image. Use
+**Queue another image** to add more to the same conversation while earlier images
+are pending; **View jobs** shows their progress and cancellation controls.
+Image prompts append to the latest conversation without replacing arriving
+results or desktop edits. The existing desktop queue serializes generation.
+Chat requests still wait for that conversation's active jobs to finish, and an
+active chat response blocks new image submissions until it finishes.
+Reference uploads, batch tools and desktop filesystem destinations remain
+desktop workflows.
 
 A successful image is saved to the selected conversation and appears in Gallery
 and the desktop Generate output without opening Gallery. Generate also observes

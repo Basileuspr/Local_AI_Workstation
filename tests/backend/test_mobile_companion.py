@@ -409,6 +409,103 @@ def test_image_uses_existing_tasks_queue_and_persists_gallery_result(tmp_path, m
     asyncio.run(scenario())
 
 
+def test_images_queue_in_one_chat_preserving_edits_retries_and_individual_cancellation(tmp_path, monkeypatch):
+    import main
+    from routes import image_generation
+    from services import request_queue
+    from services.image_tasks import ImageTasks
+    from services.gpu_coordination import GpuCoordinator
+    queue = request_queue.RequestQueue(GpuCoordinator())
+    tasks, calls = ImageTasks(), []
+    monkeypatch.setattr(image_generation, "queue", queue)
+    monkeypatch.setattr(request_queue, "queue", queue)
+    monkeypatch.setattr(image_generation, "image_tasks", tasks)
+    async def prepare(_kind):
+        pass
+    def generate(request, *args, **kwargs):
+        assert queue.active.request_id == request.request_id
+        calls.append(request)
+        data = io.BytesIO()
+        Image.new("RGB", (256, 256), "purple").save(data, "PNG")
+        return {"filename": "Queued.png", "image_ref": image_store.put_bytes(data.getvalue()), "seed": 42}
+    monkeypatch.setattr(image_generation, "prepare_runtime", prepare)
+    monkeypatch.setattr(image_generation, "_generate_image", generate)
+    jobs = MobileJobs(tmp_path / "mobile", "http://127.0.0.1:8000", "test-session-token", transport=httpx.ASGITransport(app=main.app))
+    async def scenario():
+        session = session_store.create_session()
+        payload = MobileSubmission(kind="image", session_id=session["id"], expected_revision=session["revision"],
+                                  model="image-model", prompt="First scene", width=256, height=256)
+        ids = [str(uuid.uuid4()) for _ in range(3)]
+        blocker = queue.enqueue("image", "Desktop first")
+        assert queue.try_start(blocker)
+        await jobs.submit("phone", ids[0], payload)
+        await jobs.submit("phone", ids[0], payload)
+        # Later submissions deliberately keep the original revision as results
+        # and edits can arrive between the phone's polls.
+        session_store.append_messages(session["id"], [{"id": "desktop-edit", "role": "user", "content": "Keep this edit"}])
+        await jobs.submit("phone", ids[1], payload.model_copy(update={"prompt": "Cancel this scene"}))
+        await jobs.submit("phone", ids[2], payload.model_copy(update={"prompt": "Third scene"}))
+        async def queued():
+            while len(queue.jobs) < 4:
+                await asyncio.sleep(.01)
+        await asyncio.wait_for(queued(), 5)
+        assert not calls
+        assert len(jobs.list("phone")) == 3
+        assert all(task.request["session_id"] == session["id"] for task in tasks.tasks.values())
+        await jobs.cancel("phone", ids[1])
+        queue.finish(blocker)
+        await asyncio.wait_for(asyncio.gather(*jobs.tasks.values()), 10)
+        assert [job.request_id for job in calls] == ["mobile-" + ids[0], "mobile-" + ids[2]]
+        assert [jobs.owned("phone", job_id)["status"] for job_id in ids] == ["completed", "cancelled", "completed"]
+        messages = session_store.get_session(session["id"])["messages"]
+        assert len(messages) == 6  # three prompts, the desktop edit, two images
+        assert len({message["id"] for message in messages}) == 6
+        assert any(message["content"] == "Keep this edit" for message in messages)
+        images = session_store.list_session_images()
+        assert len(images) == 2 and all(item["session_id"] == session["id"] for item in images)
+        assert (await jobs.submit("phone", ids[0], payload))["status"] == "completed"
+        assert len(calls) == 2 and queue.active is None
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("first_kind,second_kind", [("chat", "image"), ("image", "chat")])
+def test_same_chat_image_queue_retains_chat_exclusion(tmp_path, monkeypatch, first_kind, second_kind):
+    jobs = MobileJobs(tmp_path / "mobile", "http://127.0.0.1:8000", "test-session-token")
+    async def wait(*_args):
+        await asyncio.Event().wait()
+    monkeypatch.setattr(jobs, "run", wait)
+    async def scenario():
+        session = session_store.create_session()
+        payload = spec(session).model_copy(update={"kind": first_kind})
+        await jobs.submit("phone", str(uuid.uuid4()), payload)
+        rejected = str(uuid.uuid4())
+        with pytest.raises(ValueError, match="active mobile job"):
+            await jobs.submit("phone", rejected, payload.model_copy(update={"kind": second_kind}))
+        assert jobs.store.job("incoming", rejected) is None
+        assert len(session_store.get_session(session["id"])["messages"]) == 1
+        await jobs.close()
+    asyncio.run(scenario())
+
+
+def test_same_chat_image_queue_keeps_eight_job_limit(tmp_path, monkeypatch):
+    jobs = MobileJobs(tmp_path / "mobile", "http://127.0.0.1:8000", "test-session-token")
+    async def wait(*_args):
+        await asyncio.Event().wait()
+    monkeypatch.setattr(jobs, "run", wait)
+    async def scenario():
+        session = session_store.create_session()
+        payload = spec(session).model_copy(update={"kind": "image"})
+        for _ in range(8):
+            await jobs.submit("phone", str(uuid.uuid4()), payload)
+        rejected = str(uuid.uuid4())
+        with pytest.raises(ValueError, match="eight outstanding jobs"):
+            await jobs.submit("phone", rejected, payload)
+        assert jobs.store.job("incoming", rejected) is None
+        assert len(session_store.get_session(session["id"])["messages"]) == 8
+        await jobs.close()
+    asyncio.run(scenario())
+
+
 def test_queued_chat_cancellation_is_confirmed_without_result(tmp_path, monkeypatch):
     import main
     from services.request_queue import RequestQueue

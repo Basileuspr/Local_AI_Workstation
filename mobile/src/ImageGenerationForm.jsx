@@ -10,7 +10,7 @@ export function mobileImageSubmission(settings, catalog) {
   return { ...values, model: model_id };
 }
 
-export default function ImageGenerationForm({ settings, onChange, catalog, error, disabled, onSubmit }) {
+export default function ImageGenerationForm({ settings, onChange, catalog, error, disabled, onSubmit, pendingImages = 0, activeChat = false, onOpenJobs }) {
   const model = catalog.models.find(item => item.id === settings.modelId);
   const compatible = catalog.loras.filter(item => item.base_model_id === settings.modelId);
   const selectedLora = compatible.find(item => item.id === settings.loraId);
@@ -34,7 +34,9 @@ export default function ImageGenerationForm({ settings, onChange, catalog, error
       <ImageSettingsControls settings={settings} onChange={onChange} resolutionLimits={catalog.runtime?.resolution_limits} />
       <details><summary>About generation settings</summary><p className="muted">These are the same size, steps, guidance and seed controls used on the desktop. Higher guidance increases prompt influence, not quality. More steps and larger images take longer. A blank seed chooses a new random seed. Both prompts and your settings stay in place after each generation.</p></details>
       <button type="button" onClick={() => onChange({ ...defaultImageSettings, modelId: settings.modelId, prompt: settings.prompt, negativePrompt: settings.negativePrompt })}>Reset generation settings</button>
-      <button className="primary" disabled={disabled || !model || !catalog.runtime?.ready || !settings.prompt.trim()}>Generate image ✧</button>
-      <p className="muted">Saved to the conversation, Gallery, and desktop Generate output. You can leave this page while your desktop works.</p>
+      <button className="primary" disabled={disabled || !model || !catalog.runtime?.ready || !settings.prompt.trim()}>{pendingImages ? "Queue another image ✧" : "Generate image ✧"}</button>
+      {!!pendingImages && <div className="row"><p className="muted" role="status">{pendingImages} image{pendingImages === 1 ? "" : "s"} pending in this conversation.</p><button type="button" onClick={onOpenJobs}>View jobs</button></div>}
+      {activeChat && <p className="muted" role="status">Wait for this conversation’s chat response before adding images.</p>}
+      <p className="muted">Keep creating in this conversation while earlier images wait or generate. Images use the desktop queue and save to this conversation, Gallery, and desktop Generate output. You can leave this page while your desktop works.</p>
     </form></section>;
 }
