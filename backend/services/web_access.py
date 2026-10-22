@@ -339,7 +339,15 @@ class WebAccess:
         return addresses
 
     async def _request(self, url, job, delay=INTERVAL, space=True, *, max_bytes=MAX_BYTES, image=False, byte_budget=None,
-                       conditional=None, allow_http=False, accepted_statuses=()):
+                       conditional=None, allow_http=False, accepted_statuses=(), brave_key=None):
+        # A single credentialed API capability, never arbitrary request headers.
+        # Validate before DNS/network and never forward this key through redirects.
+        if brave_key is not None:
+            target = httpx.URL(url)
+            if (target.scheme != 'https' or target.host != 'api.search.brave.com'
+                    or target.port not in (None, 443) or target.path != '/res/v1/web/search'
+                    or target.userinfo or not re.fullmatch(r'[\x21-\x7e]{1,512}', brave_key)):
+                raise WebError('Invalid Brave search credential or endpoint.')
         async with self.lock:
             limits = self._limits()
             now = self.now()
@@ -373,6 +381,8 @@ class WebAccess:
             host_header = authority if original.port is None else f"{authority}:{original.port}"
             headers = {"Host": host_header, "User-Agent": USER_AGENT,
                        "Accept": "image/png,image/jpeg,image/webp,image/gif" if image else ACCEPT}
+            if brave_key is not None:
+                headers.update({'X-Subscription-Token': brave_key, 'Accept': 'application/json'})
             for key,value in (conditional or {}).items():
                 if key not in ("If-None-Match", "If-Modified-Since") or not isinstance(value,str) or len(value)>1000 or any(ord(c)<32 or ord(c)>126 for c in value):
                     raise WebError("Invalid conditional request metadata.")
@@ -389,6 +399,8 @@ class WebAccess:
                                 self._block(seconds)
                                 raise WebError(f"Site requested a pause ({seconds:.0f}s). No automatic retry.")
                             if response.status_code in (401, 403):
+                                if brave_key is not None:
+                                    raise WebError('Brave rejected the API key. Check the key and its Web Search subscription.')
                                 self._block(3600)
                                 raise WebError("Site denied automated access. Stopped without trying another route.")
                             if response.status_code in REDIRECT_STATUSES or response.status_code == 404 or response.status_code in accepted_statuses:

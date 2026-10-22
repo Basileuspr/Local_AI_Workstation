@@ -1,12 +1,14 @@
 import {useEffect,useState} from 'react';
 import {webSystem,sourceDefaults,sourceFields,webTime} from '../webSystem';
 import ViewerBrowser from './ViewerBrowser';
+import WebSearch from './WebSearch';
+import SearchProviderSettings from './SearchProviderSettings';
 import './WebWorkspace.css';
 
-export default function WebWorkspace({active,models=[],defaultModel=''}) {
-  const [tab,setTab]=useState('research'),[question,setQuestion]=useState(''),[model,setModel]=useState(''),[urls,setUrls]=useState(''),[job,setJob]=useState(null);
+export default function WebWorkspace({active,models=[],defaultModel='',chatModel='',onOpenSession,isGenerating=false}) {
+  const [tab,setTab]=useState('search'),[question,setQuestion]=useState(''),[model,setModel]=useState(''),[urls,setUrls]=useState(''),[job,setJob]=useState(null);
   const [state,setState]=useState({sources:[],jobs:[],events:[],worker:{}}),[form,setForm]=useState({...sourceDefaults}),[editing,setEditing]=useState('');
-  const [config,setConfig]=useState({provider:'wikipedia',endpoint:''}),[browser,setBrowser]=useState(false),[pages,setPages]=useState(null);
+  const [config,setConfig]=useState(null),[browser,setBrowser]=useState(false),[pages,setPages]=useState(null);
   const [error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[limits,setLimits]=useState({max_pages:6,follow_links:true});
   const running=job&&['PENDING','RUNNING'].includes(job.status);
   const desktop=window.workstationDesktop;
@@ -24,8 +26,9 @@ export default function WebWorkspace({active,models=[],defaultModel=''}) {
   async function saveKnowledge(body){const result=await perform(()=>webSystem('/knowledge',body));if(result)setNotice(result.duplicate?'This captured version is already in Knowledge.':'Selected evidence saved to Knowledge.');}
   const field=(key,value)=>setForm(v=>({...v,[key]:value}));
   return <section className="web-workspace" aria-label="Web Research & Sources">
-    <div className="web-toolbar"><strong>Web Research & Sources</strong><button aria-pressed={tab==='research'} onClick={()=>setTab('research')}>Live research</button><button aria-pressed={tab==='sources'} onClick={()=>setTab('sources')}>Recurring sources</button></div>
+    <div className="web-toolbar"><strong>Web Research & Sources</strong><button aria-pressed={tab==='search'} onClick={()=>setTab('search')}>Search & preview</button><button aria-pressed={tab==='research'} onClick={()=>setTab('research')}>Live research</button><button aria-pressed={tab==='sources'} onClick={()=>setTab('sources')}>Recurring sources</button></div>
     {error&&<p role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}
+    <div hidden={tab!=='search'}><WebSearch active={active&&tab==='search'} config={config} onConfig={setConfig} model={chatModel||defaultModel} onOpenSession={onOpenSession} isGenerating={isGenerating}/></div>
     {tab==='research'?<>
       <p>Ask a current question. Retrieved text and answers expire after 30 minutes and are discarded when the backend closes. Save selected evidence to Knowledge only when you want to retain it.</p>
       <label>Research question<textarea aria-label="Research question" value={question} maxLength={2000} onChange={e=>setQuestion(e.target.value)} placeholder="What changed in the latest release?"/></label>
@@ -38,10 +41,8 @@ export default function WebWorkspace({active,models=[],defaultModel=''}) {
         <label>Source URLs (optional, one per line)<textarea value={urls} onChange={e=>setUrls(e.target.value)} placeholder="https://example.com/releases"/></label>
         <div className="web-toolbar"><label>Page limit<input type="number" min="1" max="6" value={limits.max_pages} onChange={e=>setLimits(v=>({...v,max_pages:Number(e.target.value)}))}/></label>
           <label><input type="checkbox" checked={limits.follow_links} onChange={e=>setLimits(v=>({...v,follow_links:e.target.checked}))}/>Follow useful links</label>
-          <label>Search provider<select value={config.provider} onChange={e=>setConfig({provider:e.target.value,endpoint:''})}><option value="wikipedia">Wikipedia (limited scope)</option><option value="searxng">SearXNG (general web)</option></select></label>
-          {config.provider==='searxng'&&<label>Public JSON search endpoint<input value={config.endpoint} onChange={e=>setConfig(v=>({...v,endpoint:e.target.value}))} placeholder="https://search.example.com/search"/></label>}
-          <button disabled={busy||running} onClick={async()=>{const result=await perform(()=>webSystem('/search',config,'PUT'));if(result){setConfig(result);setNotice('Search provider saved.');}}}>Save search provider</button>
-        </div><p>Wikipedia searches its encyclopedia. For broad current web research, configure a public SearXNG endpoint with JSON enabled. Public HTTP/HTTPS retrieval respects robots, at least 10 seconds between requests, and 30 requests per hour.</p>
+        </div><SearchProviderSettings config={config} onSaved={setConfig} disabled={busy||running}/>
+        <p>Public HTTP/HTTPS retrieval respects robots, at least 10 seconds between requests, and 30 requests per hour.</p>
       </details>
       {job&&<article className="web-research-result"><p role="status">{job.status} · {job.stage}</p>{job.error&&<p>{job.error}</p>}
         {job.queries?.length>0&&<p>Searches: {job.queries.join(' · ')}</p>}
@@ -52,7 +53,7 @@ export default function WebWorkspace({active,models=[],defaultModel=''}) {
       </article>}
       <div className="web-toolbar"><button onClick={()=>setBrowser(v=>!v)}>{browser?'Hide browser fallback':'Browser fallback'}</button><button disabled={busy||running||!job||!desktop?.readWebResearchBrowser} onClick={async()=>{const result=await perform(()=>desktop.readWebResearchBrowser(job.id));if(result)setJob(result);}}>Use current Browser page</button></div>
       {browser&&<><p>Open a public page, complete any login manually, then explicitly capture its rendered text. Password fields and session secrets are excluded. Only this selected page is read; the monitor remains an HTTP crawler.</p><ViewerBrowser accountOnly active={active&&browser} onOpenSource={()=>{}}/></>}
-    </>:<>
+    </>:tab==='sources'?<>
       <div className="web-toolbar"><span>Background: {state.background_enabled?(state.worker?.status==='running'&&Date.now()/1000-(state.worker.heartbeat||0)<15?'running':'starting / waiting for worker'):'disabled'} · {state.sources.filter(s=>s.enabled).length} enabled source(s)</span>
         <button disabled={busy||!desktop?.webBackground} onClick={async()=>{const result=await perform(()=>desktop.webBackground(!state.background_enabled));if(result)setState(result);}}>{state.background_enabled?'Disable background monitoring':'Enable background monitoring'}</button></div>
       <p>Sources run in a separate worker through a per-user Windows task, including when the workstation window is closed. Checks stay queued while background monitoring is disabled. Disabling it also pauses maintenance conflicts.</p>
@@ -84,6 +85,6 @@ export default function WebWorkspace({active,models=[],defaultModel=''}) {
       <details open><summary>Recent runs</summary>{state.jobs.slice(0,20).map(j=><div className="web-source-row" key={j.id}><span>{state.sources.find(s=>s.id===j.source_id)?.name} · {j.state} · {j.checked} checked · {j.changed} changed · {j.failures} failed{j.state==='RETRY'?' · Retry '+webTime(j.available):''}</span>{['PENDING','RUNNING','RETRY'].includes(j.state)&&<button disabled={busy} onClick={()=>perform(async()=>{await webSystem('/jobs/'+j.id+'/cancel',{});await refresh();})}>Cancel run</button>}</div>)}</details>
       {!!state.events.length&&<details open><summary>Change notifications</summary>{state.events.map(e=><p key={e.id}>{webTime(e.created)} · <a href={e.url} target="_blank" rel="noreferrer">{e.title||e.url}</a> changed</p>)}</details>}
       {!state.sources.length&&<p>No recurring sources configured. Add a source deliberately, then enable background monitoring.</p>}
-    </>}
+    </>:null}
   </section>;
 }

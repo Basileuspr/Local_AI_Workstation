@@ -191,7 +191,7 @@ def test_log_file_path_reports_where_records_are_written(monkeypatch, tmp_path):
 def test_credentials_are_redacted_in_headers_and_tracebacks(log_dir):
     path = app_logging.setup_logging(force=True)
     try:
-        raise ValueError("Bearer PRIVATE_BEARER X-LAW-Session: PRIVATE_SESSION /?law_token=PRIVATE_QUERY")
+        raise ValueError("Bearer PRIVATE_BEARER X-LAW-Session: PRIVATE_SESSION /?law_token=PRIVATE_QUERY X-Subscription-Token: PRIVATE_SEARCH LAW_BRAVE_SEARCH_API_KEY=PRIVATE_ENV")
     except ValueError:
         app_logging.get_logger("test").exception("Cannot connect")
     contents = path.read_text(encoding="utf-8")

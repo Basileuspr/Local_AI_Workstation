@@ -44,7 +44,7 @@ _file_handler = None
 # and uvicorn's access line prints the whole path. A log is the one artefact a
 # user is most likely to send to someone else, so the value never reaches it.
 _TOKEN_PATTERN = re.compile(r"((?:law_token|apiToken)=)[^&\s\"']+", re.I)
-_HEADER_PATTERN = re.compile(r"((?:Bearer\s+|X-LAW-Session[\"']?\s*[:=]\s*[\"']?))[^\s\"',;}]+", re.I)
+_HEADER_PATTERN = re.compile(r"((?:Bearer\s+|(?:X-LAW-Session|X-Subscription-Token|LAW_BRAVE_SEARCH_API_KEY)[\"']?\s*[:=]\s*[\"']?))[^\s\"',;}]+", re.I)
 
 
 def redact(value):

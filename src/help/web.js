@@ -1,8 +1,15 @@
 export const webHelp = {
-  'web-system': [['Live research', [
+  'web-system': [['Search & preview', [
+    ['Search the web / Search', 'Return up to ten source links and brief provider descriptions without starting a local model. Wikipedia is encyclopedia-only; choose Brave or configure SearXNG for general web coverage. Search snippets are untrusted and do not prove the page was fetched.'],
+    ['Search provider settings', 'Brave uses your own Web Search API key; SearXNG needs a public HTTPS endpoint with JSON enabled. Queries leave this computer. A key entered here stays in backend memory until restart, is never returned to the interface, and is not saved in search settings. LAW_BRAVE_SEARCH_API_KEY can provide a local environment key across restarts. No subscription is purchased automatically.'],
+    ['Page URL / Preview this page / Preview page', 'Read one selected public page through guarded retrieval. The description is labelled as publisher metadata or a captured excerpt. The original URL, actual fetched URL and retrieval time remain visible. Pages requiring login or JavaScript may be unavailable.'],
+    ['Include one page image', 'Try up to three discovered HTTPS images and save at most one validated PNG, JPEG, WebP or GIF locally. The image stays in the local blob store; source text remains available if image retrieval fails. Private destinations, unsafe redirects and unsupported images are blocked.'],
+    ['Stop web request / Clear results', 'Stop cancels the active request but keeps captured page text. Clear removes temporary job results, preserving saved chats and image blobs. Unsaved text expires after 30 minutes or backend restart. Requests respect robots, at least ten seconds spacing and the shared hourly budget.'],
+    ['Save source in new chat', 'Save a separate source chat with attribution, up to 6,000 text characters and the optional image attachment. Reopening it reuses that chat. The model is not automatically given image pixels or OCR, and no Knowledge indexing occurs.'],
+  ]], ['Live research', [
     ['Research question / Local model / Research now', 'Ask a focused question using an installed local text model. Search and bounded public-page retrieval supply cited evidence; check quotes and coverage before relying on the answer.'],
     ['Source URLs / Page limit / Follow useful links', 'Optionally provide public seed addresses, retrieve up to six pages, and allow bounded link following. Private-network and credential-bearing addresses are rejected.'],
-    ['Search provider / Save search provider', 'Wikipedia is the default with encyclopedia-only coverage. General search requires a public SearXNG endpoint supporting JSON results. Failures appear in Coverage.'],
+    ['Search provider / Save search provider', 'Uses the same saved Brave, SearXNG or limited Wikipedia provider as Search & preview. General search requires a configured provider. Failures appear in Coverage.'],
     ['Browser fallback / Use current Browser page', 'Manually open an unreadable page in the shared Browser and capture its current rendered prose. Login challenges or page changes stop capture. This does not grant unattended access to account pages.'],
     ['Cancel research / Discard research', 'Cancel stops active work; Discard clears its temporary evidence. Research stays in memory, expires after completion, and is lost on backend restart.'],
     ['Save to Knowledge', 'Explicitly saves one selected captured source through local embeddings. Research results are never indexed automatically.'],

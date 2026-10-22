@@ -6,10 +6,11 @@ app.setPath('userData',path.join(work,'profile'));app.commandLine.appendSwitch('
 const timer=setTimeout(()=>app.exit(1),60000);
 async function api(route,body){const r=await fetch(`http://127.0.0.1:${process.env.LAW_WEB_QA_PORT}${route}`,{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json','x-law-session':'fixture-session','x-local-files':'fixture-native'},body:body===undefined?undefined:JSON.stringify(body)});const data=await r.json();if(!r.ok)throw Error(JSON.stringify(data));return data;}
 async function until(check){for(let i=0;i<200;i++){if(await check())return;await new Promise(r=>setTimeout(r,50));}throw Error('UI condition timed out.');}
-const click=text=>win.webContents.executeJavaScript(`([...document.querySelectorAll('button')].find(b=>b.textContent===${JSON.stringify(text)})||{}).click()`);
+const click=async text=>{await until(()=>win.webContents.executeJavaScript(`(()=>{const b=[...document.querySelectorAll('button')].find(b=>b.textContent===${JSON.stringify(text)});return !!b&&!b.matches(':disabled');})()`));return win.webContents.executeJavaScript(`[...document.querySelectorAll('button')].find(b=>b.textContent===${JSON.stringify(text)}).click()`);};
 const input=(label,value)=>win.webContents.executeJavaScript(`(()=>{const element=document.querySelector('[aria-label=${JSON.stringify(label)}]');Object.getOwnPropertyDescriptor(element.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype,'value').set.call(element,${JSON.stringify(value)});element.dispatchEvent(new Event('input',{bubbles:true}));})()`);
 app.whenReady().then(async()=>{
-  win=new BrowserWindow({show:false,width:1100,height:850,webPreferences:{sandbox:true,contextIsolation:true,nodeIntegration:false,preload:path.resolve(__dirname,'../electron/preload.js')}});
+  win=new BrowserWindow({show:false,width:1100,height:850,webPreferences:{sandbox:true,contextIsolation:true,nodeIntegration:false,backgroundThrottling:false,preload:path.resolve(__dirname,'../electron/preload.js')}});
+  win.webContents.on('console-message',details=>{if(details.level==='error')console.error('Web fixture renderer:',details.message);});
   ipcMain.on('app:connection',e=>{e.returnValue={base:`http://127.0.0.1:${process.env.LAW_WEB_QA_PORT}`,token:'fixture-session'};});
   const View=class extends WebContentsView{constructor(options){super(options);remote=this.webContents;}};
   const fixtureSessions={fromPartition:(...args)=>{const ses=session.fromPartition(...args);ses.setCertificateVerifyProc((req,cb)=>{const fingerprint=new(require('node:crypto').X509Certificate)(req.certificate.data).fingerprint256.replaceAll(':','').toLowerCase();cb(req.hostname==='browser.example.com'&&fingerprint===process.env.LAW_WEB_QA_CERT?0:-3);});return ses;}};
@@ -21,6 +22,39 @@ app.whenReady().then(async()=>{
   ipcMain.handle('web-research:read',async(e,id)=>trusted(e)?service.read(id):{error:'Desktop access required.'});
   for(const action of ['start','state','place','navigate','profiles','selectProfile','createProfile','command'])ipcMain.handle(`viewer-browser:${action}`,async(e,v)=>trusted(e)?browser[action](v):{error:'Desktop access required.'});
   await win.loadFile(path.resolve(__dirname,'../tmp/viewer-hardening-qa/tests/fixtures/web.html'));
+  await until(()=>win.webContents.executeJavaScript("document.querySelector('[aria-label=\"Search the web\"]')"));
+  await until(()=>win.webContents.executeJavaScript("document.querySelector('.web-provider-settings fieldset')?.disabled===false"));
+  await win.webContents.executeJavaScript("document.querySelector('.web-provider-settings').open=true");
+  await win.webContents.executeJavaScript("(()=>{const select=document.querySelector('[aria-label=\"Search provider\"]');select.value='brave';select.dispatchEvent(new Event('change',{bubbles:true}));})()");
+  await until(()=>win.webContents.executeJavaScript("!!document.querySelector('[aria-label=\"Brave API key\"]')"));
+  await input('Brave API key','fixture-ui-credential');await click('Save search provider');
+  await until(()=>win.webContents.executeJavaScript("document.querySelector('[aria-label=\"Brave API key\"]').value===''&&document.body.textContent.includes('Search provider saved.')"));
+  assert(!(JSON.stringify(await api('/web-system/search'))).includes('fixture-ui-credential'));
+  await win.webContents.executeJavaScript("(()=>{const select=document.querySelector('[aria-label=\"Search provider\"]');select.value='searxng';select.dispatchEvent(new Event('change',{bubbles:true}));})()");
+  await until(()=>win.webContents.executeJavaScript("!!document.querySelector('[aria-label=\"Public JSON search endpoint\"]')"));
+  await input('Public JSON search endpoint','https://search.example.com/search');await click('Save search provider');
+  await until(async()=> (await api('/web-system/search')).provider==='searxng');await click('Remove session key');
+  await until(async()=> !(await api('/web-system/search')).key_configured);
+  await win.webContents.executeJavaScript("document.querySelector('.web-provider-settings').open=false");
+  await input('Search the web','owned public article');await click('Search');
+  await until(()=>win.webContents.executeJavaScript("document.querySelector('.web-search-card')?.textContent.includes('A short provider description.')"));
+  await click('Preview this page');
+  await until(()=>win.webContents.executeJavaScript("!!document.querySelector('.web-page-preview')"));
+  await win.webContents.executeJavaScript("document.querySelector('.web-page-preview').scrollIntoView({block:'start'})");
+  await until(()=>win.webContents.executeJavaScript("document.querySelector('.web-page-preview')?.textContent.includes('A short fetched-page description.')&&document.querySelector('.web-page-preview img')?.naturalWidth>0"));
+  await until(()=>win.webContents.executeJavaScript("!document.querySelector('.web-page-preview').textContent.includes('Loading preview')&&![...document.querySelectorAll('button')].find(b=>b.textContent==='Save source in new chat').disabled"));
+  // Let Chromium paint the verified loaded state before capturing the window.
+  await new Promise(r=>setTimeout(r,150));
+  assert.equal(await win.webContents.executeJavaScript("document.querySelector('.web-page-preview img').src.startsWith('http://127.0.0.1:')"),true);
+  assert.equal(await win.webContents.executeJavaScript('document.documentElement.scrollWidth>innerWidth'),false);
+  win.setSize(420,900);await new Promise(r=>setTimeout(r,100));
+  assert.equal(await win.webContents.executeJavaScript('document.documentElement.scrollWidth>innerWidth'),false);
+  fs.writeFileSync(path.join(work,'web-search-narrow.png'),(await win.webContents.capturePage()).toPNG());
+  win.setSize(1100,850);await new Promise(r=>setTimeout(r,150));
+  fs.writeFileSync(path.join(work,'web-search-preview.png'),(await win.webContents.capturePage()).toPNG());
+  await click('Save source in new chat');await until(()=>win.webContents.executeJavaScript("document.body.textContent.includes('Saved source and image in chat:')"));
+  await click('Clear results');await until(()=>win.webContents.executeJavaScript("!document.querySelector('.web-page-preview')&&!document.querySelector('.web-search-results')"));
+  await click('Live research');
   await until(()=>win.webContents.executeJavaScript("document.querySelector('[aria-label=\"Research question\"]')"));
   await input('Research question','What does the Fixture tool release describe?');await until(()=>win.webContents.executeJavaScript("![...document.querySelectorAll('button')].find(b=>b.textContent==='Research now').disabled"));await click('Research now');
   await until(()=>win.webContents.executeJavaScript("document.querySelector('.web-research-result')?.textContent.includes('answered')"));
@@ -39,5 +73,5 @@ app.whenReady().then(async()=>{
   const hostile=new BrowserWindow({show:false,webPreferences:{sandbox:true,contextIsolation:true,nodeIntegration:false,preload:path.resolve(__dirname,'../electron/preload.js')}});await hostile.loadURL('data:text/html,untrusted');
   assert.equal((await hostile.webContents.executeJavaScript(`workstationDesktop.readWebResearchBrowser('${'a'.repeat(32)}')`)).error,'Desktop access required.');hostile.destroy();
   await click('Live research');await click('Discard research');await until(()=>win.webContents.executeJavaScript("!document.querySelector('.web-research-result')"));
-  console.log(JSON.stringify({ok:true,checks:['Trusted Electron controls, UI clicks, stale-page-bound rendered fallback','Explicit Knowledge handoff and discarded research','Configured source, pending/cancelled run, independent content clearing','Cookie retained, no horizontal overflow, remote IPC rejection']}));
-}).catch(e=>{console.error(e);process.exitCode=1;}).finally(async()=>{clearTimeout(timer);await browser?.dispose();win?.destroy();app.exit(process.exitCode||0);});
+  console.log(JSON.stringify({ok:true,checks:['Search provider settings and removal of the session key','Model-independent search, fetched description, local image and saved source chat','Search and preview at desktop and narrow widths without overflow','Trusted Electron controls, UI clicks, stale-page-bound rendered fallback','Explicit Knowledge handoff and discarded research','Configured source, pending/cancelled run, independent content clearing','Cookie retained, remote IPC rejection']}));
+}).catch(async e=>{console.error(e);if(win){fs.writeFileSync(path.join(work,'web-failure.txt'),await win.webContents.executeJavaScript('document.body.innerText'));fs.writeFileSync(path.join(work,'web-failure.png'),(await win.webContents.capturePage()).toPNG());console.error('Fixture diagnostics:',work,await api('/web-system/search'));}process.exitCode=1;}).finally(async()=>{clearTimeout(timer);await browser?.dispose();win?.destroy();app.exit(process.exitCode||0);});

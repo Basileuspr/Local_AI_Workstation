@@ -26,7 +26,7 @@ class Fixture(research.Research):
 
 class Pages:
     def __init__(self):self.calls=[]
-    async def raw(self,*args,**kwargs):return '',200,{},json.dumps({'results':[{'url':'https://site.example.com/release','title':'Fixture tool release','content':'Current release'}]}).encode()
+    async def raw(self,*args,**kwargs):return '',200,{},json.dumps({'query':{'search':[]},'results':[{'url':'https://site.example.com/release','title':'Fixture tool release','content':'Current release'}]}).encode()
     async def retrieve(self,url,**kwargs):
         self.calls.append(url)
         doc=document(url,'Captured release says version 3.2 supports offline inference. This documented capability works locally on your workstation.')

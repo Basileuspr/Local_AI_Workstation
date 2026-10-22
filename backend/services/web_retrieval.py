@@ -10,6 +10,7 @@ import xml.etree.ElementTree as ET
 
 from services.web_access import WebAccess, WebError, PageText, decode_page, MAX_BYTES, MAX_TEXT, REDIRECT_STATUSES
 from services import web_state
+from services.web_sanitize import clean
 from services.process_lock import acquire
 
 
@@ -32,9 +33,11 @@ class Document:
     kind:str='page'
     truncated:bool=False
     published_at:str|None=None
+    description:str=''
+    image_candidates:list[dict]=field(default_factory=list)
 
     def metadata(self):
-        return {k:v for k,v in asdict(self).items() if k not in {'text','links','feeds','sitemaps'}}
+        return {k:v for k,v in asdict(self).items() if k not in {'text','links','feeds','sitemaps','image_candidates'}}
 
 
 def digest(text):
@@ -60,9 +63,17 @@ class FileGate:
 
 
 class Links(PageText):
-    def __init__(self):super().__init__();self.links=[];self.feeds=[];self.canonical='';self.published_at=None
+    def __init__(self):
+        super().__init__();self.links=[];self.feeds=[];self.canonical='';self.published_at=None
+        self.description='';self.social_image=''
     def handle_starttag(self,tag,attrs):
         values=dict(attrs);super().handle_starttag(tag,attrs)
+        if tag=='meta':
+            key=(values.get('property') or values.get('name') or '').lower()
+            if key in {'description','og:description','twitter:description'} and not self.description:
+                self.description=(values.get('content') or '')[:1000]
+            if key in {'og:image','twitter:image'} and not self.social_image:
+                self.social_image=(values.get('content') or '')[:2000]
         if tag=='meta' and (values.get('property') or values.get('name') or '').lower() in {'article:published_time','date','datepublished','dc.date'}:
             date=values.get('content','')
             if re.fullmatch(r'\d{4}-\d{2}-\d{2}(?:T[\d:+.Z-]{5,30})?',date):self.published_at=date
@@ -104,15 +115,17 @@ class Retriever:
         if access is None:self.access.lock=FileGate(self.access.root)
         self.policies={}
 
-    async def raw(self,url,*,boundary=None,conditional=None,delay=10,max_bytes=MAX_BYTES):
+    async def raw(self,url,*,boundary=None,conditional=None,delay=10,max_bytes=MAX_BYTES,brave_key=None):
         current=web_state.public_url(url);seen=set()
         for _ in range(6):
             if current in seen:raise WebError('Redirect loop.')
             seen.add(current)
             if boundary and not boundary(current):raise WebError('Redirect/destination is outside configured boundaries.')
             status,headers,body=await self.access._request(current,{},delay=delay,space=True,max_bytes=max_bytes,
-                conditional=conditional,allow_http=True,accepted_statuses=(304,410))
+                conditional=conditional,allow_http=True,accepted_statuses=(304,410),
+                **({'brave_key':brave_key} if brave_key is not None else {}))
             if status not in REDIRECT_STATUSES:return current,status,headers,body
+            if brave_key is not None:raise WebError('Brave search redirected unexpectedly; the API key was not forwarded.')
             target=headers.get('location')
             if not target:raise WebError('Redirect has no destination.')
             destination=web_state.public_url(urljoin(current,target))
@@ -158,7 +171,7 @@ class Retriever:
             if status in (404,410):raise WebError(f'Page unavailable (HTTP {status}).')
             media=headers.get('content-type','').split(';')[0].strip().lower()
             xml=media in {'application/xml','text/xml','application/rss+xml','application/atom+xml'}
-            links=[];feeds=[];canonical=current;kind='page';published=None
+            links=[];feeds=[];canonical=current;kind='page';published=None;description='';images=[]
             if xml:
                 kind,text,title,links,feeds,xml_maps=xml_content(body,current);sitemaps.extend(xml_maps)
             elif media=='text/plain':text=decode_page(body,headers.get('content-type')).strip();title=urlsplit(current).hostname
@@ -167,6 +180,16 @@ class Retriever:
                 published=parser.published_at
                 text=parser.text();title=parser.page_title();base=urljoin(current,parser.base) if parser.base else current
                 links=[urljoin(base,u) for u in parser.links];feeds=[urljoin(base,u) for u in parser.feeds]
+                description=clean(parser.description)
+                candidates=([{'url':parser.social_image,'alt':title}] if parser.social_image else [])+parser.images
+                seen_images=set()
+                for candidate in candidates:
+                    try:
+                        image_url=web_state.public_url(urljoin(base,candidate['url']))
+                        if urlsplit(image_url).scheme!='https' or image_url in seen_images:continue
+                        seen_images.add(image_url);images.append({'url':image_url,'alt':candidate['alt']})
+                    except (WebError,ValueError):continue
+                    if len(images)>=3:break
                 if parser.canonical:
                     try:
                         candidate=web_state.public_url(urljoin(base,parser.canonical))
@@ -176,8 +199,26 @@ class Retriever:
             safe=lambda values,bound=boundary:list(dict.fromkeys(web_state.public_url(v) for v in values if _usable(v,bound)))
             return Document(current,(title or urlsplit(current).hostname)[:300],text[:MAX_TEXT],time.time(),digest(text[:MAX_TEXT]),
                 requested,source_id,status,_header(headers,'etag'),_header(headers,'last-modified'),canonical,
-                safe(links),safe(feeds,policy_boundary),safe(sitemaps,policy_boundary),kind,len(text)>MAX_TEXT,published)
+                safe(links),safe(feeds,policy_boundary),safe(sitemaps,policy_boundary),kind,len(text)>MAX_TEXT,published,description,images)
         raise WebError('Redirect limit reached.')
+
+    async def image(self,url):
+        """One bounded raster through the same policy, pacing and DNS checks."""
+        from services.web_access import MAX_IMAGE_BYTES, normalize_url
+        current=normalize_url(web_state.public_url(url));seen=set()
+        for _ in range(6):
+            if current in seen:raise WebError('Image redirect loop.')
+            seen.add(current)
+            delay,_=await self.robots(current)
+            status,headers,body=await self.access._request(current,{},delay=delay,max_bytes=MAX_IMAGE_BYTES,image=True)
+            if status in REDIRECT_STATUSES:
+                if not headers.get('location'):raise WebError('Image redirect has no destination.')
+                current=normalize_url(web_state.public_url(urljoin(current,headers['location'])))
+                continue
+            if status!=200:raise WebError('Image unavailable.')
+            metadata=await asyncio.to_thread(self.access._validate_image,body)
+            return body,current,metadata
+        raise WebError('Image redirect limit reached.')
 
 
 def _header(headers,name):

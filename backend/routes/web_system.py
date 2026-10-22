@@ -1,9 +1,10 @@
 """Separate temporary research and deliberately configured recurring sources."""
 from typing import Literal
 from fastapi import APIRouter, HTTPException, Request, Query
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, SecretStr
 from services import web_state as state, web_content, web_background, web_knowledge
 from services.web_research import manager, search_config
+from services.web_lookup import manager as lookup_manager
 from services.web_access import WebError
 from routes.local_files import native
 
@@ -18,8 +19,15 @@ class ResearchRequest(Strict):
     max_pages:int=Field(default=6,ge=1,le=6)
     follow_links:bool=True
 class SearchConfig(Strict):
-    provider:Literal['wikipedia','searxng']='wikipedia'
+    provider:Literal['wikipedia','searxng','brave']='wikipedia'
     endpoint:str=Field(default='',max_length=2000)
+    api_key:SecretStr|None=None
+    clear_api_key:bool=False
+class LookupRequest(Strict):
+    query:str=Field(min_length=2,max_length=300)
+class PreviewRequest(Strict):
+    url:str=Field(min_length=1,max_length=2000)
+    include_image:bool=True
 class Background(Strict):enabled:bool
 class BrowserPage(Strict):
     url:str=Field(max_length=2000)
@@ -42,7 +50,25 @@ def listing():return state.listing()
 @router.get('/search')
 def search_settings():return search_config()
 @router.put('/search')
-def update_search(body:SearchConfig):return checked(search_config,body.model_dump())
+def update_search(body:SearchConfig):
+    try:return search_config(body.model_dump())
+    except (WebError,ValueError) as exc:raise HTTPException(400,str(exc)) from None
+@router.post('/lookup')
+async def lookup(body:LookupRequest):
+    try:return lookup_manager.start('search',body.query)
+    except WebError as exc:raise HTTPException(400,str(exc)) from None
+@router.post('/preview')
+async def preview(body:PreviewRequest):
+    try:return lookup_manager.start('preview',body.url,body.include_image)
+    except WebError as exc:raise HTTPException(400,str(exc)) from None
+@router.get('/lookup/active')
+async def active_lookup():return {'job':lookup_manager.active()}
+@router.get('/lookup/{ident}')
+async def lookup_status(ident:str):return checked(lookup_manager.state,ident)
+@router.post('/lookup/{ident}/cancel')
+async def cancel_lookup(ident:str):checked(lookup_manager.state,ident);return await lookup_manager.cancel(ident)
+@router.post('/lookup/{ident}/discard')
+async def discard_lookup(ident:str):checked(lookup_manager.state,ident);return await lookup_manager.discard(ident)
 @router.post('/background')
 async def background(body:Background,request:Request):
     native(request)

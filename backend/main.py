@@ -115,9 +115,12 @@ from routes.browser_media import router as browser_media_router
 app.include_router(web_router)
 from routes.web_system import router as web_system_router
 from services.web_research import manager as web_research_manager
+from services.web_lookup import manager as web_lookup_manager
 app.include_router(web_system_router)
 app.add_event_handler('startup', web_research_manager.startup)
 app.add_event_handler('shutdown', web_research_manager.close)
+app.add_event_handler('startup', web_lookup_manager.startup)
+app.add_event_handler('shutdown', web_lookup_manager.close)
 app.include_router(browser_media_router)
 from routes.reels import router as reels_router
 app.include_router(reels_router)
