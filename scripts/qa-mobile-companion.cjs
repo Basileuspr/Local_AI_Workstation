@@ -69,11 +69,13 @@ app.whenReady().then(async () => {
     await click('Fit');
     assert.deepEqual(await transform(), { scale: 1, x: 0 }, 'Fit restores the image');
   };
-  await win.loadURL(fixture.origin + '/');
+  await win.loadURL(fixture.origin + '/#pair=' + fixture.code);
   win.webContents.debugger.attach('1.3');
   await win.webContents.debugger.sendCommand('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 2 });
   console.log('Fixture loaded over HTTPS');
-  await set('input[placeholder="Paste the invitation from your desktop"]', fixture.code);
+  await until(`document.querySelector('input[placeholder="Paste the invitation from your desktop"]')?.value===${JSON.stringify(fixture.code)}`, 'QR invitation prefilled');
+  assert.equal(await js('location.hash'), '', 'invitation removed from browser history');
+  assert((await js("document.querySelector('.pair a')?.href")).includes('package=com.localai.workstation.companion'), 'explicit Android app handoff');
   await click('Connect to desktop');
   await until("document.querySelector('nav')", 'paired');
   console.log('Phone paired');

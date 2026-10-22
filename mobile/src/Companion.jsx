@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
+import useFreshResource from './useFreshResource';
+import { androidPairingLink, consumePairingLink } from './pairing';
 import FullImage from "./ImageViewer";
 import ClientUpdate from "./ClientUpdate";
 import ImageGenerationForm, { mobileImageSubmission } from "./ImageGenerationForm";
@@ -12,41 +14,40 @@ function ModelSelect({ models = [], value, onChange, label = "Model" }) {
   return <label>{label}<select value={value} onChange={event => onChange(event.target.value)}><option value="">Choose a desktop model</option>{models.map(model => <option key={model.id} value={model.id}>{model.name || model.id}</option>)}</select></label>;
 }
 
-function Pair({ onPaired }) {
-  const [code, setCode] = useState(""); const [name, setName] = useState("My phone");
+function Pair({ onPaired, initialCode = "" }) {
+  const [code, setCode] = useState(initialCode); const [name, setName] = useState("My phone");
   const [busy, setBusy] = useState(false); const [error, setError] = useState("");
+  useEffect(() => { setCode(initialCode); }, [initialCode]);
+  useEffect(() => { if (!code) return; const timer = setTimeout(() => { setCode(""); setError("Invitation expired. Create a fresh invitation on the desktop."); }, 300000); return () => clearTimeout(timer); }, [code]);
+  const nativeLink = typeof window !== 'undefined' && window.location?.origin ? androidPairingLink(window.location.origin, code.trim()) : '';
   async function pair(event) {
     event.preventDefault(); setBusy(true); setError("");
     try { await request("/api/pair", { method: "POST", body: { code: code.trim(), name: name.trim() } }); setCode(""); onPaired(); }
     catch (failure) { setError(failure.message); } finally { setBusy(false); }
   }
-  return <section className="pair panel"><span className="eyebrow">PRIVATE BY DESIGN</span><h2>Your workstation.<br />A little closer.</h2><p>Chat, create and explore from your phone. Your desktop does the heavy lifting.</p><form onSubmit={pair}><label>Device name<input autoComplete="off" maxLength={60} value={name} onChange={event => setName(event.target.value)} /></label><label>Pairing code<input autoComplete="off" autoCapitalize="none" spellCheck="false" maxLength={100} value={code} onChange={event => setCode(event.target.value)} placeholder="Paste the invitation from your desktop" /></label><button className="primary" disabled={busy || !code.trim() || !name.trim()}>{busy ? "Pairing…" : "Connect to desktop"}</button></form>{error && <p role="alert" className="error">{error}</p>}<details><summary>How to connect</summary><p>Open Dashboard → Mobile companion on your desktop. Start the approved private HTTPS connection and create a pairing code. Open that HTTPS address on your phone and paste the code here. Both devices must be on the configured private network or VPN.</p><p>Add this page to your home screen using your browser's install or share menu. Keep the desktop awake for background jobs.</p></details></section>;
+  return <section className="pair panel"><span className="eyebrow">PRIVATE BY DESIGN</span><h2>Your workstation.<br />A little closer.</h2><p>Chat, create and explore from your phone. Your desktop does the heavy lifting.</p><form onSubmit={pair}><label>Device name<input autoComplete="off" maxLength={60} value={name} onChange={event => setName(event.target.value)} /></label><label>Pairing code<input autoComplete="off" autoCapitalize="none" spellCheck="false" maxLength={100} value={code} onChange={event => setCode(event.target.value)} placeholder="Paste the invitation from your desktop" /></label><button className="primary" disabled={busy || !code.trim() || !name.trim()}>{busy ? "Pairing…" : "Connect to desktop"}</button></form>{nativeLink && !window.LawAndroid && <p><a className="button" href={nativeLink}>Open Android app to pair</a><br /><small>Requires Companion 0.2.0 or newer. Pair here for browser use; the Android app pairs separately.</small></p>}{error && <p role="alert" className="error">{error}</p>}<details><summary>How to connect</summary><p>Open Dashboard → Mobile companion on your desktop. Start the private HTTPS connection and create an invitation. Scan its QR code with your phone camera, then choose the Android app or connect in this browser. You can also open the saved HTTPS address and paste the invitation code. Both devices must be on the configured private network or VPN.</p><p>Add this page to your home screen using your browser's install or share menu. Keep the desktop awake for background jobs.</p></details></section>;
 }
 
-function JobCard({ job, onCancel, onOpen, onDismiss }) {
-  return <article className="job panel"><div className="row"><span className="eyebrow">{job.kind === "image" ? "IMAGE" : "CHAT"}</span><span className={`badge ${job.status}`}>{job.status}</span></div><h3>{job.prompt || "Desktop job"}</h3><p className="muted">{job.model}</p>{!finished(job.status) && <progress aria-label="Job progress" max="100" {...(Number.isFinite(job.progress?.percent) ? { value: job.progress.percent } : {})} />}<p className="muted">{job.progress?.detail || job.progress?.stage}</p>{job.error && <p role="alert" className="error">{job.error}</p>}<div className="row"><button onClick={() => onOpen(job)}>View conversation</button>{finished(job.status) ? <button onClick={() => onDismiss(job)}>Dismiss job</button> : <button disabled={job.status === "cancelling"} onClick={() => onCancel(job)}>{job.status === "cancelling" ? "Cancelling…" : "Cancel job"}</button>}</div></article>;
+function JobCard({ job, online, onCancel, onOpen, onDismiss }) {
+  return <article className="job panel"><div className="row"><span className="eyebrow">{job.kind === "image" ? "IMAGE" : "CHAT"}</span><span className={`badge ${job.status}`}>{job.status}</span></div><h3>{job.prompt || "Desktop job"}</h3><p className="muted">{job.model}</p>{!finished(job.status) && <progress aria-label="Job progress" max="100" {...(Number.isFinite(job.progress?.percent) ? { value: job.progress.percent } : {})} />}<p className="muted">{job.progress?.detail || job.progress?.stage}</p>{job.error && <p role="alert" className="error">{job.error}</p>}<div className="row"><button disabled={!online} onClick={() => onOpen(job)}>View conversation</button>{finished(job.status) ? <button disabled={!online} onClick={() => onDismiss(job)}>Dismiss job</button> : <button disabled={!online || job.status === "cancelling"} onClick={() => onCancel(job)}>{job.status === "cancelling" ? "Cancelling…" : "Cancel job"}</button>}</div></article>;
 }
 
 export function Gallery({ online, refreshKey, sessions = [], filters, onFiltersChange }) {
-  const [items, setItems] = useState([]); const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0); const [reload, setReload] = useState(0);
-  const [view, setView] = useState(null); const [error, setError] = useState(""); const [busy, setBusy] = useState(false);
+  const [view, setView] = useState(null);
   const heading = useRef(null);
   const { search, sort, source, session_id, days } = filters;
   const filtered = !!search.trim() || source !== "all" || !!session_id || days !== "0";
-  function change(values) { setPage(0); setItems([]); setView(null); onFiltersChange({ ...filters, ...values }); }
+  const params = new URLSearchParams({ offset: String(page * 24), limit: "24", search, sort, source, session_id, days });
+  const result = useFreshResource(`/api/gallery?${params}`, { enabled: online, interval: 5000, delay: 200, refreshKey: `${refreshKey}:${reload}` });
+  const items = result.value?.images || [], total = result.value?.total || 0;
+  const error = result.error?.message || (!online ? 'Reconnect to load current images.' : '');
+  const busy = result.loading;
+  function change(values) { setPage(0); setView(null); onFiltersChange({ ...filters, ...values }); }
   function refresh() { setPage(0); setReload(value => value + 1); heading.current?.scrollIntoView({ block: "start" }); }
-  function turnPage(value) { setPage(value); heading.current?.scrollIntoView({ block: "start" }); }
-  useEffect(() => {
-    const controller = new AbortController(); setBusy(true);
-    const params = new URLSearchParams({ offset: String(page * 24), limit: "24", search, sort, source, session_id, days });
-    const timer = setTimeout(() => request(`/api/gallery?${params}`, { signal: controller.signal }).then(value => {
-      if (controller.signal.aborted) return;
-      if (page > 0 && page * 24 >= value.total) { setPage(0); return; }
-      setItems(value.images); setTotal(value.total); setError("");
-    }).catch(failure => { if (!controller.signal.aborted) setError(failure.message); }).finally(() => { if (!controller.signal.aborted) setBusy(false); }), 200);
-    return () => { clearTimeout(timer); controller.abort(); };
-  }, [page, search, sort, source, session_id, days, online, refreshKey, reload]);
+  function turnPage(value) { setView(null); setPage(value); heading.current?.scrollIntoView({ block: "start" }); }
+  useEffect(() => { if (result.value && page > 0 && page * 24 >= total) setPage(0); }, [result.value, page, total]);
+  useEffect(() => { setView(current => current ? items.find(item => item.id === current.id && item.url === current.url) || null : null); }, [result.value, online]);
   useEffect(() => { if (!view) return; const close = event => { if (event.key === "Escape") setView(null); }; window.addEventListener("keydown", close); return () => window.removeEventListener("keydown", close); }, [view]);
   return <section className="gallery-section" aria-busy={busy}>
     <div className="section-heading" ref={heading}><div><span className="eyebrow">ON YOUR DESKTOP</span><h2>Gallery</h2></div><button disabled={busy || !online} onClick={refresh}>Refresh images</button></div>
@@ -69,72 +70,71 @@ export function Gallery({ online, refreshKey, sessions = [], filters, onFiltersC
   </section>;
 }
 
-export default function Companion() {
-  const [tab, setTab] = useState("chat"); const [state, setState] = useState(null);
-  const [auth, setAuth] = useState(false); const [online, setOnline] = useState(false);
-  const [status, setStatus] = useState("Connecting to desktop…"); const [error, setError] = useState("");
-  const [session, setSession] = useState(null); const selected = useRef(null);
+export default function Companion({ pairingCode = "" }) {
+  const [tab, setTab] = useState("chat"), [auth, setAuth] = useState(false), [error, setError] = useState("");
+  const [pairCode, setPairCode] = useState(pairingCode);
+  const [selectedId, setSelectedId] = useState(null); const selected = useRef(null);
   const [view, setView] = useState(null);
-  const [models, setModels] = useState({}); const [chatModel, setChatModel] = useState("");
+  const [chatModel, setChatModel] = useState("");
   const [prompt, setPrompt] = useState(""); const [imageSettings, setImageSettings] = useState(() => ({ ...defaultImageSettings }));
   const [galleryFilters, setGalleryFilters] = useState(() => ({ ...defaultGalleryFilters }));
-  const imageCatalog = { models: models.image_models || [], loras: models.image_loras || [], runtime: models.image_runtime, loraError: models.lora_error };
   const changeImageSettings = values => setImageSettings(current => ({ ...current, ...values }));
   const [pending, setPending] = useState(null); const pendingRef = useRef(null); const [busy, setBusy] = useState(false);
   const [live, setLive] = useState(null); const [epoch, setEpoch] = useState(0); const [connection, setConnection] = useState(false);
-  const sequence = useRef(0);
+  const lifetime = useRef(0);
+  const stateResult = useFreshResource('/api/state', { refreshKey: epoch });
+  const state = stateResult.value, online = !!state;
+  const sessionResult = useFreshResource(`/api/sessions/${encodeURIComponent(selectedId || '')}`, { enabled: auth && online && !!selectedId, refreshKey: epoch });
+  const session = sessionResult.value;
+  const modelResult = useFreshResource('/api/models', { enabled: auth && online, interval: 30000, timeout: 25000 });
+  const models = modelResult.value || {};
+  const imageCatalog = { models: models.image_models || [], loras: models.image_loras || [], runtime: models.image_runtime, loraError: models.lora_error };
+  const status = online ? 'Connected to desktop' : stateResult.error?.status === 401 ? 'Pair this device' : 'Desktop unavailable · reconnecting…';
   const messagesElement = useRef(null), followLatest = useRef(true);
   useEffect(() => { followLatest.current = true; const element = messagesElement.current; if (element) element.scrollTop = element.scrollHeight; }, [session?.id, tab]);
   useEffect(() => { const element = messagesElement.current; if (element && followLatest.current) element.scrollTop = element.scrollHeight; }, [session?.messages?.length, live?.text]);
-
-  async function loadSession(id) {
-    const generation = ++sequence.current; selected.current = id;
-    if (!id) { setSession(null); return; }
-    const value = await request(`/api/sessions/${encodeURIComponent(id)}`);
-    if (generation === sequence.current) setSession(value);
+  async function loadSession(id) { selected.current = id || null; setSelectedId(id || null); setView(null); }
+  function forgetAccess() {
+    lifetime.current++; setBusy(false); setAuth(false); selected.current = null; setSelectedId(null); setLive(null); setView(null);
+    pendingRef.current = null; setPending(null); setPrompt(''); setImageSettings({ ...defaultImageSettings }); setChatModel('');
   }
   useEffect(() => {
-    let alive = true, timer, failures = 0, syncing = false; const controller = new AbortController();
-    async function sync() {
-      if (syncing) return;
-      syncing = true; clearTimeout(timer);
-      try {
-        const value = await request("/api/state", { signal: controller.signal });
-        if (!alive) return;
-        setState(value); setAuth(true); setOnline(true); setStatus("Connected to desktop"); failures = 0;
-        if (selected.current && value.sessions.some(item => item.id === selected.current)) await loadSession(selected.current);
-        else if (selected.current) { selected.current = null; setSession(null); }
-      } catch (failure) {
-        if (!alive) return;
-        setOnline(false); failures++;
-        if (failure.status === 401) { setAuth(false); setState(null); setSession(null); selected.current = null; setLive(null); setStatus("Pair this device"); }
-        else setStatus("Desktop unavailable · reconnecting…");
-      } finally { syncing = false; if (alive) timer = setTimeout(sync, Math.min(30000, 2000 * 2 ** Math.min(failures, 4))); }
-    }
-    const resume = () => { if (document.visibilityState !== "hidden") sync(); };
-    sync(); window.addEventListener("online", resume); document.addEventListener("visibilitychange", resume);
-    return () => { alive = false; controller.abort(); clearTimeout(timer); window.removeEventListener("online", resume); document.removeEventListener("visibilitychange", resume); };
-  }, [epoch]);
+    const lost = () => forgetAccess();
+    const link = () => { const code = consumePairingLink(); if (code) setPairCode(code); };
+    window.addEventListener('law-auth-lost', lost); window.addEventListener('hashchange', link);
+    return () => { lifetime.current++; window.removeEventListener('law-auth-lost', lost); window.removeEventListener('hashchange', link); };
+  }, []);
   useEffect(() => {
-    if (!auth || !online) return;
-    const controller = new AbortController();
-    request("/api/models", { signal: controller.signal }).then(value => { setModels(value); setChatModel(current => current || value.chat_models?.[0]?.id || ""); setImageSettings(current => ({ ...current, modelId: current.modelId || value.image_models?.[0]?.id || "" })); }).catch(failure => { if (failure.name !== "AbortError") setError(failure.message); });
-    return () => controller.abort();
-  }, [auth, online]);
+    if (state) {
+      setAuth(true);
+      if (selected.current && !state.sessions.some(item => item.id === selected.current)) loadSession(null);
+    } else { setView(null); setLive(null); }
+  }, [state]);
+  useEffect(() => {
+    if (sessionResult.error?.status === 404) loadSession(null);
+    setView(current => current ? (session?.messages || []).flatMap(message => message.images || []).find(item => item.id === current.id && item.url === current.url) || null : null);
+  }, [sessionResult.value, sessionResult.error]);
+  useEffect(() => {
+    if (!modelResult.value) return;
+    setChatModel(current => models.chat_models?.some(item => item.id === current) ? current : models.chat_models?.[0]?.id || '');
+    setImageSettings(current => ({ ...current, modelId: models.image_models?.some(item => item.id === current.modelId) ? current.modelId : models.image_models?.[0]?.id || '' }));
+  }, [modelResult.value]);
   const sessionJobs = (state?.jobs || []).filter(job => job.session_id === session?.id && !finished(job.status));
   const active = sessionJobs.find(job => job.status === "running") || sessionJobs.at(-1);
   const activeChat = sessionJobs.some(job => job.kind === "chat");
   const pendingImages = sessionJobs.filter(job => job.kind === "image").length;
   useEffect(() => {
-    setLive(null); if (!active?.id || !auth) return;
-    return observeJob(active.id, job => { setLive(job); if (finished(job.status)) { setEpoch(value => value + 1); if (selected.current === job.session_id) loadSession(job.session_id).catch(failure => setError(failure.message)); } }, failure => setStatus(failure.message));
-  }, [active?.id, auth]);
+    setLive(null); if (!active?.id || !auth || !online) return;
+    return observeJob(active.id, job => { setLive(job); if (finished(job.status)) setEpoch(value => value + 1); }, () => setLive(null));
+  }, [active?.id, auth, online]);
 
   async function createChat() {
+    const generation = lifetime.current;
     setBusy(true); setError("");
-    try { const value = await request("/api/sessions", { method: "POST", body: { title: "Mobile chat" } }); sequence.current++; selected.current = value.id; setSession(value); setEpoch(value => value + 1); }
-    catch (failure) { setError(failure.message); } finally { setBusy(false); }
+    try { const value = await request("/api/sessions", { method: "POST", body: { title: "Mobile chat" } }); if (generation !== lifetime.current) return; await loadSession(value.id); setEpoch(value => value + 1); }
+    catch (failure) { if (generation === lifetime.current) setError(failure.message); } finally { if (generation === lifetime.current) setBusy(false); }
   }
+
   async function send(event, kind) {
     event.preventDefault(); if (pendingRef.current || busy || !session) return;
     let values;
@@ -144,30 +144,32 @@ export default function Companion() {
     pendingRef.current = receipt; setPending(receipt); await deliver(receipt);
   }
   async function deliver(receipt) {
+    const generation = lifetime.current;
     setBusy(true); setError("");
     try {
-      const job = await receipt.send();
-      setState(current => current ? { ...current, jobs: [job, ...(current.jobs || []).filter(item => item.id !== job.id)] } : current);
+      await receipt.send();
+      if (generation !== lifetime.current) return;
       pendingRef.current = null; setPending(null);
       if (receipt.body.kind === "chat") setPrompt("");
       setEpoch(value => value + 1);
     }
     catch (failure) {
+      if (generation !== lifetime.current) return;
       if (failure.status && failure.status < 500) { pendingRef.current = null; setPending(null); }
       setError(failure.message);
-      if (failure.status === 409 && selected.current === receipt.body.session_id) loadSession(receipt.body.session_id).catch(() => {});
-    } finally { setBusy(false); }
+      if (failure.status === 409 && selected.current === receipt.body.session_id) setEpoch(value => value + 1);
+    } finally { if (generation === lifetime.current) setBusy(false); }
   }
   async function cancel(job) { try { await request(`/api/jobs/${job.id}/cancel`, { method: "POST" }); setEpoch(value => value + 1); } catch (failure) { setError(failure.message); } }
-  const submitting = !online || busy || !!pending;
+  const submitting = !online || !modelResult.value || busy || !!pending;
   const disabled = submitting || !!active;
 
-  return <div className="companion"><header><div className="brand"><img src="/icon.svg" alt="" /><div><h1>Workstation<span>COMPANION</span></h1></div></div><button className="connection" onClick={() => setConnection(value => !value)} aria-label="Connection details"><span className={online ? "dot online" : "dot"} />{online ? "Desktop" : "Offline"}</button></header><div className="connection-status" role="status">{status}</div><main>{connection && <section className="panel"><h2>Connection</h2><p>{state?.device?.name || "Unpaired device"}</p><p>Desktop jobs continue when this page closes. The desktop must stay awake. On reconnect, the same jobs and conversation history are loaded.</p><p>Install from your browser's menu or Add to Home Screen. Only the app shell is cached for offline use.</p><button onClick={() => setEpoch(value => value + 1)}>Reconnect now</button>{auth && <button onClick={async () => { try { await request("/api/logout", { method: "POST" }); setAuth(false); setState(null); setSession(null); setLive(null); setPrompt(""); setImageSettings({ ...defaultImageSettings }); setEpoch(value => value + 1); } catch (failure) { setError(failure.message); } }}>Disconnect this phone</button>}</section>}{error && <p role="alert" className="error banner">{error}</p>}{pending && <div className="panel"><p>Delivery is unconfirmed. Retry uses the same job ID and cannot generate a second result.</p><button disabled={busy || !online} onClick={() => deliver(pending)}>Retry same submission</button></div>}{!auth ? <Pair onPaired={() => setEpoch(value => value + 1)} /> : <>
+  return <div className="companion"><header><div className="brand"><img src="/icon.svg" alt="" /><div><h1>Workstation<span>COMPANION</span></h1></div></div><button className="connection" onClick={() => setConnection(value => !value)} aria-label="Connection details"><span className={online ? "dot online" : "dot"} />{online ? "Desktop" : "Offline"}</button></header><div className="connection-status" role="status">{status}</div><main>{connection && <section className="panel"><h2>Connection</h2><p>{state?.device?.name || "Unpaired device"}</p><p>Desktop jobs continue when this page closes. The desktop must stay awake. On reconnect, the same jobs and conversation history are loaded.</p><p>Install from your browser's menu or Add to Home Screen. Only the app shell is cached. Private content is cleared while disconnected or in the background, then fetched again when you return. Chats and jobs refresh every two seconds, gallery images every five seconds, and available models every 30 seconds.</p><button onClick={() => setEpoch(value => value + 1)}>Reconnect now</button>{auth && <button onClick={async () => { try { await request("/api/logout", { method: "POST" }); forgetAccess(); window.dispatchEvent(new window.Event("law-auth-lost")); setEpoch(value => value + 1); } catch (failure) { setError(failure.message); } }}>Disconnect this phone</button>}</section>}{(error || sessionResult.error || modelResult.error) && <p role="alert" className="error banner">{error || sessionResult.error?.message || modelResult.error?.message}</p>}{pending && <div className="panel"><p>Delivery is unconfirmed. Retry uses the same job ID and cannot generate a second result.</p><button disabled={busy || !online} onClick={() => deliver(pending)}>Retry same submission</button></div>}{!auth ? <Pair initialCode={pairCode} onPaired={() => { setPairCode(""); setEpoch(value => value + 1); }} /> : <>
       <ClientUpdate version={state?.client_update?.version} blocked={busy || !!pending || !online} hasDraft={!!(prompt.trim() || imageSettings.prompt?.trim() || imageSettings.negativePrompt?.trim())} />
-      {(tab === "chat" || tab === "generate") && <div className="session-picker"><label>Conversation<select value={session?.id || ""} onChange={event => { setSession(null); loadSession(event.target.value).catch(failure => setError(failure.message)); }}><option value="">Choose a conversation</option>{(state?.sessions || []).map(item => <option key={item.id} value={item.id}>{item.title || "Untitled chat"}</option>)}</select></label><button disabled={!online || busy} onClick={createChat} aria-label="New conversation">＋ New</button></div>}
+      {(tab === "chat" || tab === "generate") && <div className="session-picker"><label>Conversation<select disabled={!online} value={selectedId || ""} onChange={event => { loadSession(event.target.value).catch(failure => setError(failure.message)); }}><option value="">Choose a conversation</option>{(state?.sessions || []).map(item => <option key={item.id} value={item.id}>{item.title || "Untitled chat"}</option>)}</select></label><button disabled={!online || busy} onClick={createChat} aria-label="New conversation">＋ New</button></div>}
       {tab === "chat" && <section><div className="section-heading"><div><span className="eyebrow">THINK TOGETHER</span><h2>{session?.title || "A new perspective"}</h2></div></div><ModelSelect models={models.chat_models} value={chatModel} onChange={setChatModel} />{models.chat_error && <p className="error">{models.chat_error}</p>}<div className="messages" ref={messagesElement} onScroll={event => { const element = event.currentTarget; followLatest.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80; }}>{!session?.messages?.length && <p className="empty">Choose or create a conversation.<br />Your desktop history stays in sync.</p>}{(session?.messages || []).map(message => <article key={message.id} className={`message ${message.role}`}><span className="eyebrow">{message.role === "user" ? "YOU" : "WORKSTATION"}</span><div>{message.content}</div>{(message.images || []).map(item => <button className="image-preview" key={item.id} onClick={() => setView(item)} aria-label={`View ${item.name}`}><img src={mediaUrl(item.url) + "?thumbnail=true"} alt={item.name} /></button>)}</article>)}{live?.text && <article className="message assistant"><span className="eyebrow">WORKSTATION · {live.status}</span><div>{live.text}</div></article>}{active && !live?.text && <p role="status" className="muted">{live?.progress?.detail || "Your desktop is working…"}</p>}</div><form className="composer panel" onSubmit={event => send(event, "chat")}><label className="sr-only" htmlFor="chat-prompt">Message</label><textarea id="chat-prompt" value={prompt} maxLength={12000} onChange={event => setPrompt(event.target.value)} rows={3} placeholder="Ask your workstation…" /><div className="row"><span className="muted">Runs on your desktop</span><button className="primary" disabled={disabled || !session || !chatModel || !prompt.trim()}>Send ↗</button></div></form>{view && <FullImage item={view} onClose={() => setView(null)} />}</section>}
       {tab === "generate" && <ImageGenerationForm settings={imageSettings} onChange={changeImageSettings} catalog={imageCatalog} error={models.image_error} disabled={submitting || activeChat || !session} pendingImages={pendingImages} activeChat={activeChat} onOpenJobs={() => setTab("jobs")} onSubmit={event => send(event, "image")} />}
       {tab === "gallery" && <Gallery online={online} refreshKey={epoch} sessions={state?.sessions || []} filters={galleryFilters} onFiltersChange={setGalleryFilters} />}
-      {tab === "jobs" && <section><div className="section-heading"><div><span className="eyebrow">WORK CONTINUES HERE</span><h2>Desktop jobs</h2></div><button onClick={() => setEpoch(value => value + 1)}>Refresh</button></div>{!(state?.jobs || []).length && <p className="empty">Your chat and image jobs will appear here.</p>}{(state?.jobs || []).map(job => <JobCard key={job.id} job={job} onCancel={cancel} onDismiss={async job => { try { await request(`/api/jobs/${job.id}`, { method: "DELETE" }); setEpoch(value => value + 1); } catch (failure) { setError(failure.message); } }} onOpen={job => { setTab("chat"); loadSession(job.session_id).catch(failure => setError(failure.message)); }} />)}</section>}
+      {tab === "jobs" && <section><div className="section-heading"><div><span className="eyebrow">WORK CONTINUES HERE</span><h2>Desktop jobs</h2></div><button onClick={() => setEpoch(value => value + 1)}>Refresh</button></div>{!(state?.jobs || []).length && <p className="empty">Your chat and image jobs will appear here.</p>}{(state?.jobs || []).map(job => <JobCard online={online} key={job.id} job={job} onCancel={cancel} onDismiss={async job => { try { await request(`/api/jobs/${job.id}`, { method: "DELETE" }); setEpoch(value => value + 1); } catch (failure) { setError(failure.message); } }} onOpen={job => { setTab("chat"); loadSession(job.session_id).catch(failure => setError(failure.message)); }} />)}</section>}
     </>}</main>{auth && <nav aria-label="Companion navigation">{tabs.map(([id, label, icon]) => <button key={id} aria-current={tab === id ? "page" : undefined} onClick={() => setTab(id)}><span aria-hidden="true">{icon}</span>{label}{id === "jobs" && (state?.jobs || []).some(job => !finished(job.status)) && <i />}</button>)}</nav>}</div>;
 }

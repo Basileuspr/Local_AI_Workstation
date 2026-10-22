@@ -69,3 +69,12 @@ it("ignores late results from a superseded filter request", async () => {
   await act(async () => finishOld(response("Stale.png")));
   expect(document.querySelector(".image-tile").textContent).toBe("Filtered.png");
 });
+
+it('refreshes desktop changes automatically and removes a deleted thumbnail', async () => {
+  const fetch = vi.fn().mockResolvedValueOnce(response('Visible.png', 1)).mockImplementation(async () => new Response(JSON.stringify({ images: [], total: 0 })));
+  await mount(fetch);
+  expect(document.querySelector('.image-tile').textContent).toBe('Visible.png');
+  await act(async () => vi.advanceTimersByTimeAsync(5001));
+  expect(document.querySelector('.image-tile')).toBeNull();
+  expect(document.body.textContent).toContain('0 images');
+});

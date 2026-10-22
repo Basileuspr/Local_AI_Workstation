@@ -53,6 +53,32 @@ def spec(session, **extra):
         session_id=session["id"], expected_revision=session["revision"], **extra)
 
 
+def test_invitation_status_never_returns_secret_and_tracks_replace_use_expiry(service, monkeypatch):
+    service, client = service
+    first = service.access.invitation()
+    status = service.access.invitation_status()
+    assert set(status) == {"id", "expires_at"}
+    assert first["code"] not in json.dumps(status)
+    second = service.access.invitation()
+    assert second["id"] != first["id"]
+    assert client.post('/api/pair', json={'code': first['code'], 'name': 'Old'}, headers=HEADERS).status_code == 400
+    assert client.post('/api/pair', json={'code': second['code'], 'name': 'New'}, headers=HEADERS).status_code == 200
+    assert service.access.invitation_status() is None
+    third = service.access.invitation()
+    monkeypatch.setattr('services.mobile_access.time.time', lambda: third['expires_at'] + 1)
+    assert service.access.invitation_status() is None
+    assert client.post('/api/pair', json={'code': third['code'], 'name': 'Expired'}, headers=HEADERS).status_code == 400
+
+
+def test_expired_devices_are_labelled_and_do_not_exhaust_pairing_limit(service):
+    service, client = service
+    for index in range(20):
+        service.jobs.store.save_peer({'id': str(index), 'name': 'Expired phone', 'enabled': True, 'expires': time.time() - 1, 'digest': 'expired'})
+    assert all(device['expired'] for device in service.access.devices())
+    pair(service, client)
+    assert len(service.access.devices()) == 21
+
+
 def test_gallery_orders_images_by_chat_position_instead_of_random_ids(service):
     service, client = service
     pair(service, client)

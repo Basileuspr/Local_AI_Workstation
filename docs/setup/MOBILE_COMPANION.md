@@ -88,14 +88,42 @@ reverse-proxy hostnames are not supported by this first gateway.
 
 ## Pair, install and disconnect
 
-Create a phone invitation in the desktop panel. On the phone, enter a device name
-and paste the invitation into the HTTPS page. The invitation is single-use and
-expires after five minutes. A new invitation invalidates the previous one.
+Create a phone invitation in the desktop panel and scan its QR with the phone's
+camera. The HTTPS page fills the invitation in; choose **Connect to desktop**
+for browser use, or **Open Android app to pair** for Companion 0.2.0 and newer.
+The Android handoff names the app's exact package and asks before opening the
+specified desktop. Browser and Android cookies remain separate. Older APKs can
+still use the displayed invitation code manually. Enter a device name and tap
+Connect inside the chosen client; scanning alone does not grant access.
+
+QR generation uses the installed local `qrcode` dependency, with no external QR
+service. The secret travels in the HTTPS fragment, which is removed from the
+current history entry before rendering. It is never sent in an HTTP URL or saved
+in local storage. The invitation is single-use and expires after five minutes.
+A new invitation invalidates the previous one. The desktop clears used/replaced
+invitations on its next four-second status poll and uses the server expiry for
+its countdown. Restarting the listener invalidates outstanding invitations.
+
+Connection settings are saved locally after Start and restored after a restart;
+phone access still requires explicitly choosing **Start mobile connection**.
+The Android app also retains its chosen desktop address across launches.
 
 Phone access uses a secure HttpOnly same-site cookie and lasts up to 30 days.
 The desktop retains only a hash of that credential. The PWA does not place
 credentials, chats or images in local/session storage or service-worker caches.
-Only its application shell is available offline.
+Only its application shell is available offline. When disconnected, backgrounded
+or revoked, rendered private results and image viewers are cleared. Reconnection
+and returning to the foreground trigger fresh requests; cancelled or superseded
+responses cannot restore older conversations. Unsent prompts remain in memory
+across temporary outages; explicit disconnect/revocation clears them.
+
+While visible, chats/jobs refresh every two seconds, gallery results every five
+seconds, and model availability every 30 seconds. Failed reads clear their old
+results and retry with bounded backoff (up to 30 seconds); network/foreground
+signals retry immediately. Metadata and image APIs use `no-store`, and the worker
+caches only the shell. These bounded refresh intervals are not instantaneous
+cross-device synchronization. Accepted work stays on the desktop, and an
+unconfirmed submission retries with its original ID to prevent duplicate jobs.
 
 Use your browser's **Install app** / **Add to Home screen** on Android. On iPhone,
 open the address in Safari and choose **Share → Add to Home Screen**. Install

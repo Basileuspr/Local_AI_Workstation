@@ -5,7 +5,8 @@ import { afterEach, expect, it, vi } from "vitest";
 import MobileCompanion from "../../src/components/MobileCompanion";
 
 let root;
-afterEach(async () => { if (root) await act(async () => root.unmount()); root = null; vi.unstubAllGlobals(); });
+vi.mock('qrcode', () => ({ toDataURL: vi.fn(async () => 'data:image/png;base64,fixture') }));
+afterEach(async () => { if (root) await act(async () => root.unmount()); root = null; vi.useRealTimers(); vi.unstubAllGlobals(); });
 it("restores private setup without starting a listener until explicitly clicked", async () => {
   const dom = parseHTML('<html><body><main id="root"></main></body></html>');
   vi.stubGlobal("window", dom.window); vi.stubGlobal("document", dom.document); vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
@@ -45,4 +46,30 @@ it('builds a phone update only on click and displays device version feedback', a
   await act(async () => button('Update phone app').click());
   expect(fetch.mock.calls.find(([,options]) => options.method === 'POST')[0]).toContain('/mobile/client-update');
   expect(button('Building phone update…').disabled).toBe(true);
+});
+
+it('keeps a new QR invitation when an older poll arrives, then clears it when consumed', async () => {
+  vi.useFakeTimers();
+  const dom = parseHTML('<html><body><main id="root"></main></body></html>');
+  vi.stubGlobal('window', dom.window); vi.stubGlobal('document', dom.document); vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const snapshot = { running: true, build_ready: true, origin: 'https://desktop.example.ts.net', invitation: null };
+  const invitation = { code: 'a'.repeat(32), id: 'invitation', expires_at: Date.now() / 1000 + 300 };
+  let old;
+  const fetch = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify(snapshot)))
+    .mockImplementationOnce(() => new Promise(resolve => { old = resolve; }))
+    .mockResolvedValueOnce(new Response(JSON.stringify(invitation)))
+    .mockImplementation(async () => new Response(JSON.stringify(snapshot)));
+  vi.stubGlobal('fetch', fetch);
+  root = createRoot(document.getElementById('root'));
+  await act(async () => root.render(<MobileCompanion />));
+  const click = async text => act(async () => [...document.querySelectorAll('button')].find(button => button.textContent === text).click());
+  await click('Show mobile controls');
+  await act(async () => vi.advanceTimersByTimeAsync(4001));
+  await click('Create phone invitation');
+  expect(document.querySelector('[aria-label="Phone pairing link"]').value).toBe(snapshot.origin + '/#pair=' + invitation.code);
+  expect(document.querySelector('img[alt="Single-use phone pairing QR code"]')).not.toBeNull();
+  await act(async () => old(new Response(JSON.stringify(snapshot))));
+  expect(document.querySelector('[aria-label="Phone invitation"]')).not.toBeNull();
+  await act(async () => vi.advanceTimersByTimeAsync(4001));
+  expect(document.querySelector('[aria-label="Phone invitation"]')).toBeNull();
 });

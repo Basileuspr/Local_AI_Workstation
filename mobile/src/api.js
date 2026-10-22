@@ -5,13 +5,13 @@ export class ApiError extends Error {
   constructor(message, status) { super(message); this.status = status; }
 }
 
-export async function request(path, { method = "GET", body, signal } = {}) {
+export async function request(path, { method = "GET", body, signal, timeout = 25000 } = {}) {
   if (!path.startsWith("/api/") || path.includes("..")) throw new Error("Invalid companion API path");
   const controller = new AbortController(); let timedOut = false;
   const abort = () => controller.abort();
   if (signal?.aborted) abort();
   signal?.addEventListener("abort", abort, { once: true });
-  const timer = setTimeout(() => { timedOut = true; controller.abort(); }, 25000);
+  const timer = setTimeout(() => { timedOut = true; controller.abort(); }, timeout);
   try {
   const response = await fetch(path, {
     method, credentials: "same-origin", cache: "no-store", signal: controller.signal,
@@ -19,6 +19,7 @@ export async function request(path, { method = "GET", body, signal } = {}) {
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   if (!response.ok) {
+    if (response.status === 401 && typeof window !== 'undefined') window.dispatchEvent(new window.Event('law-auth-lost'));
     const value = await response.json().catch(() => ({}));
     const detail = value.detail;
     throw new ApiError(typeof detail === "string" ? detail : detail?.message || `Request failed (${response.status})`, response.status);
@@ -38,16 +39,18 @@ export function submission(payload, id = crypto.randomUUID()) {
 }
 
 export function observeJob(id, onJob, onError, EventSourceClass = globalThis.EventSource) {
+  let closed = false;
   const source = new EventSourceClass(`/api/jobs/${encodeURIComponent(id)}/events`);
   source.onmessage = event => {
+    if (closed) return;
     try {
       const job = JSON.parse(event.data);
       onJob(job);
-      if (finished(job.status)) source.close();
+      if (finished(job.status)) { closed = true; source.close(); }
     } catch (error) { onError(error); }
   };
-  source.onerror = () => onError(new Error("Connection lost. Reconnecting to the same desktop job…"));
-  return () => source.close();
+  source.onerror = () => { if (!closed) onError(new Error("Connection lost. Reconnecting to the same desktop job…")); };
+  return () => { closed = true; source.close(); };
 }
 
 export function mediaUrl(value, download = false) {

@@ -72,6 +72,7 @@ class MobileCompanion:
     def status(self):
         return {"running": self.running, "origin": self.config.origin if self.config else None,
                 "listen": self.jobs.store.setting("listen"),
+                "invitation": self.access.invitation_status() if self.running else None,
                 "build_ready": self.updates.resolve('index.html') is not None,
                 "devices": self.updates.devices(self.access.devices()), "client_update": self.updates.status(),
                 "active_jobs": sum(job["status"] not in TERMINAL for job in self.jobs.store.jobs("incoming")),
@@ -132,7 +133,7 @@ class MobileCompanion:
         with self.lock:
             if not force and self.status()["active_jobs"]:
                 raise ValueError("Finish or cancel active mobile jobs before stopping the listener.")
-            self.access.invite = None
+            self.access.clear_invitation()
             if self.server:
                 self.server.should_exit = True
             if self.thread:
