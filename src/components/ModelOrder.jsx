@@ -1,10 +1,11 @@
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { useStore, useDispatch } from "../useStore";
 import { moveModel } from "../modelOrder";
 import { formatModelLabel } from "../modelCatalog";
 import { useDismissiblePopup } from '../useDismissiblePopup';
 
 export default function ModelOrder() {
+  const choiceId = useId();
   const state = useStore(), dispatch = useDispatch();
   const [open, setOpen] = useState(false);
   const trigger = useRef(null), wrapper = useRef(null);
@@ -17,7 +18,7 @@ export default function ModelOrder() {
       {state.models.length === 0 && <p role="status">{state.modelsError || "No models available. Check the Ollama connection and installed models."}</p>}
       {state.models.map((model, index) => <div className={`model-choice-row${state.selectedModel === model.name ? " selected" : ""}`} key={model.name}>
         <label className="model-choice">
-          <input type="radio" name="chat-model-choice" aria-label={`Select ${model.name}`} value={model.name} checked={state.selectedModel === model.name}
+          <input type="radio" name={`${choiceId}-chat-model-choice`} aria-label={`Select ${model.name}`} value={model.name} checked={state.selectedModel === model.name}
             onChange={() => dispatch({ type: "SET_SELECTED_MODEL", payload: model.name })} />
           <span><strong>{model.name}</strong>{formatModelLabel(model) !== model.name && <small>{formatModelLabel(model)}</small>}
             {state.selectedModel === model.name && <small className="model-choice-active">Selected for chat</small>}</span>

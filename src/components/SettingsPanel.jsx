@@ -14,6 +14,7 @@ import CustomProfileControls from "./CustomProfileControls";
 import ChatToolSettings from './ChatToolSettings';
 import VoiceOutputSettings from './VoiceOutputSettings';
 import SoundOutputSettings from './SoundOutputSettings';
+import ResponseLengthControl from './ResponseLengthControl';
 import AppearanceSettings from "./AppearanceSettings";
 
 export default function SettingsPanel() {
@@ -36,7 +37,7 @@ export default function SettingsPanel() {
     topP,
     topK,
     repeatPenalty,
-    numPredict,
+    responseLength,
     systemPrompt,
     responseStyle,
     models,
@@ -119,6 +120,7 @@ export default function SettingsPanel() {
             <div className="roleplay-toolbar">
               <button
                 className={`roleplay-toggle ${roleplay.enabled ? "active" : ""}`}
+                aria-pressed={roleplay.enabled}
                 type="button"
                 onClick={() => setRoleplayField("enabled", !roleplay.enabled)}
               >
@@ -304,6 +306,7 @@ export default function SettingsPanel() {
             <button
               key={key}
               className={`profile-btn ${activeProfile === key ? "active" : ""}`}
+              type="button" aria-pressed={activeProfile === key}
               onClick={() => handleApplyProfile(key)}
             >
               {profile.label}
@@ -314,14 +317,14 @@ export default function SettingsPanel() {
         <ChatToolSettings />
         <CustomProfileControls />
 
-        <div
+        <button type="button" aria-expanded={slidersOpen} aria-controls={pane.domId("advanced-parameters")}
           className="sliders-toggle"
           onClick={() => dispatch({ type: "TOGGLE_SLIDERS" })}
         >
           {slidersOpen ? "- Advanced parameters" : "+ Advanced parameters"}
-        </div>
+        </button>
 
-        <div className={`sliders-grid ${slidersOpen ? "visible" : ""}`}>
+        <div id={pane.domId("advanced-parameters")} className={`sliders-grid ${slidersOpen ? "visible" : ""}`}>
           {/* Temperature */}
           <div className="slider-group">
             <div className="slider-label">
@@ -333,7 +336,7 @@ export default function SettingsPanel() {
               min="0"
               max="2"
               step="0.05"
-              value={temperature}
+              aria-label="Temperature" value={temperature}
               onChange={(e) => setParam("temperature", parseFloat(e.target.value))}
             />
           </div>
@@ -349,7 +352,7 @@ export default function SettingsPanel() {
               min="0"
               max="1"
               step="0.05"
-              value={topP}
+              aria-label="Top P" value={topP}
               onChange={(e) => setParam("topP", parseFloat(e.target.value))}
             />
           </div>
@@ -365,7 +368,7 @@ export default function SettingsPanel() {
               min="1"
               max="100"
               step="1"
-              value={topK}
+              aria-label="Top K" value={topK}
               onChange={(e) => setParam("topK", parseInt(e.target.value))}
             />
           </div>
@@ -381,42 +384,21 @@ export default function SettingsPanel() {
               min="1"
               max="2"
               step="0.05"
-              value={repeatPenalty}
+              aria-label="Repeat Penalty" value={repeatPenalty}
               onChange={(e) => setParam("repeatPenalty", parseFloat(e.target.value))}
             />
           </div>
 
-          {/* Max Tokens */}
-          <div className="slider-group">
-            <div className="slider-label">
-              <span>Max Tokens</span>
-              <span className="slider-value">{numPredict}</span>
-            </div>
-            <input
-              type="range"
-              min="128"
-              max="8192"
-              step="128"
-              value={numPredict}
-              onChange={(e) => {
-                const val = parseInt(e.target.value);
-                setParam("numPredict", val);
-                // Sync response length to closest option
-                const options = [256, 512, 1024, 2048, 4096];
-                const closest = options.reduce((prev, curr) =>
-                  Math.abs(curr - val) < Math.abs(prev - val) ? curr : prev
-                );
-                dispatch({ type: "SET_RESPONSE_LENGTH", payload: closest });
-              }}
-            />
-          </div>
+          <ResponseLengthControl value={responseLength}
+            contextWindow={models.find(model => model.name === state.selectedModel)?.contextLength}
+            onChange={value => dispatch({ type: "SET_RESPONSE_LENGTH", payload: value })} />
 
           {/* System Prompt */}
           <div className="system-prompt-area">
             <div className="system-prompt-label">Response Style</div>
             <select
               className="response-style-select"
-              value={responseStyle}
+              aria-label="Response Style" value={responseStyle}
               onChange={(e) => setParam("responseStyle", e.target.value)}
             >
               {Object.entries(responseStyles).map(([key, style]) => (
@@ -428,7 +410,7 @@ export default function SettingsPanel() {
             <div className="system-prompt-label">System Prompt</div>
 
             <textarea
-              id={pane.domId("system-prompt")}
+              id={pane.domId("system-prompt")} aria-label="System Prompt"
               placeholder="Optional: instruct the model how to behave..."
               value={systemPrompt}
               onChange={(e) => setParam("systemPrompt", e.target.value)}
@@ -436,7 +418,7 @@ export default function SettingsPanel() {
             <div className="system-prompt-label">Memory Summary Model</div>
             <select
               className="response-style-select"
-              value={summaryModel}
+              aria-label="Memory Summary Model" value={summaryModel}
               onChange={(e) => setParam("summaryModel", e.target.value)}
             >
               <option value="">Use active model</option>
@@ -449,7 +431,7 @@ export default function SettingsPanel() {
           <div className="durable-memory-area">
             <div className="system-prompt-label">Durable Memory</div>
             <textarea
-              value={durableMemoryDraft}
+              aria-label="Durable Memory" value={durableMemoryDraft}
               onChange={(e) => setDurableMemoryDraft(e.target.value)}
               placeholder="A lasting preference, project fact, or constraint"
             />

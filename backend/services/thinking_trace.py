@@ -51,13 +51,10 @@ async def resolve_thinking(client, base_url: str, model: str) -> bool | str | No
 
 
 def reserve_thinking_budget(options: dict, think) -> dict:
-    options = dict(options)
-    limit = options.get("num_predict")
-    if (think is True or isinstance(think, str)) and isinstance(limit, int) and limit > 0:
-        # Ollama shares one budget between reasoning and the answer. Preserve
-        # unlimited requests and give finite replies room to reach the answer.
-        options["num_predict"] = limit + 8192
-    return options
+    # Ollama counts thinking and visible text against the same output cap.
+    # Increasing it silently makes the explicit UI limit inaccurate.
+    return dict(options)
+
 
 
 class TraceCapture:

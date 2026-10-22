@@ -685,3 +685,36 @@ def test_real_https_listener_conflict_restart_and_persistent_pairing(tmp_path, m
     finally:
         service.stop(force=True)
     assert access_output.getvalue() == ""  # Phone requests stay out of access logs.
+
+@pytest.mark.parametrize("value", [0, -2, 32769, 1.5, True, "1537"])
+def test_mobile_rejects_invalid_output_limits(value):
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError):
+        MobileSubmission(kind="chat", session_id="chat", expected_revision="revision", model="local", prompt="Hi", output_tokens=value)
+
+
+def test_mobile_custom_output_budget_reaches_provider_and_survives_retry_and_reload(tmp_path):
+    from services.mobile_api import mobile_session
+    captured = []
+    async def provider(request):
+        captured.append(json.loads(request.content))
+        event = {"token": "Partial answer", "done": True, "context_usage": {"output_reserve": 1024, "generated_tokens": 1024},
+                 "notice": {"kind": "output_limit", "message": "Output limit reached"}}
+        return httpx.Response(200, text="data: " + json.dumps(event) + "\n\n", headers={"content-type": "text/event-stream"})
+    jobs = MobileJobs(tmp_path / "mobile", "http://127.0.0.1:8000", "test-session-token", transport=httpx.MockTransport(provider))
+    async def scenario():
+        session = session_store.create_session()
+        payload = spec(session, output_tokens=1537)
+        job_id = str(uuid.uuid4())
+        await jobs.submit("phone", job_id, payload)
+        await asyncio.gather(*jobs.tasks.values())
+        assert captured[0]["options"]["num_predict"] == 1537
+        expected = {"requested_tokens": 1537, "effective_tokens": 1024, "generated_tokens": 1024, "limit_reached": True}
+        saved = mobile_session(session["id"])["messages"][-1]
+        assert saved["content"] == "Partial answer" and saved["response_usage"] == expected
+        assert (await jobs.submit("phone", job_id, payload))["response_usage"] == expected
+        assert len(captured) == 1
+        with pytest.raises(ValueError, match="another request"):
+            await jobs.submit("phone", job_id, spec(session, output_tokens=2048))
+        await jobs.close()
+    asyncio.run(scenario())

@@ -1,10 +1,12 @@
 import { useEffect, useRef } from "react";
+import { useChatPane } from '../ChatPane';
 import { useDispatch, useStore } from "../useStore";
 import { appearanceColors, appearanceThemes, codeFonts, defaultAppearance, interfaceFonts, uiContrastRange } from "../appearance";
 import "./AppearanceSettings.css";
 import WindowRenderingSettings from './WindowRenderingSettings';
 
 export default function AppearanceSettings() {
+  const contrastId = useChatPane().domId("ui-contrast");
   const { appearance = defaultAppearance } = useStore();
   const dispatch = useDispatch();
   const update = payload => dispatch({ type: "SET_APPEARANCE", payload });
@@ -24,10 +26,10 @@ export default function AppearanceSettings() {
       </select></label>
     </div>
     <div className="appearance-contrast">
-      <div className="appearance-contrast-heading"><label htmlFor="ui-contrast">UI contrast</label>
-        <output htmlFor="ui-contrast">{contrast}%{contrast === uiContrastRange.default ? " · Default" : ""}</output>
+      <div className="appearance-contrast-heading"><label htmlFor={contrastId}>UI contrast</label>
+        <output htmlFor={contrastId}>{contrast}%{contrast === uiContrastRange.default ? " · Default" : ""}</output>
         <button type="button" disabled={contrast === uiContrastRange.default} onClick={() => update({ contrast: uiContrastRange.default })}>Reset contrast</button></div>
-      <input id="ui-contrast" type="range" min={uiContrastRange.min} max={uiContrastRange.max} step={uiContrastRange.step} value={contrast}
+      <input id={contrastId} type="range" min={uiContrastRange.min} max={uiContrastRange.max} step={uiContrastRange.step} value={contrast}
         aria-valuetext={`${contrast}% UI contrast${contrast === uiContrastRange.default ? ", default" : ""}`}
         onChange={event => update({ contrast: Number(event.target.value) })} />
       <div className="appearance-contrast-scale" aria-hidden="true"><span>Softer</span><span>Stronger</span></div>

@@ -272,3 +272,17 @@ The inference script uses temporary app data and installed model weights, opens
 no listener, and reports the directory containing results. Chromium QA uses a
 temporary HTTPS fixture and synthetic inference. Neither substitutes for actual
 phone installation, VPN/LAN connectivity, mobile sleep/reconnect and native sharing.
+
+### Chat copying and response size
+
+Open **Response size** below the chat model to choose a preset or an exact token
+limit. This phone remembers only the numeric size preference; prompts, responses
+and pairing credentials are not put in browser storage. The next job captures the
+selected limit, and retrying that job preserves it. **Stop reply** is available in
+the chat composer as well as cancellation in Jobs.
+
+Thinking and answer text share the token cap. A model can stop early, and its
+context window can reduce the cap. Saved replies display the applied limit and
+provider token counts when available, including an output-limit warning. Code
+blocks have a sticky **Copy code** button and preserve their original spacing.
+See [chat clipboard and response size](../chat/CHAT_CLIPBOARD.md) for details.

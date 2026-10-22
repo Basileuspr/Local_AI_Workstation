@@ -8,6 +8,7 @@ import { describeStatus, statusIndicator } from "../serviceStatus";
 import { useChatPane } from "../ChatPane";
 import { useChatActivities } from "./ChatActivityNotice";
 import { saveChatModelChoice } from "../chatModelChoices";
+import ResponseLengthControl from './ResponseLengthControl';
 import ModelOrder from "./ModelOrder";
 import KnowledgeContext from "./KnowledgeContext";
 import ThinkingTrace from "./ThinkingTrace";
@@ -151,13 +152,9 @@ export default function Header({ onSessionRenamed, onCompactMemory }) {
           <div className="chat-options-grid">
             <section className="chat-option-group" aria-label="Response options">
               <h3>Response</h3>
-              <label>Response length
-                <select id={pane.domId("response-length")} aria-label="Response length" value={responseLength}
-                  onChange={event => dispatch({ type: "SET_RESPONSE_LENGTH", payload: parseInt(event.target.value) })}>
-                  <option value={256}>Short</option><option value={512}>Brief</option><option value={1024}>Medium</option>
-                  <option value={2048}>Long</option><option value={4096}>Very Long</option><option value={-1}>Unlimited</option>
-                </select>
-              </label>
+              <ResponseLengthControl id={pane.domId("response-length")} value={responseLength}
+                contextWindow={selectedModelInfo?.contextLength}
+                onChange={value => dispatch({ type: "SET_RESPONSE_LENGTH", payload: value })} />
               <KnowledgeContext />
               <ModelOrder />
               <button id={pane.domId("settings-toggle")} type="button" className={settingsOpen ? "active" : ""}

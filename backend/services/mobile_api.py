@@ -75,7 +75,7 @@ def mobile_session(session_id):
             images[item["message_id"]].append(item)
     return {**{key: value.get(key) for key in ("id", "title", "revision", "model", "updated_at")},
             "messages": [{"id": item["id"], "role": item.get("role"), "content": item.get("content", ""),
-                          "images": images[item["id"]]} for item in value["messages"]]}
+                          "images": images[item["id"]], "response_usage": item.get("response_usage")} for item in value["messages"]]}
 
 
 class PairRequest(BaseModel):
@@ -198,7 +198,7 @@ def create_mobile_api(jobs, access, origin, assets, *, updates=None):
             except (httpx.HTTPError, asyncio.TimeoutError):
                 return {"error": "Desktop model service unavailable. Check it on your desktop, then reconnect."}
         chat, images = await asyncio.gather(probe("/models"), probe("/image-generation/models"))
-        return {"chat_models": [{"id": item["name"]} for item in chat.get("models", [])],
+        return {"chat_models": [{"id": item["name"], "context_length": item.get("context_length")} for item in chat.get("models", [])],
                 "image_models": [{**{key: item[key] for key in ("id", "name", "dimension_multiple", "supports_lora_training", "supports_long_prompt") if key in item},
                     **({"recommended_settings": {key: value for key, value in item["recommended_settings"].items()
                         if key in {"width", "height", "steps", "guidanceScale", "seed", "longPrompt", "allowLongWait"}

@@ -59,6 +59,7 @@ def test_reply_and_thinking_reserve_cannot_fill_window():
     fitted = fit_payload(payload([{'role': 'user', 'content': 'hello'}], num_predict=16384))
     assert fitted['options']['num_predict'] == 4096
     assert not payload_usage(fitted)['over_budget_estimate']
+    assert any('16384' in notice and '4096' in notice for notice in fitted['_context_notices'])
 
 
 def test_old_image_pixels_replaced_without_mutation_latest_group_preserved():

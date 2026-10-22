@@ -25,3 +25,31 @@ The input shows progress while an attachment is being saved. Sending waits until
 Images use the existing chat image storage and privacy controls. Uploads append on the server instead of replacing conversation history, preserving concurrent replies and other attachments. Navigating to another chat during a save keeps the attachment in its original chat.
 
 Validation covers native Windows tab capture → Ctrl+V → persisted image preview → reload, plus clipboard file/item representations, duplicate avoidance, ordinary text, batches, busy states, size/type failures, and server save failures in `tests/frontend/chatClipboard.test.jsx`.
+
+## Code blackboard
+
+Desktop and phone chat show fenced code on a dark board. **Copy code** copies
+only the code, preserving indentation and blank lines. The button stays visible
+while scrolling a long block; long lines scroll horizontally. It is always
+available to touch and keyboard users. Tab focuses the board for scrolling or its
+copy button. A status announces success or explains how to copy manually if the
+clipboard is unavailable. Code and HTML in messages are displayed, never executed.
+Desktop streaming updates render the same boards while retaining the saved-chat
+and cancellation paths.
+
+## Response size
+
+**Chat options → Response length** offers token presets, an exact **Maximum output
+tokens** field (1–32,768), and **Automatic** (up to 2,048). Advanced parameters uses
+the same value without rounding. Profiles set this value too; changing a profile
+parameter clears the profile's selected indicator. Desktop choices persist in
+startup preferences. The phone has its own remembered **Response size** setting;
+existing jobs keep the value captured when submitted, including retries.
+
+Tokens are pieces of text, not words. The cap includes thinking and visible text
+for each model call; models can finish early. The backend limits it to half the
+effective context window and can reduce it further to fit the prompt. The control
+shows the initial context cap; desktop context details and saved phone replies
+show the applied budget and provider counts when supplied. Output-limit notices
+identify potentially incomplete answers. Tool rounds each use a separate cap;
+document creation, Canvas and OCR tasks use their own budgets.

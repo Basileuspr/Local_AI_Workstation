@@ -79,6 +79,8 @@ def fit_payload(payload, *, ratio=.72):
     messages, omitted_images = recent_image_messages(current.get('messages') or [])
     current['messages'] = messages
     changes = list(current.get('_context_notices', []))
+    if isinstance(requested, int) and requested > reserve:
+        changes.append(f'Requested maximum of {requested} output tokens was reduced to {reserve} for this model context window.')
     if omitted_images: changes.append(f'{omitted_images} earlier image(s) use saved conversation text instead of resending pixels.')
     for message in messages:
         if message.get('role') == 'system' and str(message.get('content', '')).startswith(OPTIONAL_CONTEXT):

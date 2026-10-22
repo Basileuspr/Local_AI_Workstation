@@ -1227,7 +1227,7 @@ async def _chat(request: ChatRequest, client_request: Request):
                             if done and chunk.get("done_reason") == "length":
                                 trace_status = "Output limit reached; trace may be incomplete"
                                 if not "".join(full_response_parts).strip():
-                                    event["token"] = "[The model reached its output limit while thinking. Open Thinking to view the captured trace; use a longer response length or Unlimited to allow an answer.]"
+                                    event["token"] = "[The model reached its output limit while thinking. Open Thinking to view the captured trace; increase Maximum output tokens, within the model context limit, to allow an answer.]"
                                 event["notice"] = {"kind": "output_limit", "message": "The model reached its output limit. The answer and thinking trace may be incomplete."}
                             elif done:
                                 trace_status = "Response complete"

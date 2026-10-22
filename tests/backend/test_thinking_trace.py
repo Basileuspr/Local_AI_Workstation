@@ -81,8 +81,8 @@ def test_no_trace_status_and_cancelled_partial_trace_are_explicit():
     assert ''.join(recorded) == 'Working</thi\n[Stopped]\n'
 
 
-def test_budget_reserves_answer_room_without_changing_unlimited_or_direct_models():
-    assert traces.reserve_thinking_budget({'num_predict': 256}, True)['num_predict'] == 8448
+def test_explicit_output_budget_includes_thinking_without_silent_increase():
+    assert traces.reserve_thinking_budget({'num_predict': 256}, True)['num_predict'] == 256
     assert traces.reserve_thinking_budget({'num_predict': -1}, 'medium')['num_predict'] == -1
     assert traces.reserve_thinking_budget({'num_predict': 256}, None)['num_predict'] == 256
 
@@ -166,8 +166,8 @@ def test_chat_records_all_channels_and_keeps_answers_visible(client, monkeypatch
     assert expected_trace in main.THINKING_LOG_PATH.read_text(encoding='utf-8')
     assert captured[0].get('think') == traces.thinking_setting(info)
     if model == 'renamed-model':
-        # The reasoning reserve must fit the context window alongside the prompt.
-        assert captured[0]['options']['num_predict'] == 4096
+        # Thinking and answer must share the exact requested cap.
+        assert captured[0]['options']['num_predict'] == 256
         from services.context_awareness import payload_usage
         sent = captured[0]
         assert payload_usage(sent)['estimated_prompt_tokens'] + sent['options']['num_predict'] + 512 <= sent['options']['num_ctx']

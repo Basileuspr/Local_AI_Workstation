@@ -7,6 +7,7 @@ import {defaultMixerSettings, normalizeMixerSettings} from './mixerSettings';
 import { loadStartupNavigation } from "./navigation";
 import { orderModels } from "./modelOrder";
 
+import { normalizeResponseLength, validResponseLength } from './responseBudget';
 import { imageProfileSettings } from "./imageProfiles";
 
 const StoreContext = createContext(null);
@@ -263,6 +264,13 @@ export function reducer(state, action) {
         conversationHistory: [...state.conversationHistory, action.payload],
       };
 
+    case "UPDATE_STREAMING_MESSAGE": {
+      if (state.currentSessionId !== action.sessionId) return state;
+      if (!state.conversationHistory.some(message => message.id === action.messageId)) return state;
+      return { ...state, conversationHistory: state.conversationHistory.map(message =>
+        message.id === action.messageId ? { ...message, content: action.content } : message) };
+    }
+
     case "SET_SCROLL_TARGET":
       return { ...state, scrollTargetMessageId: action.payload || "" };
 
@@ -315,11 +323,6 @@ export function reducer(state, action) {
       const profile = profiles[action.payload];
       if (!profile) return state;
       const numPredict = profile.numPredict;
-      // Find closest response length option
-      const options = [256, 512, 1024, 2048, 4096];
-      const closest = options.reduce((prev, curr) =>
-        Math.abs(curr - numPredict) < Math.abs(prev - numPredict) ? curr : prev
-      );
       return {
         ...state,
         activeProfile: action.payload,
@@ -329,13 +332,20 @@ export function reducer(state, action) {
         topK: profile.topK,
         repeatPenalty: profile.repeatPenalty,
         numPredict: numPredict,
-        responseLength: closest,
+        responseLength: numPredict,
         systemPrompt: profile.systemPrompt,
       };
     }
 
-    case "SET_PARAM":
-      return ({ ...state, [action.key]: action.value });
+    case "SET_PARAM": {
+      if (["numPredict", "responseLength"].includes(action.key)) {
+        if (!validResponseLength(action.value)) return state;
+        const value = normalizeResponseLength(action.value);
+        return { ...state, responseLength: value, numPredict: value, activeProfile: "" };
+      }
+      return { ...state, [action.key]: action.value,
+        ...(["temperature", "topP", "topK", "repeatPenalty", "systemPrompt"].includes(action.key) ? { activeProfile: "" } : {}) };
+    }
 
     case "SET_VOICE_OUTPUT":
       return { ...state, voiceOutput: normalizeVoiceOutput({ ...state.voiceOutput, ...action.payload }) };
@@ -477,8 +487,9 @@ export function reducer(state, action) {
       };
 
     case "SET_RESPONSE_LENGTH": {
-      const val = action.payload;
-      return ({ ...state, responseLength: val, numPredict: val > 0 ? val : state.numPredict });
+      if (!validResponseLength(action.payload)) return state;
+      const val = normalizeResponseLength(action.payload);
+      return { ...state, responseLength: val, numPredict: val, activeProfile: "" };
     }
 
     case "SHOW_TOAST":

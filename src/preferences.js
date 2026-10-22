@@ -1,3 +1,4 @@
+import { normalizeResponseLength } from './responseBudget';
 import { defaultRoleplayConfig, mergeRoleplayConfig } from "./roleplayPrompt";
 import { defaultAppearance, normalizeAppearance } from "./appearance";
 import {defaultMixerSettings, normalizeMixerSettings} from './mixerSettings';
@@ -78,6 +79,8 @@ export function loadPreferences() {
       return {
         ...DEFAULT_PREFERENCES,
         ...saved,
+        responseLength: normalizeResponseLength(saved.responseLength ?? saved.numPredict),
+        numPredict: normalizeResponseLength(saved.responseLength ?? saved.numPredict),
         appearance: normalizeAppearance(saved.appearance),
         roleplay: mergeRoleplayConfig(saved.roleplay),
         imageSettings: { ...defaultImageSettings, ...(saved.imageSettings || {}) },

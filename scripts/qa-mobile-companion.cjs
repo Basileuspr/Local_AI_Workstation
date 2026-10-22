@@ -84,15 +84,22 @@ app.whenReady().then(async () => {
   await js("document.querySelector('.message .image-preview').click()");
   await checkImageGestures();
   await js("document.querySelector('[aria-label=\"Close image\"]').click()");
+  await js("document.querySelector('.mobile-response-options').open=true");
+  await set('[aria-label="Maximum output tokens"]', '1537');
   await set('#chat-prompt', 'Plan a short creative afternoon');
   await click('Send ↗');
   await until("document.querySelector('.messages')?.textContent.includes('WORKSTATION · running')", 'live stream');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(work, 'chat-request.json'))).options.num_predict, 1537);
+  assert(await js("[...document.querySelectorAll('button')].some(n=>n.textContent==='Stop reply')"), 'Stop reply is reachable from chat');
   await capture('chat-stream.png');
   // Closing/reloading an observer must not cancel its server-owned job.
   await win.reload();
   await until("document.querySelector('nav')", 'paired after reload');
   await set('.session-picker select', fixture.session_id);
   await until("[...document.querySelectorAll('.message.assistant')].some(e=>e.querySelector('.eyebrow')?.textContent==='WORKSTATION' && e.textContent.includes('A response streamed from your desktop.'))", 'persisted reply after stream completion');
+  assert.equal(await js("document.querySelector('[aria-label=\"Maximum output tokens\"]').value"), '1537', 'phone output limit survives reload');
+  await until("document.querySelector('.messages [aria-label=\"Copy code\"]')", 'persisted code blackboard');
+  assert((await js("document.querySelector('.response-usage').textContent")).includes('1,537'), 'applied budget survives saved history');
   await click('✧Create');
   await set('[aria-label="Image prompt"]', 'A calm watercolor landscape');
   await set('[aria-label="Negative prompt"]', 'Blur and noise');
@@ -219,7 +226,8 @@ app.whenReady().then(async () => {
   assert(cacheKeys.every(url => !new URL(url).pathname.startsWith('/api/')), 'private data must never enter CacheStorage');
   const cookies = await win.webContents.session.cookies.get({ url: fixture.origin });
   assert(cookies.some(cookie => cookie.name === '__Host-law-mobile' && cookie.secure && cookie.httpOnly));
-  assert.equal(await js('localStorage.length + sessionStorage.length'), 0);
+  assert.deepEqual(await js('Object.keys(localStorage)'), ['law-mobile-output-tokens'], 'only the non-private output-size preference is persisted');
+  assert.equal(await js('sessionStorage.length'), 0);
   await win.webContents.session.enableNetworkEmulation({ offline: true });
   await win.reload();
   await until("document.querySelector('h1')?.textContent.includes('Workstation')", 'offline shell');

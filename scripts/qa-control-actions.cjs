@@ -67,6 +67,7 @@ app.whenReady().then(async()=>{
   await click('html-viewer','Edit source');
   await verify("document.querySelector('[aria-label=\"HTML source\"]').value==='<h1>Preview draft</h1>'",'preview toggle preserves edited source');
   await navigate('image-manager');
+  await select('[aria-label="Filter image folder"]','audit-folder');
   await wait("document.querySelector('[aria-label=\"Select Preview.png\"]')",'sample catalog');
   await verify("!document.querySelector('.im-selection .action-menu')",'selection actions are absent until images are selected');
   await js("document.querySelector('[aria-label=\"Select Preview.png\"]').click()");await frame();

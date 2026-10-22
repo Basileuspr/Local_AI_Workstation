@@ -30,6 +30,7 @@ class MobileSubmission(BaseModel):
     expected_revision: str = Field(min_length=1, max_length=100)
     model: str = Field(min_length=1, max_length=200)
     prompt: str = Field(min_length=1, max_length=12000)
+    output_tokens: int = Field(default=-1, ge=-1, le=32768, strict=True)
     negative_prompt: str = Field(default="", max_length=12000)
     width: int = Field(default=1024, strict=True)
     height: int = Field(default=1024, strict=True)
@@ -45,6 +46,8 @@ class MobileSubmission(BaseModel):
     def valid(self):
         if not self.prompt.strip() or not self.model.strip():
             raise ValueError("Choose a model and enter a prompt.")
+        if self.output_tokens == 0:
+            raise ValueError("Output tokens must be -1 (automatic) or between 1 and 32768.")
         validate_dimensions(self.width, self.height, self.allow_long_wait)
         return self
 
@@ -99,6 +102,8 @@ class MobileJobs:
         spec = job.get("payload") or {}
         value = {key: job.get(key) for key in ("id", "status", "created", "updated", "error", "progress")}
         value.update({key: spec.get(key) for key in ("kind", "session_id", "model", "prompt")})
+        if (job.get("result") or {}).get("response_usage"):
+            value["response_usage"] = job["result"]["response_usage"]
         if detail:
             value["text"] = (job.get("result") or {}).get("text", "")
         return value
@@ -109,7 +114,7 @@ class MobileJobs:
     async def submit(self, device_id, job_id, spec):
         payload = spec.model_dump()
         if spec.kind == "chat":
-            payload = {key: payload[key] for key in ("kind", "session_id", "expected_revision", "model", "prompt")}
+            payload = {key: payload[key] for key in ("kind", "session_id", "expected_revision", "model", "prompt", "output_tokens")}
         async with self.submit_lock:
             existing = self.store.job("incoming", job_id)
             if existing:
@@ -183,8 +188,10 @@ class MobileJobs:
             raise ValueError("Conversation exceeds the mobile context limit.")
         body = {"model": spec["model"], "messages": messages, "session_id": spec["session_id"],
                 "request_id": "mobile-" + job_id, "use_memory": False, "use_durable_memory": False,
-                "use_knowledge_base": False, "tool_ids": []}
+                "use_knowledge_base": False, "tool_ids": [],
+                "options": {"num_predict": spec.get("output_tokens", -1)}}
         text, complete, saved_at = "", False, 0
+        response_usage = {"requested_tokens": spec.get("output_tokens", -1), "effective_tokens": None, "generated_tokens": None, "limit_reached": False}
         async with self.client() as client:
             async with client.stream("POST", "/chat", json=body) as response:
                 response.raise_for_status()
@@ -193,10 +200,15 @@ class MobileJobs:
                         continue
                     event = json.loads(line[6:])
                     if event.get("cancelled"):
-                        self.store.update("incoming", job_id, status="cancelled", result={"text": text})
+                        self.store.update("incoming", job_id, status="cancelled", result={"text": text, "response_usage": response_usage})
                         return
                     if event.get("error") or str(event.get("token", "")).startswith("[Error:"):
                         raise ValueError("Provider failed")
+                    usage = event.get("context_usage")
+                    if usage:
+                        response_usage.update(effective_tokens=usage.get("output_reserve"), generated_tokens=usage.get("generated_tokens"))
+                    if event.get("notice", {}).get("kind") == "output_limit":
+                        response_usage["limit_reached"] = True
                     text += event.get("token", "")
                     if len(text) > 1024 * 1024:
                         raise ValueError("Output limit exceeded")
@@ -204,21 +216,21 @@ class MobileJobs:
                     runtime = event.get("runtime_status") or {}
                     if time.monotonic() - saved_at > .2 or complete:
                         current = self.store.job("incoming", job_id)
-                        self.store.update("incoming", job_id, result={"text": text},
+                        self.store.update("incoming", job_id, result={"text": text, "response_usage": response_usage},
                             status="cancelling" if current["cancel_requested"] else "queued" if runtime.get("stage") == "queued" else "running",
                             progress={"stage": runtime.get("stage", "generating"), "detail": "Waiting for desktop queue" if runtime.get("stage") == "queued" else "Generating response"})
                         saved_at = time.monotonic()
         if not complete:
             raise ValueError("Stream ended without completion")
         if self.store.job("incoming", job_id)["cancel_requested"]:
-            self.store.update("incoming", job_id, status="cancelled", result={"text": text})
+            self.store.update("incoming", job_id, status="cancelled", result={"text": text, "response_usage": response_usage})
             return
-        self.store.update("incoming", job_id, status="running", result={"text": text}, progress={"stage": "saving", "detail": "Saving conversation"})
+        self.store.update("incoming", job_id, status="running", result={"text": text, "response_usage": response_usage}, progress={"stage": "saving", "detail": "Saving conversation"})
         saved = await run_in_threadpool(session_store.append_messages, spec["session_id"],
-            [{"id": "mobile-" + job_id + "-assistant", "role": "assistant", "content": text}], spec["model"])
+            [{"id": "mobile-" + job_id + "-assistant", "role": "assistant", "content": text, "response_usage": response_usage}], spec["model"])
         if saved is None:
             raise ValueError("Conversation was removed")
-        self.store.update("incoming", job_id, status="completed", result={"text": text}, progress=None)
+        self.store.update("incoming", job_id, status="completed", result={"text": text, "response_usage": response_usage}, progress=None)
         self.changed()
 
     async def image(self, job):

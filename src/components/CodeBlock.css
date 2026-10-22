@@ -1,0 +1,10 @@
+.code-blackboard { position: relative; min-width: 0; max-width: 100%; max-height: 60vh; overflow: auto; margin: 12px 0; border: 1px solid #49525b; border-radius: 10px; background: #101418; color: #f1f4f6; white-space: normal; color-scheme: dark; }
+.code-blackboard-toolbar { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 10px; background: #1d252d; border-bottom: 1px solid #49525b; }
+.code-blackboard-language { min-width: 0; overflow-wrap: anywhere; font: 12px system-ui, sans-serif; color: #dce4ec; }
+.code-blackboard .code-blackboard-toolbar button { flex: 0 0 auto; min-height: 44px; padding: 8px 12px; border: 1px solid #8a9aaa; border-radius: 6px; background: #26323e; color: #fff; font: 14px system-ui, sans-serif; cursor: pointer; }
+.code-blackboard .code-blackboard-toolbar button:hover { background: #354759; }
+.code-blackboard:focus-visible, .code-blackboard button:focus-visible { outline: 3px solid #97dfff; outline-offset: -3px; }
+.code-blackboard pre, .message-markdown .code-blackboard pre { margin: 0; padding: 14px; border: 0; border-radius: 0; background: transparent; color: inherit; white-space: pre; overflow-x: auto; tab-size: 4; font: 13px/1.6 var(--font-mono, ui-monospace, monospace); }
+.code-blackboard pre code, .message-markdown .code-blackboard pre code { padding: 0; border: 0; border-radius: 0; background: transparent; color: inherit; white-space: pre; font: inherit; }
+.code-blackboard-error { display: block; padding: 8px 14px; color: #ffd3c9; font: 13px/1.5 system-ui, sans-serif; }
+.code-blackboard-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

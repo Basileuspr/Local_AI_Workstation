@@ -1,5 +1,6 @@
 export const chatHelp = [
   ['Transcript navigation', [
+    ['Code blackboard / Copy code', 'Fenced code appears on a dark board with an always-visible Copy code button that stays at the top when the block scrolls. Copy preserves indentation and excludes the fence and language label. Tab to the scrollable board or its copy button; copy success or failure is announced. Works in desktop and phone chat.'],
     ['Pin / Unpin', 'Save a message pin with this conversation. Pinning does not change the message or send it to the model again.'],
     ['Pinned', 'Open the list of pinned messages and choose one to jump to its original position in the transcript.'],
     ['Top / Bottom', 'Jump to either end of this chat. Reading older messages pauses automatic following of streamed text; Bottom resumes it.'],
@@ -26,7 +27,7 @@ export const chatHelp = [
     ['Checklists', 'Edit checklist items in an assistant message and save to retain the change history. Other text in that message is preserved.'],
   ]],
   ['Chat options and memory', [
-    ['Response length', 'Sets an output token budget: Short 256, Brief 512, Medium 1,024, Long 2,048, Very Long 4,096. Unlimited still respects runtime and context limits. Tokens are pieces of text, not words.'],
+    ['Response length', 'Select a token preset or enter an exact Maximum output tokens value from 1 to 32,768. Automatic uses up to 2,048 tokens. The backend caps output at half the effective context window and may reduce it further for a large prompt. Thinking shares this cap with the visible answer. Models can stop early; tokens are not words. Each tool round has its own cap; document, Canvas and OCR tasks use separate budgets.'],
     ['Knowledge', 'Off supplies no Knowledge excerpts. All searches the available index; Selected searches only your chosen documents. At most five relevant excerpts are supplied within the context budget.'],
     ['Context estimate', 'Estimates text, image and message tokens conservatively. Counts before sending are estimates, not exact tokenization. Provider counts describe the processed request. The backend bounds each request and reserves room for its reply.'],
     ['Context budget details', 'Breaks down system instructions, rolling summary, recent messages and reserves. Last request reports the processed request’s counts when available. Saved history is preserved.'],
@@ -43,7 +44,7 @@ export const chatHelp = [
     ['Top P', 'Limits token sampling to a probability mass. Lower values narrow the choices; it interacts with Temperature and Top K.'],
     ['Top K', 'Limits sampling to a number of likely tokens at each step. Lower values narrow the candidate set.'],
     ['Repeat Penalty', 'Discourages recently repeated tokens. Excessive penalties can distort wording or discourage useful repetition.'],
-    ['Max Tokens', 'Adjusts the output budget and synchronizes Response length to its nearest preset. Check the Response length selection after changing it.'],
+    ['Maximum output tokens', 'The exact numeric limit used by both Chat options and Advanced parameters, with no preset rounding. Changes apply to the next submitted request. Model profiles update the same setting; editing a profile parameter clears its selected indicator. Context budget details show the output reserve and actual counts from the last request.'],
     ['System Prompt', 'Adds your general instructions to the model request. Explicit instructions remain active alongside any chosen style or roleplay fields.'],
     ['Response Style', 'Adds the selected style instructions. Default adds none. Style choices cannot guarantee that every model follows the requested format.'],
     ['Built-in profiles', 'Apply a named chat preset. Review the sampling and prompt settings after selecting one.'],

@@ -1,0 +1,6 @@
+.response-length-control { display: grid; gap: 10px; min-width: 0; }
+.response-length-control label { display: grid; gap: 6px; min-width: 0; }
+.response-length-control :is(select, input) { width: 100%; min-width: 0; max-width: 100%; background: var(--bg-input, var(--bg)); color: var(--text); border: 1px solid var(--border, var(--line)); border-radius: 6px; padding: 8px; font: inherit; }
+.response-length-control p { margin: 0; font-size: 12px; line-height: 1.5; color: var(--text-dim, var(--muted)); }
+.response-length-control [aria-invalid=true] { border-color: #dc654b; }
+.response-length-control [role=alert] { color: var(--red, #ffb5ab); }

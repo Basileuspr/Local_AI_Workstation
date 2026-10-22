@@ -1,4 +1,5 @@
 import { Fragment, createContext, useContext, useState } from "react";
+import CodeBlock from './CodeBlock';
 import ProtectedImage from "../ImagePrivacy";
 import { localImageUrl } from "../chatImages";
 import ImageViewer from "./ImageViewer";
@@ -107,7 +108,7 @@ export default function MarkdownMessage({ children, onImageClick, onTaskToggle, 
         index += 1;
       }
       if (index < lines.length) index += 1;
-      blocks.push(<pre key={`code-${blocks.length}`}><code className={language ? `language-${language}` : undefined}>{code.join("\n")}</code></pre>);
+      blocks.push(<CodeBlock key={`code-${blocks.length}`} language={language} code={code.join("\n")} />);
       continue;
     }
 

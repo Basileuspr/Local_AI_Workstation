@@ -17,7 +17,7 @@
     .chat-image-open, .face-thumb, .gif-thumbnail, .gif-frame-preview,
     .generate-reference-preview, .character-tile-image, .match-card,
     .paint-handle, .paint-canvas-handle, .paint-palette button,
-    .emoji-grid button, .emoji-launch, .workspace-info-button,
+    .code-blackboard-toolbar button, .emoji-grid button, .emoji-launch, .workspace-info-button,
     .image-info-button, .workstation-clock, .function-launcher,
     .de-quick .de-button, .image-viewer-arrow)) {
   min-width: 0;
@@ -49,11 +49,11 @@
   line-height: 18px;
 }
 
-#app [data-capture-tab] :where(button, select, input):focus-visible {
+#app [data-capture-tab] :where(button, select, input, textarea, summary, a):focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
-#app [data-capture-tab] .document-editor :where(button, select, input):focus-visible {
+#app [data-capture-tab] .document-editor :where(button, select, input, textarea, summary, a):focus-visible {
   outline-color: #1766be;
 }
 
@@ -184,5 +184,7 @@
   #app [data-capture-tab] .ie-toolbar label { flex-wrap: wrap; }
 }
 @media (pointer: coarse) {
-  :root { --control-height: 36px; }
+  :root { --control-height: 44px; }
 }
+
+#app [data-capture-tab] .sliders-toggle { background: var(--bg-card); border: 1px solid var(--border); color: var(--text); }

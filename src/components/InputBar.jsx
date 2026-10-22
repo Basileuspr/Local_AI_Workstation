@@ -360,6 +360,17 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
     const userMsg = { id: createMessageId(), role: "user", content: text };
     const influencePlan=chatInfluences(state);
     const assistantMsg = { id: createMessageId(), role: "assistant", content: "",influence_settings:influencePlan.summary };
+    let lastPaint = 0;
+    const paintReply = (content, force = false) => {
+      if (currentSessionRef.current !== sessionId || (!force && Date.now() - lastPaint < 80)) return;
+      lastPaint = Date.now();
+      dispatch({ type: "UPDATE_STREAMING_MESSAGE", sessionId, messageId: assistantMsg.id, content });
+      requestAnimationFrame(() => {
+        const node = document.querySelector(`[data-message-id="${assistantMsg.id}"]`);
+        const messages = node?.closest('.chat-messages');
+        if (messages && messages.dataset.followBottom !== 'false' && !refs.imageViewerOpen) messages.scrollTop = messages.scrollHeight;
+      });
+    };
     const wasStopped = () => stopped || abortController.signal.aborted || (refs.stopRequested && refs.generationRequestId === requestId);
     const showSavedSession = (session) => {
       if (session?.id && currentSessionRef.current === session.id) {
@@ -444,14 +455,8 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
           }
           if (event.document_status) progress("creating_document", event.document_status);
           if (event.notice) showToast(event.notice.message, event.notice.kind === 'context_budget' ? '' : "error");
-          if (event.document_status && currentSessionRef.current === sessionId) {
-            const node = document.querySelector(`[data-message-id="${assistantMsg.id}"] .message-markdown`);
-            if (node) node.textContent = event.document_status;
-          }
-          if (event.thinking && !fullResponse && currentSessionRef.current === sessionId) {
-            const node = document.querySelector(`[data-message-id="${assistantMsg.id}"] .message-markdown`);
-            if (node) node.textContent = "Thinking… Open Chat options → Thinking trace to view the live output.";
-          }
+          if (event.document_status) paintReply(event.document_status);
+          if (event.thinking && !fullResponse) paintReply("Thinking… Open Chat options → Thinking trace to view the live output.");
           if (event.artifacts) assistantMsg.artifacts = event.artifacts;
           if (event.knowledge_sources) assistantMsg.knowledge_sources = event.knowledge_sources;
           if (event.influence_receipt) assistantMsg.influence_receipt = event.influence_receipt;
@@ -466,16 +471,7 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
           if (event.error || /^\[Error:/.test(event.token || '')) responseFailed = true;
           if (event.token) {
             fullResponse += event.token;
-            // Find only this message, never the last message in another chat.
-            const contentEl = document.querySelector(`[data-message-id="${assistantMsg.id}"] .message-markdown`);
-            if (contentEl && currentSessionRef.current === sessionId) {
-              contentEl.textContent = fullResponse;
-              const cursor = document.createElement("span");
-              cursor.className = "cursor";
-              contentEl.appendChild(cursor);
-              const messagesEl = contentEl.closest(".chat-messages");
-              if (messagesEl && messagesEl.dataset.followBottom !== 'false' && !refs.imageViewerOpen) messagesEl.scrollTop = messagesEl.scrollHeight;
-            }
+            paintReply(fullResponse, event.done === true);
           }
           if (event.done) {done = true;responseCompleted = true;}
         }
@@ -493,12 +489,10 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
       }
     } finally {
       savingReply = true;
+      paintReply(fullResponse, true);
       progress("saving", stopped ? "Saving the partial reply" : "Saving the reply to its original conversation");
       try {
         if (sessionId && saved) {
-          // Streaming text is written outside React; remove it before React
-          // replaces the empty assistant placeholder with rendered Markdown.
-          document.querySelector(`[data-message-id="${assistantMsg.id}"] .message-markdown`)?.replaceChildren();
           // Document replies are already committed by the backend. Reload that
           // canonical reply rather than attempting a conflicting second write.
           saved = serverSavedReply ? await api.loadSession(sessionId)

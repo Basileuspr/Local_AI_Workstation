@@ -5,6 +5,7 @@ import io
 import ipaddress
 import json
 import os
+import shutil
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -32,11 +33,13 @@ async def prepare(_kind):
 
 
 async def chat(_request, _client):
+    (work / "chat-request.json").write_text(json.dumps(_request.model_dump(), default=str))
     async def stream():
         for word in "A response streamed from your desktop.".split(" "):
             await asyncio.sleep(.4)
             yield "data: " + json.dumps({"token": word + " ", "done": False}) + "\n\n"
-        yield 'data: {"done":true}\n\n'
+        yield "data: " + json.dumps({"token": "\n```python\n  print('hello')\n```", "done": True,
+            "context_usage": {"output_reserve": _request.options.num_predict, "generated_tokens": 32}}) + "\n\n"
     return StreamingResponse(stream(), media_type="text/event-stream")
 
 
@@ -92,8 +95,13 @@ cert_path, key_path = work / "fixture.pem", work / "fixture.key"
 cert_path.write_bytes(cert.public_bytes(serialization.Encoding.PEM))
 key_path.write_bytes(key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
 origin = "https://127.0.0.1:" + os.environ["LAW_MOBILE_QA_PORT"]
+assets = Path(os.environ.get("LAW_MOBILE_BUILD_DIR") or Path(__file__).resolve().parents[2] / "dist" / "mobile")
+if not os.environ.get("LAW_MOBILE_QA_PROJECT"):
+    isolated_assets = work / "build" / "mobile"
+    shutil.copytree(assets, isolated_assets)
+    assets = isolated_assets
 mobile = MobileCompanion(work / "mobile", "http://127.0.0.1:" + os.environ["LAW_PORT"],
-    os.environ["LAW_SESSION_TOKEN"], Path(os.environ.get("LAW_MOBILE_BUILD_DIR") or Path(__file__).resolve().parents[2] / "dist" / "mobile"))
+    os.environ["LAW_SESSION_TOKEN"], assets)
 if os.environ.get('LAW_MOBILE_QA_PROJECT'):
     from services.mobile_updates import MobileUpdates
     project = Path(os.environ['LAW_MOBILE_QA_PROJECT']).resolve()
