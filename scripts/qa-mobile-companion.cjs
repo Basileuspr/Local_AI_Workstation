@@ -32,7 +32,31 @@ app.whenReady().then(async () => {
   const click = async text => { const find = `[...document.querySelectorAll('button')].find(b=>b.textContent.trim()===${JSON.stringify(text)})`; await until(`!!(${find}) && !(${find}).disabled`, text); await js(`(${find}).click()`); };
   const set = async (selector, value) => { await until(`!!document.querySelector(${JSON.stringify(selector)})`, selector); await js(`(()=>{const field=document.querySelector(${JSON.stringify(selector)});const prototype=field instanceof HTMLSelectElement?HTMLSelectElement.prototype:field instanceof HTMLTextAreaElement?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(prototype,'value').set.call(field,${JSON.stringify(value)});field.dispatchEvent(new Event(field instanceof HTMLSelectElement?'change':'input',{bubbles:true}));})()`); };
   const capture = async name => { await pause(200); fs.writeFileSync(path.join(work, name), (await win.webContents.capturePage()).toPNG()); };
+  const checkImageGestures = async () => {
+    await until("document.querySelector('.image-zoom-viewport img')?.naturalWidth>0", 'zoomable original loaded');
+    const center = await js("(()=>{const r=document.querySelector('.image-zoom-viewport').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()");
+    const point = (id, offset) => ({ id, x: center.x + offset, y: center.y, radiusX: 8, radiusY: 8, force: 1 });
+    const touch = (type, touchPoints) => win.webContents.debugger.sendCommand('Input.dispatchTouchEvent', { type, touchPoints });
+    const transform = () => js("(()=>{const m=new DOMMatrixReadOnly(getComputedStyle(document.querySelector('.image-zoom-viewport img')).transform);return {scale:m.a,x:m.e}})()");
+    assert.equal(await js("getComputedStyle(document.querySelector('.image-zoom-viewport')).touchAction"), 'none');
+    await touch('touchStart', [point(1, -30), point(2, 30)]);
+    for (const distance of [40, 50, 60, 75]) { await touch('touchMove', [point(1, -distance), point(2, distance)]); await pause(30); }
+    await touch('touchEnd', []);
+    const enlarged = await transform();
+    assert(enlarged.scale > 2, 'two fingers enlarge the image');
+    assert.equal(await js('visualViewport.scale'), 1, 'pinch transforms the image without enlarging the controls');
+    await touch('touchStart', [point(3, 0)]);
+    await touch('touchMove', [point(3, 20)]); await pause(30);
+    await touch('touchMove', [point(3, 40)]); await touch('touchEnd', []);
+    assert((await transform()).x > enlarged.x + 15, 'one finger pans the enlarged image');
+    assert.equal(await js('document.documentElement.scrollWidth<=innerWidth'), true, 'zoom stays inside the viewer');
+    await capture('image-viewer-zoomed.png');
+    await click('Fit');
+    assert.deepEqual(await transform(), { scale: 1, x: 0 }, 'Fit restores the image');
+  };
   await win.loadURL(fixture.origin + '/');
+  win.webContents.debugger.attach('1.3');
+  await win.webContents.debugger.sendCommand('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 2 });
   console.log('Fixture loaded over HTTPS');
   await set('input[placeholder="Paste the invitation from your desktop"]', fixture.code);
   await click('Connect to desktop');
@@ -40,6 +64,9 @@ app.whenReady().then(async () => {
   console.log('Phone paired');
   await set('.session-picker select', fixture.session_id);
   await until("document.querySelector('.messages')?.textContent.includes('What would you like')", 'history');
+  await js("document.querySelector('.message .image-preview').click()");
+  await checkImageGestures();
+  await js("document.querySelector('[aria-label=\"Close image\"]').click()");
   await set('#chat-prompt', 'Plan a short creative afternoon');
   await click('Send ↗');
   await until("document.querySelector('.messages')?.textContent.includes('WORKSTATION · running')", 'live stream');
@@ -101,7 +128,9 @@ app.whenReady().then(async () => {
   await until("!document.querySelector('.gallery-section[aria-busy=true]')", 'gallery refreshed');
   assert.equal(await js(`document.querySelector('[aria-label="Sort images"]').value`), 'newest');
   await js("[...document.querySelectorAll('.image-tile')].find(b=>b.textContent.includes('Color study 6')).click()");
-  await until("document.querySelector('.viewer>img')?.naturalWidth===1200", 'full-resolution viewer');
+  await until("document.querySelector('.image-zoom-viewport img')?.naturalWidth===1200", 'full-resolution viewer');
+  assert.equal(await js("document.querySelector('[aria-label=\"Image zoom\"]').textContent"), '100%', 'new image opens fitted');
+  await checkImageGestures();
   let download;
   win.webContents.session.on('will-download', (_event, item) => { item.setSavePath(path.join(work, 'original.png')); item.once('done', (_event, state) => download = state); });
   await js("document.querySelector('.viewer a[download]').click()");
@@ -127,6 +156,6 @@ app.whenReady().then(async () => {
   assert.equal(await js("fetch('/api/state').then(response=>response.status)"), 401);
   const actualErrors = errors.filter(error => !/ERR_INTERNET_DISCONNECTED|401|favicon|network error/i.test(error));
   assert.deepEqual(actualErrors, []);
-  fs.writeFileSync(path.join(work, 'result.json'), JSON.stringify({ passed: true, viewport: '390x844', inference: 'synthetic', checked: ['HTTPS pairing', 'secure HttpOnly cookie', 'streaming chat', 'reload during job', 'conversation persistence', 'shared generation controls and forwarded values', 'positive and negative prompt retention', 'desktop Generate task results', 'image queue and gallery', 'newest/oldest image order', 'source/conversation/date/search filters', 'filter retention and reset', 'original download hash', 'private-cache exclusion', 'offline shell and reconnect', 'logout revocation'] }, null, 2));
+  fs.writeFileSync(path.join(work, 'result.json'), JSON.stringify({ passed: true, viewport: '390x844', inference: 'synthetic', checked: ['HTTPS pairing', 'secure HttpOnly cookie', 'streaming chat', 'reload during job', 'conversation persistence', 'shared generation controls and forwarded values', 'positive and negative prompt retention', 'desktop Generate task results', 'image queue and gallery', 'newest/oldest image order', 'source/conversation/date/search filters', 'filter retention and reset', 'chat and gallery pinch zoom', 'touch pan and Fit reset', 'original download hash', 'private-cache exclusion', 'offline shell and reconnect', 'logout revocation'] }, null, 2));
   console.log('Mobile Chromium QA passed: ' + work);
 }).catch(error => { console.error(error); exitCode = 1; }).finally(() => { clearTimeout(guard); win?.destroy(); backend?.kill(); app.exit(exitCode); });

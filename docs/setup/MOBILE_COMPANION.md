@@ -139,7 +139,11 @@ selected when switching phone tabs, until cleared or the app page reloads.
 page one, and page navigation returns to the gallery controls at the top.
 
 Gallery loads thumbnails and excludes hidden, locked and review-only images.
-Opening an image fetches its original bytes. **Download original** keeps the full
+Tap an image in Gallery or a conversation to open its original bytes in the same
+full-screen viewer. **Pinch to zoom** up to 8× the fitted view and drag to move
+around the enlarged image. **Zoom in**, **Zoom out** and **Fit** also work without
+gestures. Opening another image or rotating the phone returns to the fitted view.
+**Download original** keeps the full
 resolution. **Prepare to share** retrieves the original file; tap **Share image**
 once it is ready to invoke the phone's native share sheet. If file sharing is
 unsupported, download and share from the phone's file app.
