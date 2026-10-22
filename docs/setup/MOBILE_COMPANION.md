@@ -124,8 +124,21 @@ may be outstanding and 200 remain visible in history.
 
 ## Gallery, originals and sharing
 
-Gallery combines visible chat images and Saved Images, supports searching and
-paging, and loads thumbnails. It excludes hidden, locked and review-only images.
+Gallery combines visible chat images and Saved Images and starts with **Newest
+first**. Images within the same conversation keep their message/image order,
+so a newly generated image appears before older images in that chat. Choose
+**Oldest first**, **Name A–Z** or **Name Z–A** to change the order.
+
+Search by image name or conversation title. **Filter images** offers Chat images
+or Saved Images, a specific conversation, and the last 24 hours, 7 days or 30 days.
+Date filters use the conversation's latest activity date for chat images and the
+save date for Saved Images; historical chat images do not have individual dates.
+Filtering and sorting apply to the whole gallery before paging. Filters remain
+selected when switching phone tabs, until cleared or the app page reloads.
+**Clear filters** restores all images and Newest first. **Refresh images** reloads
+page one, and page navigation returns to the gallery controls at the top.
+
+Gallery loads thumbnails and excludes hidden, locked and review-only images.
 Opening an image fetches its original bytes. **Download original** keeps the full
 resolution. **Prepare to share** retrieves the original file; tap **Share image**
 once it is ready to invoke the phone's native share sheet. If file sharing is

@@ -6,7 +6,9 @@ import sqlite3
 import uuid
 from collections import defaultdict
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Literal
 from urllib.parse import quote, urlsplit
 
 import httpx
@@ -34,7 +36,8 @@ def session_image_items():
         if all(ID.fullmatch(part) for part in parts):
             items.append({"id": "session/" + "/".join(parts), "name": value["name"],
                           "url": "/api/media/session/" + "/".join(parts),
-                          "updated_at": value.get("updated_at", ""), "session_id": parts[0], "message_id": parts[1]})
+                          "updated_at": value.get("updated_at", ""), "session_id": parts[0], "message_id": parts[1],
+                          "source": "session", "session_title": value.get("session_title", "")})
     return items
 
 
@@ -43,8 +46,19 @@ def gallery_items():
     for value in image_library.public_index()["images"]:
         if ID.fullmatch(value["id"]) and not value.get("review_only"):
             items.append({"id": "library/" + value["id"], "name": value["name"],
-                          "url": "/api/media/library/" + value["id"], "updated_at": value.get("created_at", "")})
-    return sorted(items, key=lambda item: (item["updated_at"], item["id"]), reverse=True)
+                          "url": "/api/media/library/" + value["id"], "updated_at": value.get("created_at", ""),
+                          "source": "library"})
+    # The shared chat inventory already orders messages and their images newest
+    # first. Preserve that order for equal timestamps instead of sorting UUIDs.
+    return sorted(items, key=lambda item: (gallery_timestamp(item) is not None, gallery_timestamp(item) or 0), reverse=True)
+
+
+def gallery_timestamp(item):
+    try:
+        value = datetime.fromisoformat(item["updated_at"])
+        return value.replace(tzinfo=value.tzinfo or timezone.utc).timestamp()
+    except (KeyError, TypeError, ValueError, OverflowError, OSError):
+        return None
 
 
 def mobile_session(session_id):
@@ -267,8 +281,24 @@ def create_mobile_api(jobs, access, origin, assets):
         return StreamingResponse(stream(), media_type="text/event-stream", headers={"X-Accel-Buffering": "no"})
 
     @app.get("/api/gallery")
-    def gallery(offset: int = Query(0, ge=0), limit: int = Query(24, ge=1, le=48), search: str = Query("", max_length=200)):
-        items = [item for item in gallery_items() if search.casefold() in item["name"].casefold()]
+    def gallery(offset: int = Query(0, ge=0), limit: int = Query(24, ge=1, le=48), search: str = Query("", max_length=200),
+                sort: Literal["newest", "oldest", "name_asc", "name_desc"] = "newest",
+                source: Literal["all", "session", "library"] = "all",
+                session_id: str = Query("", max_length=100, pattern=r"^[A-Za-z0-9_-]*$"),
+                days: int = Query(0, ge=0, le=30)):
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).timestamp() if days else None
+        query = search.strip().casefold()
+        items = [item for item in gallery_items()
+                 if (source == "all" or item["source"] == source)
+                 and (not session_id or item.get("session_id") == session_id)
+                 and (query in item["name"].casefold() or query in item.get("session_title", "").casefold())
+                 and (cutoff is None or (gallery_timestamp(item) is not None and gallery_timestamp(item) >= cutoff))]
+        if sort == "oldest":
+            dated = [item for item in items if gallery_timestamp(item) is not None]
+            undated = [item for item in items if gallery_timestamp(item) is None]
+            items = list(reversed(dated)) + undated
+        elif sort in {"name_asc", "name_desc"}:
+            items.sort(key=lambda item: item["name"].casefold(), reverse=sort == "name_desc")
         return {"images": items[offset:offset + limit], "total": len(items)}
 
     @app.get("/api/media/session/{session_id}/{message_id}/{image_id}")

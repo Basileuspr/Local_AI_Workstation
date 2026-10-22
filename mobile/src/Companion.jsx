@@ -4,6 +4,7 @@ import { defaultImageSettings } from "../../src/imageGenerationDefaults";
 import { finished, mediaUrl, observeJob, prepareImageShare, request, sharePreparedImage, submission } from "./api";
 
 const tabs = [["chat", "Chat", "◌"], ["generate", "Create", "✧"], ["gallery", "Gallery", "▧"], ["jobs", "Jobs", "≋"]];
+export const defaultGalleryFilters = { search: "", sort: "newest", source: "all", session_id: "", days: "0" };
 
 function ModelSelect({ models = [], value, onChange, label = "Model" }) {
   return <label>{label}<select value={value} onChange={event => onChange(event.target.value)}><option value="">Choose a desktop model</option>{models.map(model => <option key={model.id} value={model.id}>{model.name || model.id}</option>)}</select></label>;
@@ -36,17 +37,46 @@ function FullImage({ item, onClose }) {
   return <dialog ref={dialog} className="viewer" aria-label={item.name} onCancel={onClose}><div className="row"><h2>{item.name}</h2><button autoFocus onClick={onClose} aria-label="Close image">✕</button></div><img src={mediaUrl(item.url)} alt={item.name} /><div className="row"><a className="button primary" href={mediaUrl(item.url, true)} download={item.name}>Download original</a><button disabled={busy} onClick={share}>{busy ? "Preparing…" : file ? "Share image" : "Prepare to share"}</button></div>{file && <p className="muted">Original ready. Tap Share image to choose an app.</p>}{error && <p role="alert" className="error">{error}</p>}<p className="muted">Original desktop file · full resolution</p></dialog>;
 }
 
-function Gallery({ online, refreshKey }) {
+export function Gallery({ online, refreshKey, sessions = [], filters, onFiltersChange }) {
   const [items, setItems] = useState([]); const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(0); const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0); const [reload, setReload] = useState(0);
   const [view, setView] = useState(null); const [error, setError] = useState(""); const [busy, setBusy] = useState(false);
+  const heading = useRef(null);
+  const { search, sort, source, session_id, days } = filters;
+  const filtered = !!search.trim() || source !== "all" || !!session_id || days !== "0";
+  function change(values) { setPage(0); setItems([]); setView(null); onFiltersChange({ ...filters, ...values }); }
+  function refresh() { setPage(0); setReload(value => value + 1); heading.current?.scrollIntoView({ block: "start" }); }
+  function turnPage(value) { setPage(value); heading.current?.scrollIntoView({ block: "start" }); }
   useEffect(() => {
     const controller = new AbortController(); setBusy(true);
-    const timer = setTimeout(() => request(`/api/gallery?offset=${page * 24}&limit=24&search=${encodeURIComponent(search)}`, { signal: controller.signal }).then(value => { setItems(value.images); setTotal(value.total); setError(""); }).catch(failure => { if (failure.name !== "AbortError") setError(failure.message); }).finally(() => { if (!controller.signal.aborted) setBusy(false); }), 200);
+    const params = new URLSearchParams({ offset: String(page * 24), limit: "24", search, sort, source, session_id, days });
+    const timer = setTimeout(() => request(`/api/gallery?${params}`, { signal: controller.signal }).then(value => {
+      if (controller.signal.aborted) return;
+      if (page > 0 && page * 24 >= value.total) { setPage(0); return; }
+      setItems(value.images); setTotal(value.total); setError("");
+    }).catch(failure => { if (!controller.signal.aborted) setError(failure.message); }).finally(() => { if (!controller.signal.aborted) setBusy(false); }), 200);
     return () => { clearTimeout(timer); controller.abort(); };
-  }, [page, search, online, refreshKey]);
+  }, [page, search, sort, source, session_id, days, online, refreshKey, reload]);
   useEffect(() => { if (!view) return; const close = event => { if (event.key === "Escape") setView(null); }; window.addEventListener("keydown", close); return () => window.removeEventListener("keydown", close); }, [view]);
-  return <section><div className="section-heading"><div><span className="eyebrow">ON YOUR DESKTOP</span><h2>Gallery</h2></div><span className="muted">{total} images</span></div><label className="search">Search images<input type="search" value={search} placeholder="Find a saved moment…" onChange={event => { setSearch(event.target.value); setPage(0); }} /></label>{error && <p className="error" role="alert">{error}</p>}{busy && <p role="status" className="muted">Loading images…</p>}<div className="gallery">{items.map(item => <button className="image-tile" key={item.id} onClick={() => setView(item)} aria-label={`View ${item.name}`}><img src={mediaUrl(item.url) + "?thumbnail=true"} loading="lazy" alt={item.name} /><span>{item.name}</span></button>)}</div>{!busy && !items.length && <p className="empty">No visible images here yet. Images you create on the desktop or phone will appear here.</p>}<div className="row pagination"><button disabled={page === 0 || busy} onClick={() => setPage(value => value - 1)}>Previous</button><span>Page {page + 1}</span><button disabled={(page + 1) * 24 >= total || busy} onClick={() => setPage(value => value + 1)}>Next</button></div>{view && <FullImage item={view} onClose={() => setView(null)} />}</section>;
+  return <section className="gallery-section" aria-busy={busy}>
+    <div className="section-heading" ref={heading}><div><span className="eyebrow">ON YOUR DESKTOP</span><h2>Gallery</h2></div><button disabled={busy || !online} onClick={refresh}>Refresh images</button></div>
+    <div className="gallery-controls">
+      <label className="search">Search images<input type="search" value={search} maxLength={200} placeholder="Name or conversation…" onChange={event => change({ search: event.target.value })} /></label>
+      <label>Sort images<select aria-label="Sort images" value={sort} onChange={event => change({ sort: event.target.value })}><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="name_asc">Name A–Z</option><option value="name_desc">Name Z–A</option></select></label>
+      <details className="gallery-filters"><summary>Filter images{filtered ? " · active" : ""}</summary><div className="gallery-filter-fields">
+        <label>Image source<select aria-label="Image source" value={source} onChange={event => change({ source: event.target.value, ...(event.target.value === "library" ? { session_id: "" } : {}) })}><option value="all">All images</option><option value="session">Chat images</option><option value="library">Saved Images</option></select></label>
+        <label>Conversation<select aria-label="Gallery conversation" value={session_id} disabled={source === "library"} onChange={event => change({ session_id: event.target.value, ...(event.target.value ? { source: "session" } : {}) })}><option value="">All conversations</option>{sessions.map(item => <option key={item.id} value={item.id}>{item.title || "Untitled chat"}</option>)}</select></label>
+        <label>Updated<select aria-label="Image date range" value={days} onChange={event => change({ days: event.target.value })}><option value="0">Any time</option><option value="1">Last 24 hours</option><option value="7">Last 7 days</option><option value="30">Last 30 days</option></select></label>
+        <p className="muted">Chat images use the conversation’s latest activity date, with newer images first within each chat. Saved Images use their save date. Filters apply across the whole gallery.</p>
+      </div></details>
+      <div className="row"><span className="muted" aria-live="polite">{busy ? "Loading images…" : `${total} ${filtered ? "matching " : ""}image${total === 1 ? "" : "s"}`}</span>{(filtered || sort !== "newest") && <button onClick={() => change(defaultGalleryFilters)}>Clear filters</button>}</div>
+    </div>
+    {error && <p className="error" role="alert">{error}</p>}
+    <div className="gallery">{items.map(item => <button className="image-tile" key={item.id} onClick={() => setView(item)} aria-label={`View ${item.name}`}><img src={mediaUrl(item.url) + "?thumbnail=true"} loading="lazy" alt={item.name} /><span>{item.name}</span></button>)}</div>
+    {!busy && !error && !items.length && <p className="empty">{filtered ? "No images match these filters. Try another source, conversation or date range." : "No visible images here yet. Images you create on the desktop or phone will appear here."}</p>}
+    <div className="row pagination"><button disabled={page === 0 || busy} onClick={() => turnPage(page - 1)}>Previous</button><span>Page {page + 1} of {Math.max(1, Math.ceil(total / 24))}</span><button disabled={(page + 1) * 24 >= total || busy} onClick={() => turnPage(page + 1)}>Next</button></div>
+    {view && <FullImage item={view} onClose={() => setView(null)} />}
+  </section>;
 }
 
 export default function Companion() {
@@ -56,6 +86,7 @@ export default function Companion() {
   const [session, setSession] = useState(null); const selected = useRef(null);
   const [models, setModels] = useState({}); const [chatModel, setChatModel] = useState("");
   const [prompt, setPrompt] = useState(""); const [imageSettings, setImageSettings] = useState(() => ({ ...defaultImageSettings }));
+  const [galleryFilters, setGalleryFilters] = useState(() => ({ ...defaultGalleryFilters }));
   const imageCatalog = { models: models.image_models || [], loras: models.image_loras || [], runtime: models.image_runtime, loraError: models.lora_error };
   const changeImageSettings = values => setImageSettings(current => ({ ...current, ...values }));
   const [pending, setPending] = useState(null); const pendingRef = useRef(null); const [busy, setBusy] = useState(false);
@@ -134,7 +165,7 @@ export default function Companion() {
       {(tab === "chat" || tab === "generate") && <div className="session-picker"><label>Conversation<select value={session?.id || ""} onChange={event => { setSession(null); loadSession(event.target.value).catch(failure => setError(failure.message)); }}><option value="">Choose a conversation</option>{(state?.sessions || []).map(item => <option key={item.id} value={item.id}>{item.title || "Untitled chat"}</option>)}</select></label><button disabled={!online || busy} onClick={createChat} aria-label="New conversation">＋ New</button></div>}
       {tab === "chat" && <section><div className="section-heading"><div><span className="eyebrow">THINK TOGETHER</span><h2>{session?.title || "A new perspective"}</h2></div></div><ModelSelect models={models.chat_models} value={chatModel} onChange={setChatModel} />{models.chat_error && <p className="error">{models.chat_error}</p>}<div className="messages" ref={messagesElement} onScroll={event => { const element = event.currentTarget; followLatest.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80; }}>{!session?.messages?.length && <p className="empty">Choose or create a conversation.<br />Your desktop history stays in sync.</p>}{(session?.messages || []).map(message => <article key={message.id} className={`message ${message.role}`}><span className="eyebrow">{message.role === "user" ? "YOU" : "WORKSTATION"}</span><div>{message.content}</div>{(message.images || []).map(item => <a href={mediaUrl(item.url, true)} key={item.id} download={item.name}><img src={mediaUrl(item.url) + "?thumbnail=true"} alt={item.name} /></a>)}</article>)}{live?.text && <article className="message assistant"><span className="eyebrow">WORKSTATION · {live.status}</span><div>{live.text}</div></article>}{active && !live?.text && <p role="status" className="muted">{live?.progress?.detail || "Your desktop is working…"}</p>}</div><form className="composer panel" onSubmit={event => send(event, "chat")}><label className="sr-only" htmlFor="chat-prompt">Message</label><textarea id="chat-prompt" value={prompt} maxLength={12000} onChange={event => setPrompt(event.target.value)} rows={3} placeholder="Ask your workstation…" /><div className="row"><span className="muted">Runs on your desktop</span><button className="primary" disabled={disabled || !session || !chatModel || !prompt.trim()}>Send ↗</button></div></form></section>}
       {tab === "generate" && <ImageGenerationForm settings={imageSettings} onChange={changeImageSettings} catalog={imageCatalog} error={models.image_error} disabled={disabled || !session} onSubmit={event => send(event, "image")} />}
-      {tab === "gallery" && <Gallery online={online} refreshKey={epoch} />}
+      {tab === "gallery" && <Gallery online={online} refreshKey={epoch} sessions={state?.sessions || []} filters={galleryFilters} onFiltersChange={setGalleryFilters} />}
       {tab === "jobs" && <section><div className="section-heading"><div><span className="eyebrow">WORK CONTINUES HERE</span><h2>Desktop jobs</h2></div><button onClick={() => setEpoch(value => value + 1)}>Refresh</button></div>{!(state?.jobs || []).length && <p className="empty">Your chat and image jobs will appear here.</p>}{(state?.jobs || []).map(job => <JobCard key={job.id} job={job} onCancel={cancel} onDismiss={async job => { try { await request(`/api/jobs/${job.id}`, { method: "DELETE" }); setEpoch(value => value + 1); } catch (failure) { setError(failure.message); } }} onOpen={job => { setTab("chat"); loadSession(job.session_id).catch(failure => setError(failure.message)); }} />)}</section>}
     </>}</main>{auth && <nav aria-label="Companion navigation">{tabs.map(([id, label, icon]) => <button key={id} aria-current={tab === id ? "page" : undefined} onClick={() => setTab(id)}><span aria-hidden="true">{icon}</span>{label}{id === "jobs" && (state?.jobs || []).some(job => !finished(job.status)) && <i />}</button>)}</nav>}</div>;
 }

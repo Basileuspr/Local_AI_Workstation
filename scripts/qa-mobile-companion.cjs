@@ -24,7 +24,10 @@ app.whenReady().then(async () => {
   });
   win.webContents.on('console-message', event => { if (event.level === 'error' || event.level === 3) errors.push(event.message); });
   win.webContents.on('will-navigate', (event, url) => { if (!url.startsWith(fixture.origin + '/')) event.preventDefault(); });
-  const js = code => win.webContents.executeJavaScript(code);
+  const js = async code => {
+    try { return await win.webContents.executeJavaScript(code); }
+    catch (error) { throw Error(`Browser check failed: ${code}\n${error.message}`); }
+  };
   const until = async (code, label) => { for (let i = 0; i < 300; i++) { if (await js(code)) return; await pause(50); } throw Error(label + '\n' + await js('document.body.innerText')); };
   const click = async text => { const find = `[...document.querySelectorAll('button')].find(b=>b.textContent.trim()===${JSON.stringify(text)})`; await until(`!!(${find}) && !(${find}).disabled`, text); await js(`(${find}).click()`); };
   const set = async (selector, value) => { await until(`!!document.querySelector(${JSON.stringify(selector)})`, selector); await js(`(()=>{const field=document.querySelector(${JSON.stringify(selector)});const prototype=field instanceof HTMLSelectElement?HTMLSelectElement.prototype:field instanceof HTMLTextAreaElement?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(prototype,'value').set.call(field,${JSON.stringify(value)});field.dispatchEvent(new Event(field instanceof HTMLSelectElement?'change':'input',{bubbles:true}));})()`); };
@@ -45,7 +48,7 @@ app.whenReady().then(async () => {
   await win.reload();
   await until("document.querySelector('nav')", 'paired after reload');
   await set('.session-picker select', fixture.session_id);
-  await until("document.querySelector('.messages')?.textContent.includes('A response streamed from your desktop.')", 'saved reply');
+  await until("[...document.querySelectorAll('.message.assistant')].some(e=>e.querySelector('.eyebrow')?.textContent==='WORKSTATION' && e.textContent.includes('A response streamed from your desktop.'))", 'persisted reply after stream completion');
   await click('✧Create');
   await set('[aria-label="Image prompt"]', 'A calm watercolor landscape');
   await set('[aria-label="Negative prompt"]', 'Blur and noise');
@@ -71,8 +74,32 @@ app.whenReady().then(async () => {
   assert.equal(await js('document.querySelector("[aria-label=Steps]").value'), '200');
   await click('▧Gallery');
   await until("document.querySelectorAll('.image-tile').length===7", 'gallery includes result');
+  assert.equal(await js("document.querySelector('.image-tile span').textContent"), 'Mobile creation.png', 'new generation is first');
   await capture('gallery.png');
   assert.equal(await js('document.documentElement.scrollWidth<=innerWidth'), true, 'phone horizontal overflow');
+  await set('[aria-label="Sort images"]', 'oldest');
+  await until("document.querySelector('.image-tile span')?.textContent==='Color study 1.png'", 'oldest image first');
+  await js("document.querySelector('.gallery-filters').open=true");
+  await set('[aria-label="Image source"]', 'library');
+  await until("document.querySelector('.empty')?.textContent.includes('No images match')", 'source filter empty result');
+  await set('[aria-label="Image source"]', 'session');
+  await set('[aria-label="Gallery conversation"]', fixture.session_id);
+  await set('[aria-label="Image date range"]', '7');
+  await until("document.querySelectorAll('.image-tile').length===7", 'combined filters');
+  await capture('gallery-filters.png');
+  assert.equal(await js('document.documentElement.scrollWidth<=innerWidth'), true, 'filters fit phone viewport');
+  await click('◌Chat'); await click('▧Gallery');
+  assert.equal(await js(`document.querySelector('[aria-label="Sort images"]').value`), 'oldest');
+  assert.equal(await js(`document.querySelector('[aria-label="Image date range"]').value`), '7');
+  await click('Clear filters');
+  await until("document.querySelector('.image-tile span')?.textContent==='Mobile creation.png'", 'clear restores newest');
+  await set('input[type="search"]', 'Color study 6');
+  await until("document.querySelectorAll('.image-tile').length===1", 'search filtered across gallery');
+  await click('Clear filters');
+  await until("document.querySelectorAll('.image-tile').length===7", 'search cleared');
+  await click('Refresh images');
+  await until("!document.querySelector('.gallery-section[aria-busy=true]')", 'gallery refreshed');
+  assert.equal(await js(`document.querySelector('[aria-label="Sort images"]').value`), 'newest');
   await js("[...document.querySelectorAll('.image-tile')].find(b=>b.textContent.includes('Color study 6')).click()");
   await until("document.querySelector('.viewer>img')?.naturalWidth===1200", 'full-resolution viewer');
   let download;
@@ -100,6 +127,6 @@ app.whenReady().then(async () => {
   assert.equal(await js("fetch('/api/state').then(response=>response.status)"), 401);
   const actualErrors = errors.filter(error => !/ERR_INTERNET_DISCONNECTED|401|favicon|network error/i.test(error));
   assert.deepEqual(actualErrors, []);
-  fs.writeFileSync(path.join(work, 'result.json'), JSON.stringify({ passed: true, viewport: '390x844', inference: 'synthetic', checked: ['HTTPS pairing', 'secure HttpOnly cookie', 'streaming chat', 'reload during job', 'conversation persistence', 'shared generation controls and forwarded values', 'positive and negative prompt retention', 'desktop Generate task results', 'image queue and gallery', 'original download hash', 'private-cache exclusion', 'offline shell and reconnect', 'logout revocation'] }, null, 2));
+  fs.writeFileSync(path.join(work, 'result.json'), JSON.stringify({ passed: true, viewport: '390x844', inference: 'synthetic', checked: ['HTTPS pairing', 'secure HttpOnly cookie', 'streaming chat', 'reload during job', 'conversation persistence', 'shared generation controls and forwarded values', 'positive and negative prompt retention', 'desktop Generate task results', 'image queue and gallery', 'newest/oldest image order', 'source/conversation/date/search filters', 'filter retention and reset', 'original download hash', 'private-cache exclusion', 'offline shell and reconnect', 'logout revocation'] }, null, 2));
   console.log('Mobile Chromium QA passed: ' + work);
 }).catch(error => { console.error(error); exitCode = 1; }).finally(() => { clearTimeout(guard); win?.destroy(); backend?.kill(); app.exit(exitCode); });

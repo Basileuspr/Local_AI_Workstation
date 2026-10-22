@@ -4,6 +4,7 @@ import io
 import json
 import time
 import uuid
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import httpx
@@ -50,6 +51,70 @@ def pair(service, client):
 def spec(session, **extra):
     return MobileSubmission(kind="chat", model="test-model", prompt="Hello desktop",
         session_id=session["id"], expected_revision=session["revision"], **extra)
+
+
+def test_gallery_orders_images_by_chat_position_instead_of_random_ids(service):
+    service, client = service
+    pair(service, client)
+    session = session_store.create_session("Image order")
+    def ref(color):
+        data = io.BytesIO()
+        Image.new("RGB", (2, 2), color).save(data, "PNG")
+        return image_store.put_bytes(data.getvalue())
+    # IDs deliberately disagree with chronological order, including a batch.
+    session_store.append_messages(session["id"], [
+        {"id": "zzz-old", "role": "assistant", "generatedImages": [{"id": "zzz", "name": "Old.png", "src": ref("blue")}]},
+        {"id": "aaa-new", "role": "assistant", "generatedImages": [
+            {"id": "zzz-first", "name": "Batch first.png", "src": ref("green")},
+            {"id": "aaa-last", "name": "Batch last.png", "src": ref("red")},
+        ]},
+    ])
+    names = lambda query="": [item["name"] for item in client.get("/api/gallery" + query).json()["images"]]
+    assert names() == ["Batch last.png", "Batch first.png", "Old.png"]
+    assert names("?sort=oldest") == ["Old.png", "Batch first.png", "Batch last.png"]
+    session_store.hide_session_image(session["id"], "aaa-last")
+    assert names("?source=session&session_id=" + session["id"]) == ["Batch first.png", "Old.png"]
+
+
+def test_gallery_filters_before_paging_and_normalizes_dates(service, monkeypatch):
+    service, client = service
+    pair(service, client)
+    now = datetime.now(timezone.utc)
+    records = [
+        {"session_id": "new-chat", "message_id": "a", "image_id": "a", "name": "Zebra.png",
+         "session_title": "Nature studies", "updated_at": now.isoformat(), "path": "private-path"},
+        {"session_id": "old-chat", "message_id": "b", "image_id": "b", "name": "Bee.png",
+         "session_title": "Old studies", "updated_at": (now - timedelta(days=10)).isoformat()},
+        {"session_id": "legacy", "message_id": "c", "image_id": "c", "name": "Legacy.png",
+         "session_title": "Legacy", "updated_at": "unknown"},
+    ]
+    monkeypatch.setattr(session_store, "list_session_images", lambda: records)
+    saved = (now - timedelta(hours=1)).astimezone(timezone(timedelta(hours=14))).isoformat()
+    monkeypatch.setattr(image_library, "public_index", lambda: {"images": [
+        {"id": "saved", "name": "Ant.png", "created_at": saved, "path": "private-path"},
+        {"id": "review", "name": "Review only.png", "created_at": saved, "review_only": True},
+    ]})
+    get = lambda query="": client.get("/api/gallery" + query).json()
+    assert [item["name"] for item in get()["images"]] == ["Zebra.png", "Ant.png", "Bee.png", "Legacy.png"]
+    assert [item["name"] for item in get("?sort=oldest")["images"]] == ["Bee.png", "Ant.png", "Zebra.png", "Legacy.png"]
+    assert [item["name"] for item in get("?sort=name_asc&offset=1&limit=2")["images"]] == ["Bee.png", "Legacy.png"]
+    assert get("?sort=name_desc")["images"][0]["name"] == "Zebra.png"
+    assert get("?source=library")["total"] == 1
+    assert get("?source=session&days=7")["total"] == 1
+    assert get("?days=1")["total"] == 2
+    assert get("?days=30")["total"] == 3
+    assert get("?session_id=old-chat")["images"][0]["name"] == "Bee.png"
+    assert get("?search=nAtUrE&source=session&limit=1")["total"] == 1
+    assert get("?search=ANT&source=library&offset=1&limit=1") == {"images": [], "total": 1}
+    assert get("?source=library&session_id=new-chat")["total"] == 0
+    assert "private-path" not in json.dumps(get())
+
+
+@pytest.mark.parametrize("query", ["sort=random", "source=hidden", "session_id=../secret", "days=31"])
+def test_gallery_rejects_invalid_filter_values(service, query):
+    service, client = service
+    pair(service, client)
+    assert client.get("/api/gallery?" + query).status_code == 422
 
 
 def test_pair_cookie_single_use_hashing_expiry_and_revocation(service):
