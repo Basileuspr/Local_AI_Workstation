@@ -15,6 +15,7 @@ export default function MobileCompanion({ active = true }) {
   const [certificate, setCertificate] = useState(""), [key, setKey] = useState("");
   const [invitation, setInvitation] = useState(null), [busy, setBusy] = useState(false);
   const initialized = useRef(false);
+  const update = status?.client_update, updating = update?.phase === 'building';
   useEffect(() => {
     if (!active || !expanded) return;
     let disposed = false, timer;
@@ -30,7 +31,7 @@ export default function MobileCompanion({ active = true }) {
   useEffect(() => { if (!invitation) return; const timer = setTimeout(() => setInvitation(null), invitation.expires_in * 1000); return () => clearTimeout(timer); }, [invitation]);
   async function action(path, body = {}) {
     setBusy(true); setError("");
-    try { const value = await mobileControl(path, body); if (path === "/invitation") setInvitation(value); else { setStatus(value); setInvitation(null); } }
+    try { const value = await mobileControl(path, body); if (path === "/invitation") setInvitation(value); else { setStatus(value); if (path !== '/client-update') setInvitation(null); } }
     catch (failure) { setError(failure.message); } finally { setBusy(false); }
   }
   return <section className="dashboard-card mobile-control"><h2>Mobile companion</h2><p className="dashboard-note">Chat, generate images and browse your gallery from a paired phone.</p><button type="button" aria-expanded={expanded} onClick={() => setExpanded(value => !value)}>{expanded ? "Hide mobile controls" : "Show mobile controls"}</button>{expanded && <>
@@ -42,6 +43,14 @@ export default function MobileCompanion({ active = true }) {
     <div className="bridge-actions"><button disabled={busy || !status || status.running || !status.build_ready || !origin.trim()} onClick={() => action("/start", { origin: origin.trim(), address: address.trim(), port, certificate: certificate.trim(), private_key: key.trim() })}>Start mobile connection</button><button disabled={busy || !status?.running || !!status?.active_jobs} onClick={() => action("/stop")}>Stop mobile connection</button><button disabled={busy || !status?.running} onClick={() => action("/invitation")}>Create phone invitation</button></div>
     {!!status?.active_jobs && <p>{status.active_jobs} active mobile job(s). Finish or cancel them on the phone before stopping.</p>}
     {invitation && <label>Single-use invitation · expires in five minutes<input readOnly value={invitation.code} aria-label="Phone invitation" onFocus={event => event.target.select()} /><span>Open the HTTPS address on your phone and paste this code. Keep it private.</span></label>}
-    <ul>{(status?.devices || []).map(device => <li key={device.id}>{device.name} · {device.enabled ? "Paired" : "Revoked"} <button disabled={busy || !device.enabled} onClick={() => action(`/devices/${device.id}/revoke`)}>Revoke phone access</button></li>)}</ul>
+    <section aria-label="Phone app updates"><h3>Phone app updates</h3><p>Build and send the latest phone interface from this desktop. Open phones show an update prompt; their drafts stay in place until they choose to reload.</p>
+      <button disabled={busy || updating || !update?.can_build || update?.restart_required} onClick={() => action('/client-update')}>{updating ? 'Building phone update…' : 'Update phone app'}</button>
+      {update?.message && <p role={update.phase === 'error' ? 'alert' : 'status'}>{update.message}</p>}
+      {update?.restart_required && <p>Desktop backend changes need a restart first. Finish active jobs, restart the desktop, then update the phone.</p>}
+      {update && !update.can_build && <p>Build dependencies are unavailable in this desktop installation.</p>}
+      {update?.version && <p className="dashboard-note">Available phone version: {update.version.slice(0, 8)}{!status?.running && ' · Start mobile connection to deliver it.'}</p>}
+      <details><summary>How phone updates work</summary><p>This button compiles the phone interface using installed local dependencies. It keeps previous files available while phones use them. It does not restart the desktop or interrupt accepted jobs. No chats, images or pairing credentials are copied into the update.</p><p>After this feature is installed, reopen an older phone app once to receive update support. Phones show their version after reconnecting. Changes to Android permissions or native APK features still need a newly installed APK; desktop backend changes need a desktop restart.</p></details>
+    </section>
+    <ul>{(status?.devices || []).map(device => <li key={device.id}>{device.name} · {device.enabled ? "Paired" : "Revoked"}{device.enabled && update?.version && <span> · {!status.running || !device.last_seen || Date.now() / 1000 - device.last_seen > 45 ? 'Reconnect phone to check version' : !device.client_version ? 'Reload phone once for update support' : device.client_version === update.version ? 'Up to date' : 'Update available on phone'}</span>} <button disabled={busy || !device.enabled} onClick={() => action(`/devices/${device.id}/revoke`)}>Revoke phone access</button></li>)}</ul>
   </>}</section>;
 }

@@ -7,11 +7,26 @@ app.setPath('userData', path.join(work, 'profile'));
 let win, backend, exitCode = 0;
 const errors = [], pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 const freePort = () => new Promise(resolve => { const server = net.createServer(); server.listen(0, '127.0.0.1', () => { const port = server.address().port; server.close(() => resolve(port)); }); });
-const guard = setTimeout(() => { backend?.kill(); app.exit(1); }, 150000);
+const updateQA = process.env.LAW_MOBILE_UPDATE_QA === '1';
+const guard = setTimeout(() => { backend?.kill(); app.exit(1); }, updateQA ? 240000 : 150000);
 app.whenReady().then(async () => {
+  let updateProject;
+  if (updateQA) {
+    updateProject = path.join(work, 'project');
+    fs.mkdirSync(path.join(updateProject, 'scripts'), {recursive: true});
+    for (const name of ['src', 'mobile']) fs.cpSync(path.join(root, name), path.join(updateProject, name), {recursive: true});
+    for (const name of ['package.json', 'package-lock.json', 'scripts/mobile-build.cjs']) fs.copyFileSync(path.join(root, name), path.join(updateProject, name));
+    fs.symlinkSync(path.join(root, 'node_modules'), path.join(updateProject, 'node_modules'), 'junction');
+    await new Promise((resolve, reject) => {
+      const build = spawn(process.execPath, [path.join(root, 'node_modules/vite/bin/vite.js'), 'build', '--config', path.join(updateProject, 'mobile/vite.config.mjs')],
+        {cwd: updateProject, windowsHide: true, env: {...process.env, ELECTRON_RUN_AS_NODE: '1'}});
+      let output = ''; build.stdout.on('data', data => output += data); build.stderr.on('data', data => output += data);
+      build.on('error', reject); build.on('exit', code => code ? reject(Error(output)) : resolve());
+    });
+  }
   const localPort = await freePort(), mobilePort = await freePort();
   backend = spawn(path.join(root, 'venv/Scripts/python.exe'), ['-B', 'tests/fixtures/mobile_backend.py'], { cwd: root, windowsHide: true,
-    env: { ...process.env, PYTHONPATH: path.join(root, 'backend'), LAW_DATA_DIR: path.join(work, 'data'), LAW_MODELS_DIR: path.join(work, 'models'), LAW_LOG_DIR: path.join(work, 'logs'), LAW_PORT: String(localPort), LAW_SESSION_TOKEN: 'isolated-mobile-qa', LAW_MOBILE_QA_DIR: work, LAW_MOBILE_QA_PORT: String(mobilePort), LAW_MOBILE_QA_HOLD_IMAGES: '1' } });
+    env: { ...process.env, ...(updateQA ? {LAW_MOBILE_QA_PROJECT: updateProject, LAW_MOBILE_BUILD_DIR: path.join(updateProject, 'dist/mobile')} : {}), PYTHONPATH: path.join(root, 'backend'), LAW_DATA_DIR: path.join(work, 'data'), LAW_MODELS_DIR: path.join(work, 'models'), LAW_LOG_DIR: path.join(work, 'logs'), LAW_PORT: String(localPort), LAW_SESSION_TOKEN: 'isolated-mobile-qa', LAW_MOBILE_QA_DIR: work, LAW_MOBILE_QA_PORT: String(mobilePort), LAW_MOBILE_QA_HOLD_IMAGES: '1' } });
   let log = ''; backend.stderr.on('data', data => log += data); backend.stdout.on('data', data => log += data);
   for (let i = 0; !fs.existsSync(path.join(work, 'ready.json')); i++) { if (i > 400 || backend.exitCode !== null) throw Error(log); await pause(50); }
   const fixture = JSON.parse(fs.readFileSync(path.join(work, 'ready.json')));
@@ -151,6 +166,52 @@ app.whenReady().then(async () => {
   assert.equal(createHash('sha256').update(fs.readFileSync(path.join(work, 'original.png'))).digest('hex'), fixture.download_sha256);
   await capture('image-viewer.png');
   await js("document.querySelector('[aria-label=\"Close image\"]').click()");
+  if (updateQA) {
+    const desktop = async (route = '', method = 'GET') => {
+      const response = await fetch(`http://127.0.0.1:${localPort}/mobile${route}`, {method,
+        headers: {'Origin': 'app://local', 'x-law-session': 'isolated-mobile-qa'}});
+      assert.equal(response.status, 200); return response.json();
+    };
+    const before = (await desktop()).client_update.version;
+    await click('◌Chat'); await set('#chat-prompt', 'Keep this draft until I choose to update');
+    const cookieBefore = (await win.webContents.session.cookies.get({url: fixture.origin})).find(item => item.name === '__Host-law-mobile').value;
+    fs.appendFileSync(path.join(updateProject, 'mobile/src/main.jsx'), '\n// Isolated second release for update QA.\n');
+    assert.equal((await desktop('/client-update', 'POST')).client_update.phase, 'building');
+    let status;
+    for (let i = 0; i < 600; i++) {
+      status = await desktop();
+      if (status.client_update.phase !== 'building') break;
+      await pause(50);
+    }
+    assert.equal(status.client_update.phase, 'ready', status.client_update.message);
+    const after = status.client_update.version;
+    assert.notEqual(after, before);
+    await until("document.querySelector('[aria-label=\"Phone app update\"]')", 'update notification');
+    assert.equal(await js("document.querySelector('#chat-prompt').value"), 'Keep this draft until I choose to update');
+    await click('Update phone app');
+    assert.equal(await js("document.querySelector('#chat-prompt').value"), 'Keep this draft until I choose to update');
+    await js("document.querySelector('.client-update').scrollIntoView({block:'start'})");
+    assert.equal(await js('document.documentElement.scrollWidth<=innerWidth'), true, 'update controls fit the phone');
+    await capture('phone-update-ready.png');
+    await click('Keep editing'); await click('Update phone app'); await click('Update and clear drafts');
+    await until("document.querySelector('nav') && !document.querySelector('[aria-label=\"Phone app update\"]') && !location.search", 'new phone shell reconnects');
+    for (let i = 0; i < 100; i++) {
+      status = await desktop();
+      if (status.devices.some(device => device.client_version === after)) break;
+      await pause(50);
+    }
+    assert(status.devices.some(device => device.client_version === after), 'desktop receives new phone version');
+    const cookieAfter = (await win.webContents.session.cookies.get({url: fixture.origin})).find(item => item.name === '__Host-law-mobile').value;
+    assert.equal(cookieAfter, cookieBefore, 'update retains pairing');
+    assert.equal(await js(`fetch('/releases/${before}/index.html').then(response=>response.status)`), 200, 'previous release remains available');
+    await until(`caches.keys().then(keys=>keys.includes('law-mobile-${after}'))`, 'new offline shell cached');
+    fs.appendFileSync(path.join(updateProject, 'mobile/src/main.jsx'), '\nsyntax error !!!\n');
+    await desktop('/client-update', 'POST');
+    for (let i = 0; i < 200; i++) { status = await desktop(); if (status.client_update.phase !== 'building') break; await pause(50); }
+    assert.equal(status.client_update.phase, 'error');
+    assert.equal(status.client_update.version, after, 'failed build preserves last published version');
+    console.log('Live phone update, draft confirmation, pairing, version acknowledgment and failed-build recovery passed');
+  }
   const cacheKeys = await js("caches.keys().then(async keys=>(await Promise.all(keys.map(key=>caches.open(key).then(cache=>cache.keys())))).flat().map(request=>request.url))");
   assert(cacheKeys.length > 0, 'shell worker cached assets');
   assert(cacheKeys.every(url => !new URL(url).pathname.startsWith('/api/')), 'private data must never enter CacheStorage');

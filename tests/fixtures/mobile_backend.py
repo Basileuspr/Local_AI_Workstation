@@ -94,6 +94,11 @@ key_path.write_bytes(key.private_bytes(serialization.Encoding.PEM, serialization
 origin = "https://127.0.0.1:" + os.environ["LAW_MOBILE_QA_PORT"]
 mobile = MobileCompanion(work / "mobile", "http://127.0.0.1:" + os.environ["LAW_PORT"],
     os.environ["LAW_SESSION_TOKEN"], Path(os.environ.get("LAW_MOBILE_BUILD_DIR") or Path(__file__).resolve().parents[2] / "dist" / "mobile"))
+if os.environ.get('LAW_MOBILE_QA_PROJECT'):
+    from services.mobile_updates import MobileUpdates
+    project = Path(os.environ['LAW_MOBILE_QA_PROJECT']).resolve()
+    assert project.is_relative_to(work.resolve())
+    mobile.updates = MobileUpdates(project / 'dist/mobile', work / 'mobile', project=project)
 mobile_routes._instance = mobile
 mobile.start(MobileListen(origin=origin, address="127.0.0.1", port=int(os.environ["LAW_MOBILE_QA_PORT"]),
     certificate=str(cert_path), private_key=str(key_path)))

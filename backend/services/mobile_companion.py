@@ -15,6 +15,7 @@ from services.bridge_store import TERMINAL
 from services.mobile_access import MobileAccess
 from services.mobile_api import create_mobile_api
 from services.mobile_jobs import MobileJobs
+from services.mobile_updates import MobileUpdates
 
 
 class QuietMobileProtocol(H11Protocol):
@@ -59,6 +60,7 @@ class MobileCompanion:
         self.jobs = MobileJobs(root, local_url, local_token, transport=transport)
         self.access = MobileAccess(self.jobs.store)
         self.assets = Path(assets)
+        self.updates = MobileUpdates(self.assets, root)
         self.server = self.thread = self.config = None
         self.lock = threading.RLock()
         self.listener_error = None
@@ -70,7 +72,8 @@ class MobileCompanion:
     def status(self):
         return {"running": self.running, "origin": self.config.origin if self.config else None,
                 "listen": self.jobs.store.setting("listen"),
-                "build_ready": (self.assets / "index.html").is_file(), "devices": self.access.devices(),
+                "build_ready": self.updates.resolve('index.html') is not None,
+                "devices": self.updates.devices(self.access.devices()), "client_update": self.updates.status(),
                 "active_jobs": sum(job["status"] not in TERMINAL for job in self.jobs.store.jobs("incoming")),
                 "error": self.listener_error}
 
@@ -78,7 +81,7 @@ class MobileCompanion:
         with self.lock:
             if self.running:
                 raise ValueError("Stop the existing mobile listener before changing its configuration.")
-            if not (self.assets / "index.html").is_file():
+            if self.updates.resolve('index.html') is None:
                 raise ValueError("Build the mobile client first with npm run build:mobile.")
             if config.certificate:
                 context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
@@ -93,7 +96,7 @@ class MobileCompanion:
             try:
                 sock.bind((config.address, config.port))
                 sock.listen(128)
-                app = create_mobile_api(self.jobs, self.access, config.origin, self.assets)
+                app = create_mobile_api(self.jobs, self.access, config.origin, self.assets, updates=self.updates)
                 # Match the PC bridge: quiet only this listener. access_log=False
                 # would also disable the desktop's process-wide access logger.
                 self.server = uvicorn.Server(uvicorn.Config(app, host=config.address, port=config.port,

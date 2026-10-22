@@ -91,6 +91,15 @@ async def invitation():
     return await call(lambda: companion().invitation())
 
 
+@router.post("/client-update")
+async def client_update():
+    def apply():
+        service = companion()
+        service.updates.start()
+        return service.status()
+    return await call(apply)
+
+
 @router.post("/devices/{device_id}/revoke")
 async def revoke(device_id: str):
     def apply():

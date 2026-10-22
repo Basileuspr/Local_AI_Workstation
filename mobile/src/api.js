@@ -1,3 +1,4 @@
+import {clientVersion} from './clientVersion';
 export const finished = status => ["completed", "failed", "cancelled", "interrupted"].includes(status);
 
 export class ApiError extends Error {
@@ -14,7 +15,7 @@ export async function request(path, { method = "GET", body, signal } = {}) {
   try {
   const response = await fetch(path, {
     method, credentials: "same-origin", cache: "no-store", signal: controller.signal,
-    headers: { "X-LAW-Mobile": "1", ...(body === undefined ? {} : { "Content-Type": "application/json" }) },
+    headers: { "X-LAW-Mobile": "1", ...(clientVersion ? {'X-LAW-Client-Version': clientVersion} : {}), ...(body === undefined ? {} : { "Content-Type": "application/json" }) },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   if (!response.ok) {

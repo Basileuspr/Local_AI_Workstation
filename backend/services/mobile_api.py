@@ -23,6 +23,7 @@ from services.image_thumbnails import response as image_response
 from services.mobile_access import COOKIE, DEVICE_LIFETIME
 from services.mobile_jobs import MobileSubmission
 from services.bridge_store import TERMINAL
+from services.mobile_updates import MobileUpdates, VERSION
 
 MAX_BODY = 64 * 1024
 ID = re.compile(r"^[A-Za-z0-9_-]{1,100}$")
@@ -88,9 +89,10 @@ class NewSession(BaseModel):
     title: str = Field(default="New Chat", min_length=1, max_length=100)
 
 
-def create_mobile_api(jobs, access, origin, assets):
+def create_mobile_api(jobs, access, origin, assets, *, updates=None):
     expected_host = urlsplit(origin).netloc
     assets = Path(assets).resolve()
+    updates = updates or MobileUpdates(assets, assets.parent / '.mobile-update-logs')
     streams = defaultdict(int)
 
     @asynccontextmanager
@@ -182,8 +184,11 @@ def create_mobile_api(jobs, access, origin, assets):
     @app.get("/api/state")
     def state(request: Request):
         device = request.state.device
+        version = request.headers.get('x-law-client-version', '')
+        updates.seen(device['id'], version if VERSION.fullmatch(version) else None)
         sessions = [{key: item.get(key) for key in ("id", "title", "model", "updated_at")} for item in session_store.list_sessions()]
-        return {"device": {"id": device["id"], "name": device["name"]}, "sessions": sessions, "jobs": jobs.list(device["id"])}
+        return {"device": {"id": device["id"], "name": device["name"]}, "sessions": sessions,
+                "jobs": jobs.list(device["id"]), "client_update": {"version": updates.current()[1]}}
 
     @app.get("/api/models")
     async def models():
@@ -352,10 +357,17 @@ def create_mobile_api(jobs, access, origin, assets):
         if path.startswith("api/"):
             raise HTTPException(404, "Not found")
         relative = path or "index.html"
-        if relative not in {"index.html", "sw.js", "manifest.webmanifest", "icon.svg", "icon-192.png", "icon-512.png"} and not re.fullmatch(r"assets/[A-Za-z0-9_.-]+\.(js|css)", relative):
-            raise HTTPException(404, "Not found")
-        target = (assets / relative).resolve()
-        if not target.is_relative_to(assets) or not target.is_file():
+        version = None
+        if relative.startswith('releases/'):
+            parts = relative.split('/', 2)
+            if len(parts) != 3:
+                raise HTTPException(404, 'Not found')
+            _, version, relative = parts
+        target = updates.resolve(relative, version)
+        if target is None and version is None and relative.startswith('assets/'):
+            baseline = updates.manifest(assets)
+            target = updates.resolve(relative, baseline['version']) if baseline else None
+        if target is None:
             raise HTTPException(404, "Build the mobile client on the desktop first")
         return FileResponse(target)
 

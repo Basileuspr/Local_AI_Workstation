@@ -12,6 +12,37 @@ Run `npm run build` to build both desktop and phone clients. `npm run build:mobi
 rebuilds only the phone client. Fully quit and restart Electron after backend or
 Dashboard changes. Do not rebuild while a phone is using an old application bundle.
 
+### Update the phone from the desktop
+
+In **Dashboard → Mobile companion**, choose **Show mobile controls**, then
+**Update phone app**. The desktop compiles the current phone source with its
+installed Node/Vite dependencies and publishes a checked, complete version.
+This button can run while phones are connected. A failed build leaves the
+previous version available, and the panel reports the outcome.
+
+Open phones see **Update ready from your desktop**. Tap **Update phone app** on
+the phone to apply it. If prompts are still on the page, choose to keep editing
+or explicitly clear them and update. An unconfirmed submission must be resolved
+first. Accepted jobs continue on the desktop; the update does not restart or
+cancel them. Disconnected phones receive the latest version when they reconnect.
+The desktop shows which recently connected phones report the available version.
+
+Reopen an older phone app once after installing this feature to receive update
+support. The current Android APK loads this same phone interface and can use these
+updates. Changes to the native Android shell or its permissions still need a new
+APK installation. Backend changes require a desktop restart after active work
+finishes; the update button detects changed backend source and asks for that
+restart first. It never starts phone access or changes connection settings.
+
+Updates are stored as immutable versions under `dist/mobile-releases`, with an
+atomic `dist/mobile-current.json` pointer. Previous versions remain available for
+open phones. A normal full production build replaces `dist`, so continue to close
+phones before that developer workflow. Build diagnostics stay in the desktop's
+private `mobile/client-update.log`; update files contain only the application
+shell, not chats, images, credentials or desktop paths. The worker caches only
+versioned shell files; [worker activation](https://developer.mozilla.org/en-US/docs/Web/API/ServiceWorkerGlobalScope/skipWaiting)
+never forces an open page to reload.
+
 A phone needs a browser-trusted HTTPS origin. Plain LAN HTTP does not provide
 the secure context needed for installation, service workers and secure cookies.
 See [MDN service workers](https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API/Using_Service_Workers).
@@ -200,8 +231,12 @@ for current evidence and remaining work. Reproducible checks include:
 
 - `npm test -- tests/frontend/mobileApi.test.js`
 - `npm run test:backend -- tests/backend/test_mobile_companion.py`
+- `npm run test:backend -- tests/backend/test_mobile_updates.py`
 - `npm run build:mobile`, then
   `node_modules\.bin\electron.cmd scripts\qa-mobile-companion.cjs`
+- Set `LAW_MOBILE_UPDATE_QA=1` for the same Chromium walkthrough plus a real
+  desktop-triggered build from temporary source, phone update confirmation,
+  version acknowledgment, pairing retention and failed-build recovery.
 - Optional real inference, only while the desktop is idle:
   `venv\Scripts\python.exe scripts\qa-mobile-inference.py --chat-model <installed-model> --image-model <installed-image-id>`
 
