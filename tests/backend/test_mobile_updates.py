@@ -1,6 +1,10 @@
 import hashlib
 import json
+import os
 from pathlib import Path
+import shutil
+import subprocess
+import sys
 import threading
 from types import SimpleNamespace
 
@@ -166,3 +170,40 @@ def test_desktop_route_runs_builder_without_changing_listener(setup, monkeypatch
         assert response.status_code == 200 and response.json()['running'] is False
         update.thread.join(5)
         assert update.status()['phase'] == 'ready'
+
+
+@pytest.mark.skipif(sys.platform != 'win32' or not shutil.which('node'), reason='Windows Node pipe regression')
+def test_build_finishes_while_desktop_control_is_reading_stdin(setup):
+    update, project, _ = setup
+    # Vite inspects stdin. On Windows that can block on an inherited handle
+    # while the desktop shutdown watcher has a pending read on that handle.
+    builder = project / 'node_modules/vite/bin/vite.js'
+    builder.write_text("const fs=require('fs'); process.stdin.isTTY; "
+                       f"fs.cpSync({json.dumps(str(update.assets))},process.argv.at(-1),{{recursive:true}});")
+    helper = '''
+import os, subprocess, sys, threading, time
+from pathlib import Path
+from services.mobile_updates import MobileUpdates
+threading.Thread(target=lambda: os.read(0, 1), daemon=True).start()
+time.sleep(.1)
+def run(*args, **kwargs):
+    kwargs['timeout'] = 3
+    return subprocess.run(*args, **kwargs)
+project = Path(sys.argv[1])
+update = MobileUpdates(project / 'dist/mobile', project / 'private', project=project, runner=run)
+update.build()
+print(update.status()['phase'], flush=True)
+'''
+    environment = {**os.environ, 'PYTHONPATH': str(Path(__file__).resolve().parents[2] / 'backend')}
+    with subprocess.Popen([sys.executable, '-c', helper, str(project)], stdin=subprocess.PIPE,
+                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=environment) as child:
+        try:
+            # Keep the parent's control pipe open until the build completes.
+            child.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            child.kill()
+            raise
+        output, errors = child.communicate()
+    assert child.returncode == 0, errors
+    assert output.strip() == 'ready', output + errors
+    assert update.current()[1] == OLD

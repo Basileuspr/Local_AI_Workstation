@@ -143,7 +143,9 @@ class MobileUpdates:
             before = fingerprint(self.project, ['mobile', 'src', 'scripts'], ['package.json', 'package-lock.json'])
             result = self.runner([shutil.which('node'), str(self.project / 'node_modules/vite/bin/vite.js'),
                 'build', '--config', str(self.project / 'mobile/vite.config.mjs'), '--outDir', str(staging)],
-                cwd=self.project, capture_output=True, text=True, errors='replace', timeout=180,
+                # Vite must not inherit the desktop shutdown pipe. Its stdin
+                # inspection can block behind the Windows parent-watch read.
+                cwd=self.project, stdin=subprocess.DEVNULL, capture_output=True, text=True, errors='replace', timeout=180,
                 creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
             self.log.parent.mkdir(parents=True, exist_ok=True)
             self.log.write_text((result.stdout or '') + (result.stderr or ''), encoding='utf-8')
