@@ -1,3 +1,16 @@
+.chat-conversation {
+  display: flex; flex-direction: column; flex: 1 0 280px; min-width: 0;
+  width: calc(100% - 48px); max-width: 800px; margin: 20px auto;
+  background: var(--bg-surface); border: 1px solid var(--border); border-radius: 14px;
+}
+.chat-conversation :is(#messages, #messages-secondary) { padding-block: 24px; gap: 20px; }
+.chat-conversation :is(#input-area, #input-area-secondary) { border-radius: 0 0 13px 13px; }
+/* Pane width also covers split chats and a resized navigation sidebar. */
+@container chat-pane (max-width: 860px) {
+  .chat-conversation { width: 100%; margin: 0; border: 0; border-radius: 0; }
+  .chat-conversation :is(#input-area, #input-area-secondary) { border-radius: 0; }
+}
+
 .chat-transcript-tools { display: flex; gap: 6px; flex: 0 0 auto; padding: 5px 16px; border-bottom: 1px solid var(--border); align-items: center; }
 .chat-transcript-tools button, .chat-pinned-messages button { border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-primary); border-radius: 6px; padding: 5px 9px; font-size: 12px; cursor: pointer; }
 .chat-transcript-tools button:disabled { opacity: .45; cursor: default; }

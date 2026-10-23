@@ -104,8 +104,10 @@ function SecondChatSession({ active, primarySessionId, targetSessionId, onSelect
     <Header onSessionRenamed={onSessionSaved} onCompactMemory={compact} />
     <SettingsPanel />
     {workspace.pin && <section className="second-chat-document"><button type="button" onClick={() => workspace.setPin(null)}>Close preview ×</button><ChatSideContent active={active} /></section>}
+    <div className="chat-conversation">
     <MessageList onNewChat={createChat} onSessionSaved={onSessionSaved} />
     <InputBar active={active} onNewChat={createChat} onSessionSaved={onSessionSaved} onOpenSession={load} />
+    </div>
   </>;
 }
 

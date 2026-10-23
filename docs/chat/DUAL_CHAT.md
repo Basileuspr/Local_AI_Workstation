@@ -4,6 +4,13 @@ In Chats, open **Workspace options → Side pane → Second chat**. Chat A stays
 
 Drag the divider to resize the chats, or focus it and use the arrow keys. Short windows stack the chats and allow the workspace to scroll. Closing Chat B hides its pane and keeps its draft; submitted requests continue and save to their original conversation. The second conversation selection is remembered for Chat A.
 
+Messages and the composer share a centered conversation area on large screens,
+with subtle edges and surrounding space. The area is at most 800 pixels wide;
+message text keeps its existing 720-pixel limit. Panes 860 pixels wide or narrower
+use their available width without the outer frame. This applies independently to
+Chat A and Chat B. The transcript scrolls within the area, keeping the composer
+below the conversation.
+
 Prompts from both panes run in submission order. Follow-ups wait until earlier replies have been saved, so they use the updated history from their own conversation. Model/settings choices are captured when you press Send. A waiting prompt can be cancelled individually; Stop targets the running request in that pane.
 
 When a two-chat request reaches the shared inference queue, the backend checks Ollama's loaded models, unloads other idle models, and loads the requested model. The check runs under the shared GPU lease. It never changes models just because you focus another pane, and it reuses the allocation for successive requests with the same model. Knowledge retrieval finishes before the final chat model handoff. Models are unloaded from memory, not removed from storage.

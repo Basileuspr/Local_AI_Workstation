@@ -479,6 +479,7 @@ function AppInner() {
               onCompactMemory={handleCompactMemory}
             />
             <SettingsPanel />
+            <div className="chat-conversation">
             <MessageList
               onNewChat={handleCreateChat}
               onSessionSaved={handleSessionSaved}
@@ -489,6 +490,7 @@ function AppInner() {
               onSessionSaved={handleSessionSaved}
               onOpenSession={handleLoadSession}
             />
+            </div>
             </ChatPaneProvider>
           </div>
           <div className="pane second-chat-pane" data-capture-tab="second-chat" hidden={activeTab !== "chats" || !dualChat}>
