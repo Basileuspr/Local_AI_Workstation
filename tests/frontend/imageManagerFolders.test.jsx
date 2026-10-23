@@ -4,13 +4,14 @@ import { parseHTML } from 'linkedom';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import ImageManager from '../../src/components/ImageManager';
 import { NO_IMAGE_FOLDER } from '../../src/imageManagerApi';
+import { IMAGE_MANAGER_VIEW_KEY, saveImageManagerView } from '../../src/imageManagerViewState';
 
 vi.mock('../../src/components/ImageThumbnail', () => ({ default: () => null }));
 vi.mock('../../src/components/VisualReview', () => ({ default: () => null }));
 vi.mock('../../src/useStore', () => ({ useDispatch: () => vi.fn() }));
 vi.mock('../../src/ImageDestinations', () => ({ useImageDestinations: () => ({}) }));
 
-let root, window, document, catalog, forgetError;
+let root, window, document, catalog, forgetError, pageResult;
 const folders = [
   { id: 'source', path: 'C:/fixture/photos', purpose: 'source', count: 1 },
   { id: 'output', path: 'C:/fixture/organized', purpose: 'output', count: 1 },
@@ -24,9 +25,12 @@ beforeEach(() => {
   vi.useFakeTimers();
   ({ window, document } = parseHTML('<html><body><main id="root"></main></body></html>'));
   vi.stubGlobal('window', window); vi.stubGlobal('document', document); vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const saved = new Map();
+  vi.stubGlobal('sessionStorage', { getItem: key => saved.get(key) ?? null, setItem: (key, value) => saved.set(key, value) });
   window.HTMLElement.prototype.showModal = function () { this.setAttribute('open', ''); };
   catalog = { folders: [...folders], summary: { images: 3, bytes: 300, favorites: 0, hidden: 1 }, functions: [], duplicates: [{ sha256: 'hash', count: 2, bytes: 100 }], receipts: [], plans: [] };
   forgetError = '';
+  pageResult = { ...emptyPage, images: [image], total: 1 };
   vi.stubGlobal('fetch', vi.fn(async (url, options = {}) => {
     const path = new URL(url).pathname;
     if (options.method === 'DELETE') {
@@ -36,7 +40,7 @@ beforeEach(() => {
     }
     if (path.endsWith('/state')) return response(structuredClone(catalog));
     if (path.endsWith('/image-tools/sources')) return response({ images: [image] });
-    if (path.endsWith('/images')) return response({ ...emptyPage, images: [image], total: 1 });
+    if (path.endsWith('/images')) return response(structuredClone(pageResult));
     throw new Error(`Unexpected request: ${options.method} ${path}`);
   }));
   root = createRoot(document.getElementById('root'));
@@ -47,6 +51,11 @@ afterEach(async () => {
   vi.useRealTimers(); vi.unstubAllGlobals();
 });
 async function mount() { await act(async () => root.render(<ImageManager/>)); await tick(); }
+async function reload() {
+  await act(async () => root.unmount());
+  root = createRoot(document.getElementById('root'));
+  await mount();
+}
 async function tick() { await act(async () => { await vi.advanceTimersByTimeAsync(200); }); }
 const button = (text, scope = document) => [...scope.querySelectorAll('button')].find(node => node.textContent === text);
 const imageRequests = () => fetch.mock.calls.filter(([url]) => new URL(url).pathname.endsWith('/images'));
@@ -146,4 +155,125 @@ it('uses an explicit all-folder scope when opening duplicate results', async () 
   await click(button('Show all checked duplicates')); await tick();
   expect(new URL(imageRequests().at(-1)[0]).searchParams.get('folder_id')).toBe('');
   expect(new URL(imageRequests().at(-1)[0]).searchParams.get('duplicates')).toBe('true');
+});
+
+const scanningJob = () => ({ id: 'ongoing-scan', kind: 'scan', phase: 'scan', status: 'running', current: 1, total: 0, message: 'Scanning images', steps: [], result: {} });
+
+it('restores the browsed folder and scan inputs on refresh without starting another scan', async () => {
+  saveImageManagerView({ sourceIds: ['source'], outputId: 'output', recursive: false });
+  await mount(); await select('Filter image folder', 'output'); await select('Sort images', 'name');
+  await click(document.querySelector('.im-select input'));
+  expect(document.querySelector('.im-selection').textContent).toContain('1 selected');
+  catalog.job = scanningJob();
+  await reload();
+  expect(document.querySelector('[aria-label="Filter image folder"]').value).toBe('output');
+  expect(document.querySelector('[aria-label="Sort images"]').value).toBe('name');
+  expect(document.querySelector('[aria-label="Scan C:/fixture/photos"]').checked).toBe(true);
+  expect(JSON.parse(sessionStorage.getItem(IMAGE_MANAGER_VIEW_KEY))).toMatchObject({ outputId: 'output', recursive: false });
+  expect(document.querySelectorAll('.im-grid article')).toHaveLength(1);
+  expect(document.querySelector('.im-selection').textContent).toContain('0 selected');
+  expect(button('Stop task')).toBeTruthy();
+  expect(fetch.mock.calls.every(([, options]) => options.method === 'GET')).toBe(true);
+});
+
+it('updates committed images during a scan, retains them on a read failure and stops polling when complete', async () => {
+  catalog.job = scanningJob();
+  await mount(); await select('Filter image folder', 'source');
+  const original = fetch.getMockImplementation();
+  let fail = true;
+  fetch.mockImplementation((url, options) => {
+    if (new URL(url).pathname.endsWith('/images') && fail) { fail = false; return Promise.reject(Error('Temporary read failure')); }
+    return original(url, options);
+  });
+  await act(async () => { await vi.advanceTimersByTimeAsync(1700); });
+  expect(document.querySelectorAll('.im-grid article')).toHaveLength(1);
+  expect(document.querySelector('[role="alert"]').textContent).toContain('Temporary read failure');
+  fetch.mockImplementation(original);
+  pageResult = { ...emptyPage, images: [image, { ...image, id: 'new-image' }], total: 2 };
+  await act(async () => { await vi.advanceTimersByTimeAsync(1700); });
+  expect(document.querySelectorAll('.im-grid article')).toHaveLength(2);
+  catalog.job.status = 'complete';
+  await act(async () => { await vi.advanceTimersByTimeAsync(1000); }); await tick();
+  const count = imageRequests().length;
+  await act(async () => { await vi.advanceTimersByTimeAsync(6000); });
+  expect(imageRequests()).toHaveLength(count);
+});
+
+it('lets a slow image read finish while scan progress is polled', async () => {
+  catalog.job = scanningJob();
+  await mount();
+  let finish;
+  const original = fetch.getMockImplementation();
+  fetch.mockImplementation((url, options) => new URL(url).pathname.endsWith('/images') ? new Promise(resolve => { finish = resolve; }) : original(url, options));
+  await select('Filter image folder', 'source');
+  await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
+  expect(imageRequests()).toHaveLength(1);
+  expect(imageRequests()[0][1].signal.aborted).toBe(false);
+  await act(async () => finish(response(pageResult)));
+  expect(document.querySelectorAll('.im-grid article')).toHaveLength(1);
+});
+
+it('preserves an explicit no-folder choice or reset through refresh during a scan', async () => {
+  catalog.job = scanningJob();
+  await mount(); await select('Filter image folder', 'source');
+  await select('Filter image folder', NO_IMAGE_FOLDER);
+  let count = imageRequests().length;
+  await reload();
+  expect(imageRequests()).toHaveLength(count);
+  expect(document.querySelector('[aria-label="Filter image folder"]').value).toBe(NO_IMAGE_FOLDER);
+  await select('Filter image folder', '');
+  await reload();
+  expect(new URL(imageRequests().at(-1)[0]).searchParams.get('folder_id')).toBe('');
+  await click(button('Reset filters'));
+  count = imageRequests().length;
+  await reload();
+  expect(imageRequests()).toHaveLength(count);
+  expect(document.querySelectorAll('.im-grid article')).toHaveLength(0);
+});
+
+it('waits for the catalog before reconciling restored folders, then clears forgotten IDs', async () => {
+  saveImageManagerView({ filters: { folder_id: 'removed' }, sourceIds: ['source', 'removed'], outputId: 'removed' });
+  let finish;
+  const original = fetch.getMockImplementation();
+  fetch.mockImplementation((url, options) => new URL(url).pathname.endsWith('/state') ? new Promise(resolve => { finish = resolve; }) : original(url, options));
+  await mount();
+  expect(JSON.parse(sessionStorage.getItem(IMAGE_MANAGER_VIEW_KEY)).filters.folder_id).toBe('removed');
+  expect(imageRequests()).toHaveLength(0);
+  await act(async () => finish(response(catalog))); await tick();
+  expect(document.querySelector('[aria-label="Filter image folder"]').value).toBe(NO_IMAGE_FOLDER);
+  const saved = JSON.parse(sessionStorage.getItem(IMAGE_MANAGER_VIEW_KEY));
+  expect(saved.sourceIds).toEqual(['source']); expect(saved.outputId).toBe('');
+  expect(imageRequests()).toHaveLength(0);
+});
+
+it('restores hidden browsing, filters and the current page after refresh', async () => {
+  pageResult = { ...pageResult, tags: ['Travel'], total: 97 };
+  await mount(); await select('Filter image folder', 'output');
+  await click(button('Hidden (1)')); await tick(); await select('Filter image tag', 'Travel');
+  await click(button('Next')); await tick();
+  await reload();
+  const query = new URL(imageRequests().at(-1)[0]).searchParams;
+  expect(query.get('visibility')).toBe('hidden');
+  expect(query.get('tag')).toBe('Travel'); expect(query.get('offset')).toBe('48');
+  expect(document.querySelectorAll('.im-grid article')).toHaveLength(1);
+});
+
+it('ignores an older catalog response after registering and browsing a new source', async () => {
+  const original = fetch.getMockImplementation(), staleCatalog = structuredClone(catalog);
+  let finish, first = true;
+  window.workstationDesktop = { chooseImageManagerFolder: async () => ({ path: 'C:/fixture/new' }) };
+  fetch.mockImplementation((url, options) => {
+    const path = new URL(url).pathname;
+    if (path.endsWith('/state') && first) { first = false; return new Promise(resolve => { finish = resolve; }); }
+    if (path.endsWith('/folders') && options.method === 'POST') {
+      const folder = { id: 'new-source', path: 'C:/fixture/new', purpose: 'source', count: 1 };
+      catalog.folders.push(folder); return response(folder);
+    }
+    return original(url, options);
+  });
+  await mount(); await click(button('+ Add source folder')); await tick();
+  await act(async () => finish(response(staleCatalog))); await tick();
+  expect(document.querySelector('[aria-label="Filter image folder"]').value).toBe('new-source');
+  expect(document.querySelectorAll('.im-grid article')).toHaveLength(1);
+  expect(JSON.parse(sessionStorage.getItem(IMAGE_MANAGER_VIEW_KEY)).sourceIds).toEqual(['new-source']);
 });

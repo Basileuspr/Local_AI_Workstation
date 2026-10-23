@@ -18,7 +18,7 @@ async function until(fn, label) {
   throw Error('Timed out: ' + label);
 }
 app.whenReady().then(async () => {
-  child = spawn(path.join(root, 'venv/Scripts/python.exe'), [path.join(root, 'scripts/qa-image-manager-fixture.py'), work], { cwd: root, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
+  child = spawn(path.join(root, 'venv/Scripts/python.exe'), [path.join(root, 'scripts/qa-image-manager-fixture.py'), work], { cwd: root, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, LAW_QA_IMAGE_SCAN_GATE: '1' } });
   let stderr = '';
   child.stderr.on('data', data => { stderr += data; });
   const connection = await new Promise((resolve, reject) => {
@@ -42,6 +42,12 @@ app.whenReady().then(async () => {
   ipcMain.handle('sound-mixer:configure', () => ({ ok: true }));
   ipcMain.handle('image-manager:choose-folder', (_event, purpose) => ({ path: path.join(work, purpose === 'source' ? 'image-source' : 'image-output') }));
   const js = code => win.webContents.executeJavaScript(code);
+  const reload = async () => {
+    const loaded = new Promise(resolve => win.webContents.once('did-finish-load', resolve));
+    await js("document.querySelector('.workspace-refresh').click()");
+    await loaded;
+    await until(() => js("document.querySelector('[data-capture-tab=image-manager]')?.hidden===false"), 'manager visible after refresh');
+  };
   const click = async (text, scope = '.image-manager') => {
     const find = `(()=>[...document.querySelector(${JSON.stringify(scope)}).querySelectorAll('button')].find(b=>b.textContent.trim()===${JSON.stringify(text)}))()`;
     await until(() => js(`!!${find} && !${find}.disabled`), text);
@@ -93,9 +99,29 @@ app.whenReady().then(async () => {
   assert.equal((await api('/images?folder_id=' + output.id)).total, 0);
   for (const file of saved) assert.deepEqual(fs.readFileSync(file.path), file.bytes);
   checks.push('Forget output: Cancel preserves catalog; confirmation removes only its entries and preserves every output file byte');
-  await win.reload();
+  await reload();
   await until(() => js("!!document.querySelector('[aria-label=\"Filter image folder\"]')"), 'reload');
   assert.equal(await js("document.querySelector('[aria-label=\"Filter image folder\"]').value"), '__none__');
+  const source = (await api('/state')).folders.find(folder => folder.purpose === 'source');
+  await until(() => js(`!!document.querySelector('[aria-label="Filter image folder"] option[value="${source.id}"]')`), 'source folder loaded after refresh');
+  await select('Filter image folder', source.id);
+  await until(() => js("document.querySelectorAll('.im-grid article').length===3"), 'source before rescan');
+  fs.copyFileSync(path.join(source.path, 'landscape.png'), path.join(source.path, 'new-image.png'));
+  const gate = path.join(work, 'pause-scan');
+  fs.writeFileSync(gate, 'hold synthetic scan for renderer reload');
+  const { job_id: scanId } = await api('/tasks', 'POST', { kind: 'scan', folder_ids: [source.id] });
+  await until(() => fs.existsSync(path.join(work, 'scan-paused')), 'scan paused inside metadata read');
+  await until(() => js("!![...document.querySelectorAll('.im-job button')].find(b=>b.textContent==='Stop task')"), 'running scan displayed');
+  await reload();
+  await until(() => js(`document.querySelector('[aria-label="Filter image folder"]')?.value===${JSON.stringify(source.id)} && document.querySelectorAll('.im-grid article').length===3`), 'restored source images during scan');
+  assert.equal((await api('/state')).job.id, scanId);
+  assert.equal((await api('/state')).job.status, 'running');
+  assert.equal(await js("document.querySelector('.im-selection').textContent.includes('0 selected')"), true);
+  fs.unlinkSync(gate);
+  await until(() => js("document.querySelectorAll('.im-grid article').length===4"), 'new image after rescan');
+  assert.equal((await api('/state')).job.id, scanId);
+  assert.equal((await api('/state')).job.status, 'complete');
+  checks.push('Refresh during a real backend scan restores the browsed folder and images, keeps the same job, and displays its new result');
   fs.writeFileSync(path.join(work, 'result.json'), JSON.stringify({ ok: true, checks }, null, 2));
   console.log(JSON.stringify({ ok: true, checks, work }));
 }).catch(error => { console.error(error.stack); process.exitCode = 1; }).finally(() => { if (child) child.kill(); if (win && !win.isDestroyed()) win.destroy(); app.exit(process.exitCode || 0); });

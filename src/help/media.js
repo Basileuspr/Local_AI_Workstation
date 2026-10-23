@@ -76,7 +76,7 @@ export const mediaHelp = {
   ]]],
   'image-manager': [['Folders and catalog', [
     ['Add source folder / Scan folders', 'Checkboxes choose sources for scanning, separately from the browsing view. Originals stay in place; opening the workspace never starts a scan.'],
-    ['Browse folder / Reset filters', 'Starts with No folder selected. Choose one saved folder or All catalog folders to browse. No folder selected or Reset filters clears the view and image selection without removing saved metadata. Image tools also waits for an explicit folder or image selection.'],
+    ['Browse folder / Reset filters', 'A new app window starts with No folder selected. Refresh keeps the chosen folder, filters, view, page and scan settings; image selections clear. Choose one saved folder or All catalog folders to browse. No folder selected or Reset filters clears the view and image selection without removing saved metadata. Image tools also waits for an explicit folder or image selection.'],
     ['Folders & scan settings / Forget', 'Lists every saved source and output folder, each with Forget. Forget removes that folder and its catalog metadata while leaving files in place. If recoverable Trash blocks forgetting, the dialog explains what needs restoring.'],
     ['Catalog coverage', 'Scans skip animated/multiple-frame images, directory links and NVIDIA paths. Previews respect EXIF orientation.'],
     ['Search / All tags', 'Filters catalog matches. Saved tag choices cover the available catalog, including hidden images. Choosing a tag clears Untagged only.'],
@@ -91,7 +91,7 @@ export const mediaHelp = {
     ['Date layout', 'Uses EXIF capture time when available, otherwise the file’s modified date.'],
     ['Apply plan', 'Executes the reviewed transfer plan. Plans stop if source or target files change. Functions prepare plans for up to 1,000 catalog images; review and apply separately.'],
     ['Delete / Trash / Restore', 'Delete reviews files before moving them to recoverable Trash on the same drive. Trash retains bytes and does not free disk space. Restore checks for collisions.'],
-    ['Image functions / History', 'Save ordered scan, duplicate, plan and report steps. Jobs continue across tabs; Stop retains completed work. History shows the latest ten transfer receipts.'],
+    ['Image functions / History', 'Save ordered scan, duplicate, plan and report steps. Jobs continue across tabs and page refreshes while the backend stays running. Scanned images appear as they are catalogued; Stop retains completed work. History shows the latest ten transfer receipts.'],
   ]], ['Image tools', [
     ['Scope / output folder', 'Choose image folder, then Read image folder directly in Image tools to scan new or changed files. Or use selected catalog images. Choose a separate output folder; each run creates a new output subfolder. The fixed action area explains any missing step.'],
     ['Convert / resize', 'Creates new copies. PNG and WebP retain transparency; JPEG flattens onto the chosen background. Original metadata is omitted.'],

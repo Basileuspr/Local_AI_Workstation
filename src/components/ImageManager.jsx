@@ -9,11 +9,11 @@ import { useImageDestinations } from '../ImageDestinations';
 import { useDispatch } from '../useStore';
 import { sortNamedItems } from '../alphabetical';
 import * as images from '../imageManagerApi';
+import { emptyImageFilters as emptyFilters, loadImageManagerView, saveImageManagerView } from '../imageManagerViewState';
 import './ImageManager.css';
 import {useRangeSelection} from '../useRangeSelection';
 import {preventSelectionText} from '../fileSelection';
 
-const emptyFilters = { search: '', folder_id: images.NO_IMAGE_FOLDER, tag: '', format: '', month: '', favorite: false, hide_tagged: false, tagged_only: false, duplicates: false, digest: '', sort: 'date' };
 const emptyPage = { images: [], total: 0, offset: 0, months: [], formats: [], tags: [] };
 const emptyState = { folders: [], summary: { images: 0, bytes: 0, favorites: 0 }, functions: [], duplicates: [], receipts: [], plans: [] };
 const layouts = { month: 'Year / month', day: 'Year / month / day', format: 'Image format', folders: 'Keep relative folders' };
@@ -78,11 +78,12 @@ function RecipeEditor({ value, folders, sourceIds, outputId, recursive, onSave, 
 
 export default function ImageManager({ active = true }) {
   const dispatch = useDispatch(), destinations = useImageDestinations();
-  const [state, setState] = useState(emptyState), [page, setPage] = useState(emptyPage), [view, setView] = useState('library');
-  const [filters, setFilters] = useState(emptyFilters), [offset, setOffset] = useState(0), [selected, setSelected] = useState([]);
+  const [savedView] = useState(loadImageManagerView), [catalogReady, setCatalogReady] = useState(false);
+  const [state, setState] = useState(emptyState), [page, setPage] = useState(emptyPage), [view, setView] = useState(savedView.view);
+  const [filters, setFilters] = useState(savedView.filters), [offset, setOffset] = useState(savedView.offset), [selected, setSelected] = useState([]);
   const [pageSize, setPageSize] = useState(images.loadImagePageSize);
   const [density, setDensity] = useState(images.loadImageDensity);
-  const [sourceIds, setSourceIds] = useState([]), [outputId, setOutputId] = useState(''), [recursive, setRecursive] = useState(true);
+  const [sourceIds, setSourceIds] = useState(savedView.sourceIds), [outputId, setOutputId] = useState(savedView.outputId), [recursive, setRecursive] = useState(savedView.recursive);
   const [layout, setLayout] = useState('month'), [mode, setMode] = useState('copy'), [plan, setPlan] = useState(null);
   const [preview, setPreview] = useState(null), [recipe, setRecipe] = useState(null), [tags, setTags] = useState('');
   const [savedTag, setSavedTag] = useState('');
@@ -97,36 +98,66 @@ export default function ImageManager({ active = true }) {
   const imageRange = useRangeSelection(page.images.map(image => image.id), selected, setSelected, {array:true, limit:1000, scope:JSON.stringify([view,filters,offset,pageSize])});
   const trashRange = useRangeSelection(trash.slice(0,trashLimit).map(entry => entry.id), trashSelected, setTrashSelected, {array:true, limit:1000, scope:view});
   const running = state.job?.status === 'running', lastResult = useRef('');
-  async function refresh() { const value = await images.request(); setState(value); return value; }
+  const scanning = running && state.job.phase === 'scan';
+  const stateRequest = useRef(0);
+  async function refresh() {
+    const request = ++stateRequest.current, value = await images.request();
+    if (request === stateRequest.current) { setState(value); setCatalogReady(true); }
+    return value;
+  }
   async function perform(action) { setBusy(true); setError(''); setNotice(''); try { await action(); } catch (error) { setError(error.message); } finally { setBusy(false); } }
+  useEffect(() => { saveImageManagerView({ filters, view, offset, sourceIds, outputId, recursive }); }, [filters, view, offset, sourceIds, outputId, recursive]);
+  useEffect(() => {
+    if (!catalogReady) return;
+    const registered = new Set(state.folders.map(folder => folder.id));
+    if (filters.folder_id && filters.folder_id !== images.NO_IMAGE_FOLDER && !registered.has(filters.folder_id)) resetFilters();
+    setSourceIds(current => {
+      const next = current.filter(id => state.folders.some(folder => folder.id === id && folder.purpose === 'source'));
+      return next.length === current.length ? current : next;
+    });
+    if (outputId && !registered.has(outputId)) setOutputId('');
+    // Reconcile only after a catalog response, not while a newly chosen folder
+    // is still being registered/refreshed.
+  }, [catalogReady, state.folders]);
   useEffect(() => {
     if (!active) return;
     let alive = true, timeout, controller;
     async function poll() {
       controller = new AbortController();
+      const request = ++stateRequest.current;
       try {
         const value = await images.request('/state', 'GET', undefined, controller.signal);
         if (!alive) return;
+        if (request !== stateRequest.current) { timeout = setTimeout(poll, 800); return; }
         setState(value);
+        setCatalogReady(true);
         const job = value.job;
         const key = `${job?.id}:${job?.status}`;
         if (job && job.status !== 'running' && key !== lastResult.current) { lastResult.current = key; setRevision(v => v + 1); }
         timeout = setTimeout(poll, job?.status === 'running' ? 800 : 4000);
-      } catch (error) { if (alive) { setError(error.message); timeout = setTimeout(poll, 5000); } }
+      } catch (error) { if (alive) { if (request === stateRequest.current) setError(error.message); timeout = setTimeout(poll, 5000); } }
     }
     poll(); return () => { alive = false; clearTimeout(timeout); controller?.abort(); };
   }, [active]);
   useEffect(() => {
-    if (!active) return;
+    if (!active || !catalogReady) return;
     if (filters.folder_id === images.NO_IMAGE_FOLDER) { setPage(emptyPage); return; }
     const controller = new AbortController();
-    const timer = setTimeout(() => images.request(`/images?${new URLSearchParams({ ...filters, visibility: images.imageVisibility(filters, view), offset, limit: pageSize })}`, 'GET', undefined, controller.signal).then(value => {
-      if (controller.signal.aborted) return;
-      if (offset > 0 && offset >= value.total) setOffset(Math.floor(Math.max(0, value.total - 1) / pageSize) * pageSize);
-      else setPage(value);
-    }).catch(error => { if (!controller.signal.aborted) setError(error.message); }), 180);
+    let timer;
+    async function loadPage() {
+      try {
+        const value = await images.request(`/images?${new URLSearchParams({ ...filters, visibility: images.imageVisibility(filters, view), offset, limit: pageSize })}`, 'GET', undefined, controller.signal);
+        if (controller.signal.aborted) return;
+        if (offset > 0 && offset >= value.total) setOffset(Math.floor(Math.max(0, value.total - 1) / pageSize) * pageSize);
+        else setPage(value);
+      } catch (error) { if (!controller.signal.aborted) setError(error.message); }
+      // Scans commit catalog entries as they go. Wait for each read to finish
+      // before scheduling another, so slow reads aren't repeatedly aborted.
+      if (scanning && !controller.signal.aborted) timer = setTimeout(loadPage, 1500);
+    }
+    timer = setTimeout(loadPage, 180);
     return () => { clearTimeout(timer); controller.abort(); };
-  }, [active, filters, view, offset, pageSize, revision]);
+  }, [active, catalogReady, filters, view, offset, pageSize, revision, scanning]);
   useEffect(() => {
     if (!active || view !== 'trash') return;
     const controller = new AbortController();
