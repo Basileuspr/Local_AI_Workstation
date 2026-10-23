@@ -14,8 +14,8 @@ app.whenReady().then(async () => {
   if (updateQA) {
     updateProject = path.join(work, 'project');
     fs.mkdirSync(path.join(updateProject, 'scripts'), {recursive: true});
-    for (const name of ['src', 'mobile']) fs.cpSync(path.join(root, name), path.join(updateProject, name), {recursive: true});
-    for (const name of ['package.json', 'package-lock.json', 'scripts/mobile-build.cjs']) fs.copyFileSync(path.join(root, name), path.join(updateProject, name));
+    for (const name of ['src', 'mobile/src', 'mobile/public']) fs.cpSync(path.join(root, name), path.join(updateProject, name), {recursive: true});
+    for (const name of ['package.json', 'package-lock.json', 'scripts/mobile-build.cjs', 'mobile/index.html', 'mobile/vite.config.mjs']) fs.copyFileSync(path.join(root, name), path.join(updateProject, name));
     fs.symlinkSync(path.join(root, 'node_modules'), path.join(updateProject, 'node_modules'), 'junction');
     await new Promise((resolve, reject) => {
       const build = spawn(process.execPath, [path.join(root, 'node_modules/vite/bin/vite.js'), 'build', '--config', path.join(updateProject, 'mobile/vite.config.mjs')],
@@ -123,7 +123,7 @@ app.whenReady().then(async () => {
   await until("[...document.querySelectorAll('.job')].filter(job=>job.querySelector('.eyebrow').textContent==='IMAGE').length===2", 'both image jobs visible');
   assert.equal(await js("[...document.querySelectorAll('.job')].filter(job=>job.querySelector('.eyebrow').textContent==='IMAGE').every(job=>!job.querySelector('.badge').textContent.includes('completed'))"), true);
   fs.writeFileSync(path.join(work, 'release-image-jobs'), 'ready');
-  await until("[...document.querySelectorAll('.job .badge')].every(badge=>badge.textContent==='completed')", 'both image jobs complete');
+  await until("(()=>{const badges=[...document.querySelectorAll('.job .badge')];return badges.length===3&&badges.every(badge=>badge.textContent==='completed');})()", 'chat and both image jobs complete');
   const generated = JSON.parse(fs.readFileSync(path.join(work, 'image-request.json')));
   assert.deepEqual([generated.width, generated.height, generated.steps, generated.guidance_scale, generated.seed, generated.lora_id, generated.lora_scale], [1024, 1024, 200, 5.6, 0, 'fixture-adapter', 0.75]);
   const desktopTasks = await fetch(`http://127.0.0.1:${localPort}/mobile/image-tasks`, { headers: { 'X-LAW-Session': 'isolated-mobile-qa' } }).then(response => response.json());

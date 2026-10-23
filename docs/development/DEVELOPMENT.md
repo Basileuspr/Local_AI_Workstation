@@ -13,6 +13,9 @@ old counts and completed implementation reports are dated evidence, not live sta
 | `npm test` | Run frontend tests |
 | `npm run test:backend` | Run backend pytest tests using the repository venv |
 | `npm run test:media` | Run bundled Media Manager checks |
+| `npm run test:android` | Run native JVM tests and release lint with the local Windows Android toolchain |
+| `npm run qa:android` | Check the native image adapter with synthetic Chromium content |
+| `npm run build:android` | Check, build and sign the APK with this PC's private signing identity |
 | `npm run build` | Capture build identity and compile the renderer |
 | `npm run verify` | Run the frontend, backend, media and build checks |
 
@@ -21,6 +24,11 @@ locations. Follow each fixture's isolation contract. Never run reset/import test
 against live data. A build changes generated output and review records; coordinate
 with concurrent source edits. Fully restart Electron to load changed desktop or
 backend code.
+
+Android builds are separate from `npm run build` / `verify`; see the
+[native source and installation guide](../../mobile/android/README.md). APKs,
+keys, SDKs and Gradle caches stay local. GitHub validation runs native checks when
+the selected update includes Android source; it does not sign or install an APK.
 
 ## Documentation ownership
 

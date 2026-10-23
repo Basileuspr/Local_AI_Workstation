@@ -39,6 +39,13 @@ the app environment; this is not a fresh Python install or a real GPU/voice
 quality test. Failed checks stop publication and retain a private log and
 checkout for inspection. Successful pushes are verified against GitHub.
 
+When selected files include `mobile/android`, validation also runs release JVM
+tests, Android lint and the synthetic native-viewer adapter checks. This requires
+the documented local Windows Android toolchain. Validation does not sign or
+install an APK. Native Java, XML resources and build configuration use an
+explicit source allowlist; APKs, binary Gradle wrappers, signing keys and build
+caches are excluded.
+
 Only selected source files and regenerated public review-reader assets are
 staged. The development branch, index and user data are preserved. Runtime data,
 recordings, models, dependencies, local report/history snapshots, credential

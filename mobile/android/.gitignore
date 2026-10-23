@@ -1,0 +1,14 @@
+.gradle/
+.idea/
+build/
+output/
+local.properties
+*.apk
+*.aab
+*.jks
+*.keystore
+*.p12
+*.log
+gradle/wrapper/
+gradlew
+gradlew.bat

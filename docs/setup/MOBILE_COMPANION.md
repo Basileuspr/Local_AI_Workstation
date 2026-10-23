@@ -118,6 +118,16 @@ Do not expose the normal desktop API or Ollama, forward router ports, or bypass
 browser certificate warnings to make phone access work. IPv6 and arbitrary
 reverse-proxy hostnames are not supported by this first gateway.
 
+## Android source and installation order
+
+Native APK source, native checks and signing/build instructions now live in
+[`mobile/android`](../../mobile/android/README.md). Install a signed upgrade over
+the existing Companion without uninstalling. Start the desktop mobile connection
+and establish the private VPN before pairing a fresh installation. Browser and
+APK pairing are separate. The desktop update button changes the hosted interface;
+Android native changes require installing the corresponding APK. Signing material
+and generated APKs are never committed to GitHub.
+
 ## Pair, install and disconnect
 
 Create a phone invitation in the desktop panel and scan its QR with the phone's

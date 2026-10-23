@@ -11,6 +11,7 @@ historical sections; current source and focused tests resolve discrepancies.
 | `electron/` | Desktop shell, backend lifecycle, native dialogs and guarded IPC |
 | `src/` | React renderer, workspace controls, state and HTTP client |
 | `mobile/` | Separate phone PWA; built into `dist/mobile` and served by the opt-in companion gateway |
+| `mobile/android/` | Native Android WebView shell, APK build tooling and tests; shares the hosted phone interface |
 | `backend/` | FastAPI routes, service logic, persistence and model coordination |
 | `media-manager/` | Bundled media application with its own frontend and storage |
 | `scripts/` | Setup, review capture, publication and isolated QA helpers |

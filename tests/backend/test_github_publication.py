@@ -370,3 +370,19 @@ def test_github_destinations(url):
 def test_credential_and_arbitrary_destinations_rejected(url):
     with pytest.raises(ValueError):
         publisher.remote_url(url)
+
+
+def test_selected_android_update_runs_native_checks_without_signing(repositories):
+    import os
+    if os.name != 'nt':
+        pytest.skip('Android publication uses the documented Windows toolchain')
+    source, _, _, storage, checks = repositories
+    native = source / 'mobile/android/app/src/main/java/Example.java'
+    native.parent.mkdir(parents=True)
+    native.write_text('class Example {}\n')
+    review = publisher.prepare(source, storage)
+    publisher.validate(source, Path(review['folder']), ['mobile/android/app/src/main/java/Example.java'])
+    native_commands = [command for command, _ in checks if any('mobile' in str(arg) and 'android' in str(arg) for arg in command)]
+    assert len(native_commands) == 2
+    assert any('-ChecksOnly' in command for command in native_commands)
+    assert any(str(command[-1]).endswith('qa-native-adapter.cjs') for command in native_commands)

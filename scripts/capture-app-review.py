@@ -38,7 +38,26 @@ def command(args, *, binary=False, input=None):
     return result.stdout
 
 
+# Native source is explicit: never include Gradle caches, wrappers, signing material or APKs.
+ANDROID_FILES = {
+    '.gitignore', 'README.md', 'NOTICE.md', 'LICENSE', 'build.gradle',
+    'settings.gradle', 'gradle.properties', 'app/build.gradle',
+    'tools/build-apk.ps1', 'tools/prepare-toolchain.py',
+    'tools/toolchain-lock.json', 'tools/qa-native-adapter.cjs',
+}
+
+
+def android_source(name):
+    relative = name.removeprefix('mobile/android/')
+    parts = relative.split('/')
+    if '..' in parts or ':' in name or '\\' in name or any(part.startswith('.env') for part in parts) or any(part.lower() in {'build', '.gradle', '.git', '.idea', 'output', 'data', 'models', 'node_modules', 'venv', 'dist', 'artifacts', 'logs', 'reports'} for part in parts):
+        return False
+    return relative in ANDROID_FILES or (relative.startswith('app/src/') and Path(relative).suffix in {'.java', '.xml', '.js'})
+
+
 def included(name):
+    if name.startswith('mobile/android/'):
+        return android_source(name)
     path = Path(name)
     if any(part in {"data", "models", "venv", ".venv", "node_modules", "dist", "__pycache__", ".pytest_cache", "captures", ".git"} for part in path.parts):
         return False

@@ -36,6 +36,23 @@ def emit(kind, **values):
     print(json.dumps({'kind': kind, **values}), flush=True)
 
 
+# Native source is explicit: never include Gradle caches, wrappers, signing material or APKs.
+ANDROID_FILES = {
+    '.gitignore', 'README.md', 'NOTICE.md', 'LICENSE', 'build.gradle',
+    'settings.gradle', 'gradle.properties', 'app/build.gradle',
+    'tools/build-apk.ps1', 'tools/prepare-toolchain.py',
+    'tools/toolchain-lock.json', 'tools/qa-native-adapter.cjs',
+}
+
+
+def android_source(name):
+    relative = name.removeprefix('mobile/android/')
+    parts = relative.split('/')
+    if '..' in parts or ':' in name or '\\' in name or any(part.startswith('.env') for part in parts) or any(part.lower() in {'build', '.gradle', '.git', '.idea', 'output', 'data', 'models', 'node_modules', 'venv', 'dist', 'artifacts', 'logs', 'reports'} for part in parts):
+        return False
+    return relative in ANDROID_FILES or (relative.startswith('app/src/') and Path(relative).suffix in {'.java', '.xml', '.js'})
+
+
 def allowed(name):
     path = PurePosixPath(name)
     if path.is_absolute() or '..' in path.parts or not path.parts or ':' in name or '\\' in name:
@@ -44,6 +61,8 @@ def allowed(name):
         return False
     if name in GENERATED_DOCS or name.startswith('docs/application-review/snapshots/'):
         return False
+    if name.startswith('mobile/android/'):
+        return android_source(name)
     if name in BUNDLED_ASSETS:
         return True
     if name in ROOT_FILES:
@@ -69,7 +88,7 @@ def privacy_problem(name, raw):
         return 'Binary file'
     if TOKEN.search(text):
         return 'Possible credential or private key'
-    if not name.startswith('tests/') and (HOME.search(text) or SECRET.search(text) or EMAIL.search(text)):
+    if not name.startswith(('tests/', 'mobile/android/app/src/test/')) and (HOME.search(text) or SECRET.search(text) or EMAIL.search(text)):
         return 'Possible personal path or embedded credential'
     return None
 
@@ -242,6 +261,13 @@ def validate(root, folder, paths):
                 ('Testing backend', [sys.executable, '-B', '-m', 'pytest', '--basetemp', str(folder / ('pytest-' + uuid.uuid4().hex[:8]))]),
                 ('Testing Media Manager', [node, str(npm_cli), 'run', 'test:media']),
                 ('Building application', [node, str(npm_cli), 'run', 'build'])]
+    if any(item['path'].startswith('mobile/android/') for item in selected):
+        if os.name != 'nt':
+            raise ValueError('Android validation needs the documented local Windows toolchain.')
+        commands.append(('Testing Android release', ['powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
+                        str(workspace / 'mobile/android/tools/build-apk.ps1'), '-ChecksOnly']))
+        commands.append(('Testing Android viewer adapter', [str(workspace / 'node_modules/electron/dist/electron.exe'),
+                        str(workspace / 'mobile/android/tools/qa-native-adapter.cjs')]))
     for label, command in commands:
         emit('progress', phase=label)
         with log.open('ab') as output:
