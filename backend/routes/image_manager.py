@@ -139,9 +139,9 @@ def forget_folder(identifier: str):
 
 @router.get("/images")
 def images(folder_id: str = "", search: str = Query(default="", max_length=200), tag: str = Query(default="", max_length=120), format: str = "", month: str = "", favorite: bool = False, hide_tagged: bool = False, tagged_only: bool = False, visibility: Literal["visible", "hidden", "all"] = "visible",
-           duplicates: bool = False, digest: str = "", sort: str = "date", offset: int = Query(default=0, ge=0), limit: int = Query(default=48, ge=1, le=1000)):
+           duplicates: bool = False, digest: str = "", sort: str = "date", offset: int = Query(default=0, ge=0), limit: int = Query(default=48, ge=1, le=1000), anchor: str = Query(default="", max_length=100), step: int = Query(default=0, ge=-1, le=1)):
     return call(manager.query, folder_id=folder_id, search=search, tag=tag, format=format, month=month, favorite=favorite, hide_tagged=hide_tagged, tagged_only=tagged_only, visibility=visibility,
-                duplicates=duplicates, digest=digest, sort=sort, offset=offset, limit=limit)
+                duplicates=duplicates, digest=digest, sort=sort, offset=offset, limit=limit, anchor=anchor, step=step)
 
 
 @router.get("/images/{identifier}/thumbnail")

@@ -45,6 +45,58 @@ def source(color='red', size=(24, 16), **kwargs):
     return {'kind': 'library', 'id': image['id']}
 
 
+@pytest.fixture
+def managed(tmp_path, monkeypatch):
+    from services import image_manager
+    manager = image_manager.ImageManager(tmp_path / 'catalog')
+    monkeypatch.setattr(image_manager, 'manager', manager)
+    folder = tmp_path / 'originals'; folder.mkdir()
+    original = folder / 'private-name.png'; original.write_bytes(picture('red'))
+    identifier = manager.add_folder(str(folder))['id']
+    manager.start('scan', {'folder_ids': [identifier], 'recursive': True})
+    manager.worker.join(10)
+    assert not manager.worker.is_alive() and manager.state()['job']['status'] == 'complete'
+    image = manager.query()['images'][0]
+    manager.metadata([image['id']], favorite=True, tags=['Manual tag'])
+    return manager, original, {'kind': 'managed', 'id': image['id']}
+
+
+def test_catalog_stitch_uses_original_pixels_and_preserves_source_and_metadata(client, managed):
+    manager, original, frame = managed
+    before = (original.read_bytes(), original.stat().st_mtime_ns, manager.query())
+    body = {'sources': [source('blue'), frame], 'background': 'transparent'}
+    preview = client.post('/image-library/stitch/preview', json=body)
+    saved = client.post('/image-library/stitch', json=body)
+    assert preview.status_code == saved.status_code == 200
+    item = saved.json()
+    assert item['origin']['sources'] == body['sources']
+    assert 'private-name' not in str(item['origin']) and str(original) not in str(item)
+    content = client.get(item['url']).content
+    assert content == base64.b64decode(preview.json()['preview'].split(',')[1])
+    with Image.open(io.BytesIO(content)) as image:
+        assert image.size == (48, 16)
+        assert image.getpixel((12, 8)) == (0, 0, 255, 255)
+        assert image.getpixel((36, 8)) == (255, 0, 0, 255)
+        assert not image.info
+    assert (original.read_bytes(), original.stat().st_mtime_ns, manager.query()) == before
+
+
+@pytest.mark.parametrize('failure', ['changed', 'missing', 'forgotten', 'locked', 'path', 'url'])
+def test_catalog_stitch_rejects_unavailable_locked_or_arbitrary_sources(client, managed, failure):
+    manager, original, frame = managed
+    other = source('blue'); before = library.read_index()
+    if failure == 'changed': original.write_bytes(picture('green', (25, 16)))
+    elif failure == 'missing': original.unlink()
+    elif failure == 'forgotten': manager.forget_folder(manager.query()['images'][0]['folder_id'])
+    elif failure == 'locked':
+        token = vault.setup('12345678')['token']; vault.add(token, original.read_bytes(), 'locked.png')
+    else: frame[failure] = str(original) if failure == 'path' else 'https://example.com/image.png'
+    for endpoint in ('/stitch/preview', '/stitch'):
+        response = client.post('/image-library' + endpoint, json={'sources': [other, frame]})
+        assert response.status_code == (403 if failure == 'locked' else 422), response.text
+    assert library.read_index() == before
+
+
 @pytest.mark.parametrize('layout,size,centers', [
     ('row', (48, 16), [(12, 8), (36, 8)]),
     ('column', (24, 32), [(12, 8), (12, 24)]),

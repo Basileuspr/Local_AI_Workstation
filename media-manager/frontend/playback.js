@@ -7,6 +7,21 @@ export function frameAt(times, seconds) {
   return Math.max(0,lo-1);
 }
 
+// A dialog cannot enter fullscreen. Keep its player and controls together in
+// a normal element without recreating the video or resetting playback.
+export function playbackSurface(root) {
+  const dialog = root.closest('dialog');
+  if (!dialog) return root;
+  let surface = dialog.querySelector(':scope > .mo-playback-surface');
+  if (!surface) {
+    surface = dialog.ownerDocument.createElement('div');
+    surface.className = 'mo-playback-surface';
+    surface.append(...dialog.childNodes);
+    dialog.append(surface);
+  }
+  return surface;
+}
+
 // Both viewers use presentation timestamps, including variable-rate videos.
 export function attachPlayback(owner, root, row) {
   const video=root.querySelector('video'); if(!video)return;
@@ -49,7 +64,24 @@ export function attachPlayback(owner, root, row) {
   controls.querySelector('[aria-label="Playback speed"]').onchange=e=>{video.playbackRate=Number(e.target.value);};
   controls.querySelector('[data-snapshot]').onclick=()=>owner.saveSnapshot(row,video,controls.querySelector('[data-capture-status]'),controls.querySelector('[data-snapshot]'));
   controls.querySelector('[data-clip]').onclick=()=>owner.openClipEditor(row,video);
-  controls.querySelector('[data-fullscreen]').onclick=()=>{const action=document.fullscreenElement?document.exitFullscreen():root.requestFullscreen();action.catch(e=>controls.querySelector('[data-capture-status]').textContent=e.message);};
+  const surface = playbackSurface(root), fullscreen = controls.querySelector('[data-fullscreen]');
+  const updateFullscreen = () => {
+    const entered = document.fullscreenElement === surface;
+    fullscreen.textContent = entered ? 'Exit fullscreen' : 'Fullscreen';
+    fullscreen.setAttribute('aria-pressed', String(entered));
+  };
+  // Replacing this handler also releases controls from an earlier playback mode.
+  surface.onfullscreenchange = updateFullscreen;
+  fullscreen.onclick = async () => {
+    const status = controls.querySelector('[data-capture-status]');
+    try {
+      status.textContent = '';
+      if (document.fullscreenElement === surface) await document.exitFullscreen();
+      else await surface.requestFullscreen();
+    } catch (error) { status.textContent = `Fullscreen unavailable: ${error.message}`; }
+    updateFullscreen();
+  };
+  updateFullscreen();
   update();
   let times, pending=false, jobId;
   const status=panel.querySelector(':scope > [role=status]'), cancel=panel.querySelector('[data-cancel]');

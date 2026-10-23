@@ -1,6 +1,9 @@
 import ScrollToolbar from './ScrollToolbar';
 import ImageThumbnail from "./ImageThumbnail";
 import ImageManagerTools from './ImageManagerTools';
+import ImageManagerPreview from './ImageManagerPreview';
+import ImageStitcher, { StitchFrameButton } from './ImageStitcher';
+import { useImageStitcher } from '../imageStitcher';
 import VisualReview from './VisualReview';
 import ActionMenu from './ActionMenu';
 import { useEffect, useRef, useState } from 'react';
@@ -39,10 +42,10 @@ export function ImageManagerFilters({ filters, page, folders, view, onFilter, on
   </>;
 }
 
-function Dialog({ title, children, onClose, className = '' }) {
+function Dialog({ title, children, onClose, className = '', onKeyDown }) {
   const ref = useRef(null);
   useEffect(() => { ref.current.showModal(); }, []);
-  return createPortal(<dialog ref={ref} className={`im-dialog ${className}`} onCancel={event => { event.preventDefault(); onClose(); }} aria-label={title}>
+  return createPortal(<dialog ref={ref} className={`im-dialog ${className}`} onKeyDown={onKeyDown} onCancel={event => { event.preventDefault(); onClose(); }} aria-label={title}>
     <header><h2>{title}</h2><button onClick={onClose} aria-label="Close dialog">✕</button></header>{children}
   </dialog>, document.body);
 }
@@ -77,6 +80,7 @@ function RecipeEditor({ value, folders, sourceIds, outputId, recursive, onSave, 
 }
 
 export default function ImageManager({ active = true }) {
+  const stitcher = useImageStitcher(), selectedImages = useRef(new Map());
   const dispatch = useDispatch(), destinations = useImageDestinations();
   const [savedView] = useState(loadImageManagerView), [catalogReady, setCatalogReady] = useState(false);
   const [state, setState] = useState(emptyState), [page, setPage] = useState(emptyPage), [view, setView] = useState(savedView.view);
@@ -100,6 +104,11 @@ export default function ImageManager({ active = true }) {
   const running = state.job?.status === 'running', lastResult = useRef('');
   const scanning = running && state.job.phase === 'scan';
   const stateRequest = useRef(0);
+  useEffect(() => {
+    const available = new Map([...selectedImages.current, ...page.images.map(image => [image.id, image])]);
+    selectedImages.current = new Map(selected.map(id => [id, available.get(id)]).filter(([, image]) => image));
+  }, [page.images, selected]);
+  useEffect(() => { setPreview(null); }, [active, filters, view]);
   async function refresh() {
     const request = ++stateRequest.current, value = await images.request();
     if (request === stateRequest.current) { setState(value); setCatalogReady(true); }
@@ -269,6 +278,7 @@ export default function ImageManager({ active = true }) {
     {notice && <p role="status" className="im-note">{notice}</p>}
     <ScrollToolbar as="div" label="Image Manager controls" className="im-sticky-controls">
     <button onClick={() => setToolsOpen(true)}>Image tools</button>
+    <button type="button" aria-pressed={stitcher.enabled} disabled={stitcher.busy} onClick={() => stitcher.setEnabled(!stitcher.enabled)}>Image stitcher{stitcher.frames.length ? ` (${stitcher.frames.length})` : ''}</button>
 <nav className="im-tabs" aria-label="Image Manager views">{['library', 'duplicates', 'hidden', 'organize', 'functions', 'history', 'trash'].map(id => <button key={id} aria-current={view === id ? 'page' : undefined} onClick={() => chooseView(id)}>{id[0].toUpperCase() + id.slice(1)}{['trash', 'hidden'].includes(id) ? ` (${state.summary[id] || 0})` : ''}</button>)}</nav>
       {['library', 'duplicates', 'hidden'].includes(view) && <>
       <ImageManagerFilters filters={filters} page={page} folders={state.folders} view={view} onFilter={filter} onReset={resetFilters} pageSize={pageSize} onPageSize={changePageSize} density={density} onDensity={changeDensity}/>
@@ -285,6 +295,11 @@ export default function ImageManager({ active = true }) {
           <input aria-label="Selected image tags" value={tags} onChange={event => setTags(event.target.value)} placeholder="Tags, separated by commas" title="Replace tags on selected images; leave blank to clear them"/><button disabled={disabled} onClick={() => perform(() => annotate({ tags: tags.split(',').map(tag => tag.trim()).filter(Boolean) }))}>Set tags</button>
           </div></details>
           <ActionMenu label="Selection options" actions={[
+            {label:'Add selected to stitcher', disabled:stitcher.busy, onClick:() => {
+              const frames = selected.map(id => selectedImages.current.get(id));
+              if (frames.some(frame => !frame)) { setError('Some selected images are unavailable. Clear the selection and pick them again.'); return; }
+              stitcher.add(frames.map(images.stitchImage));
+            }},
             {label:'Organize selected', onClick:() => setView('organize')},
             {label:'Favorite', disabled, onClick:() => perform(() => annotate({favorite:true}))},
             {label:'Unfavorite', disabled, onClick:() => perform(() => annotate({favorite:false}))},
@@ -295,6 +310,7 @@ export default function ImageManager({ active = true }) {
       </div>
       </>}
     </ScrollToolbar>
+    <ImageStitcher stitcher={stitcher} active={active} />
     {['library', 'duplicates', 'hidden'].includes(view) && <>
       {view === 'duplicates' && <div className="im-duplicates"><div className="im-controls"><button disabled={disabled || !sourceIds.length} onClick={() => perform(() => start('duplicates', scope))}>Find exact duplicates</button><button onClick={() => { setFilters({ ...emptyFilters, folder_id: '', duplicates: true }); setOffset(0); setSelected([]); }}>Show all checked duplicates</button><button disabled={disabled || !state.duplicates.length || !state.folders.some(folder => folder.purpose === 'source')} onClick={() => setDuplicateFolder({ sourceId: state.folders.find(folder => folder.id === filters.folder_id && folder.purpose === 'source')?.id || sourceIds[0] || state.folders.find(folder => folder.purpose === 'source')?.id || '', mode: 'move', members: 'extra' })}>Send duplicates to folder</button></div>{state.duplicates.map(group => <button className={filters.digest === group.sha256 ? 'selected' : ''} key={group.sha256} onClick={() => { setFilters({ ...emptyFilters, folder_id: '', digest: group.sha256 }); setOffset(0); setSelected([]); }}>{group.count} files · {images.bytesLabel(group.bytes)} each · {group.sha256.slice(0, 12)}…</button>)}</div>}
       <div className="im-grid">{page.images.map(image => <article key={image.id} className={selected.includes(image.id) ? 'selected' : ''}>
@@ -303,6 +319,7 @@ export default function ImageManager({ active = true }) {
         <button className="im-delete im-delete-item" aria-label={`Delete ${image.relative}`} disabled={disabled} onClick={() => perform(() => reviewFiles('delete', [image.id]))}>Delete</button>
         </div>
         <button className="im-image" onMouseDown={preventSelectionText} onClick={event => toggleImage(image.id,event)} aria-label={`Select image ${image.relative}`} aria-pressed={selected.includes(image.id)}><ImageThumbnail src={images.imageUrl(image, density === 'extra-comfortable')} alt={image.relative} /></button>
+        <StitchFrameButton stitcher={stitcher} image={images.stitchImage(image)} />
         <button className="im-name" title={`${image.folder_path} / ${image.relative}`} onMouseDown={preventSelectionText} onClick={event => toggleImage(image.id,event)} aria-pressed={selected.includes(image.id)}>{image.favorite ? '★ ' : ''}{image.relative}</button>{Boolean(image.hidden) && <small>Hidden</small>}<small>{image.width} × {image.height} · {image.format} · {images.bytesLabel(image.bytes)}</small><small>{image.date.slice(0, 10)} · {image.date_source}</small>{image.tags.length > 0 && <small className="im-tags">{image.tags.join(' · ')}</small>}<button className="im-preview-button" onClick={() => setPreview(image)} aria-label={`Preview ${image.relative}`}>Preview</button>
       </article>)}</div>
       {!page.total && <p className="im-empty">{!browsing ? 'No folder selected. Choose a Browse folder or All catalog folders to view saved images.' : state.summary.images ? 'No images match these filters.' : 'Add a source folder and scan it to browse your still images here.'}</p>}
@@ -318,7 +335,7 @@ export default function ImageManager({ active = true }) {
     </div>}
     {view === 'functions' && <div className="im-functions"><div className="im-controls"><button disabled={disabled} onClick={() => setRecipe({ create: true })}>Create image function</button><button disabled={disabled || !sourceIds.length || !outputId} onClick={() => perform(() => start('report', scope))}>Save catalog report</button></div>{sortNamedItems(state.functions).map(item => <article key={item.id}><h3>{item.name}</h3><p>{item.steps.map(step => images.imageSteps[step]).join(' → ')}</p><div className="im-controls"><button disabled={disabled} onClick={() => perform(() => start('function', { function_id: item.id }))}>Run function</button><button disabled={disabled} onClick={() => setRecipe(item)}>Edit</button><button disabled={disabled} onClick={() => setDeleteRecipe(item)}>Delete function</button></div></article>)}</div>}
     {view === 'history' && <div className="im-history">{state.receipts.map(receipt => <details key={receipt.id}><summary>{receipt.mode} · {receipt.status} · {receipt.entries.length} images · {receipt.started}</summary>{receipt.entries.map((entry, index) => <p className="im-path" key={index}>{entry.status}: {entry.source} → {entry.target}<small>SHA-256 {entry.sha256}</small>{entry.error && <small className="im-error">{entry.error}</small>}</p>)}</details>)}{!state.receipts.length && <p>No copies or moves have been performed.</p>}</div>}
-    {preview && <Dialog title={preview.relative} onClose={() => setPreview(null)}><img className="im-preview" src={images.imageUrl(preview, true)} alt={preview.relative} /><p>{preview.width} × {preview.height} · {preview.format} · {images.bytesLabel(preview.bytes)} · {preview.date_source}: {preview.date.slice(0, 10)}</p><p className="im-path">{preview.folder_path} / {preview.relative}</p><div className="im-controls"><button disabled={busy} onClick={() => perform(async () => { const result = await window.workstationDesktop?.revealManagedImage(preview.id); if (!result || result.error) throw new Error(result?.error || 'Show in folder requires the desktop app.'); })}>Show in folder</button><button disabled={busy} onClick={() => perform(async () => { await destinations.take(images.originalImage(preview), 'editor'); setPreview(null); })}>Edit image</button><button disabled={busy} onClick={() => perform(() => stage(preview))}>Add to chat draft</button><button disabled={busy} onClick={() => perform(async () => { await destinations.take(images.originalImage(preview), 'folder'); setPreview(null); })}>Save copy to Gallery</button></div>{error && <p role="alert" className="im-error">{error}</p>}</Dialog>}
+    {active && preview && <ImageManagerPreview image={preview} page={page} filters={filters} view={view} pageSize={pageSize} onPage={setOffset} onClose={() => setPreview(null)} onStage={stage} Dialog={Dialog} stitcher={stitcher} />}
     {duplicateFolder && <Dialog title="Send duplicates to folder" onClose={() => setDuplicateFolder(null)}><label>Source folder<select value={duplicateFolder.sourceId} onChange={event => setDuplicateFolder(current => ({ ...current, sourceId: event.target.value }))}>{state.folders.filter(folder => folder.purpose === 'source').map(folder => <option key={folder.id} value={folder.id}>{folder.path}</option>)}</select></label><label>Images to send<select value={duplicateFolder.members} onChange={event => setDuplicateFolder(current => ({ ...current, members: event.target.value }))}><option value="extra">Extra copies — keep one per group in source</option><option value="all">Every matching image</option></select></label><label>Action<select value={duplicateFolder.mode} onChange={event => setDuplicateFolder(current => ({ ...current, mode: event.target.value }))}><option value="move">Move</option><option value="copy">Copy</option></select></label><p className="im-path">Destination: {state.folders.find(folder => folder.id === duplicateFolder.sourceId)?.path} / Duplicates</p>{error && <p role="alert" className="im-error">{error}</p>}<footer><button onClick={() => setDuplicateFolder(null)}>Cancel</button><button disabled={disabled || !duplicateFolder.sourceId} onClick={() => perform(async () => { setPlan(null);  await start('duplicate-plan', { folder_ids: [duplicateFolder.sourceId], mode: duplicateFolder.mode, duplicate_members: duplicateFolder.members }); setDuplicateFolder(null); setView('organize'); })}>Prepare duplicate-folder plan</button></footer></Dialog>}
     {recipe && <RecipeEditor value={recipe.create ? null : recipe} folders={state.folders} sourceIds={sourceIds} outputId={outputId} recursive={recursive} onClose={() => setRecipe(null)} onSave={async value => { await images.request('/functions', 'POST', value); await refresh(); }} />}
     {forget && <Dialog title="Forget catalog folder" onClose={() => setForget(null)}><p>Remove {forget.path} and its image metadata from this catalog? Original files stay in place. Functions using this folder will need another source or output.</p>{error && <p role="alert" className="im-error">{error}</p>}<footer><button onClick={() => setForget(null)}>Cancel</button><button disabled={disabled} onClick={() => perform(async () => { await images.request(`/folders/${forget.id}`, 'DELETE'); setSourceIds(ids => ids.filter(id => id !== forget.id)); if (outputId === forget.id) setOutputId(''); resetFilters(); setForget(null); setRevision(v => v + 1); await refresh(); })}>Forget folder</button></footer></Dialog>}

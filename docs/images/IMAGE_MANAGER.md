@@ -27,6 +27,27 @@ Scans skip links and excluded locations, including NVIDIA data. They use a
 previews and handoffs have their own byte/pixel limits; a file appearing in a scan
 does not guarantee every editor can open it.
 
+## Preview navigation and stitcher
+
+Open **Preview**, then use **Previous image**, **Next image**, or the left/right
+arrow keys. Browsing follows the current filters and sort across page boundaries,
+wraps at either end, and shows your position among matching images. Escape closes
+the preview. Existing edit, reveal, chat-draft and Gallery-copy actions use the
+currently displayed image. Refresh retains the browsing view during a scan;
+preview and selection state are temporary.
+
+Enable **Image stitcher** to pick frames on cards, add a frame from Preview, or
+use **Selection options → Add selected to stitcher**. Picks retain their order
+across pages and filters. The numbered tray supports reordering, reversing and
+removal. **Preview stitch** uses Gallery's existing strip/grid controls, frame
+size, spacing and background options. **Save stitched image** creates an independent
+PNG in Saved Images; **Download PNG** exports its full resolution.
+
+Stitching reads revalidated catalog originals without importing or changing them
+or their manual metadata. Missing, changed or locked frames stop the operation.
+Rescan changed files or remove/restore the affected frame before retrying. Only
+the display preview is reduced; large outputs need temporary disk space.
+
 ## Metadata and duplicates
 
 Review tags and captions before saving. Duplicate detection matches file bytes,

@@ -55,6 +55,7 @@ export function upload(files) {
 }
 export const imageUrl = image => ({ ...image, url: imageSourceUrl(image.url) });
 export function sourceFor(image) {
+  if (image.managed) return { kind: "managed", id: image.id };
   if (image.library) return { kind: "library", id: image.id };
   if (image.session_id) return { kind: "session", session_id: image.session_id, message_id: image.message_id, image_id: image.image_id, name: image.name };
   if (image.run) return { kind: "workflow", workflow_id: image.run.workflow_id, job_id: image.run.id,

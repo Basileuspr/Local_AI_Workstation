@@ -84,8 +84,18 @@ function createMediaManager({ WebContentsView, session, getWindow, python, direc
             if (disposed || !child) throw new Error("Media Manager is closing.");
             // Ephemeral separate session: no host cookies, storage, preload or IPC.
             const isolatedSession = session.fromPartition(`media-manager-${randomUUID()}`);
-            isolatedSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
-            isolatedSession.setPermissionCheckHandler(() => false);
+            const allowFullscreen = (contents, permission, url, details) => {
+                if (permission !== 'fullscreen' || !view || contents !== view.webContents
+                    || !view.getVisible() || details?.isMainFrame !== true) return false;
+                try { return new URL(url).origin === origin && new URL(contents.getURL()).origin === origin; }
+                catch { return false; }
+            };
+            // Chromium still requires a user gesture. No media, device, external
+            // navigation, subframe or automatic-fullscreen permission is granted.
+            isolatedSession.setPermissionRequestHandler((contents, permission, callback, details) =>
+                callback(allowFullscreen(contents, permission, details?.requestingUrl, details)));
+            isolatedSession.setPermissionCheckHandler((contents, permission, requestingOrigin, details) =>
+                allowFullscreen(contents, permission, details?.requestingUrl || requestingOrigin, details));
             isolatedSession.on("will-download", event => event.preventDefault());
             isolatedSession.webRequest.onBeforeRequest((details, callback) => {
                 let allowed = false;

@@ -64,9 +64,14 @@ class Source(BaseModel):
     folder_id: str | None = Field(default=None, max_length=100)
 
 
+class StitchSource(Source):
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["session", "workflow", "library", "managed"]
+
+
 class StitchRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    sources: list[Source] = Field(min_length=2)
+    sources: list[StitchSource] = Field(min_length=2)
     layout: Literal["row", "column", "grid"] = "row"
     columns: int = Field(default=0, ge=0, strict=True)
     tile_size: int = Field(default=1024, ge=0, strict=True)

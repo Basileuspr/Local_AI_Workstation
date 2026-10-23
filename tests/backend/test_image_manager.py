@@ -69,6 +69,43 @@ def test_exif_orientation_and_capture_date(tmp_path):
     assert metadata['date'].startswith('2021-02-03')
 
 
+@pytest.mark.parametrize('sort', ['name', 'date', 'size', 'dimensions'])
+def test_preview_navigation_uses_filtered_identity_order_and_wraps(setup, sort):
+    manager, _, _, src, _ = setup
+    rows = manager.query(folder_id=src, sort=sort)['images']
+    manager.metadata([row['id'] for row in rows[:2]], favorite=True, tags=['browse'])
+    filters = dict(folder_id=src, sort=sort, favorite=True, tag='browse')
+    ordered = manager.query(**filters)['images']
+    for index, image in enumerate(ordered):
+        for step in [-1, 0, 1]:
+            result = manager.query(**filters, anchor=image['id'], step=step, offset=999, limit=48)
+            expected = (index + step) % len(ordered)
+            assert [row['id'] for row in result['images']] == [ordered[expected]['id']]
+            assert (result['offset'], result['total']) == (expected, 2)
+    manager.metadata([ordered[0]['id']], hidden=True)
+    with pytest.raises(ValueError, match='no longer matches'):
+        manager.query(**filters, anchor=ordered[0]['id'], step=1)
+    assert manager.query(**filters, anchor=ordered[1]['id'], step=1)['images'][0]['id'] == ordered[1]['id']
+
+
+def test_preview_navigation_reanchors_after_scan_and_validates_api(setup, monkeypatch):
+    from routes import image_manager as routes
+    manager, source, _, src, _ = setup
+    rows = manager.query(sort='name')['images']
+    Image.new('RGB', (12, 12)).save(source / 'aaa-new.png')
+    run(manager, 'scan', folder_ids=[src], recursive=True)
+    updated = manager.query(sort='name')['images']
+    index = next(i for i, row in enumerate(updated) if row['id'] == rows[0]['id'])
+    monkeypatch.setattr(routes, 'manager', manager)
+    app = FastAPI(); app.include_router(routes.router)
+    with TestClient(app) as client:
+        response = client.get('/image-manager/images', params={'sort': 'name', 'anchor': rows[0]['id'], 'step': 1})
+        assert response.status_code == 200
+        assert response.json()['images'][0]['id'] == updated[(index + 1) % len(updated)]['id']
+        assert client.get('/image-manager/images', params={'anchor': 'missing', 'step': 1}).status_code == 422
+        assert client.get('/image-manager/images', params={'step': 2}).status_code == 422
+
+
 def test_duplicate_hashes_changed_files_and_partial_scan(setup):
     manager, source, _, src, _ = setup
     job = run(manager, 'duplicates', folder_ids=[src])

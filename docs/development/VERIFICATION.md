@@ -4,6 +4,30 @@ This is the consolidated evidence record, reviewed October 23, 2026.
 Current guides describe inspected source; dated tests below are not a certification
 of every feature, provider, installation or device.
 
+## October 23 Image Manager browsing/stitcher and Media Manager fullscreen
+
+Image Manager previews follow the active filtered/sorted catalog across pages,
+with wrapping arrows and keyboard navigation. The shared Gallery stitcher accepts
+revalidated catalog originals, retains pick order and writes independent Saved
+Images. Media Manager fullscreen uses a normal playback surface and permits only
+its visible, owned main frame while retaining all other permission denials.
+
+- Frontend: **1,572 passed, 3 existing skips**; backend: **2,233 passed, 2 existing
+  skips**. Media Manager: **124 Python and 23 Node tests passed**.
+- Isolated desktop and phone builds passed with installed dependencies retained
+  (Vite 6.4.3 and Vitest 4.1.11). Existing build chunk warnings remain.
+- Real isolated Electron checks passed filtered page navigation, keyboard wrap,
+  catalog stitch preview/save/download, byte-identical downloads, preserved
+  originals, and refresh during an active scan. Gallery's existing stitching,
+  reordering, download and narrow-window walkthrough also passed.
+- Isolated Media Manager details and duplicate players entered fullscreen with
+  visible playback controls and retained the same decoded video/position. Button,
+  Escape and viewer-close exits passed, along with the existing isolation checks.
+
+Live assets and dependencies were not replaced and the running application was
+not restarted. Coordinated activation and acceptance against the live catalog
+remain separate; these fixtures use disposable synthetic media.
+
 ## October 23 companion workflow fixes
 
 The subsequent character intake adds explicit profile saves and visible Saved

@@ -82,6 +82,8 @@ export const mediaHelp = {
     ['Search / All tags', 'Filters catalog matches. Saved tag choices cover the available catalog, including hidden images. Choosing a tag clears Untagged only.'],
     ['More filters', 'Contains date, format, favorites and Untagged only filters. The summary shows active filters.'],
     ['Selection', 'Ctrl-click toggles an image; Shift-click selects a range. Actions include selected items on other pages.'],
+    ['Preview / Previous image / Next image', 'Open Preview, then use its arrows or the left/right keyboard keys to browse the current filtered and sorted results across pages. Navigation wraps at the ends; Escape closes the preview. The counter shows your place among matching images. Edit, Show in folder, Add to chat draft and Save copy to Gallery apply to the displayed image.'],
+    ['Image stitcher / Add selected to stitcher', 'Turn on Image stitcher for frame buttons, add from an enlarged preview, or transfer selected images through Selection options. Frames retain pick order across pages and filters. Reorder, remove or reverse them in the tray, then Preview stitch. Choose a strip or grid, spacing, frame size and background. Save creates a new PNG in Saved Images; Download PNG exports it. Originals and manual metadata stay unchanged. Changed, missing or locked frames must be rescanned, restored or removed.'],
     ['Tag selected images → Add tag / Set tags', 'Expand after selecting images. Add tag keeps existing tags. Set tags replaces them; submitting a blank tag list clears them. Collapsing the tools retains your tag draft.'],
     ['Selection options', 'Appears after selecting images and groups favorites, hiding, organization and reviewed deletion. Hidden images stay hidden after rescanning or restarting until restored.'],
   ]], classificationHelp, ['Duplicates and file actions', [
@@ -105,6 +107,7 @@ export const mediaHelp = {
     ['Library / date filters', 'Filter by dates and media metadata; thumbnails open playback or a preview.'],
     ['Selection', 'Ctrl-click toggles files, Shift-click selects a range, and Ctrl+Shift adds a range. Bulk actions include selections hidden by filters.'],
     ['Enter Media Manager / F6', 'Enter moves keyboard focus into the embedded workspace. F6 returns to app navigation.'],
+    ['Fullscreen / Exit fullscreen', 'In details or duplicate playback, Fullscreen expands the video together with playback, frame and capture controls. Exit fullscreen or Escape returns to the open viewer without restarting the video. Closing the viewer also leaves fullscreen.'],
     ['Reload thumbnails', 'Retries this workspace’s previews after a failure.'],
     ['Duplicate copies', 'Scanning includes MP4 subfolders and identifies identical copies by hash. With a destination, the move preview uses Year / Category / Original filename and can keep every copy, separate extra copies into _Duplicates, or leave them in the source.'],
     ['Custom folders', 'Create or connect a real folder. Selected clips move only after reviewing and confirming their plan.'],

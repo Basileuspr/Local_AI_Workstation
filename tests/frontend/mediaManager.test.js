@@ -47,12 +47,12 @@ describe("Media Manager page initialization", () => {
     let destroyed = false, throttle = true;
     Object.assign(contents, { isDestroyed: () => destroyed, close: () => { destroyed = true; },
       getBackgroundThrottling: () => throttle, setBackgroundThrottling: value => { throttle = value; },
-      setWindowOpenHandler: vi.fn(), loadURL: vi.fn(async () => {}), executeJavaScript: vi.fn(async () => initialized) });
+      setWindowOpenHandler: vi.fn(), getURL: () => 'http://127.0.0.1:43210/', loadURL: vi.fn(async () => {}), executeJavaScript: vi.fn(async () => initialized) });
     const children = [];
     const win = { getContentSize: () => [1200, 800], webContents: { getZoomFactor: () => 1 },
       contentView: { addChildView: view => children.push(view), removeChildView: view => children.splice(children.indexOf(view), 1) } };
-    const session = { fromPartition: () => ({ setPermissionRequestHandler: vi.fn(), setPermissionCheckHandler: vi.fn(),
-      on: vi.fn(), webRequest: { onBeforeRequest: vi.fn() } }) };
+    const permissions = { setPermissionRequestHandler: vi.fn(), setPermissionCheckHandler: vi.fn(), on: vi.fn(), webRequest: { onBeforeRequest: vi.fn() } };
+    const session = { fromPartition: () => permissions };
     class View {
       webContents = contents;
       visible = false;
@@ -65,7 +65,7 @@ describe("Media Manager page initialization", () => {
     const manager = createMediaManager({ WebContentsView: View, session, getWindow: () => win,
       python: "fixture-python", directory: path.resolve("media-manager"),
       spawnProcess: () => { queueMicrotask(() => child.stdout.emit("data", Buffer.from('{"mediaManagerReady":1,"url":"http://127.0.0.1:43210"}\n'))); return child; } });
-    return { manager, child, contents, children };
+    return { manager, child, contents, children, permissions };
   }
   it("does not report ready when HTML loads but the frontend module fails", async () => {
     const f = fixture(false);
@@ -84,6 +84,26 @@ describe("Media Manager page initialization", () => {
     expect(f.children[0].visible).toBe(true);
     expect(await f.manager.start()).toEqual({ ready: true });
     expect(f.contents.loadURL).toHaveBeenCalledOnce();
+    f.manager.dispose();
+  });
+  it('allows only fullscreen from the visible owned main frame and preserves other denials', async () => {
+    const f = fixture(true);
+    f.manager.place({ visible: true, bounds: { x: 0, y: 0, width: 850, height: 650 } });
+    await f.manager.start();
+    const check = f.permissions.setPermissionCheckHandler.mock.calls[0][0];
+    const request = f.permissions.setPermissionRequestHandler.mock.calls[0][0];
+    const details = { isMainFrame: true, requestingUrl: f.contents.getURL() };
+    expect(check(f.contents, 'fullscreen', details.requestingUrl, details)).toBe(true);
+    const callback = vi.fn(); request(f.contents, 'fullscreen', callback, details);
+    expect(callback).toHaveBeenCalledWith(true);
+    for (const permission of ['media', 'display-capture', 'openExternal', 'automatic-fullscreen', 'notifications'])
+      expect(check(f.contents, permission, details.requestingUrl, details)).toBe(false);
+    for (const changed of [{ ...details, isMainFrame: false }, { ...details, requestingUrl: 'https://example.com/' }, {}])
+      expect(check(f.contents, 'fullscreen', '', changed)).toBe(false);
+    expect(check({}, 'fullscreen', details.requestingUrl, details)).toBe(false);
+    expect(check(null, 'fullscreen', details.requestingUrl, details)).toBe(false);
+    f.manager.hide();
+    expect(check(f.contents, 'fullscreen', details.requestingUrl, details)).toBe(false);
     f.manager.dispose();
   });
 });

@@ -2,6 +2,8 @@
 import base64
 import hashlib
 import io
+import os
+import shutil
 import tempfile
 import threading
 from pathlib import Path
@@ -11,7 +13,7 @@ from PIL import Image, ImageOps
 from services import image_library as library, image_vault as vault
 from services.image_manager_canvas import DiskCanvas
 from services.image_manager_layout import regular_sheet
-from services.image_manager_metadata import open_local_image
+from services.image_manager_metadata import open_local_image, signature
 from services.image_workflows import store
 
 LOCK = threading.Lock()
@@ -28,16 +30,27 @@ def _sources(sources, directory):
                 stream, _ = library.image_stream(source.get('id'))
                 try:
                     with path.open('xb') as output:
-                        import shutil
                         shutil.copyfileobj(stream, output, 1024 * 1024)
                 finally:
                     stream.close()
+            elif source['kind'] == 'managed':
+                from services.image_manager import manager
+                record, original = manager.image_path(source.get('id'))
+                with original.open('rb') as stream, path.open('xb') as output:
+                    if signature(os.fstat(stream.fileno())) != record['signature']:
+                        raise ValueError('The image changed since scanning. Scan again.')
+                    shutil.copyfileobj(stream, output, 1024 * 1024)
+                    if signature(os.fstat(stream.fileno())) != record['signature']:
+                        raise ValueError('The image changed while reading it. Scan again.')
+                manager.image_path(source.get('id'))
             else:
                 data, _ = library.source_bytes(source)
                 path.write_bytes(data)
                 del data
             with path.open('rb') as stream:
                 digest = hashlib.file_digest(stream, 'sha256').hexdigest()
+            if source['kind'] == 'managed' and record.get('sha256') and digest != record['sha256']:
+                raise ValueError('The image changed since scanning. Scan again.')
             vault.require_public(digest)
             with open_local_image(path) as original:
                 original.verify()

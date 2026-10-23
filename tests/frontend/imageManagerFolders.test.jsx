@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import ImageManager from '../../src/components/ImageManager';
 import { NO_IMAGE_FOLDER } from '../../src/imageManagerApi';
 import { IMAGE_MANAGER_VIEW_KEY, saveImageManagerView } from '../../src/imageManagerViewState';
+import { sourceFor } from '../../src/imageLibraryApi';
 
 vi.mock('../../src/components/ImageThumbnail', () => ({ default: () => null }));
 vi.mock('../../src/components/VisualReview', () => ({ default: () => null }));
@@ -28,6 +29,7 @@ beforeEach(() => {
   const saved = new Map();
   vi.stubGlobal('sessionStorage', { getItem: key => saved.get(key) ?? null, setItem: (key, value) => saved.set(key, value) });
   window.HTMLElement.prototype.showModal = function () { this.setAttribute('open', ''); };
+  window.HTMLElement.prototype.hidePopover = function () {};
   catalog = { folders: [...folders], summary: { images: 3, bytes: 300, favorites: 0, hidden: 1 }, functions: [], duplicates: [{ sha256: 'hash', count: 2, bytes: 100 }], receipts: [], plans: [] };
   forgetError = '';
   pageResult = { ...emptyPage, images: [image], total: 1 };
@@ -48,6 +50,7 @@ beforeEach(() => {
 afterEach(async () => {
   await act(async () => root.unmount());
   delete window.HTMLElement.prototype.showModal;
+  delete window.HTMLElement.prototype.hidePopover;
   vi.useRealTimers(); vi.unstubAllGlobals();
 });
 async function mount() { await act(async () => root.render(<ImageManager/>)); await tick(); }
@@ -69,6 +72,75 @@ async function select(label, value) {
   await tick();
 }
 async function click(node) { await act(async () => node.click()); }
+
+function paginatedImages() {
+  const records = Array.from({ length: 49 }, (_, index) => ({ ...image, id: `image-${index}`, relative: `photo-${index}.png` }));
+  const original = fetch.getMockImplementation();
+  fetch.mockImplementation((url, options) => {
+    const query = new URL(url);
+    if (!query.pathname.endsWith('/images')) return original(url, options);
+    const anchor = query.searchParams.get('anchor');
+    const offset = anchor ? (records.findIndex(item => item.id === anchor) + Number(query.searchParams.get('step')) + records.length) % records.length : Number(query.searchParams.get('offset') || 0);
+    const limit = anchor ? 1 : Number(query.searchParams.get('limit') || 48);
+    return Promise.resolve(response({ ...emptyPage, images: records.slice(offset, offset + limit), total: records.length, offset }));
+  });
+  return records;
+}
+
+it('browses across page boundaries and wraps in the active filtered order, retaining manager actions', async () => {
+  paginatedImages(); await mount(); await select('Filter image folder', 'output');
+  await click(document.querySelector('[aria-label="Preview photo-47.png"]'));
+  const dialog = () => document.querySelector('.im-image-preview');
+  expect(dialog().textContent).toContain('48 of 49');
+  await click(dialog().querySelector('[aria-label="Next image"]')); await tick();
+  expect(dialog().getAttribute('aria-label')).toBe('photo-48.png');
+  expect(dialog().textContent).toContain('49 of 49');
+  expect(document.querySelector('.im-pagination').textContent).toContain('49–49');
+  await act(async () => {
+    const event = new window.Event('keydown', { bubbles: true }); event.key = 'ArrowRight';
+    dialog().dispatchEvent(event);
+  }); await tick();
+  expect(dialog().getAttribute('aria-label')).toBe('photo-0.png');
+  await click(dialog().querySelector('[aria-label="Previous image"]')); await tick();
+  expect(dialog().getAttribute('aria-label')).toBe('photo-48.png');
+  for (const name of ['Show in folder', 'Edit image', 'Add to chat draft', 'Save copy to Gallery']) expect(button(name, dialog())).toBeTruthy();
+  const queries = imageRequests().map(([url]) => new URL(url).searchParams).filter(query => query.has('anchor'));
+  expect(queries).toHaveLength(3);
+  expect(queries.every(query => query.get('folder_id') === 'output' && query.get('visibility') === 'visible' && query.get('limit') === '1')).toBe(true);
+  await act(async () => dialog().dispatchEvent(new window.Event('cancel', { bubbles: true })));
+  expect(dialog()).toBeNull();
+});
+
+it('keeps preview usable after a failed adjacent request and disables navigation for a single result', async () => {
+  paginatedImages(); await mount(); await select('Filter image folder', 'output');
+  await click(document.querySelector('[aria-label="Preview photo-0.png"]'));
+  const original = fetch.getMockImplementation();
+  fetch.mockImplementation((url, options) => new URL(url).searchParams.has('anchor')
+    ? Promise.resolve({ ok: false, json: async () => ({ detail: 'This image no longer matches the current results.' }) }) : original(url, options));
+  await click(document.querySelector('.im-image-preview [aria-label="Next image"]'));
+  expect(document.querySelector('.im-image-preview').textContent).toContain('no longer matches');
+  expect(document.querySelector('.im-image-preview').getAttribute('aria-label')).toBe('photo-0.png');
+  await click(document.querySelector('[aria-label="Close dialog"]'));
+  fetch.mockImplementation((url, options) => new URL(url).pathname.endsWith('/images') ? Promise.resolve(response(pageResult)) : original(url, options));
+  await select('Filter image folder', 'source');
+  await click(document.querySelector('[aria-label="Preview photo.png"]'));
+  expect(document.querySelector('.im-image-preview [aria-label="Next image"]').disabled).toBe(true);
+  expect(document.querySelector('.im-image-preview [aria-label="Previous image"]').disabled).toBe(true);
+});
+
+it('adds selections from multiple pages in pick order using catalog IDs and retains frames across filters', async () => {
+  paginatedImages(); await mount(); await select('Filter image folder', 'output');
+  await click(document.querySelector('[aria-label="Select photo-2.png"]'));
+  await click(document.querySelector('[aria-label="Select photo-0.png"]'));
+  await click(button('Next')); await tick();
+  await click(document.querySelector('[aria-label="Select photo-48.png"]'));
+  await click(button('Add selected to stitcher'));
+  const names = () => [...document.querySelectorAll('.image-stitcher-tray .stitch-frame-name')].map(node => node.textContent);
+  expect(names()).toEqual(['1. photo-2.png', '2. photo-0.png', '3. photo-48.png']);
+  await select('Filter image folder', 'source');
+  expect(names()).toHaveLength(3);
+  expect(sourceFor({ ...image, managed: true, url: 'private-url', folder_path: 'private-folder' })).toEqual({ kind: 'managed', id: 'image' });
+});
 
 it('starts unpointed with all three saved folders manageable, including output-only folders', async () => {
   await mount();

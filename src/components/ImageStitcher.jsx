@@ -90,7 +90,7 @@ export default function ImageStitcher({ stitcher, active }) {
       {stitcher.error && <p role="alert">{stitcher.error}</p>}
       {!!stitcher.frames.length && <FrameOrder stitcher={stitcher} />}
     </section>}
-    <dialog ref={dialog} className="image-stitcher-dialog" aria-label="Image stitcher" onCancel={() => stitcher.setOpen(false)} onClose={() => { if (active) stitcher.setOpen(false); }}>
+    {open && <dialog ref={dialog} className="image-stitcher-dialog" aria-label="Image stitcher" onCancel={() => stitcher.setOpen(false)} onClose={() => { if (active) stitcher.setOpen(false); }}>
       {open && <>
         <header><h2>Stitch your frames</h2><button type="button" autoFocus onClick={() => stitcher.setOpen(false)}>Keep browsing</button></header>
         <FrameOrder stitcher={stitcher} />
@@ -113,6 +113,6 @@ export default function ImageStitcher({ stitcher, active }) {
           {savedImage && <><span role="status">Saved in Saved Images: {savedImage.name}</span><button type="button" disabled={stitcher.busy} onClick={download}>Download PNG</button></>}
         </footer>
       </>}
-    </dialog>
+    </dialog>}
   </>;
 }

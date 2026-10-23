@@ -168,8 +168,8 @@ class ImageManager:
             raise ValueError("The image changed since its scan. Scan the folder again.")
         return record, path
 
-    def query(self, *, folder_id="", search="", tag="", format="", month="", favorite=False, hide_tagged=False, tagged_only=False, visibility="visible", duplicates=False, digest="", sort="date", offset=0, limit=48):
-        if sort not in ("date", "name", "size", "dimensions") or offset < 0 or not 1 <= limit <= 1000:
+    def query(self, *, folder_id="", search="", tag="", format="", month="", favorite=False, hide_tagged=False, tagged_only=False, visibility="visible", duplicates=False, digest="", sort="date", offset=0, limit=48, anchor="", step=0):
+        if sort not in ("date", "name", "size", "dimensions") or offset < 0 or not 1 <= limit <= 1000 or step not in (-1, 0, 1):
             raise ValueError("Invalid image page or sort order.")
         where = ["i.available=1"]
         if visibility not in ("visible", "hidden", "all"):
@@ -203,6 +203,14 @@ class ImageManager:
             if len(tag) > 60 and not any(person['name'] == tag for entry in linked.values() for person in entry['people']):
                 raise ValueError("Choose a saved person name or a tag of up to 60 characters.")
             total = db.execute(f"SELECT COUNT(*) FROM {table} i WHERE {predicate}", params).fetchone()[0]
+            if anchor:
+                # Resolve the current identity in the latest filtered order, so
+                # scans inserting rows cannot make preview navigation skip it.
+                position = db.execute(f"SELECT position FROM (SELECT i.id, ROW_NUMBER() OVER (ORDER BY {ordering},i.id)-1 AS position FROM {table} i WHERE {predicate}) WHERE id=?", [*params, anchor]).fetchone()
+                if position is None:
+                    raise ValueError("This image no longer matches the current results. Close the preview and choose another image.")
+                offset = (position[0] + step) % total
+                limit = 1
             rows = db.execute(f"SELECT i.*,f.path AS folder_path FROM {table} i JOIN folders f ON f.id=i.folder_id WHERE {predicate} ORDER BY {ordering},i.id LIMIT ? OFFSET ?", [*params, limit, offset]).fetchall()
             months = [row[0] for row in db.execute("SELECT DISTINCT substr(date,1,7) FROM images WHERE available=1 ORDER BY 1 DESC")]
             formats = [row[0] for row in db.execute("SELECT DISTINCT format FROM images WHERE available=1 ORDER BY 1")]

@@ -70,3 +70,8 @@
 .im-tools-actions { display:flex; justify-content:flex-end; flex-wrap:wrap; gap:10px; }
 @media (max-width:500px) { .im-tools-dialog > header, .im-tools-dialog > footer { padding:12px; }.im-tools-body { padding:0 12px 12px; }.im-tools-actions { justify-content:stretch; }.im-tools-actions button { flex:1 1 auto; } }
 .im-dialog fieldset { margin:14px 0; border:1px solid var(--border); border-radius:7px; }
+.im-preview-stage { position:relative; display:grid; grid-template-columns:44px minmax(0,1fr) 44px; gap:8px; align-items:center; min-height:120px; }
+.im-preview-stage > .image-viewer-arrow { position:static; transform:none; width:44px; min-height:60px; padding:4px; font-size:32px; }
+.im-preview-stage > [role=alert] { text-align:center; }
+.im-image-preview > p[aria-live] { margin:0 0 12px; }
+.image-manager > .image-stitcher-tray { margin:14px 0; }

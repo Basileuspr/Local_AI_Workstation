@@ -14,6 +14,11 @@ to Workstation navigation. The compact navigation drawer temporarily hides the
 native embedded view. Ctrl-click and Shift-click provide selection/range actions
 in the displayed timeline; a normal thumbnail click opens playback.
 
+**Fullscreen** in the details and duplicate players expands the video with its
+playback, frame-stepping and capture controls. **Exit fullscreen** or Escape
+returns to the open viewer while retaining playback position. Closing the viewer
+also exits fullscreen.
+
 ## Storage and lifecycle
 
 Media Manager owns its reports, scans, managed media and move logs. Fresh
@@ -46,6 +51,8 @@ for scan, duplicate, playback and file-operation commands.
 The embedded sandbox has no preload or Node access and can contact only its own
 randomly assigned loopback origin. Trusted host IPC controls launch, position,
 focus and status; it does not expose arbitrary media/filesystem operations.
+Fullscreen is permitted only for the visible module's own main frame, with the
+browser's user-gesture requirement. Other permission requests remain denied.
 
 A restricted review credential allows only the intended visual-review bridge.
 The module receives neither the general Workstation session credential nor the

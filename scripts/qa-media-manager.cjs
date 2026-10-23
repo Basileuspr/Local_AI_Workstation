@@ -29,6 +29,7 @@ const startupOnly = process.argv.includes("--startup-only");
 // Check the real embedded module independently when other work is rebuilding the host renderer.
 const moduleOnly = process.argv.includes("--module-only");
 const refreshOnly = process.argv.includes("--refresh-only") || moduleOnly;
+const fullscreenCheck = process.argv.includes('--fullscreen');
 console.log(`Media Manager QA result: ${resultFile}`);
 app.whenReady().then(async () => {
     backend = http.createServer((_request, response) => {
@@ -62,7 +63,7 @@ app.whenReady().then(async () => {
     await win.loadURL(moduleOnly ? "data:text/html,<title>Media Manager test host</title>" : "app://local/index.html");
     // Chromium does not load lazy images in hidden native views, even after
     // scrolling. Show the disposable window without taking keyboard focus.
-    if (!startupOnly && !refreshOnly) win.showInactive();
+    if (!startupOnly && (!refreshOnly || fullscreenCheck)) win.showInactive();
     const host = source => win.webContents.executeJavaScript(source);
     assert.equal(win.contentView.children.length, 0, "Lazy launch");
     if (moduleOnly) {
@@ -134,6 +135,44 @@ app.whenReady().then(async () => {
     assert.match(await media("document.querySelector('#mo-phase').textContent"), /files stay in place/);
     await media("const ui=document.querySelector('media-organizer');ui.showDetail(ui.data.records[0].RecordId)");
     assert.match(await media("document.querySelector('#mo-detail').textContent"), /No destination selected; file stays in its current folder/);
+    async function checkFullscreen(selector, closeSelector) {
+        await until(() => media(`document.querySelector('${selector} video')?.readyState >= 2`), 'video ready for fullscreen');
+        await media(`const video=document.querySelector('${selector} video');video.pause();video.currentTime=.25;window.qaFullscreenVideo=video`);
+        const enter = async () => {
+            if (fullscreenCheck) { win.show(); view.webContents.focus(); }
+            await view.webContents.executeJavaScript(`document.querySelector('${selector} [data-fullscreen]').click()`, true);
+            await until(() => media(`!!document.fullscreenElement || !!document.querySelector('${selector} [data-capture-status]').textContent`), 'fullscreen request settles');
+            assert.equal(await media(`document.querySelector('${selector} [data-capture-status]').textContent`), '');
+            assert.equal(await media("document.fullscreenElement?.className"), 'mo-playback-surface');
+            assert.equal(await media("document.fullscreenElement.localName"), 'div');
+            assert.ok(await media("document.fullscreenElement.contains(document.querySelector('[aria-pressed=true][data-fullscreen]'))"));
+            assert.equal(await media(`document.querySelector('${selector} video')===window.qaFullscreenVideo`), true);
+            assert.equal(await media(`document.querySelector('${selector} video').currentTime`), .25);
+        };
+        await enter();
+        await until(() => media("(()=>{const bounds=document.fullscreenElement?.getBoundingClientRect();return bounds?.width===innerWidth && bounds?.height===innerHeight;})()"), 'fullscreen surface fills the viewport');
+        assert.equal(await media(`['[data-play]','[data-fullscreen]','[aria-label="Video timeline"]'].every(selector=>{const bounds=document.fullscreenElement.querySelector(selector).getBoundingClientRect();return bounds.width>0 && bounds.top>=0 && bounds.bottom<=innerHeight;})`), true, 'primary controls stay in the fullscreen viewport');
+        await pause(200); // Let the native fullscreen transition present its frame.
+        fs.writeFileSync(path.join(work, selector.slice(1) + '-fullscreen.png'), (await view.webContents.capturePage(undefined, { stayAwake: true })).toPNG());
+        await view.webContents.executeJavaScript(`document.querySelector('${selector} [data-fullscreen]').click()`, true);
+        await until(() => media('!document.fullscreenElement'), 'exit fullscreen button');
+        assert.equal(await media(`document.querySelector('${selector}').open`), true);
+        await enter();
+        view.webContents.sendInputEvent({ type:'keyDown', keyCode:'Escape' });
+        view.webContents.sendInputEvent({ type:'keyUp', keyCode:'Escape' });
+        await until(() => media('!document.fullscreenElement'), 'Escape exits fullscreen');
+        assert.equal(await media(`document.querySelector('${selector}').open`), true);
+        await enter();
+        await media(`document.querySelector('${selector} ${closeSelector}').click()`);
+        await until(() => media('!document.fullscreenElement'), 'closing viewer exits fullscreen');
+    }
+    if (!refreshOnly || fullscreenCheck) {
+    await checkFullscreen('#mo-detail','[data-close]');
+    await media("const ui=document.querySelector('media-organizer');ui.showDuplicate(ui.data.records[0].RecordId);document.querySelector('#mo-duplicate-viewer [data-viewer-play]').click()");
+    await checkFullscreen('#mo-duplicate-viewer','[data-viewer-close]');
+    checked.push('details and duplicate players enter real fullscreen with controls, preserve decoded video and time, and exit by button, Escape and viewer close');
+    await media("const ui=document.querySelector('media-organizer');ui.showDetail(ui.data.records[0].RecordId)");
+    }
     await media("document.querySelector('#mo-detail [data-close]').click();document.querySelector('media-organizer').load('all-scans')");
     assert.equal(await media("document.querySelector('media-organizer').data.records[0].Available"), true);
     await media(`document.querySelector('media-organizer').load(${JSON.stringify(scanOnlyRun)})`);

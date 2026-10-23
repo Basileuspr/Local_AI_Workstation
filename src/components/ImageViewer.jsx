@@ -7,6 +7,7 @@ import ImageSeedControls from "./ImageSeedControls";
 import {useImageRemoval} from "./ImageRemovalControls";
 import { imagePreviewUrl } from "../imageSources";
 import { StitchFrameButton } from './ImageStitcher';
+import { ImageBrowseButton, imageBrowseDirection } from './ImageBrowseControls';
 
 export function adjacentImageId(images, selectedId, direction) {
   const index = images.findIndex(image => image.id === selectedId);
@@ -56,9 +57,9 @@ export default function ImageViewer({ images, selectedId, onSelect, onClose, onO
   return <dialog ref={dialog} className="image-viewer" aria-label={previewOnly ? "Image preview" : "Image viewer"} onClose={onClose}
     onClick={event => { if (event.target === event.currentTarget) onClose(); }}
     onKeyDown={event => {
-      if (event.target.closest("input, textarea, select, [contenteditable=true]")) return;
-      if (!previewOnly && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
-        event.preventDefault(); step(event.key === "ArrowLeft" ? -1 : 1);
+      const direction = imageBrowseDirection(event);
+      if (!previewOnly && direction) {
+        event.preventDefault(); step(direction);
       }
     }}>
     {image && <>
@@ -67,10 +68,10 @@ export default function ImageViewer({ images, selectedId, onSelect, onClose, onO
         <button type="button" autoFocus onClick={onClose} aria-label="Close image viewer">Close ×</button>
       </header>
       <div className="image-viewer-stage">
-        {!previewOnly && <button type="button" className="image-viewer-arrow previous" aria-label="Previous image" disabled={images.length < 2} onClick={() => step(-1)}>‹</button>}
+        {!previewOnly && <ImageBrowseButton direction={-1} disabled={images.length < 2} onStep={step} />}
         {renderImage ? renderImage(image) : failedSource === source ? <div role="alert"><p>This image could not be loaded. You can still browse the other images.</p><button type="button" onClick={() => { setFailedSource(null); setRetry(value => value + 1); }}>Reload image</button></div>
           : <ProtectedImage key={`${source}:${retry}`} src={imagePreviewUrl(image.preview_url || image.url, {retry})} alt={image.name} rotateView={!previewOnly} onError={() => setFailedSource(source)} />}
-        {!previewOnly && <button type="button" className="image-viewer-arrow next" aria-label="Next image" disabled={images.length < 2} onClick={() => step(1)}>›</button>}
+        {!previewOnly && <ImageBrowseButton direction={1} disabled={images.length < 2} onStep={step} />}
       </div>
       {!previewOnly && <>
         {stitcher && <div className="image-destination-bar" aria-label="Stitch this scene">
