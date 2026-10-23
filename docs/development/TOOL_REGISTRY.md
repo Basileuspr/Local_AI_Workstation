@@ -1,75 +1,66 @@
-# Tool registry
+# Tool discovery and local model execution
 
-Dashboard shows a searchable catalog with categories, backend/API versus
-interactive-workspace filters, tool details, and JSON/Markdown exports. It loads
-when Dashboard becomes active and on Refresh; it does not poll, run tools, probe
-models, or inspect user files. Export buttons always export the whole catalog.
+Dashboard’s searchable catalog describes backend tools and interactive workspaces.
+Loading, filtering or exporting it does not execute tools, probe models or inspect
+user files. Exports include the whole catalog.
 
-## Discovery contract
+## Discovery
 
-The authenticated backend provides:
+Authenticated endpoints are `GET /tools/registry`,
+`GET /tools/registry/{tool_id}` and `GET /tools/registry.md`.
+Contracts include stable IDs, purpose, interface, effects, prerequisites,
+availability, input schema, output description, `llm_callable` and execution policy.
 
-- `GET /tools/registry`: versioned JSON, optionally filtered by `q` and `category`.
-- `GET /tools/registry/{tool_id}`: one full contract by stable ID.
-- `GET /tools/registry.md`: compact Markdown suitable for a local LLM's context.
+Registered means the route exists, not that its runtime/models are ready.
+UI-only tools require their workspace. Missing routes are unavailable.
+The catalog is curated; OpenAPI is the broader route inventory.
 
-The trusted client uses the existing backend origin and supplies the current
-`X-LAW-Session` credential. Credentials never belong in a model prompt or export.
-These endpoints retain the application's loopback, origin, and session checks.
+HTTP schemas derive from the actual route models. Arguments are grouped into
+path/query/body and other documented locations. Binary/upload contracts do not
+grant arbitrary filesystem access. Outputs can be asynchronous task snapshots or
+downloads; descriptions are not universal machine-validated response schemas.
+Session credentials belong to the trusted client, never a model prompt/export.
 
-Version `1.0` entries include `id`, `name`, `description`, `category`, `workspace`,
-`interface`, `availability`, `endpoint`, `input_schema`, `output_description`,
-`effects`, `requirements`, `notes`, and `llm_callable`. IDs are stable identifiers
-independent of UI labels and FastAPI-generated operation IDs. The catalog is
-curated; `/openapi.json` remains the complete backend API inventory.
+## Opt-in chat execution
 
-`registered` confirms only that the route is present. Prerequisites are descriptive,
-not live readiness checks. `ui_only` identifies workspaces without a registry API
-contract. A removed/missing route becomes `unavailable`. All entries currently
-have `llm_callable: false`, and `execution_enabled` is false at the catalog level.
+Enable **Local model tool use**, choose up to 16 eligible tools and select an
+installed Ollama model with native tool-calling support. Tool use defaults off.
 
-HTTP input schemas come from the **actual route models**, with required fields,
-defaults, nested definitions, and constraints retained. Each schema is a standalone
-JSON Schema 2020-12 document with local `$defs`; it does not require a separate
-OpenAPI download to resolve references. Arguments are grouped by HTTP location:
+Selected read tools can run automatically. Actions that save/write, contact a
+network or cancel work present exact arguments for **Approve action** or **Deny**.
+A response is bounded to four rounds and eight sequential calls. Chat releases
+inference admission between model rounds so tools can use the normal queue.
 
-```json
-{"query": {"q": "project notes", "n": 5}}
-```
+`POST /tools/execute` accepts `{tool_id, arguments}`. Reads return results;
+actions return a pending plan. `POST /tools/plans/{id}/decision` accepts only
+`{approved: true}` or `{approved: false}`. Plans are memory-only, expire after
+ten minutes and cannot be edited/replayed. Stopping chat discards an unclaimed
+plan; it does not undo completed actions.
 
-For `knowledge_search`, this means query parameters on
-`GET /files/knowledge-base/query`. Other tools can use `path`, `body`, `header`,
-or `cookie` groups. `endpoint.content_type` determines JSON versus multipart
-encoding. Binary multipart fields need a file-aware adapter; their schema's
-string/binary representation does not grant arbitrary filesystem access.
-Server-side validators and runtime prerequisites still apply. Outputs currently
-have human-readable descriptions, not guaranteed JSON response schemas; several
-tools return downloads or asynchronous task snapshots.
+Models cannot choose arbitrary endpoints, headers, credentials, shell commands
+or filesystem APIs. Uploaded-file tools, interactive workspaces, downloads and
+credential-bearing Discord Send remain in dedicated controls. Route validation,
+session/origin checks, maintenance gates and reviewed file plans still apply.
 
-## Connecting a local LLM later
+## Document understanding
 
-1. Read/filter the catalog and put only relevant descriptions in model context.
-2. Fetch individual contracts for selected stable IDs.
-3. Add an explicit trusted executor that validates arguments, checks prerequisites,
-   and applies the user's permissions for data writes, network calls, cancellation,
-   and system operations. A catalog entry itself is never authorization.
-4. Translate validated location groups to the existing HTTP routes, attach the
-   session credential outside model context, and handle files and asynchronous work.
-5. Treat returned documents/web content as data rather than model instructions.
+Chat DOCX extraction preserves paragraph/table order and can describe embedded
+raster pictures using the configured local OCR/vision model. PDF extraction keeps
+native text and can add labeled visual descriptions for graphical pages.
+Optional failures retain usable text/tables with coverage warnings; no usable
+text plus failed OCR produces an error.
 
-This change supplies discovery, not a tool-calling loop, MCP server, or general
-command runner. It does not change chat prompts or automatically expose tools to
-Ollama. Destructive maintenance routes and arbitrary commands are not enumerated.
+Visual processing is bounded to 32 Word pictures or 32 text-rich graphical PDF
+pages per import. Linked Word images are not fetched; unsupported/omitted pictures
+are reported. Legacy binary DOC is unsupported. Model visual descriptions can be
+wrong and require review. Folder Review has a separate, text/metadata-only contract.
 
-## Maintaining the catalog
+## Maintaining contracts
 
-Add a `Tool` definition to `backend/services/tool_catalog.py` with a stable ID,
-accurate purpose/output, workspace, requirements and effects. Supply an existing
-method/path for HTTP tools; omit both for interactive workspaces. Do not duplicate
-Pydantic models or add live availability probes to discovery. Keep changed tool
-semantics backward compatible, or give incompatible tools a new ID.
+Update `backend/services/tool_catalog.py` and the execution policy with stable
+IDs and accurate effects. Reuse route models rather than duplicating schemas.
+Incompatible semantics need a new ID or an explicit compatibility strategy.
+Do not add live prerequisite probes to discovery.
 
-`backend/services/tool_registry.py` builds both exports from that catalog. The
-backend contract tests verify route registration, authentication, schema validation,
-query/path/multipart and nested inputs, missing routes, and no runtime probes.
-The Dashboard uses `src/components/ToolRegistry.jsx` and `src/toolRegistry.js`.
+[Chat](../chat/CHAT_GUIDE.md) · [Architecture](ARCHITECTURE_REFERENCE.md) ·
+[Verification](VERIFICATION.md)

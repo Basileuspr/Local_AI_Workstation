@@ -26,61 +26,11 @@ const dataset = JSON.parse(document.getElementById("review-data").textContent);
 const report = dataset.review, snapshots = dataset.snapshots, latest = snapshots.at(-1), first = snapshots[0];
 const e = value => String(value ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
 // October 5 documentation moves: retain historical labels, open current guides.
-const documentMoves = {
-  "CHAT_IMAGE_GENERATION.md": "docs/chat/CHAT_IMAGE_GENERATION.md",
-  "CHAT_IMAGES_AND_SOFTWARE_SPECS.md": "docs/chat/CHAT_IMAGES_AND_SOFTWARE_SPECS.md",
-  "DUAL_CHAT.md": "docs/chat/DUAL_CHAT.md",
-  "MEDIA_ACTIONS_AND_CHAT_EDIT.md": "docs/chat/MEDIA_ACTIONS_AND_CHAT_EDIT.md",
-  "docs/CHAT_DOCUMENTS.md": "docs/chat/CHAT_DOCUMENTS.md",
-  "docs/CHAT_CLIPBOARD.md": "docs/chat/CHAT_CLIPBOARD.md",
-  "CHARACTER_PARTS.md": "docs/images/CHARACTER_PARTS.md",
-  "CHARACTERS.md": "docs/images/CHARACTERS.md",
-  "CPU_ASSISTANCE.md": "docs/images/CPU_ASSISTANCE.md",
-  "FACE_FOLDERS.md": "docs/images/FACE_FOLDERS.md",
-  "GALLERY_AND_BULK_ACTIONS.md": "docs/images/GALLERY_AND_BULK_ACTIONS.md",
-  "IMAGE_COLLECTIONS.md": "docs/images/IMAGE_COLLECTIONS.md",
-  "IMAGE_EDITOR.md": "docs/images/IMAGE_EDITOR.md",
-  "IMAGE_MANAGER.md": "docs/images/IMAGE_MANAGER.md",
-  "IMAGE_WORKFLOWS.md": "docs/images/IMAGE_WORKFLOWS.md",
-  "PROMPT_QUEUE.md": "docs/images/PROMPT_QUEUE.md",
-  "VISUAL_REVIEW.md": "docs/images/VISUAL_REVIEW.md",
-  "AUDIO.md": "docs/media/AUDIO.md",
-  "MEDIA_MANAGER.md": "docs/media/MEDIA_MANAGER.md",
-  "PAINT.md": "docs/media/PAINT.md",
-  "docs/THREE_D_VIEWER.md": "docs/media/THREE_D_VIEWER.md",
-  "DOCUMENT_EDITOR.md": "docs/workspace/DOCUMENT_EDITOR.md",
-  "FOLDER_REVIEW.md": "docs/workspace/FOLDER_REVIEW.md",
-  "FUNCTIONS.md": "docs/workspace/FUNCTIONS.md",
-  "KNOWLEDGE_VAULT.md": "docs/workspace/KNOWLEDGE_VAULT.md",
-  "docs/LOCAL_FILES.md": "docs/workspace/LOCAL_FILES.md",
-  "docs/SHORTCUT_REGISTRY.md": "docs/workspace/SHORTCUT_REGISTRY.md",
-  "docs/WORKSPACE_IMPROVEMENTS.md": "docs/workspace/WORKSPACE_IMPROVEMENTS.md",
-  "WINDOWS_COMPATIBILITY.md": "docs/setup/WINDOWS_COMPATIBILITY.md",
-  "WINDOW_RENDERING.md": "docs/setup/WINDOW_RENDERING.md",
-  "PC_BRIDGE.md": "docs/setup/PC_BRIDGE.md",
-  "APPLICATION_AWARENESS.md": "docs/development/APPLICATION_AWARENESS.md",
-  "GITHUB_PUBLICATION.md": "docs/development/GITHUB_PUBLICATION.md",
-  "TOOL_REGISTRY.md": "docs/development/TOOL_REGISTRY.md",
-  "INTERNET_ACCESS_PROPOSAL.md": "docs/development/INTERNET_ACCESS_PROPOSAL.md",
-  "ROADMAP_SEGMENTS_4_6.md": "docs/development/ROADMAP_SEGMENTS_4_6.md",
-  "docs/BROWSER_SECURITY.md": "docs/development/BROWSER_SECURITY.md",
-  "docs/LOCAL_TOOL_EXECUTION.md": "docs/development/LOCAL_TOOL_EXECUTION.md",
-  "ARCHITECTURE_CURRENT.md": "docs/archive/ARCHITECTURE_CURRENT.md",
-  "CLAUDE_CODE_HANDOFF.md": "docs/archive/CLAUDE_CODE_HANDOFF.md",
-  "HANDOFF.md": "docs/archive/HANDOFF.md",
-  "SESSION_HANDOFF.md": "docs/archive/SESSION_HANDOFF.md",
-  "SESSION_HANDOFF_2026-09-19.md": "docs/archive/SESSION_HANDOFF_2026-09-19.md",
-  "ROADMAP_ORIGINAL_7_SEGMENTS.md": "docs/archive/ROADMAP_ORIGINAL_7_SEGMENTS.md",
-  "PERFORMANCE_REVIEW_2026-09-20.md": "docs/archive/PERFORMANCE_REVIEW_2026-09-20.md",
-  "REMAINING_TASKS.md": "docs/archive/REMAINING_TASKS.md",
-  "PROJECT_STATUS.md": "docs/archive/PROJECT_STATUS.md",
-  "GENERATION_CONTROLS.md": "docs/images/GENERATION.md#generation-controls",
-  "ANALYZE_AND_ITERATE.md": "docs/images/GENERATION.md#analyze-and-iterate",
-  "DASHBOARD_STORAGE.md": "docs/workspace/STORAGE_AND_BACKUP.md#drive-folder-sizes",
-  "DASHBOARD_RESET.md": "docs/workspace/STORAGE_AND_BACKUP.md#app-data-controls"
-};
+const documentMoves = __DOCUMENT_MOVES__;
 const sourceLink = name => {
-  const [path, anchor] = (documentMoves[name] || name).split("#");
+  const moved = Object.hasOwn(documentMoves, name) ? documentMoves[name] : name;
+  if (moved === null) return `<span class="path">${e(name)} (private historical record)</span>`;
+  const [path, anchor] = moved.split("#");
   const target = path.split('/').map(encodeURIComponent).join('/') + (anchor ? '#' + encodeURIComponent(anchor) : '');
   return `<a class="path" href="../../${target}">${e(name)}</a>`;
 };
@@ -88,8 +38,8 @@ const sourceLinks = paths => paths.map(sourceLink).join(" · ");
 const put = (id, value) => { document.getElementById(id).innerHTML = value; };
 const date = value => value ? new Date(value).toLocaleString("en-US",{timeZone:"America/Denver",year:"numeric",month:"short",day:"numeric",hour:"numeric",minute:"2-digit",second:"2-digit",timeZoneName:"short"}) : "Unavailable";
 const table = (heads, rows) => `<div class="table-wrap"><table><thead><tr>${heads.map(h=>`<th scope="col">${e(h)}</th>`).join("")}</tr></thead><tbody>${rows.map(row=>`<tr>${row.map(cell=>`<td>${cell}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
-put("identity",`<span class="pill">App ${e(latest.app_version)}</span><span class="pill">HEAD ${e(latest.git.head.slice(0,7))}</span><span class="pill">Audit ${e(report.reviewed_on)}</span><span class="pill">${latest.git.worktree.length} changed / untracked in-scope paths</span>`);
-put("overview-content",`<p>${e(report.summary)}</p><p class="muted">${e(report.scope)}</p><div class="grid"><div class="card"><strong>${e(report.metrics.frontend_tests.toLocaleString("en-US"))}</strong>frontend tests passed<small>Existing installed environment</small></div><div class="card"><strong>${e(report.metrics.backend_tests.toLocaleString("en-US"))}</strong>backend tests passed<small>Data and build directories isolated</small></div><div class="card"><strong>${e(report.metrics.media_tests.toLocaleString("en-US"))}</strong>Media Manager tests passed<small>104 Python + 13 Node</small></div><div class="card"><strong>${e(Math.round(report.metrics.main_js_kb))} kB</strong>main JavaScript bundle<small>Measured artifact size; startup not timed</small></div></div><div class="notice">Review covers the source observed ${e(date(first.captured_at))}. Latest observation: ${e(date(latest.captured_at))}.${snapshots.length>1?" Later changes are recorded but not automatically reassessed.":" This is the first audit observation."} Real GPU inference, training and voice quality were not tested.</div><h3>Verification recorded at this review</h3>${table(["Check","Result","Evidence"],report.validation.map(v=>[e(v.check),e(v.result),e(v.kind)]))}<details><summary>What these checks do not establish</summary><ul>${report.not_validated.map(v=>`<li>${e(v)}</li>`).join("")}</ul></details><details><summary>Optimizations already present</summary><ul>${report.already_present.map(v=>`<li>${e(v)}</li>`).join("")}</ul></details><h3>Suggested order</h3><ol>${report.next_sequence.map(v=>`<li>${e(v)}</li>`).join("")}</ol>`);
+put("identity",`<span class="pill">App ${e(latest.app_version)}</span><span class="pill">Captured HEAD ${e(latest.git.head.slice(0,7))}</span><span class="pill">Audit ${e(report.reviewed_on)}</span><span class="pill">${latest.git.worktree.length} changed / untracked in-scope paths</span>`);
+put("overview-content",`<p>${e(report.summary)}</p><p class="muted">${e(report.scope)}</p><div class="grid"><div class="card"><strong>${e(report.metrics.frontend_tests.toLocaleString("en-US"))}</strong>frontend tests passed<small>Existing installed environment</small></div><div class="card"><strong>${e(report.metrics.backend_tests.toLocaleString("en-US"))}</strong>backend tests passed<small>Data and build directories isolated</small></div><div class="card"><strong>${e(report.metrics.media_tests.toLocaleString("en-US"))}</strong>Media Manager tests passed<small>124 Python + 21 Node</small></div><div class="card"><strong>${e(report.metrics.advisory_packages)}</strong>packages with advisories<small>Dated npm audit; remediation remains open</small></div></div><div class="notice">Narrative reviewed ${e(report.reviewed_on)}. Latest retained source snapshot: ${e(date(latest.captured_at))}.${snapshots.length>1?" Later changes are recorded but not automatically reassessed.":" This is the first audit observation."} Real GPU inference, training and voice quality were not tested.</div><h3>Verification recorded at this review</h3>${table(["Check","Result","Evidence"],report.validation.map(v=>[e(v.check),e(v.result),e(v.kind)]))}<details><summary>What these checks do not establish</summary><ul>${report.not_validated.map(v=>`<li>${e(v)}</li>`).join("")}</ul></details><details><summary>Optimizations already present</summary><ul>${report.already_present.map(v=>`<li>${e(v)}</li>`).join("")}</ul></details><h3>Suggested order</h3><ol>${report.next_sequence.map(v=>`<li>${e(v)}</li>`).join("")}</ol>`);
 function showFindings(){
   const query=document.getElementById("finding-search").value.toLowerCase(),priority=document.getElementById("priority").value;
   const found=report.findings.filter(f=>(!priority||f.priority===priority)&&JSON.stringify(f).toLowerCase().includes(query));
@@ -111,8 +61,8 @@ const identityTable = build ? `<h3>Build identity</h3>${table(["Field","Captured
   ["Commit author date",e(build.source_commit_author_at)],["Commit date",e(build.source_commit_at)],
   ["Source fingerprint",`<code>${e(build.source_fingerprint)}</code>`],["Source snapshot",e(build.source_snapshot_id)],
   ["Release status",e(build.release_status)]])}<p class="muted">${e(build.date_basis)} ${e(build.validation)} This identity belongs to the local source capture; public-repository parity requires separate verification.</p>` : '<p class="muted">This observation predates shared build identities. Its source/dependency metadata remains available below.</p>';
-put("version-content",`${identityTable}<p>Snapshot ${e(latest.id)} · ${e(date(latest.captured_at))}</p><p>Windows ${e(latest.environment.release)} · host Node ${e(latest.environment.node)} · npm ${e(latest.environment.npm)} · Python ${e(latest.environment.python)}. Host Node is separate from Electron's embedded Node. Package version does not independently establish which build a running renderer has loaded.</p><h3>Node packages</h3>${table(["Package","Declared","Locked","Installed","Node engines"],latest.node_dependencies.map(v=>[e(v.name),e(v.declared),e(v.locked),e(v.installed||"Absent"),e(v.engines?.node||"Not declared")]))}<h3>Python packages in the capture interpreter</h3>${table(["Package","Installed version"],Object.entries(latest.python_packages).map(([k,v])=>[e(k),e(v||"Not installed")]))}<p class="muted">Installed requirements passed consistency checks at audit time. This is not a fresh-install or native-driver compatibility guarantee. ONNX exposed CPU/Azure providers; CUDA provider was absent. Ollama reported 0.34.3 during the audit, not during every snapshot capture.</p>`);
-put("feature-content",`<h3>Features present in the uncommitted working tree</h3>${report.feature_observations.map(f=>`<details><summary>${e(f.feature)} <span class="pill">First observed</span></summary><p>${e(f.date_basis)}</p><p>Recorded by this audit: ${e(date(f.observed_at))}.</p><p class="compact">${sourceLinks(f.paths)}</p></details>`).join("")}`);
+put("version-content",`${identityTable}<p>Snapshot ${e(latest.id)} · ${e(date(latest.captured_at))}</p><p>Windows ${e(latest.environment.release)} · host Node ${e(latest.environment.node)} · npm ${e(latest.environment.npm)} · Python ${e(latest.environment.python)}. Host Node is separate from Electron's embedded Node. Package version does not independently establish which build a running renderer has loaded.</p><h3>Node packages</h3>${table(["Package","Declared","Locked","Installed","Node engines"],latest.node_dependencies.map(v=>[e(v.name),e(v.declared),e(v.locked),e(v.installed||"Absent"),e(v.engines?.node||"Not declared")]))}<h3>Python packages in the capture interpreter</h3>${table(["Package","Installed version"],Object.entries(latest.python_packages).map(([k,v])=>[e(k),e(v||"Not installed")]))}<p class="muted">These versions belong to the dated snapshot, not necessarily the installed environment now. Current test and acceptance results are in the verification record.</p>`);
+put("feature-content",`<h3>Dated feature observations</h3>${report.feature_observations.map(f=>`<details><summary>${e(f.feature)} <span class="pill">First observed</span></summary><p>${e(f.date_basis)}</p><p>Recorded by this audit: ${e(date(f.observed_at))}.</p><p class="compact">${sourceLinks(f.paths)}</p></details>`).join("")}`);
 put("observation-content",snapshots.map(s=>`<div class="card"><b>${e(date(s.captured_at))}</b> · ${e(s.label)}<p class="muted">App ${e(s.app_version)} · ${e(s.files?Object.keys(s.files).length:0)} recorded files · HEAD ${e(s.git.head.slice(0,7))}</p><a href="snapshots/${encodeURIComponent(s.id)}.json">Snapshot metadata</a></div>`).join(""));
 function showHistory(){const query=document.getElementById("history-search").value.toLowerCase();const found=[...latest.commits].reverse().filter(c=>JSON.stringify(c).toLowerCase().includes(query));put("history-content",found.map(c=>`<details><summary>${e(date(c.committed_at))} · <code>${e(c.hash.slice(0,7))}</code> · ${e(c.subject)}</summary><p class="muted">Author date: ${e(c.author_at)}<br>Commit date: ${e(c.committed_at)}<br>These dates do not establish deployment or original implementation time.</p><p>${c.paths.length} in-scope source/document paths changed.</p><ul>${c.paths.map(p=>`<li><code>${e(p)}</code></li>`).join("")}</ul></details>`).join("")||'<div class="empty">No matching commits.</div>');document.getElementById("history-count").textContent=`${found.length} of ${latest.commits.length} commits`;}
 document.getElementById("history-search").addEventListener("input",showHistory);showHistory();

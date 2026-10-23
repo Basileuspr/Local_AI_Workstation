@@ -1,67 +1,52 @@
-# Document relocation map
+# Document map
 
-Organized October 5, 2026. Feature bodies were retained; related generation and
-storage notes were combined. The root README was shortened and its detailed
-workspace/setup material moved to guides. The architecture overview links to the
-full retained reference. Historical claims were labeled, not revalidated.
+Current guides are listed in the [index](../README.md). This map combines the
+October 5 topic reorganization and October 23 consolidation. Superseded guides
+were removed after their useful current content was merged and checked.
+Historical snapshots retain original paths/hashes; Git retains the old text.
 
-Launchers, dependency manifests, configuration, licenses, runtime data and model
-files retain their existing paths. Saved application-review snapshots retain their
-historical path names; use this table to locate the corresponding current document.
+The reader and Markdown generator share [document-moves.json](document-moves.json).
+Private historical aliases map to null so published readers do not link to
+ignored local handoffs. Private files themselves are not deleted.
 
-| Previous path | Current document |
+| Superseded guide | Current owner |
 |---|---|
-| `ANALYZE_AND_ITERATE.md` | [docs/images/GENERATION.md#analyze-and-iterate](../images/GENERATION.md#analyze-and-iterate) |
-| `APPLICATION_AWARENESS.md` | [docs/development/APPLICATION_AWARENESS.md](APPLICATION_AWARENESS.md) |
-| `ARCHITECTURE_CURRENT.md` | `docs/archive/ARCHITECTURE_CURRENT.md` (local only) |
-| `AUDIO.md` | [docs/media/AUDIO.md](../media/AUDIO.md) |
-| `CHARACTERS.md` | [docs/images/CHARACTERS.md](../images/CHARACTERS.md) |
-| `CHARACTER_PARTS.md` | [docs/images/CHARACTER_PARTS.md](../images/CHARACTER_PARTS.md) |
-| `CHAT_IMAGES_AND_SOFTWARE_SPECS.md` | [docs/chat/CHAT_IMAGES_AND_SOFTWARE_SPECS.md](../chat/CHAT_IMAGES_AND_SOFTWARE_SPECS.md) |
-| `CHAT_IMAGE_GENERATION.md` | [docs/chat/CHAT_IMAGE_GENERATION.md](../chat/CHAT_IMAGE_GENERATION.md) |
-| `CLAUDE_CODE_HANDOFF.md` | `docs/archive/CLAUDE_CODE_HANDOFF.md` (local only) |
-| `CPU_ASSISTANCE.md` | [docs/images/CPU_ASSISTANCE.md](../images/CPU_ASSISTANCE.md) |
-| `DASHBOARD_RESET.md` | [docs/workspace/STORAGE_AND_BACKUP.md#app-data-controls](../workspace/STORAGE_AND_BACKUP.md#app-data-controls) |
-| `DASHBOARD_STORAGE.md` | [docs/workspace/STORAGE_AND_BACKUP.md#drive-folder-sizes](../workspace/STORAGE_AND_BACKUP.md#drive-folder-sizes) |
-| `DOCUMENT_EDITOR.md` | [docs/workspace/DOCUMENT_EDITOR.md](../workspace/DOCUMENT_EDITOR.md) |
-| `DUAL_CHAT.md` | [docs/chat/DUAL_CHAT.md](../chat/DUAL_CHAT.md) |
-| `FACE_FOLDERS.md` | [docs/images/FACE_FOLDERS.md](../images/FACE_FOLDERS.md) |
-| `FOLDER_REVIEW.md` | [docs/workspace/FOLDER_REVIEW.md](../workspace/FOLDER_REVIEW.md) |
-| `FUNCTIONS.md` | [docs/workspace/FUNCTIONS.md](../workspace/FUNCTIONS.md) |
-| `GALLERY_AND_BULK_ACTIONS.md` | [docs/images/GALLERY_AND_BULK_ACTIONS.md](../images/GALLERY_AND_BULK_ACTIONS.md) |
-| `GENERATION_CONTROLS.md` | [docs/images/GENERATION.md#generation-controls](../images/GENERATION.md#generation-controls) |
-| `GITHUB_PUBLICATION.md` | [docs/development/GITHUB_PUBLICATION.md](GITHUB_PUBLICATION.md) |
-| `HANDOFF.md` | `docs/archive/HANDOFF.md` (local only) |
-| `IMAGE_COLLECTIONS.md` | [docs/images/IMAGE_COLLECTIONS.md](../images/IMAGE_COLLECTIONS.md) |
-| `IMAGE_EDITOR.md` | [docs/images/IMAGE_EDITOR.md](../images/IMAGE_EDITOR.md) |
-| `IMAGE_MANAGER.md` | [docs/images/IMAGE_MANAGER.md](../images/IMAGE_MANAGER.md) |
-| `IMAGE_WORKFLOWS.md` | [docs/images/IMAGE_WORKFLOWS.md](../images/IMAGE_WORKFLOWS.md) |
-| `INTERNET_ACCESS_PROPOSAL.md` | [docs/development/INTERNET_ACCESS_PROPOSAL.md](INTERNET_ACCESS_PROPOSAL.md) |
-| `KNOWLEDGE_VAULT.md` | [docs/workspace/KNOWLEDGE_VAULT.md](../workspace/KNOWLEDGE_VAULT.md) |
-| `MEDIA_ACTIONS_AND_CHAT_EDIT.md` | [docs/chat/MEDIA_ACTIONS_AND_CHAT_EDIT.md](../chat/MEDIA_ACTIONS_AND_CHAT_EDIT.md) |
-| `MEDIA_MANAGER.md` | [docs/media/MEDIA_MANAGER.md](../media/MEDIA_MANAGER.md) |
-| `PAINT.md` | [docs/media/PAINT.md](../media/PAINT.md) |
-| `PC_BRIDGE.md` | [docs/setup/PC_BRIDGE.md](../setup/PC_BRIDGE.md) |
-| `PERFORMANCE_REVIEW_2026-09-20.md` | [docs/archive/PERFORMANCE_REVIEW_2026-09-20.md](../archive/PERFORMANCE_REVIEW_2026-09-20.md) |
-| `PROJECT_STATUS.md` | [docs/archive/PROJECT_STATUS.md](../archive/PROJECT_STATUS.md) |
-| `PROMPT_QUEUE.md` | [docs/images/PROMPT_QUEUE.md](../images/PROMPT_QUEUE.md) |
-| `REMAINING_TASKS.md` | [docs/archive/REMAINING_TASKS.md](../archive/REMAINING_TASKS.md) |
-| `ROADMAP_ORIGINAL_7_SEGMENTS.md` | `docs/archive/ROADMAP_ORIGINAL_7_SEGMENTS.md` (local only) |
-| `ROADMAP_SEGMENTS_4_6.md` | [docs/development/ROADMAP_SEGMENTS_4_6.md](ROADMAP_SEGMENTS_4_6.md) |
-| `SESSION_HANDOFF.md` | `docs/archive/SESSION_HANDOFF.md` (local only) |
-| `SESSION_HANDOFF_2026-09-19.md` | `docs/archive/SESSION_HANDOFF_2026-09-19.md` (local only) |
-| `TOOL_REGISTRY.md` | [docs/development/TOOL_REGISTRY.md](TOOL_REGISTRY.md) |
-| `VISUAL_REVIEW.md` | [docs/images/VISUAL_REVIEW.md](../images/VISUAL_REVIEW.md) |
-| `WINDOWS_COMPATIBILITY.md` | [docs/setup/WINDOWS_COMPATIBILITY.md](../setup/WINDOWS_COMPATIBILITY.md) |
-| `WINDOW_RENDERING.md` | [docs/setup/WINDOW_RENDERING.md](../setup/WINDOW_RENDERING.md) |
-| `docs/BROWSER_SECURITY.md` | [docs/development/BROWSER_SECURITY.md](BROWSER_SECURITY.md) |
-| `docs/CHAT_CLIPBOARD.md` | [docs/chat/CHAT_CLIPBOARD.md](../chat/CHAT_CLIPBOARD.md) |
-| `docs/CHAT_DOCUMENTS.md` | [docs/chat/CHAT_DOCUMENTS.md](../chat/CHAT_DOCUMENTS.md) |
-| `docs/LOCAL_FILES.md` | [docs/workspace/LOCAL_FILES.md](../workspace/LOCAL_FILES.md) |
-| `docs/LOCAL_TOOL_EXECUTION.md` | [docs/development/LOCAL_TOOL_EXECUTION.md](LOCAL_TOOL_EXECUTION.md) |
-| `docs/SHORTCUT_REGISTRY.md` | [docs/workspace/SHORTCUT_REGISTRY.md](../workspace/SHORTCUT_REGISTRY.md) |
-| `docs/THREE_D_VIEWER.md` | [docs/media/THREE_D_VIEWER.md](../media/THREE_D_VIEWER.md) |
-| `docs/WORKSPACE_IMPROVEMENTS.md` | [docs/workspace/WORKSPACE_IMPROVEMENTS.md](../workspace/WORKSPACE_IMPROVEMENTS.md) |
-| `ARCHITECTURE.md` (full reference) | [Architecture reference](ARCHITECTURE_REFERENCE.md) |
-| `README.md` (workspace controls) | [Workspace guide](../workspace/WORKSPACE_GUIDE.md) |
-| `README.md` (setup details) | [Setup](../setup/SETUP.md) |
+| `docs/application-review/changes/R01-build-identity.md` | [docs/development/VERIFICATION.md#historical-implementation-records](VERIFICATION.md#historical-implementation-records) |
+| `docs/application-review/changes/R02-session-metadata.md` | [docs/development/VERIFICATION.md#historical-implementation-records](VERIFICATION.md#historical-implementation-records) |
+| `docs/application-review/changes/R03-session-revisions.md` | [docs/development/VERIFICATION.md#historical-implementation-records](VERIFICATION.md#historical-implementation-records) |
+| `docs/application-review/changes/R11-lora-restart-recovery.md` | [docs/development/VERIFICATION.md#historical-implementation-records](VERIFICATION.md#historical-implementation-records) |
+| `docs/archive/2026-10-22-application-apk-review.md` | [docs/development/VERIFICATION.md#october-22-android-and-controls-evidence](VERIFICATION.md#october-22-android-and-controls-evidence) |
+| `docs/archive/2026-10-22-controls-review.md` | [docs/development/VERIFICATION.md](VERIFICATION.md) |
+| `docs/archive/2026-10-23-documentation-review.md` | [docs/development/VERIFICATION.md](VERIFICATION.md) |
+| `docs/archive/PERFORMANCE_REVIEW_2026-09-20.md` | [docs/development/VERIFICATION.md](VERIFICATION.md) |
+| `docs/archive/PROJECT_STATUS.md` | [docs/development/VERIFICATION.md](VERIFICATION.md) |
+| `docs/archive/REMAINING_TASKS.md` | [docs/development/VERIFICATION.md#limits-and-remaining-acceptance](VERIFICATION.md#limits-and-remaining-acceptance) |
+| `docs/chat/CHAT_CLIPBOARD.md` | [docs/chat/CHAT_GUIDE.md#compose-and-control-a-response](../chat/CHAT_GUIDE.md#compose-and-control-a-response) |
+| `docs/chat/CHAT_DOCUMENTS.md` | [docs/chat/CHAT_GUIDE.md#create-a-word-document](../chat/CHAT_GUIDE.md#create-a-word-document) |
+| `docs/chat/CHAT_IMAGES_AND_SOFTWARE_SPECS.md` | [docs/chat/CHAT_GUIDE.md#attachments-and-context](../chat/CHAT_GUIDE.md#attachments-and-context) |
+| `docs/chat/CHAT_IMAGE_GENERATION.md` | [docs/images/GENERATION.md](../images/GENERATION.md) |
+| `docs/chat/DUAL_CHAT.md` | [docs/chat/CHAT_GUIDE.md#second-chat](../chat/CHAT_GUIDE.md#second-chat) |
+| `docs/chat/MEDIA_ACTIONS_AND_CHAT_EDIT.md` | [docs/chat/CHAT_GUIDE.md#images-in-chat](../chat/CHAT_GUIDE.md#images-in-chat) |
+| `docs/development/APPLICATION_AWARENESS.md` | [docs/development/ARCHITECTURE_REFERENCE.md](ARCHITECTURE_REFERENCE.md) |
+| `docs/development/BROWSER_FOUNDATION.md` | [docs/development/BROWSER.md](BROWSER.md) |
+| `docs/development/BROWSER_PLAYBACK.md` | [docs/development/BROWSER.md#tabs-and-playback](BROWSER.md#tabs-and-playback) |
+| `docs/development/BROWSER_SECURITY.md` | [docs/development/BROWSER.md#profiles-and-safety-boundary](BROWSER.md#profiles-and-safety-boundary) |
+| `docs/development/BROWSER_TABS.md` | [docs/development/BROWSER.md#tabs-and-playback](BROWSER.md#tabs-and-playback) |
+| `docs/development/GITHUB_PUBLICATION.md` | [docs/development/DEVELOPMENT.md#dashboard-snapshot-publisher](DEVELOPMENT.md#dashboard-snapshot-publisher) |
+| `docs/development/INTERNET_ACCESS_PROPOSAL.md` | [docs/development/WEB_SYSTEM.md](WEB_SYSTEM.md) |
+| `docs/development/LOCAL_TOOL_EXECUTION.md` | [docs/development/TOOL_REGISTRY.md#opt-in-chat-execution](TOOL_REGISTRY.md#opt-in-chat-execution) |
+| `docs/development/MOBILE_COMPANION_ROADMAP.md` | [docs/setup/MOBILE_COMPANION.md](../setup/MOBILE_COMPANION.md) |
+| `docs/development/ROADMAP_SEGMENTS_4_6.md` | [docs/development/ARCHITECTURE_REFERENCE.md](ARCHITECTURE_REFERENCE.md) |
+| `docs/images/CHARACTER_PARTS.md` | [docs/images/CHARACTERS.md#character-parts](../images/CHARACTERS.md#character-parts) |
+| `docs/images/CPU_ASSISTANCE.md` | [docs/images/GENERATION.md#cpu-assistance-and-timing](../images/GENERATION.md#cpu-assistance-and-timing) |
+| `docs/images/FACE_FOLDERS.md` | [docs/images/CHARACTERS.md#face-folders](../images/CHARACTERS.md#face-folders) |
+| `docs/images/IMAGE_COLLECTIONS.md` | [docs/images/GALLERY_AND_BULK_ACTIONS.md](../images/GALLERY_AND_BULK_ACTIONS.md) |
+| `docs/images/PROMPT_QUEUE.md` | [docs/images/GENERATION.md#queue-and-recovery](../images/GENERATION.md#queue-and-recovery) |
+| `docs/images/VISUAL_REVIEW.md` | [docs/images/GALLERY_AND_BULK_ACTIONS.md#visual-review](../images/GALLERY_AND_BULK_ACTIONS.md#visual-review) |
+| `docs/media/PAINT.md` | [docs/workspace/WORKSPACE_GUIDE.md#viewers-canvas-and-paint](../workspace/WORKSPACE_GUIDE.md#viewers-canvas-and-paint) |
+| `docs/setup/WINDOWS_COMPATIBILITY.md` | [docs/setup/SETUP.md](../setup/SETUP.md) |
+| `docs/setup/WINDOW_RENDERING.md` | [docs/setup/SETUP.md#launch-and-rendering-recovery](../setup/SETUP.md#launch-and-rendering-recovery) |
+| `docs/workspace/FOLDER_REVIEW.md` | [docs/workspace/FILE_TOOLS.md#folder-review](../workspace/FILE_TOOLS.md#folder-review) |
+| `docs/workspace/LOCAL_FILES.md` | [docs/workspace/FILE_TOOLS.md](../workspace/FILE_TOOLS.md) |
+| `docs/workspace/SHORTCUT_REGISTRY.md` | [docs/workspace/WORKSPACE_GUIDE.md#shortcut-registry](../workspace/WORKSPACE_GUIDE.md#shortcut-registry) |
+| `docs/workspace/WORKSPACE_IMPROVEMENTS.md` | [docs/workspace/WORKSPACE_GUIDE.md#viewers-canvas-and-paint](../workspace/WORKSPACE_GUIDE.md#viewers-canvas-and-paint) |

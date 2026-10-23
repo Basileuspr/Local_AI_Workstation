@@ -106,7 +106,7 @@ Native unit tests, release lint, APK signature/manifest/alignment checks and
 synthetic browser checks do not establish physical-phone installation, Android
 intent delivery, VPN consent, sharing, sleep/resume or Wi-Fi/cellular behavior.
 The October 22 review intentionally had no device access. See the
-[combined review](../../docs/archive/2026-10-22-application-apk-review.md) and the
+[combined review](../../docs/development/VERIFICATION.md#october-22-android-and-controls-evidence) and the
 [mobile setup guide](../../docs/setup/MOBILE_COMPANION.md).
 
 References: [Android signing](https://developer.android.com/studio/publish/app-signing),

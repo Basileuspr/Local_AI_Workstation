@@ -1,52 +1,39 @@
 # Local AI Workstation
 
-A local-first Windows desktop application built with Electron, React and FastAPI.
-It brings together Ollama chat, documents and Knowledge, local image generation,
-LoRA and character workflows, and media tools.
+A local-first Windows desktop app using Electron, React and FastAPI. It combines
+Ollama chat, documents/Knowledge, local image generation and training, media tools
+and explicit web research. An optional private phone companion uses the desktop.
 
-## Start the application
+## Start
 
-From an already configured checkout, run `npm start` or use
-`A1_Start Local AI Workstation.bat`.
+From a configured checkout, run `npm start` or
+`A1_Start Local AI Workstation.bat`. First-time installation, optional runtimes and
+recovery are in [Setup](docs/setup/SETUP.md). Models are installed separately.
 
-For first-time setup, install Node.js 22 with npm, 64-bit Python 3.13 and Ollama,
-then run these commands from the application root in PowerShell:
+Closing the window fully exits; minimize to keep work running. Save edits before
+quitting or using File → Exit & Restart.
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup-windows.ps1
-npm start
-```
+## Documentation
 
-Setup installs the core app and attempts optional Knowledge dependencies.
-Install Ollama models separately. Image generation, voice cloning and other
-optional tools need their own runtimes and models. See the
-[setup guide](docs/setup/SETUP.md) and
-[Windows recovery guide](docs/setup/WINDOWS_COMPATIBILITY.md).
+- [All guides](docs/README.md) — one current guide per workflow.
+- [Workspace](docs/workspace/WORKSPACE_GUIDE.md) and [Chat](docs/chat/CHAT_GUIDE.md).
+- [Phone companion](docs/setup/MOBILE_COMPANION.md) and [Android source/build](mobile/android/README.md).
+- [Storage, backup and reset](docs/workspace/STORAGE_AND_BACKUP.md).
+- [Architecture](ARCHITECTURE.md) and [development/publication](docs/development/DEVELOPMENT.md).
+- [Verification and open findings](docs/development/VERIFICATION.md).
+- [Release/build identity](RELEASES.md) and [historical source reader](docs/application-review/README.md).
 
-## Find documentation
+Workspace Info buttons provide controls and examples. This repository is a
+development source distribution, not a packaged Windows installer. Android APKs
+are built/signed locally.
 
-- [Documentation index](docs/README.md): all guides grouped by purpose.
-- [Workspace guide](docs/workspace/WORKSPACE_GUIDE.md): navigation, chat controls,
-  side panes, media tools, Sound Mixer and storage libraries.
-- [Architecture](ARCHITECTURE.md): source layout and where to investigate behavior.
-- [Development and verification](docs/development/DEVELOPMENT.md): commands,
-  documentation conventions and the distinction between current source and old reports.
-- [Release records](RELEASES.md): development versions and build identity.
-- [Historical records](docs/archive/README.md): dated validation, roadmaps and handoffs.
+## Local storage
 
-Each workspace also has an **i** Info button with its controls and examples.
+Runtime data and models default to data/ and models/ with environment overrides.
+Storage libraries can hold managed media on other local drives. Image Manager and
+Media Manager have separate storage owners. Keep private data, credentials, models,
+generated media and local reports out of public commits.
 
-## Local files and privacy
-
-Runtime data defaults to `data/` and models to `models/`; environment variables
-can relocate them. Image Manager and Media Manager keep separate catalogs.
-[Storage libraries](docs/workspace/WORKSPACE_GUIDE.md#storage-libraries) can place
-managed media on other local drives. Read
-[storage, backup and reset](docs/workspace/STORAGE_AND_BACKUP.md) before maintenance.
-
-**File → Exit & Restart** reloads the desktop and its owned backend. Closing the
-window fully exits; minimize it to keep work running. Save edits before exiting.
-
-This repository contains a development source distribution, not a packaged
-installer. Historical test counts do not certify the current checkout. For dated
-observations and comparisons, use the [local review reader](docs/application-review/index.html).
+Tests and source review have explicit limits; they do not certify every optional
+provider, fresh installation, physical device or GPU workload. Consult the dated
+verification record before treating a historical result as current acceptance.

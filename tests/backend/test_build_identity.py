@@ -100,7 +100,7 @@ def test_capture_does_not_hash_its_generated_identity_or_invent_creation_dates()
 
 @pytest.mark.parametrize("name", [
     "docs/README.md", "docs/images/GENERATION.md",
-    "docs/workspace/STORAGE_AND_BACKUP.md", "docs/archive/PROJECT_STATUS.md",
+    "docs/workspace/STORAGE_AND_BACKUP.md", "docs/development/VERIFICATION.md",
 ])
 def test_capture_tracks_relocated_documentation(name):
     assert capture.included(name)

@@ -1,59 +1,88 @@
-# Image viewer and multiple selection
+# Gallery, collections and visual review
 
-In **Images**, click a thumbnail to open an image viewer that fills most of the
-window. The image fits without cropping or changing its proportions. Previous
-and Next arrows, or the left/right keyboard keys, browse every image in the
-current filtered folder, including images on other thumbnail pages. Navigation
-wraps at the ends. Close or Escape returns to the same gallery without switching
-chats, resetting its thumbnail size, or clearing the chat draft. **Go to source
-chat** is a separate action for general images. The full library occupies the
-main workspace, with collections in the sidebar and one toolbar for search and
-**Comfortable** / **Compact** thumbnails. Small windows have a collection selector.
+Gallery displays managed app images; [Image Manager](IMAGE_MANAGER.md) catalogs
+external folders. Their metadata, storage and deletion controls are distinct.
 
-The viewer also works in **Workflow Images**, across matching runs and their
-stitched images. **Save / stitch this run** opens that run's export controls.
-Exports remain described in `docs/images/IMAGE_WORKFLOWS.md`.
+## Browse, select and save
 
-## Selecting multiple items
+Gallery groups include General/chat images, Workflow Images, Hidden, Saved,
+Liked/Disliked and custom folders. Review-only imports are excluded from General.
+Use search and filters to narrow the view. The viewer can move across pages;
+Escape closes it without discarding a draft edit.
 
-Use the collection's **Select …** button to reveal checkboxes. Select individual
-items, or **Select all (N)** for all current search matches across pages. A
-selection stays selected when it is outside the current search; the selected
-count is the total that the action will affect. **Clear selection** unchecks all
-items, and **Done selecting** exits selection mode. While selection mode is
-active, either the checkbox or thumbnail toggles selection; exit it to enlarge
-an image again.
+Multi-selection can span pages. Select-all follows the current filtered result;
+review the count and any selected items outside the visible page before a bulk
+action. Failed items remain selected so they can be retried.
 
-| Collection | Batch action | Behavior |
-| --- | --- | --- |
-| Chats | Delete selected chats | Moves chats to Recently deleted for recovery. |
-| Recently deleted | Delete selected forever | Permanently deletes the selected trashed chats. |
-| General Images | Hide selected images | Hides gallery entries; images remain usable in their chats. |
-| General Images | Delete selected images | Removes images from their chats and cleans up unshared files. |
-| Knowledge | Remove selected documents | Removes indexed documents/chunks, leaving original input files alone. |
-| Prompt Index | Delete selected entries | Deletes selected saved entries; unrelated editor drafts remain. |
-| Phrase buttons → Edit buttons | Remove selected buttons | Removes selected locally saved phrase buttons. |
-| Custom Profile | Delete selected profiles | Removes saved presets while keeping current chat/image settings. |
-| LoRA dataset | Remove selected training images | Removes project copies, preserving original source files; locked during training/analysis. |
-| Image Workflows stages | Remove selected stages | Edits the current draft; Save changes persists it. Remaining stages may need new sources. |
+Saving into a collection creates an independently owned copy. Removing folder
+membership does not delete the saved image, and deleting its source chat does not
+remove that copy. Rotation in the viewer is a viewing preference; export through
+[Image Editor](IMAGE_EDITOR.md) to change pixel orientation.
 
-Each batch asks for one confirmation explaining its effect. Cancelling keeps
-the selection and data intact. Requests run sequentially using existing deletion
-APIs. Successful items disappear from the selection; failures stay selected,
-with a count and error details, so they can be retried. A chat currently streaming
-must be stopped before deleting it. Existing per-item buttons remain available.
+## Stitch still images
 
-## Data integrity and verification
+Select at least two frames, arrange their order and choose horizontal, vertical
+or grid layout. Original-size/automatic controls preserve the documented layout
+choices; fitting does not crop or unnecessarily enlarge smaller frames.
+**Preview** does not save. **Save** creates a new PNG in Saved/General and leaves
+sources unchanged.
 
-Chat deletion now preserves the original if moving it to trash fails. Session
-updates replace complete files atomically, so a failed write does not truncate
-the saved chat. Older raw image arrays receive durable IDs so multiple removals
-cannot shift another image's identity. Hiding an image only affects gallery
-listing, not its chat image URL. Shared image files retain the existing retention
-checks.
+The gallery stitcher has no fixed application cap on frame count or final canvas
+pixels. It uses a disk-backed canvas and incremental PNG output; physical disk,
+memory and decoder limits still apply. Missing or locked sources fail explicitly
+rather than being silently omitted. This differs from the smaller, bounded
+stitch export inside [Image Workflows](IMAGE_WORKFLOWS.md).
 
-`galleryAndBulkActions.test.jsx` covers navigation, collections, selection,
-partial failures, legacy deletion ordering, API errors and profile preservation.
-`test_bulk_deletion_safety.py` uses temporary stores for failed moves/writes,
-partial batch recovery, stable raw-image identities and retained chat images.
-Desktop UI checks use disposable app profiles and a temporary `LAW_DATA_DIR`.
+## Visual review
+
+Review separates **To review**, **Reviewed (no rating)**, **Liked** and
+**Disliked**. Favorites are independent. **Done & next** marks review complete
+without inventing a rating. Captions autosave; navigation waits for pending saves.
+Manual tags and metadata remain distinct from automated suggestions.
+
+Stored source identity and content hashes help retain metadata across exact
+copies. Shared byte-identical content can share classification state; that does
+not make unrelated or transformed copies the same image.
+
+Vision analysis is explicit and uses an installed model through the shared queue.
+Accept suggested labels after inspection. Person/group/scene labels are not
+identity verification. CPU face detection is a separate operation. Restarted
+analysis batches are reported interrupted.
+
+Exports preserve original image bytes with caption sidecars and a manifest.
+They are bounded to 500 items / 512 MiB and recheck hashes and vault access.
+
+## Reviewed file plans
+
+Advanced review can prepare Copy, Move or Leave plans using presets such as
+Character References, Training Candidates, Approved Generations, Backgrounds,
+Archive and Rejects. Preparing a plan does not create destination folders or
+transfer files.
+
+Review the exact plan, then confirm execution. It rechecks source hashes and
+destination state, uses exclusive writes and verifies copies before removing a
+move source. Sidecars follow the plan. Undo Move is allowed only when the output
+is unchanged and the original destination is available.
+
+Locate File reconnects a hash-matching file to its existing identity. Removing a
+stale entry preserves file bytes and retained metadata. Accepting optional vision
+tags preserves independently managed favorite/project status.
+
+Video review suggestions use a selected preview frame, not continuous motion
+analysis. Native video ownership and the separate Media Manager bridge remain
+restricted; a still-frame label is not a review of an entire clip.
+
+## Private Image Vault
+
+Vault access checks cover protected sources and byte-identical copies across
+gallery, chat, editing, analysis and export. Existing known workflow derivatives
+are concealed with their protected source; unrelated transformed copies cannot
+be recognized automatically.
+
+Unlock inside the vault. Its temporary access expires after 15 minutes and when
+leaving/hiding the vault. Restore makes an item public again. Active jobs can
+block protection changes.
+
+The vault stores encrypted private copies; it does not encrypt every original
+external file. There is no forgotten-PIN bypass. Preserve the required backup and
+credentials before removing other copies. See [storage](../workspace/STORAGE_AND_BACKUP.md).

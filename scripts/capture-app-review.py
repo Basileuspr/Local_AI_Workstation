@@ -16,15 +16,13 @@ import platform
 import subprocess
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
+from urllib.parse import quote
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs" / "application-review"
 EXTENSIONS = {".py", ".js", ".jsx", ".cjs", ".mjs", ".css", ".html", ".json", ".ps1", ".txt", ".md", ".ini", ".toml", ".svg"}
-ROOT_FILES = {"package.json", "package-lock.json", "vite.config.mjs", "vitest.config.mjs", "pytest.ini", "README.md", "ARCHITECTURE.md", "docs/application-review/README.md", "docs/application-review/review.json", "docs/application-review/reader-template.html"}
-ROOT_FILES.update({"docs/application-review/benchmarks/session-metadata.json",
-                   "docs/application-review/changes/R02-session-metadata.md",
-                   "docs/application-review/changes/R01-build-identity.md",
-                   "docs/application-review/changes/R03-session-revisions.md", ".gitignore"})
+ROOT_FILES = {"package.json", "package-lock.json", "vite.config.mjs", "vitest.config.mjs", "pytest.ini", "README.md", "ARCHITECTURE.md", "docs/application-review/README.md", "docs/application-review/review.json", "docs/application-review/reader-template.html", "docs/development/document-moves.json"}
+ROOT_FILES.update({"docs/application-review/benchmarks/session-metadata.json", ".gitignore"})
 ROOT_FILES.update({"mobile/public/manifest.webmanifest", "mobile/public/icon-192.png", "mobile/public/icon-512.png"})
 PY_PACKAGES = ["fastapi", "uvicorn", "torch", "torchvision", "diffusers", "transformers", "accelerate", "compel", "onnxruntime", "onnxruntime-gpu", "chromadb", "faster-whisper", "ctranslate2", "sherpa-onnx", "numpy", "huggingface-hub", "peft", "pillow", "cryptography"]
 
@@ -65,6 +63,8 @@ def included(name):
         return False
     # Guides now live under docs/. Keep generated review records and private
     # local handoffs out of this additional source-document inventory.
+    if name == "docs/development/document-moves.json":
+        return True
     if name.startswith("docs/") and not name.startswith("docs/application-review/"):
         return path.suffix.lower() == ".md" and not any(
             marker in path.name.upper() for marker in ("HANDOFF", "ARCHITECTURE_CURRENT", "ROADMAP_ORIGINAL")
@@ -246,6 +246,25 @@ def build_record(snapshot):
             "validation": "Source capture only; a build record does not certify tests, GPU execution, or a published release."}
 
 
+def document_moves():
+    return json.loads((ROOT / "docs/development/document-moves.json").read_text(encoding="utf-8"))
+
+
+def source_markdown(name, moves):
+    target = moves.get(name, name)
+    if target is None:
+        return "`" + name + "` (private historical record)"
+    path, _, anchor = target.partition("#")
+    href = "../../" + quote(path, safe="/") + ("#" + quote(anchor) if anchor else "")
+    return f"[{name}]({href})"
+
+
+def script_json(value):
+    return (json.dumps(value, ensure_ascii=False).replace("<", "\\u003c")
+            .replace(">", "\\u003e").replace("&", "\\u0026")
+            .replace("\u2028", "\\u2028").replace("\u2029", "\\u2029"))
+
+
 def render(destination):
     review = json.loads((DOCS / "review.json").read_text(encoding="utf-8"))
     snapshots = [json.loads(p.read_text(encoding="utf-8")) for p in sorted((destination / "snapshots").glob("*.json"))]
@@ -253,6 +272,7 @@ def render(destination):
         raise RuntimeError("No snapshots found; capture a baseline first")
     latest = snapshots[-1]
     first = snapshots[0]
+    moves = document_moves()
     report = [f"# {review['title']}", "", f"Reviewed {review['reviewed_on']} ({review['timezone']}).", "", review["scope"], "", review["summary"], "", "[Open the local reader](index.html) · [Read history](HISTORY.md) · [Workflow](README.md)", "", "## Validation at this review", ""]
     for entry in review["validation"]:
         report.extend([f"- **{entry['check']}** — {entry['result']} ({entry['kind']}).", f"  Command: `{entry['command']}`"])
@@ -260,7 +280,7 @@ def render(destination):
     report += ["- " + item for item in review["not_validated"]]
     report.extend(["", "## Findings and change status", "", "P1 = prioritize correctness, recovery or growing-library impact. P2 = measure or plan next. Findings remain proposed unless explicitly marked implemented with dated verification.", ""])
     for f in review["findings"]:
-        report.extend([f"### {f['id']} · {f['priority']} · {f['title']}", "", f"**Evidence:** {f['evidence']}.", "", f["observation"], "", "**Proposed next step:** " + f["recommendation"], "", "**Acceptance check:** " + f["verify"], "", "**Preserve:** " + f["risk"], "", "Source: " + ", ".join(f"[{name}](../../{name})" for name in f["files"]) + ".", ""])
+        report.extend([f"### {f['id']} · {f['priority']} · {f['title']}", "", f"**Evidence:** {f['evidence']}.", "", f["observation"], "", "**Proposed next step:** " + f["recommendation"], "", "**Acceptance check:** " + f["verify"], "", "**Preserve:** " + f["risk"], "", "Source: " + ", ".join(source_markdown(name, moves) for name in f["files"]) + ".", ""])
         if f.get("status"):
             report.extend([f"**Status:** {f['status']} · {f.get('implemented_at', 'Date not recorded')}", "", "**Completed change:** " + f.get("implementation", ""), "", "**Verification result:** " + f.get("verification_result", ""), ""])
         if f.get("result_document"):
@@ -273,13 +293,13 @@ def render(destination):
     report += [f"{i}. {item}" for i, item in enumerate(review["next_sequence"], 1)]
     report.extend(["", "## Metrics for before/after comparisons", ""])
     report += ["- " + item for item in review["benchmark_metrics"]]
-    atomic_write(destination / "AUDIT.md", "\n".join(report) + "\n")
-    history = ["# Application history", "", "[Open searchable reader and comparison](index.html#history)", "", "## How dates should be read", "", "Git author and commit dates are recorded metadata, not proof of deployment or original implementation time. A first-observed snapshot establishes that source was present by that timestamp. File modification times are not used as introduction dates. Commit subjects describe intent; changed paths provide supporting scope. No historical user data is copied into this record.", "", f"First source observation: **{first['captured_at']}** ({first['timezone']}).", f"Latest source observation: **{latest['captured_at']}**.", f"App version: **{latest['app_version']}**. Branch: `{latest['git']['branch']}`. HEAD: `{latest['git']['head']}`.", "", "## Uncommitted feature observations", ""]
+    atomic_write(destination / "AUDIT.md", "\n".join(report).rstrip() + "\n")
+    history = ["# Application history", "", "[Open searchable reader and comparison](index.html#history)", "", "## How dates should be read", "", "Git author and commit dates are recorded metadata, not proof of deployment or original implementation time. A first-observed snapshot establishes that source was present by that timestamp. File modification times are not used as introduction dates. Commit subjects describe intent; changed paths provide supporting scope. No historical user data is copied into this record.", "", f"First source observation: **{first['captured_at']}** ({first['timezone']}).", f"Latest source observation: **{latest['captured_at']}**.", f"Captured app version: **{latest['app_version']}**. Captured branch: `{latest['git']['branch']}`. HEAD: `{latest['git']['head']}`.", "", "## Uncommitted feature observations", ""]
     if latest.get("build_identity"):
         history.insert(history.index("## Uncommitted feature observations"),
                        f"Latest captured build: `{latest['build_identity']['build_id']}`. Dirty at capture: {latest['build_identity']['source_dirty']}.\n")
     for feature in review["feature_observations"]:
-        history.extend([f"### {feature['feature']}", "", feature["date_basis"], "", f"First recorded observation: {feature.get('observed_at', 'Not recorded; do not infer from the first audit date')}.", "", "Source: " + ", ".join(f"[{p}](../../{p})" for p in feature["paths"]) + ".", ""])
+        history.extend([f"### {feature['feature']}", "", feature["date_basis"], "", f"First recorded observation: {feature.get('observed_at', 'Not recorded; do not infer from the first audit date')}.", "", "Source: " + ", ".join(source_markdown(p, moves) for p in feature["paths"]) + ".", ""])
     history.extend(["## Dated source observations", ""])
     for i, item in enumerate(snapshots):
         changes = difference(snapshots[i - 1] if i else item["committed_baseline"], item)
@@ -287,15 +307,18 @@ def render(destination):
         history.extend([f"### {item['captured_at']} · {item['label']}", "", f"Source version {item['app_version']}; HEAD `{item['git']['head'][:7]}`. Compared with {basis}: {len(changes['added'])} added, {len(changes['changed'])} changed, {len(changes['removed'])} removed source/document files.", "", f"Snapshot: [metadata JSON](snapshots/{item['id']}.json). Hashes prove source differences, not feature correctness or measured speed improvements.", ""])
         if item.get("build_identity"):
             history.extend([f"Build identifier: `{item['build_identity']['build_id']}`. Dirty at capture: {item['build_identity']['source_dirty']}. Capture UTC: {item['build_identity']['captured_at_utc']}.", ""])
-    history.extend(["## Committed local source history", ""])
+    history.extend(["## Recorded commit summaries", "",
+                    "These commits come from the latest retained observation, not a live Git log.",
+                    "Use the searchable reader for changed-path details and the repository history for exact source.",
+                    "", "| Recorded commit time | Commit | Subject |", "|---|---|---|"])
     for entry in latest["commits"]:
-        history.extend([f"### {entry['committed_at']} · {entry['hash'][:7]} · {entry['subject']}", "", f"Author date: {entry['author_at']}. Commit date: {entry['committed_at']}. {len(entry['paths'])} in-scope changed paths.", "", "<details><summary>Changed source/document paths</summary>", ""])
-        history += [f"- `{p}`" for p in entry["paths"]]
-        history.extend(["", "</details>", ""])
-    atomic_write(destination / "HISTORY.md", "\n".join(history) + "\n")
-    payload = json.dumps({"review": review, "snapshots": snapshots}, ensure_ascii=False).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026").replace("\u2028", "\\u2028").replace("\u2029", "\\u2029")
+        subject = entry["subject"].replace("|", "&#124;").replace("\n", " ")
+        history.append(f"| {entry['committed_at']} | `{entry['hash'][:7]}` | {subject} |")
+    atomic_write(destination / "HISTORY.md", "\n".join(history).rstrip() + "\n")
+    payload = script_json({"review": review, "snapshots": snapshots})
     template = (DOCS / "reader-template.html").read_text(encoding="utf-8")
-    atomic_write(destination / "index.html", template.replace("__REVIEW_DATA__", payload))
+    atomic_write(destination / "index.html", template.replace("__REVIEW_DATA__", payload)
+                 .replace("__DOCUMENT_MOVES__", script_json(moves)))
     return latest
 
 

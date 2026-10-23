@@ -8,19 +8,10 @@ training delegation and synchronized workspaces are not implemented in this rele
 
 ## Update both PCs
 
-Fully quit the app from its system tray. In the GitHub checkout on the laptop:
-
-```powershell
-git pull --ff-only origin main
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup-windows.ps1
-npm start
-```
-
-For an already configured development checkout containing this update, use
-`npm run build` and then `npm start`. Rebuild and fully restart both apps after
-updating; closing a window can leave its previous backend in the tray.
-The bridge's HTTPS support uses the cryptography package already in the core
-requirements. No extra networking service or cloud account is needed on a LAN.
+Use each PC's normal checkout and follow [development](../development/DEVELOPMENT.md)
+to fetch/fast-forward, install dependencies and build. Fully quit/restart after
+desktop/backend changes; closing the current window quits the owned backend.
+Keep both apps running while bridge work is active.
 
 ## Pair once
 

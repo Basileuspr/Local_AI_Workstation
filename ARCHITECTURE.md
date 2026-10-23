@@ -1,8 +1,7 @@
 # Architecture
 
 Start here for orientation, then use the [detailed architecture reference](docs/development/ARCHITECTURE_REFERENCE.md)
-and the relevant [feature guide](docs/README.md). The detailed reference contains
-historical sections; current source and focused tests resolve discrepancies.
+and the relevant [feature guide](docs/README.md). Current source and focused tests resolve discrepancies.
 
 ## Process and source map
 
@@ -34,13 +33,13 @@ pass through explicit preload/IPC contracts.
   security boundary and uses the existing session, gallery and GPU-queue services.
 - Session history, durable memory, media catalogs and file bytes have distinct
   storage owners. Read the relevant service before changing persistence.
-- [Storage libraries](docs/workspace/WORKSPACE_GUIDE.md#storage-libraries) route
+- [Storage libraries](docs/workspace/STORAGE_AND_BACKUP.md#storage-libraries) route
   managed media across registered local folders. Models and indexes retain their
   own locations; manager catalogs are separate from app-data reset/import.
 - [Tool discovery](docs/development/TOOL_REGISTRY.md) and
-  [tool execution](docs/development/LOCAL_TOOL_EXECUTION.md) have separate contracts.
-- [Backend security and scene state](docs/development/ROADMAP_SEGMENTS_4_6.md),
-  [browser security](docs/development/BROWSER_SECURITY.md), and
+  [tool execution](docs/development/TOOL_REGISTRY.md#opt-in-chat-execution) have separate contracts.
+- [Backend security and scene state](docs/development/ARCHITECTURE_REFERENCE.md),
+  [browser security](docs/development/BROWSER.md#profiles-and-safety-boundary), and
   [backup/import](docs/workspace/STORAGE_AND_BACKUP.md) document additional boundaries.
 
 See [development and verification](docs/development/DEVELOPMENT.md) before running

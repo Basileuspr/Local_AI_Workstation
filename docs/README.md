@@ -1,83 +1,24 @@
 # Documentation
 
-Start with [setup](setup/SETUP.md), the [workspace guide](workspace/WORKSPACE_GUIDE.md),
-or the [architecture overview](../ARCHITECTURE.md). Commands and inline source paths
-are relative to the application root unless a guide says otherwise.
+Current guides were consolidated and checked against application source on
+October 23, 2026. Start with the workflow you need; dated test evidence lives in
+[verification](development/VERIFICATION.md), not in repeated feature reports.
 
-Guides describe feature contracts; their verification sections retain the original
-dates and limits. Use source and focused checks to confirm current behavior.
+| Area | Current guides |
+|---|---|
+| Install and connect | [Setup/recovery](setup/SETUP.md), [phone companion](setup/MOBILE_COMPANION.md), [Android source/build](../mobile/android/README.md), [PC bridge](setup/PC_BRIDGE.md) |
+| Workspace and chat | [Workspace](workspace/WORKSPACE_GUIDE.md), [chat/media actions](chat/CHAT_GUIDE.md), [Functions](workspace/FUNCTIONS.md) |
+| Documents and knowledge | [Document Editor](workspace/DOCUMENT_EDITOR.md), [Local Files/Folder Review](workspace/FILE_TOOLS.md), [Knowledge](workspace/KNOWLEDGE_VAULT.md) |
+| Images | [Generation/training/queue](images/GENERATION.md), [workflows/scenes](images/IMAGE_WORKFLOWS.md), [editor](images/IMAGE_EDITOR.md), [characters/faces/parts](images/CHARACTERS.md) |
+| Libraries and review | [Gallery/collections/review](images/GALLERY_AND_BULK_ACTIONS.md), [Image Manager/folder tools](images/IMAGE_MANAGER.md), [storage/backup/reset](workspace/STORAGE_AND_BACKUP.md) |
+| Media | [Audio/speech/mixer](media/AUDIO.md), [Media Manager](media/MEDIA_MANAGER.md), [3D editor](media/THREE_D_VIEWER.md) |
+| Web | [Search/research/recurring sources](development/WEB_SYSTEM.md), [Browser/profiles](development/BROWSER.md), [Reels Analyzer](development/REELS_ANALYZER.md) |
+| Development | [Architecture](../ARCHITECTURE.md), [reference](development/ARCHITECTURE_REFERENCE.md), [commands/publication](development/DEVELOPMENT.md), [tool discovery/execution](development/TOOL_REGISTRY.md) |
+| Evidence | [Verification/open findings](development/VERIFICATION.md), [releases](../RELEASES.md), [source history reader](application-review/README.md), [document map](development/DOCUMENT_MAP.md) |
 
-## Chat
+Info buttons provide in-app help. Source and tests resolve discrepancies; model,
+provider and device capabilities require their own live checks.
 
-- [Clipboard attachments](chat/CHAT_CLIPBOARD.md)
-- [Word documents in chat](chat/CHAT_DOCUMENTS.md)
-- [Chat images, Faces run names and software reports](chat/CHAT_IMAGES_AND_SOFTWARE_SPECS.md)
-- [Generate images from chat](chat/CHAT_IMAGE_GENERATION.md)
-- [Two chats in one tab](chat/DUAL_CHAT.md)
-- [Media actions and chat editing](chat/MEDIA_ACTIONS_AND_CHAT_EDIT.md)
-
-## Images, characters and generation
-
-- [Character Creator](images/CHARACTERS.md)
-- [Character Parts](images/CHARACTER_PARTS.md)
-- [CPU Assistance for LoRA](images/CPU_ASSISTANCE.md)
-- [Face extraction folders](images/FACE_FOLDERS.md)
-- [Image viewer and multiple selection](images/GALLERY_AND_BULK_ACTIONS.md)
-- [Generation controls and iteration](images/GENERATION.md)
-- [Image collections and review](images/IMAGE_COLLECTIONS.md)
-- [Image Editor](images/IMAGE_EDITOR.md)
-- [Image Manager](images/IMAGE_MANAGER.md)
-- [Image workflows](images/IMAGE_WORKFLOWS.md)
-- [Prompt Queue](images/PROMPT_QUEUE.md)
-- [Review and automatic visual classification](images/VISUAL_REVIEW.md)
-
-## Audio, media and creative tools
-
-- [Audio](media/AUDIO.md)
-- [Media Manager: bundled local workspace](media/MEDIA_MANAGER.md)
-- [Paint workspace](media/PAINT.md)
-- [3D Viewer & Editor](media/THREE_D_VIEWER.md)
-
-## Workspace and documents
-
-- [Document Editor — phase 8](workspace/DOCUMENT_EDITOR.md)
-- [Folder Review](workspace/FOLDER_REVIEW.md)
-- [Functions and navigation controls](workspace/FUNCTIONS.md)
-- [Knowledge vault](workspace/KNOWLEDGE_VAULT.md)
-- [Local Files implementation and validation](workspace/LOCAL_FILES.md)
-- [Using the Shortcut Registry](workspace/SHORTCUT_REGISTRY.md)
-- [Storage, backup and reset](workspace/STORAGE_AND_BACKUP.md)
-- [Workspace guide](workspace/WORKSPACE_GUIDE.md)
-- [Workspace tools](workspace/WORKSPACE_IMPROVEMENTS.md)
-
-## Setup and recovery
-
-- [PC bridge: manual delegation](setup/PC_BRIDGE.md)
-- [Mobile companion: private phone access](setup/MOBILE_COMPANION.md)
-- [Setup and optional runtimes](setup/SETUP.md)
-- [Windows compatibility and recovery](setup/WINDOWS_COMPATIBILITY.md)
-- [Window rendering](setup/WINDOW_RENDERING.md)
-
-## Development and architecture
-
-- [Application awareness and maintenance](development/APPLICATION_AWARENESS.md)
-- [Architecture reference](development/ARCHITECTURE_REFERENCE.md)
-- [Browser audit and remediation](development/BROWSER_SECURITY.md)
-- [Development and verification](development/DEVELOPMENT.md)
-- [Mobile companion roadmap and progress](development/MOBILE_COMPANION_ROADMAP.md)
-- [Publish Application to GitHub](development/GITHUB_PUBLICATION.md)
-- [Internet access and data scraping](development/INTERNET_ACCESS_PROPOSAL.md)
-- [Local chat tools, document understanding and image profiles](development/LOCAL_TOOL_EXECUTION.md)
-- [Roadmap segments 4–6 implementation](development/ROADMAP_SEGMENTS_4_6.md)
-- [Tool registry](development/TOOL_REGISTRY.md)
-
-## Releases and historical evidence
-
-- [Release records](../RELEASES.md)
-- [Application review workflow](application-review/README.md)
-- [Local audit and comparison reader](application-review/index.html)
-- [Historical reports and local handoffs](archive/README.md)
-- [Document relocation map](development/DOCUMENT_MAP.md)
-
-Historical reports may contain superseded limitations or machine-specific findings.
-Private handoffs and audits remain excluded from publication.
+Superseded public guides/reports have been folded into these destinations.
+Historical source snapshots remain immutable and labeled with their observation
+dates. Private local handoffs remain excluded from Git/publication.
