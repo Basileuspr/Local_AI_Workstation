@@ -34,7 +34,12 @@ async def prepare(_kind):
 
 async def chat(_request, _client):
     (work / "chat-request.json").write_text(json.dumps(_request.model_dump(), default=str))
+    with (work / "chat-requests.jsonl").open('a', encoding='utf-8') as target:
+        target.write(json.dumps(_request.model_dump(), default=str) + '\n')
     async def stream():
+        if _request.messages[-1].content == 'First queued turn':
+            while not (work / 'release-chat-jobs').exists():
+                await asyncio.sleep(.05)
         for word in "A response streamed from your desktop.".split(" "):
             await asyncio.sleep(.4)
             yield "data: " + json.dumps({"token": word + " ", "done": False}) + "\n\n"

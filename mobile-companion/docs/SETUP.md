@@ -50,10 +50,31 @@ Select saved/new chats, an installed chat model and response controls. Exact
 response limits and thinking follow the [shared chat contract](../../docs/chat/CHAT_GUIDE.md).
 Code blocks provide touch-friendly Copy code.
 
+**New** asks for a conversation name. **Rename** updates the selected conversation's
+name on both phone and desktop, preserving its messages and images. A stale rename
+asks you to reload/retry rather than overwriting newer work.
+
+You can queue more chat or image jobs in the same conversation. Jobs in that
+conversation run in acceptance order; each chat turn uses the completed history
+when it starts. Prompts for waiting turns remain in Jobs until their turn begins.
+The composer becomes available after acceptance. Text typed while an earlier
+submission is being acknowledged stays in the draft.
+
 Choose an image model and supported settings separately. Accepted image jobs
 continue on the desktop after a phone disconnect or hosted-interface update.
 A pending/unconfirmed submission is different from an accepted job; resolve it
 before retrying to avoid ambiguity. Desktop/backend restart interrupts active work.
+
+**Batch requests** reuses the desktop image count, seed, steps and guidance controls.
+Preview up to 32 images, then choose **Queue batch**. The batch is accepted together
+as one job; its prompts and settings stay available. The phone queue accepts up to
+eight outstanding jobs and 32 pending images across paired phones. An oversized
+batch is rejected before any of its images start.
+
+Jobs shows each image's progress and offers **Cancel image** or **Cancel batch**.
+Cancelling a waiting turn prevents it from starting. Completed images remain saved
+when another image fails or is cancelled. Disconnects do not cancel accepted work;
+after an interruption, inspect the conversation and Gallery before submitting anew.
 
 Gallery supports original-image viewing, gestures, download and supported sharing.
 The native Android viewer and a browser have different platform capabilities.

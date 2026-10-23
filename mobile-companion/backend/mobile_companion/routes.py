@@ -51,13 +51,26 @@ async def image_tasks(request: Request):
 
 
 @router.post("/image-tasks/{job_id}/cancel")
-async def cancel_image(job_id: uuid.UUID):
+async def cancel_image(job_id: str):
+    # Desktop task IDs refer either to a whole receipt or one batch member.
+    try:
+        parent_id = str(uuid.UUID(job_id))
+        member_id = None
+    except ValueError:
+        try:
+            parent_id = str(uuid.UUID(job_id[:36]))
+            member_id = "mobile-" + job_id
+        except ValueError:
+            raise HTTPException(404, "Phone image job not found") from None
     service = _instance
-    job = await call(lambda: service.jobs.store.job("incoming", str(job_id)) if service else None)
+    job = await call(lambda: service.jobs.store.job("incoming", parent_id) if service else None)
     if not job or (job.get("payload") or {}).get("kind") != "image":
         raise HTTPException(404, "Phone image job not found")
     try:
-        return await service.jobs.cancel(job["peer_id"], str(job_id))
+        return (await service.jobs.cancel_image(job["peer_id"], parent_id, member_id) if member_id
+                else await service.jobs.cancel(job["peer_id"], parent_id))
+    except KeyError:
+        raise HTTPException(404, "Phone image not found") from None
     except httpx.HTTPError:
         raise HTTPException(503, "Cancellation saved; desktop confirmation unavailable. Retry after reconnecting.") from None
 

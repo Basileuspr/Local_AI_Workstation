@@ -4,6 +4,22 @@ This is the consolidated evidence record, reviewed October 23, 2026.
 Current guides describe inspected source; dated tests below are not a certification
 of every feature, provider, installation or device.
 
+## October 23 companion workflow fixes
+
+Phone conversations support explicit names and metadata-only renaming. Image
+batches are accepted atomically with individual progress/cancellation, and queued
+chat/image work runs in order within a conversation. Waiting prompts do not enter
+earlier chat contexts. Completed images survive other members' failure/cancellation;
+stable receipt retries cannot duplicate work.
+
+Validation: 1,568 frontend tests passed with 3 existing skips, 68 companion
+backend/publication tests passed, and an isolated phone build and synthetic HTTPS
+Chromium walkthrough passed. The walkthrough included two same-chat turns,
+preceding-reply context, naming and batching. See
+[companion validation](../../mobile-companion/docs/VALIDATION.md).
+Installed dependencies were retained; live activation, physical-phone acceptance
+and real model/GPU inference were not performed.
+
 ## October 23 scrolling controls and input focus
 
 The scrolling audit added bounded, pane-sized action/filter groups to Image Editor,

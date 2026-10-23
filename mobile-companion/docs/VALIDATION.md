@@ -1,4 +1,25 @@
-# Companion folder consolidation validation
+# Companion validation
+
+## October 23 phone workflow fixes
+
+Named creation and metadata-only renaming, atomic image batches and ordered
+same-conversation jobs were checked using temporary app data and build outputs.
+
+- Full frontend suite: 1,568 passed; 3 existing skips. Companion subset: 36 passed.
+- Companion backend/publication suite: 68 passed, including batch quotas and
+  partial results, individual cancellation, duplicate receipts, mixed work,
+  preceding-reply context, future-prompt exclusion and deleted conversations.
+- Phone production build passed in a temporary output directory.
+- HTTPS Chromium walkthrough at 390 × 844 passed named creation/rename, two
+  queued chat turns, preceding-reply context and a two-image batch, alongside
+  existing pairing, image gestures/download, reconnect and private-cache checks.
+- Local installed dependencies were used (Vitest 4.1.11 and Vite 6.4.3);
+  dependency installation and live deployment remain with final activation.
+
+The live desktop and deployed phone assets were not replaced or restarted.
+Physical-phone behavior and real provider/GPU inference remain unverified.
+
+## Folder consolidation
 
 Checked on October 23, 2026, with the published image-scan refresh fix included.
 The move groups 74 existing source files under `mobile-companion/` and keeps

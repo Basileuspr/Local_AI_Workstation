@@ -2,6 +2,10 @@ import React from "react";
 import ImageSettingsControls from "../../../src/components/ImageSettingsControls";
 import { defaultImageSettings } from "../../../src/imageGenerationDefaults";
 import { imageRequest, validateImageSelection } from "../../../src/chatImageGeneration";
+import ImageBatchControls from "../../../src/components/ImageBatchControls";
+import { BATCH_FIELDS } from "../../../src/imageBatch";
+
+const batchFields = BATCH_FIELDS.filter(field => field.key !== 'loraScale');
 
 export function mobileImageSubmission(settings, catalog) {
   validateImageSelection(settings, catalog);
@@ -10,7 +14,15 @@ export function mobileImageSubmission(settings, catalog) {
   return { ...values, model: model_id };
 }
 
-export default function ImageGenerationForm({ settings, onChange, catalog, error, disabled, onSubmit, pendingImages = 0, activeChat = false, onOpenJobs }) {
+export function mobileImageBatchSubmission(items, catalog) {
+  if (!Array.isArray(items) || items.length < 1 || items.length > 32) throw new Error('Choose 1–32 images per batch.');
+  const rows = items.map(item => mobileImageSubmission(item.settings, catalog));
+  const shared = ({ seed, steps, guidance_scale, ...values }) => JSON.stringify(values);
+  if (rows.some(row => shared(row) !== shared(rows[0]))) throw new Error('A batch must use the same model, prompts and image size.');
+  return { ...rows[0], image_variants: rows.map(({ seed, steps, guidance_scale }) => ({ seed, steps, guidance_scale })) };
+}
+
+export default function ImageGenerationForm({ settings, onChange, catalog, error, disabled, onSubmit, onBatchSubmit, pendingImages = 0, activeChat = false, onOpenJobs }) {
   const model = catalog.models.find(item => item.id === settings.modelId);
   const compatible = catalog.loras.filter(item => item.base_model_id === settings.modelId);
   const selectedLora = compatible.find(item => item.id === settings.loraId);
@@ -35,8 +47,11 @@ export default function ImageGenerationForm({ settings, onChange, catalog, error
       <details><summary>About generation settings</summary><p className="muted">These are the same size, steps, guidance and seed controls used on the desktop. Higher guidance increases prompt influence, not quality. More steps and larger images take longer. A blank seed chooses a new random seed. Both prompts and your settings stay in place after each generation.</p></details>
       <button type="button" onClick={() => onChange({ ...defaultImageSettings, modelId: settings.modelId, prompt: settings.prompt, negativePrompt: settings.negativePrompt })}>Reset generation settings</button>
       <button className="primary" disabled={disabled || !model || !catalog.runtime?.ready || !settings.prompt.trim()}>{pendingImages ? "Queue another image ✧" : "Generate image ✧"}</button>
+      {onBatchSubmit && <ImageBatchControls settings={settings} onChange={onChange} onSubmit={onBatchSubmit} fields={batchFields}
+        disabled={disabled || !model || !catalog.runtime?.ready || !settings.prompt.trim()}
+        submittedMessage={count => `${count} images accepted. Follow or cancel them in Jobs.`} />}
       {!!pendingImages && <div className="row"><p className="muted" role="status">{pendingImages} image{pendingImages === 1 ? "" : "s"} pending in this conversation.</p><button type="button" onClick={onOpenJobs}>View jobs</button></div>}
-      {activeChat && <p className="muted" role="status">Wait for this conversation’s chat response before adding images.</p>}
-      <p className="muted">Keep creating in this conversation while earlier images wait or generate. Images use the desktop queue and save to this conversation, Gallery, and desktop Generate output. You can leave this page while your desktop works.</p>
+      {activeChat && <p className="muted" role="status">New images queue behind this conversation’s earlier work.</p>}
+      <p className="muted">Keep creating while earlier work waits or generates. Each conversation runs its jobs in order. Up to eight jobs and 32 pending images can be accepted across phones; a batch is accepted together. Images save to this conversation, Gallery, and desktop Generate output. You can leave this page while your desktop works.</p>
     </form></section>;
 }

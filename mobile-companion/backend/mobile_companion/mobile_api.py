@@ -14,7 +14,7 @@ from urllib.parse import quote, urlsplit
 import httpx
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from starlette.concurrency import run_in_threadpool
 from starlette.background import BackgroundTask
 
@@ -87,6 +87,19 @@ class PairRequest(BaseModel):
 class NewSession(BaseModel):
     model_config = ConfigDict(extra="forbid")
     title: str = Field(default="New Chat", min_length=1, max_length=100)
+
+    @field_validator("title")
+    @classmethod
+    def clean_title(cls, value):
+        value = value.strip()
+        if not value or any(ord(character) < 32 for character in value):
+            raise ValueError("Enter a conversation name without control characters.")
+        return value
+
+
+class RenameSession(NewSession):
+    title: str = Field(min_length=1, max_length=100)
+    expected_revision: str = Field(min_length=1, max_length=100)
 
 
 def create_mobile_api(jobs, access, origin, assets, *, updates=None):
@@ -222,6 +235,16 @@ def create_mobile_api(jobs, access, origin, assets, *, updates=None):
     def session(session_id: str):
         return mobile_session(session_id)
 
+    @app.patch("/api/sessions/{session_id}/metadata")
+    def rename_session(session_id: str, body: RenameSession):
+        if not ID.fullmatch(session_id):
+            raise HTTPException(404, "Conversation not found")
+        value = session_store.update_session_metadata(session_id, title=body.title, expected_revision=body.expected_revision)
+        if value is None:
+            raise HTTPException(404, "Conversation not found")
+        jobs.changed()
+        return mobile_session(session_id)
+
     @app.put("/api/jobs/{job_id}")
     async def submit(job_id: uuid.UUID, body: MobileSubmission, request: Request):
         try:
@@ -256,6 +279,15 @@ def create_mobile_api(jobs, access, origin, assets, *, updates=None):
             raise HTTPException(409, "Finish or cancel this job first")
         jobs.store.delete("incoming", str(job_id))
         return {"archived": True}
+
+    @app.post("/api/jobs/{job_id}/images/{member_id}/cancel")
+    async def cancel_batch_image(job_id: uuid.UUID, member_id: str, request: Request):
+        try:
+            return await jobs.cancel_image(request.state.device["id"], str(job_id), member_id)
+        except KeyError:
+            raise HTTPException(404, "Image not found") from None
+        except httpx.HTTPError:
+            raise HTTPException(503, "Cancellation saved; desktop confirmation is unavailable. Retry after reconnecting.") from None
 
     @app.get("/api/jobs/{job_id}/events")
     async def events(job_id: uuid.UUID, request: Request):

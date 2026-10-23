@@ -69,6 +69,16 @@ it("queues multiple images in the selected conversation and stays on Create with
   expect(document.querySelectorAll(".job")).toHaveLength(3);
 });
 
+it('accepts the batch in one receipt and keeps its prompts and selected conversation', async () => {
+  await mount({activeKind:'chat'});
+  await click('Queue batch (4)');
+  expect(submissions).toHaveLength(1);
+  expect(submissions[0].payload.session_id).toBe('chat');
+  expect(submissions[0].payload.image_variants.map(item=>item.seed)).toEqual([1,2,3,4]);
+  expect(document.querySelector('[aria-label="Image prompt"]').value).toBe('A scene');
+  expect(document.body.textContent).toContain('4 images accepted');
+});
+
 it("blocks another submission until its delivery is acknowledged and retries with the same job ID", async () => {
   let finish;
   await mount({ send: () => new Promise(resolve => { finish = resolve; }) });
@@ -85,10 +95,10 @@ it("blocks another submission until its delivery is acknowledged and retries wit
   expect(document.body.textContent).toContain("1 image pending in this conversation.");
 });
 
-it("keeps chat jobs exclusive and displays the server's queue-capacity error", async () => {
+it("allows image submissions behind chat work and displays the server's queue-capacity error", async () => {
   await mount({ activeKind: "chat", send: () => response({ detail: "Bridge has eight outstanding jobs. Finish or cancel work first." }, 409) });
-  expect(generateButton().disabled).toBe(true);
-  expect(document.body.textContent).toContain("Wait for this conversation’s chat response");
+  expect(generateButton().disabled).toBe(false);
+  expect(document.body.textContent).toContain("New images queue behind");
   jobs = [];
   await act(async () => vi.advanceTimersByTimeAsync(2100));
   expect(generateButton().disabled).toBe(false);

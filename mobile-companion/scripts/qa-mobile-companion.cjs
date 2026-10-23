@@ -175,6 +175,38 @@ app.whenReady().then(async () => {
   assert.equal(createHash('sha256').update(fs.readFileSync(path.join(work, 'original.png'))).digest('hex'), fixture.download_sha256);
   await capture('image-viewer.png');
   await js("document.querySelector('[aria-label=\"Close image\"]').click()");
+  await click('◌Chat');
+  await click('＋ New');
+  await set('[aria-label="Conversation name"]', 'Phone workflow check');
+  await click('Create conversation');
+  await until("document.querySelector('.section-heading h2')?.textContent==='Phone workflow check'", 'named conversation created');
+  await click('Rename');
+  await set('[aria-label="Conversation name"]', 'Phone workflow renamed');
+  await click('Save name');
+  await until("document.querySelector('.section-heading h2')?.textContent==='Phone workflow renamed'", 'conversation renamed');
+  await set('#chat-prompt', 'First queued turn');
+  await click('Send ↗');
+  await set('#chat-prompt', 'Second queued turn');
+  await until("[...document.querySelectorAll('button')].some(button=>button.textContent==='Queue message ↗'&&!button.disabled)", 'accepted turn unlocks composer');
+  await click('Queue message ↗');
+  fs.writeFileSync(path.join(work, 'release-chat-jobs'), 'continue');
+  await until("document.querySelectorAll('.message.assistant').length===2", 'same-chat turns saved in order');
+  const turns = fs.readFileSync(path.join(work, 'chat-requests.jsonl'), 'utf8').trim().split('\n').map(line=>JSON.parse(line)).slice(-2);
+  assert.deepEqual(turns[0].messages.map(message=>message.content), ['First queued turn'], 'future prompt excluded from first turn');
+  assert.equal(turns[1].messages.at(-1).content, 'Second queued turn');
+  assert.equal(turns[1].messages[1].role, 'assistant', 'preceding reply is context for next turn');
+  await click('✧Create');
+  await set('[aria-label="Image prompt"]', 'A batch from the phone');
+  await js("document.querySelector('.image-batch').open=true");
+  await set('[aria-label="Images in batch"]', '2');
+  await click('Queue batch (2)');
+  await until("document.querySelector('.generation').textContent.includes('2 images accepted')", 'batch accepted together');
+  await click('≋Jobs');
+  await until("[...document.querySelectorAll('.job')].some(job=>job.textContent.includes('IMAGE BATCH · 2')&&job.querySelector('.badge').textContent==='completed')", 'batch complete');
+  assert.equal(await js("document.querySelectorAll('.batch-members li').length"), 2);
+  await capture('batch-and-queued-chat.png');
+  assert.equal(await js('document.documentElement.scrollWidth<=innerWidth'), true, 'batch controls fit phone');
+  console.log('Batch generation, named conversations and ordered same-chat turns passed');
   if (updateQA) {
     const desktop = async (route = '', method = 'GET') => {
       const response = await fetch(`http://127.0.0.1:${localPort}/mobile${route}`, {method,

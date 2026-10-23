@@ -12,3 +12,19 @@
 .mobile-response-options .response-length-control { padding: 8px 0 12px; }
 .message .response-usage { margin-top: 10px; font-size: 12px; }
 .messages:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+
+.conversation-controls { display: grid; gap: 12px; min-width: 0; }
+.conversation-name { display: grid; gap: 14px; }
+.session-picker { flex-wrap: wrap; }
+.session-picker > label { flex-basis: 100%; }
+.image-batch { min-width: 0; }
+.image-batch-fields { display: grid; gap: 16px; margin: 12px 0; }
+.image-batch-fields > div { display: grid; gap: 10px; }
+.image-batch-preview { overflow-x: auto; margin: 16px 0; }
+.image-batch table { border-collapse: collapse; width: 100%; font-size: .8rem; }
+.image-batch th, .image-batch td { padding: 8px; text-align: left; border-bottom: 1px solid var(--line); }
+.batch-members { display: grid; gap: 12px; margin: 0; padding-left: 22px; font-size: .85rem; }
+@media (min-width: 560px) {
+  .session-picker > label { flex-basis: auto; }
+  .image-batch-fields { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
