@@ -1,11 +1,20 @@
-import {useEffect,useState} from 'react';
+import {useEffect,useId,useRef,useState} from 'react';
 import {webSystem,sourceDefaults,sourceFields,webTime} from '../webSystem';
 import ViewerBrowser from './ViewerBrowser';
 import WebSearch from './WebSearch';
+import WebAccess from './WebAccess';
 import SearchProviderSettings from './SearchProviderSettings';
 import './WebWorkspace.css';
 
+const modes = [
+  {id:'search',label:'Search & preview'},
+  {id:'research',label:'Live research'},
+  {id:'sources',label:'Recurring sources'},
+  {id:'import',label:'Import page'},
+];
+
 export default function WebWorkspace({active,models=[],defaultModel='',chatModel='',onOpenSession,isGenerating=false}) {
+  const id=useId(),tabs=useRef({});
   const [tab,setTab]=useState('search'),[question,setQuestion]=useState(''),[model,setModel]=useState(''),[urls,setUrls]=useState(''),[job,setJob]=useState(null);
   const [state,setState]=useState({sources:[],jobs:[],events:[],worker:{}}),[form,setForm]=useState({...sourceDefaults}),[editing,setEditing]=useState('');
   const [config,setConfig]=useState(null),[browser,setBrowser]=useState(false),[pages,setPages]=useState(null);
@@ -24,12 +33,22 @@ export default function WebWorkspace({active,models=[],defaultModel='',chatModel
   async function perform(work) {setBusy(true);setError('');setNotice('');try{const result=await work();if(result?.error)throw Error(result.error);return result;}catch(e){setError(e.message);return null;}finally{setBusy(false);}}
   async function refresh(){setState(await webSystem('/state'));}
   async function saveKnowledge(body){const result=await perform(()=>webSystem('/knowledge',body));if(result)setNotice(result.duplicate?'This captured version is already in Knowledge.':'Selected evidence saved to Knowledge.');}
+  function navigateMode(event,index) {
+    if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
+    event.preventDefault();
+    const next=event.key==='Home'?0:event.key==='End'?modes.length-1:(index+(event.key==='ArrowRight'?1:-1)+modes.length)%modes.length;
+    setTab(modes[next].id);tabs.current[modes[next].id]?.focus();
+  }
+  const panelProps=mode=>({id:`${id}-panel-${mode}`,role:'tabpanel','aria-labelledby':`${id}-tab-${mode}`,hidden:tab!==mode,tabIndex:0});
   const field=(key,value)=>setForm(v=>({...v,[key]:value}));
   return <section className="web-workspace" aria-label="Web Research & Sources">
-    <div className="web-toolbar"><strong>Web Research & Sources</strong><button aria-pressed={tab==='search'} onClick={()=>setTab('search')}>Search & preview</button><button aria-pressed={tab==='research'} onClick={()=>setTab('research')}>Live research</button><button aria-pressed={tab==='sources'} onClick={()=>setTab('sources')}>Recurring sources</button></div>
+    <header className="web-heading"><h2>Research &amp; Sources</h2><p>Search or preview without a model, research with a local model, monitor public sources, or import a page into a chat.</p></header>
+    <div className="web-mode-tabs" role="tablist" aria-label="Web research tools">{modes.map((mode,index)=><button key={mode.id} type="button" role="tab" ref={node=>{tabs.current[mode.id]=node;}}
+      id={`${id}-tab-${mode.id}`} aria-selected={tab===mode.id} aria-controls={`${id}-panel-${mode.id}`} tabIndex={tab===mode.id?0:-1}
+      onClick={()=>setTab(mode.id)} onKeyDown={event=>navigateMode(event,index)}>{mode.label}</button>)}</div>
     {error&&<p role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}
-    <div hidden={tab!=='search'}><WebSearch active={active&&tab==='search'} config={config} onConfig={setConfig} model={chatModel||defaultModel} onOpenSession={onOpenSession} isGenerating={isGenerating}/></div>
-    {tab==='research'?<>
+    <div {...panelProps('search')}><WebSearch active={active&&tab==='search'} config={config} onConfig={setConfig} model={chatModel||defaultModel} onOpenSession={onOpenSession} isGenerating={isGenerating}/></div>
+    <div {...panelProps('research')}>
       <p>Ask a current question. Retrieved text and answers expire after 30 minutes and are discarded when the backend closes. Save selected evidence to Knowledge only when you want to retain it.</p>
       <label>Research question<textarea aria-label="Research question" value={question} maxLength={2000} onChange={e=>setQuestion(e.target.value)} placeholder="What changed in the latest release?"/></label>
       <div className="web-toolbar"><label>Local model<select aria-label="Research model" value={model} onChange={e=>setModel(e.target.value)}><option value="">Choose a local text model</option>{models.map(m=><option key={m.name} value={m.name}>{m.name}</option>)}</select></label>
@@ -51,9 +70,12 @@ export default function WebWorkspace({active,models=[],defaultModel='',chatModel
           <button disabled={busy||running} onClick={()=>saveKnowledge({research_id:job.id,source_ref:s.id})}>Save to Knowledge</button></div>)}
         {!!job.failures?.length&&<details><summary>Coverage: {job.failures.length} retrieval/search issue(s)</summary>{job.failures.map((f,i)=><p key={i}>{f.url?<a href={f.url} target="_blank" rel="noreferrer">{f.url}</a>:f.stage} · {f.reason}{f.url&&<button disabled={busy||running||!desktop?.navigateViewerBrowser} onClick={()=>perform(async()=>{await desktop.navigateViewerBrowser(f.url);setBrowser(true);})}>Open in Browser</button>}</p>)}</details>}
       </article>}
-      <div className="web-toolbar"><button onClick={()=>setBrowser(v=>!v)}>{browser?'Hide browser fallback':'Browser fallback'}</button><button disabled={busy||running||!job||!desktop?.readWebResearchBrowser} onClick={async()=>{const result=await perform(()=>desktop.readWebResearchBrowser(job.id));if(result)setJob(result);}}>Use current Browser page</button></div>
-      {browser&&<><p>Open a public page, complete any login manually, then explicitly capture its rendered text. Password fields and session secrets are excluded. Only this selected page is read; the monitor remains an HTTP crawler.</p><ViewerBrowser accountOnly active={active&&browser} onOpenSource={()=>{}}/></>}
-    </>:tab==='sources'?<>
+      <div className="web-toolbar"><button aria-expanded={browser} aria-controls={`${id}-browser-fallback`} onClick={()=>setBrowser(v=>!v)}>{browser?'Hide browser fallback':'Browser fallback'}</button><button disabled={busy||running||!job||!desktop?.readWebResearchBrowser} onClick={async()=>{const result=await perform(()=>desktop.readWebResearchBrowser(job.id));if(result)setJob(result);}}>Use current Browser page</button></div>
+      <div id={`${id}-browser-fallback`} hidden={!browser}>
+      {browser&&<><p>Open a public page, complete any login manually, then explicitly capture its rendered text. Password fields and session secrets are excluded. Only this selected page is read; the monitor remains an HTTP crawler.</p><ViewerBrowser accountOnly active={active&&tab==='research'&&browser} onOpenSource={()=>{}}/></>}
+      </div>
+    </div>
+    <div {...panelProps('sources')}>
       <div className="web-toolbar"><span>Background: {state.background_enabled?(state.worker?.status==='running'&&Date.now()/1000-(state.worker.heartbeat||0)<15?'running':'starting / waiting for worker'):'disabled'} · {state.sources.filter(s=>s.enabled).length} enabled source(s)</span>
         <button disabled={busy||!desktop?.webBackground} onClick={async()=>{const result=await perform(()=>desktop.webBackground(!state.background_enabled));if(result)setState(result);}}>{state.background_enabled?'Disable background monitoring':'Enable background monitoring'}</button></div>
       <p>Sources run in a separate worker through a per-user Windows task, including when the workstation window is closed. Checks stay queued while background monitoring is disabled. Disabling it also pauses maintenance conflicts.</p>
@@ -85,6 +107,10 @@ export default function WebWorkspace({active,models=[],defaultModel='',chatModel
       <details open><summary>Recent runs</summary>{state.jobs.slice(0,20).map(j=><div className="web-source-row" key={j.id}><span>{state.sources.find(s=>s.id===j.source_id)?.name} · {j.state} · {j.checked} checked · {j.changed} changed · {j.failures} failed{j.state==='RETRY'?' · Retry '+webTime(j.available):''}</span>{['PENDING','RUNNING','RETRY'].includes(j.state)&&<button disabled={busy} onClick={()=>perform(async()=>{await webSystem('/jobs/'+j.id+'/cancel',{});await refresh();})}>Cancel run</button>}</div>)}</details>
       {!!state.events.length&&<details open><summary>Change notifications</summary>{state.events.map(e=><p key={e.id}>{webTime(e.created)} · <a href={e.url} target="_blank" rel="noreferrer">{e.title||e.url}</a> changed</p>)}</details>}
       {!state.sources.length&&<p>No recurring sources configured. Add a source deliberately, then enable background monitoring.</p>}
-    </>:null}
+    </div>
+    <div {...panelProps('import')}>
+      <p>Import one public page and optionally up to 24 images. Open a separate source chat with attribution and up to 6,000 text characters. Browser logins are not used, and text inside images is not read automatically.</p>
+      <WebAccess embedded active={active&&tab==='import'} model={chatModel||defaultModel} isGenerating={isGenerating} onOpenSession={onOpenSession}/>
+    </div>
   </section>;
 }

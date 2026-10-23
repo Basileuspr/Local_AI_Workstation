@@ -4,9 +4,15 @@ This workspace separates search/preview, temporary model-assisted research and
 explicit recurring public sources. The Browser and public URL importer have
 different lifetimes and authentication boundaries.
 
+Open **Web** in the main navigation. It groups **Browser**, **Research & Sources**
+and **Reels Analyzer**. Research & Sources has four modes: **Search & preview**,
+**Live research**, **Recurring sources** and **Import page**. Arrow keys cycle
+these mode tabs; Home/End select the first/last. Switching modes retains drafts
+and submitted work. Refreshing the app clears unsaved drafts.
+
 ## Search and preview
 
-1. Open **Web Research & Sources → Search & preview**.
+1. Open **Web → Research & Sources → Search & preview**.
 2. Choose a provider, enter a query and search. Cards show provider snippets,
    not evidence that the destination page was read.
 3. Select **Preview this page**, or enter a direct Page URL.
@@ -78,10 +84,18 @@ host setup must enable it and supervise the process.
 
 ## Public retrieval and importer
 
-The existing public HTTPS importer retains explicit import snapshots and can save
-selected text/images. It does not share Browser cookies, execute page JavaScript
-or become an authenticated crawler. Temporary research/monitoring does not write
-page snapshots into that importer cache.
+Open **Web → Research & Sources → Import page** for the same public page importer
+available through Chat's **Internet** shortcut. Enter a public URL, optionally
+save up to 24 images (10 MB each, 50 MB total), and use **Import page**. A completed
+import can create a source chat with attribution, up to 6,000 text characters and
+its saved images. Images are not automatically read/OCRed by the chat model.
+**Stop import** stops active work; switching modes lets it continue. Either entry
+point can recover the active import. Finish/stop an active chat reply before
+opening a new source chat. Importing does not index Knowledge.
+
+The importer retains explicit snapshots and does not share Browser cookies,
+execute page JavaScript or become an authenticated crawler. Temporary research/
+monitoring does not write page snapshots into that importer cache.
 
 Transport validates public destinations and all DNS answers, pins checked
 addresses with TLS hostname verification, disables environment proxy trust and

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useStore } from "../useStore.jsx";
 import { useChatPane } from "../ChatPane";
 import { createWebChat, getActiveWebImport, getWebImport, startWebImport, stopWebImport, webImageUrl } from "../webAccess";
@@ -7,9 +7,13 @@ import "./WebAccess.css";
 
 const terminal = new Set(["complete", "cancelled", "error"]);
 
-export default function WebAccess({ onOpenSession, embedded = false, onActivity }) {
+export default function WebAccess({ onOpenSession, embedded = false, onActivity, active: visible = true, model, isGenerating: generating }) {
   const pane = useChatPane();
-  const { isGenerating, selectedModel } = useStore();
+  const instanceId = useId();
+  const urlId = pane.domId(`web-page-url-${instanceId}`);
+  const state = useStore();
+  const isGenerating = generating ?? state?.isGenerating ?? false;
+  const selectedModel = model ?? state?.selectedModel ?? "";
   const [url, setUrl] = useState("");
   const [includeImages, setIncludeImages] = useState(true);
   const [job, setJob] = useState(null);
@@ -18,18 +22,21 @@ export default function WebAccess({ onOpenSession, embedded = false, onActivity 
   const [opening, setOpening] = useState(false);
   const [stopping, setStopping] = useState(false);
   const busy = useRef(false);
+  const requestVersion = useRef(0);
   const active = job && !terminal.has(job.status);
   useEffect(() => {
     onActivity?.({ active: Boolean(active) || starting, complete: job?.status === "complete", message: job?.message || "", error });
   }, [Boolean(active), starting, job?.status, job?.message, error, onActivity]);
 
   useEffect(() => {
+    if (!visible) return;
     let disposed = false;
+    const version = requestVersion.current;
     getActiveWebImport().then(({ job: running }) => {
-      if (!disposed && running) setJob((current) => current || running);
+      if (!disposed && version === requestVersion.current && running) setJob(running);
     }).catch(() => {});
     return () => { disposed = true; };
-  }, []);
+  }, [visible]);
 
   useEffect(() => {
     if (!active || !job?.id) return;
@@ -58,6 +65,7 @@ export default function WebAccess({ onOpenSession, embedded = false, onActivity 
     event.preventDefault();
     if (busy.current || active) return;
     busy.current = true;
+    requestVersion.current++;
     setStarting(true);
     setError("");
     setJob(null);
@@ -67,6 +75,7 @@ export default function WebAccess({ onOpenSession, embedded = false, onActivity 
   }
 
   async function stop() {
+    requestVersion.current++;
     setStopping(true);
     try { setJob(await stopWebImport(job.id)); setError(""); }
     catch (err) { setError(err.message); }
@@ -90,9 +99,9 @@ export default function WebAccess({ onOpenSession, embedded = false, onActivity 
     {!embedded && <summary>Internet · Import a public page</summary>}
 
     <form onSubmit={importPage}>
-      <label htmlFor={pane.domId("web-page-url")}>Public page URL</label>
+      <label htmlFor={urlId}>Public page URL</label>
       <div className="web-access-row">
-        <input id={pane.domId("web-page-url")} type="url" required placeholder="https://example.com/article" value={url} onChange={(event) => setUrl(event.target.value)} disabled={Boolean(active) || starting} />
+        <input id={urlId} type="url" required placeholder="https://example.com/article" value={url} onChange={(event) => setUrl(event.target.value)} disabled={Boolean(active) || starting} />
         <button type="submit" disabled={Boolean(active) || starting}>{starting ? "Starting…" : "Import page"}</button>
         {active && <button type="button" onClick={stop} disabled={stopping}>{stopping ? "Stopping…" : "Stop import"}</button>}
       </div>

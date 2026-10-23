@@ -1,5 +1,9 @@
 # Browser, profiles and guarded workflows
 
+Open **Web → Browser** in the main navigation. Web also contains **Research &
+Sources** and **Reels Analyzer**. Local HTML/CSS/JavaScript editors remain in
+Viewers; Browser's source handoff still opens those editors.
+
 Browser uses sandboxed native Chromium pages with isolated persistent account
 profiles. Normal navigation, closing a tab and restarting can retain profile
 cookies/site storage. Choose cache-only cleanup or all browser data deliberately;
@@ -20,6 +24,12 @@ Suspension closes the page renderer and associated login windows, retaining its
 address/title in memory. Selecting it loads that address again in the same
 profile. Cookies remain, but forms, navigation history and playback position can
 be lost. Tab addresses/titles are not saved for automatic startup restoration.
+
+Moving among Web tools preserves the main window's selected browser page and
+account profile. The Reels account browser and research fallback use that same
+page. If Browser is also visible in a side pane, its page controls retain the
+native surface. Extra Browser windows keep independent pages. Public search,
+preview, imports and recurring checks do not use Browser cookies or sign-ins.
 
 Chromium owns playback, adaptive streaming and available hardware decoding.
 The host avoids unnecessary repaint/placement work while video plays and

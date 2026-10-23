@@ -1,3 +1,5 @@
+import {webNavigationHelp} from './web';
+
 const sourceControls = kind => [
   ['File actions / drop file', `Open reads a local ${kind} file up to 2 MB into this viewer. Copy source is also in File actions; Save source stays on the toolbar. Source remains available while switching tabs.`],
   ['Preview / Edit source', 'HTML and CSS toggle between a sandboxed preview and editable source. Copy and Save use the current source text; the source file is not overwritten automatically. JavaScript remains a text editor.'],
@@ -14,7 +16,7 @@ export const fileToolHelp = {
     ['Built-in Word reference', 'Covers Windows desktop with an English / US keyboard. Source links and checked dates identify built-in entries. Mac, web and custom bindings can differ.'],
     ['Key combinations', 'Press keys joined by + together in the application being described. Reading a reference does not execute it.'],
   ]]],
-  browser: [['Browsing', [
+  browser: [webNavigationHelp, ['Browsing', [
     ['Keep Browser visible', 'In Generate or another workspace, choose Browser in the top toolbar’s Side pane selector. You can navigate, play or pause videos, and switch browser tabs alongside that workspace. Switching app tabs or closing the side pane hides Browser without closing its selected page; use Close page to close it.'],
     ['Shared account page', 'Within the main workspace, Browser, Reels and Web Research use the same selected browser page. When Browser is visible alongside an account-browser panel, the page stays in Browser; the other panel tells you where to use its page controls. Extra Browser windows have independent pages and do not take over that shared page.'],
     ['Address / Go', 'Enter a public page address. F6 or Ctrl+L focuses the address bar. Local and private-network pages are blocked.'],

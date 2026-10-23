@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { parseHTML } from 'linkedom';
 import InfoCenter from '../../src/components/InfoCenter';
 import { featureDirectory, featureUseCases, filterFeatures } from '../../src/featureUseCases';
-import { featureVisuals } from '../../src/infoCenterVisuals';
+import { featureVisuals, categorySymbols } from '../../src/infoCenterVisuals';
 import { appTabs, resolveActiveTab } from '../../src/navigation';
 import { filterNavigationSections, orderedSections, normalizeNavigationOrder } from '../../src/navigationOrder';
 import { functionTargets } from '../../src/functionButtons';
@@ -30,6 +30,15 @@ describe('Info Center', () => {
     expect(ids('duplicates', 'images')).not.toContain('hash-auditor');
     expect(ids('no-such-feature-xyz')).toEqual([]);
     expect(filterFeatures('  ')).toHaveLength(featureDirectory.length);
+  });
+
+  it('groups all Web tools with current shared navigation and importer help', () => {
+    const web = filterFeatures('', 'web');
+    expect(web.map(feature => feature.id)).toEqual(['browser', 'web-system', 'reels-analyzer']);
+    expect(categorySymbols.web).toBe('browser');
+    for (const feature of web) expect(feature.sections[0][0]).toBe('Web navigation');
+    expect(filterFeatures('Import page', 'web').map(feature => feature.id)).toContain('web-system');
+    expect(JSON.stringify(web.find(feature => feature.id === 'reels-analyzer').sections)).toContain('Cache management');
   });
 
   it('shows examples and labeled workspace actions without mounting all detailed guides', () => {

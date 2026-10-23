@@ -46,6 +46,32 @@ test narratives have been removed from current guides.
   rendering functions, comparison/filtering and relocated/private links, not visual
   layout. The app was not restarted or redeployed.
 
+## October 23 Web navigation and controls
+
+Browser, Research & Sources and Reels Analyzer now share the Web navigation
+group. Existing routes and side-pane destinations remain unchanged. Research
+modes retain drafts and include the existing public page importer; Reels setup
+separates account selection from local analysis. Shared help and Info Center
+describe the new locations and the separate browser/public-retrieval boundaries.
+
+- Full frontend suite: 1,538 passed, three existing skips across 192 files.
+- Isolated web/import/research/recurring-source/Reels backend checks: 151 passed.
+- `node scripts/qa-web-navigation.cjs`: actual app navigation, all four research
+  modes, keyboard focus/selection, draft preservation, unique importer labels,
+  Web information bubbles and 420px layouts passed using synthetic APIs.
+- Existing Electron web and Reels fixtures passed: source chats/images, citations,
+  selected rendered-page capture, explicit Knowledge handoff, verified fixture
+  media acquisition, recovery, deduplication and session-preserving cleanup.
+  The Reels fixture acquired two complete transfers and never visited a repository.
+- All 45 AppLayout information dialogs passed scoped-content, focus-restoration,
+  Escape, side-pane and narrow-layout checks. Documentation links and relocations
+  passed the repository checker.
+
+These fixtures used disposable profiles/data and owned synthetic pages/models.
+They do not establish live-provider search, signed-in social-site compatibility,
+real model/GPU quality, physical-phone acceptance or a running user's app reload.
+No Electron/backend security policy, dependencies or phone assets changed.
+
 ## Open dependency findings
 
 The audit recorded these installed versions; counts refer to affected packages,

@@ -32,12 +32,31 @@ describe('app-wide navigation priority', () => {
     expect(() => saveNavigationOrder({}, { setItem() { throw Error('Unavailable'); } })).toThrow();
   });
   it('renders the saved priority in the shared navigation for every workspace', () => {
-    vi.stubGlobal('localStorage', { getItem: () => JSON.stringify({ sections: ['viewers', 'images'], tabs: { viewers: ['spreadsheets', 'browser'], images: ['image-manager', 'images'] } }) });
+    vi.stubGlobal('localStorage', { getItem: () => JSON.stringify({ sections: ['viewers', 'images'], tabs: { viewers: ['spreadsheets', 'shortcuts'], images: ['image-manager', 'images'] } }) });
     const markup = renderToStaticMarkup(<SidebarNavigation activeTab="spreadsheets" onSelect={() => {}} />);
-    expect(markup.indexOf('data-sidebar-route="spreadsheets"')).toBeLessThan(markup.indexOf('data-sidebar-route="browser"'));
-    expect(markup.indexOf('data-sidebar-route="browser"')).toBeLessThan(markup.indexOf('data-sidebar-route="image-manager"'));
+    expect(markup.indexOf('data-sidebar-route="spreadsheets"')).toBeLessThan(markup.indexOf('data-sidebar-route="shortcuts"'));
+    expect(markup.indexOf('data-sidebar-route="shortcuts"')).toBeLessThan(markup.indexOf('data-sidebar-route="image-manager"'));
     expect(markup).toContain('Arrange tabs');
     expect(markup).toContain('aria-current="page"');
+  });
+  it('consolidates Web routes once and migrates old arrangements without reordering existing groups', () => {
+    const legacy = { sections: ['images', 'workspace', 'viewers', 'characters', 'learning'],
+      tabs: { workspace: ['reels-analyzer', 'audio', 'web-system', 'chats'], viewers: ['browser', 'spreadsheets'] } };
+    const order = normalizeNavigationOrder(legacy);
+    expect(order.sections).toEqual(['utilities', 'images', 'workspace', 'web', 'viewers', 'characters', 'learning']);
+    expect(order.tabs.web).toEqual(['browser', 'web-system', 'reels-analyzer']);
+    expect(order.tabs.workspace.slice(0, 2)).toEqual(['audio', 'chats']);
+    expect(order.tabs.viewers[0]).toBe('spreadsheets');
+    expect(normalizeNavigationOrder({ ...order, sections: ['web', 'viewers', 'images'] }).sections.slice(0, 4)).toEqual(['utilities', 'web', 'viewers', 'images']);
+    const sections = orderedSections(order);
+    expect(sections.flatMap(section => section.items).filter(item => ['browser', 'web-system', 'reels-analyzer'].includes(item.id))).toHaveLength(3);
+    vi.stubGlobal('localStorage', { getItem: () => JSON.stringify(legacy) });
+    for (const tab of order.tabs.web) {
+      const markup = renderToStaticMarkup(<SidebarNavigation activeTab={tab} onSelect={() => {}} />);
+      expect(markup).toContain('aria-controls="sidebar-group-web"');
+      expect(markup).toContain('id="sidebar-group-web" class="sidebar-group-items"');
+      expect(markup).not.toContain('id="sidebar-group-web" class="sidebar-group-items" hidden');
+    }
   });
   it('moves Functions into the fixed utility header while retaining older saved tab priorities', () => {
     const order = normalizeNavigationOrder({ sections: ['viewers', 'functions', 'utilities'], tabs: { utilities: ['queue', 'dashboard', 'info-center'], functions: ['tools'] } });

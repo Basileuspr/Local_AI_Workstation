@@ -25,6 +25,16 @@ and generated documents; [Characters](../images/CHARACTERS.md) for roleplay;
 and [Knowledge](KNOWLEDGE_VAULT.md) for indexed context. Index notes and checklists
 remain separate from chat history and Knowledge ingestion.
 
+## Web
+
+Expand **Web** for **Browser**, **Research & Sources**, and **Reels Analyzer**.
+Research & Sources groups model-free search/preview, local-model research,
+recurring public sources, and the public page importer. Chat's Internet button
+remains a shortcut to that importer. Each Web tool's Info bubble explains its
+controls, storage and account boundaries; Info Center has the same Web category.
+Existing tool routes and side-pane selections remain available. Arrange remembers
+Web's position and its tool order; Find a tab searches all three destinations.
+
 ## Viewers, canvas and Paint
 
 Markdown offers source and formatted views. HTML/CSS preview runs in an opaque

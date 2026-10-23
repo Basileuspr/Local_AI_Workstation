@@ -75,7 +75,7 @@ export const chatHelp = [
     ['/docx', 'Describe a document after /docx and Send to create a Word document through the app’s document flow.'],
     ['/docx append', 'Add another section to the latest Word document in this chat. Add to document on an attachment selects that document; describe only the new content and Send. Each reply includes a new version with the earlier content preserved.'],
     ['Canvas', 'Open Canvas (Paint) and choose Use in chat to stage a removable PNG of the current artwork. Send it with a question to a vision-capable model. Chat does not edit Paint layers or selected objects.'],
-    ['Internet import', 'Explicitly imports one public HTTP(S) page and available images into a saved source. A new chat receives bounded extracted text with attribution; text inside images is not read automatically.'],
+    ['Internet import', 'Shortcut to the public page importer also available in Web → Research & Sources → Import page. Explicitly imports one public HTTP(S) page and available images into a saved source. A new chat receives bounded extracted text with attribution; text inside images is not read automatically.'],
     ['Import limits', 'Web imports are spaced at least 10 seconds apart, limited to 30 requests per hour, and cached for 24 hours. Images count toward the limits; local and private-network addresses are refused.'],
     ['Audio transcription', 'Record or upload audio, transcribe, review the text, then explicitly insert it into your message. Transcribing alone does not send a chat message.'],
     ['Read aloud', 'Speaks a completed reply using the chosen local voice. Automatic speech is opt-in and can be stopped without removing the reply.'],

@@ -12,7 +12,7 @@ October 23, 2026. Start with the workflow you need; dated test evidence lives in
 | Images | [Generation/training/queue](images/GENERATION.md), [workflows/scenes](images/IMAGE_WORKFLOWS.md), [editor](images/IMAGE_EDITOR.md), [characters/faces/parts](images/CHARACTERS.md) |
 | Libraries and review | [Gallery/collections/review](images/GALLERY_AND_BULK_ACTIONS.md), [Image Manager/folder tools](images/IMAGE_MANAGER.md), [storage/backup/reset](workspace/STORAGE_AND_BACKUP.md) |
 | Media | [Audio/speech/mixer](media/AUDIO.md), [Media Manager](media/MEDIA_MANAGER.md), [3D editor](media/THREE_D_VIEWER.md) |
-| Web | [Search/research/recurring sources](development/WEB_SYSTEM.md), [Browser/profiles](development/BROWSER.md), [Reels Analyzer](development/REELS_ANALYZER.md) |
+| Web navigation | [Search/preview/import/research/recurring sources](development/WEB_SYSTEM.md), [Browser/profiles](development/BROWSER.md), [Reels Analyzer](development/REELS_ANALYZER.md) |
 | Development | [Architecture](../ARCHITECTURE.md), [reference](development/ARCHITECTURE_REFERENCE.md), [commands/publication](development/DEVELOPMENT.md), [tool discovery/execution](development/TOOL_REGISTRY.md) |
 | Evidence | [Verification/open findings](development/VERIFICATION.md), [releases](../RELEASES.md), [source history reader](application-review/README.md), [document map](development/DOCUMENT_MAP.md) |
 

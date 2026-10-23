@@ -11,3 +11,11 @@
 .web-search-card h4{font-size:1.05em;margin:0 0 5px}.web-search-card>span,.web-search-note,.web-description-label{color:var(--text-secondary,#bbb);font-size:.9em}
 .web-page-preview{margin-top:18px}.web-page-preview h3{margin-top:0}.web-captured-text{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;max-height:420px;overflow:auto}
 .web-search button,.web-provider-settings button{min-height:38px}.web-search input[type=checkbox]{width:18px;height:18px;flex-shrink:0}
+.web-heading h2{margin:0;font-size:1.2rem}.web-heading p{color:var(--text-secondary,#bbb);max-width:90ch}
+.web-mode-tabs{display:flex;flex-wrap:wrap;gap:6px;margin:16px 0}.web-mode-tabs [role=tab]{min-height:40px;padding:8px 14px}
+.web-mode-tabs [aria-selected=true]{background:var(--bg-hover,#303746);border-color:var(--accent-color,#82b7ee);font-weight:600}
+.web-workspace :is(button,input,select,textarea,summary,[role=tabpanel]):focus-visible{outline:2px solid var(--accent,#82b7ee);outline-offset:3px}
+.web-workspace [role=tabpanel]{min-width:0}.web-workspace .web-access{margin:0;max-height:none;font-size:inherit}
+.web-workspace label,.web-workspace input,.web-workspace select{max-width:100%;box-sizing:border-box}
+@media(max-width:600px){.web-workspace{padding:12px}.web-toolbar>label{min-width:0;flex:1 1 100%}.web-toolbar input[type=url]{min-width:0;width:100%}.web-source-row{align-items:flex-start;flex-wrap:wrap}.web-mode-tabs [role=tab]{flex:1 1 40%}}
+@media(pointer:coarse){.web-workspace :is(button,select,summary){min-height:44px}.web-workspace summary{display:flex;align-items:center}}

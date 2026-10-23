@@ -1,9 +1,10 @@
-import {useEffect,useState} from 'react';
+import {useEffect,useId,useState} from 'react';
 import ViewerBrowser from './ViewerBrowser';
 import BrowserAccountStatus from './BrowserAccountStatus';
 import './ReelsAnalyzer.css';
 
 export default function ReelsAnalyzer({active,models=[],defaultModel=''}) {
+  const id=useId();
   const desktop=window.workstationDesktop;
   const [state,setState]=useState({batches:[],summaries:[]}),[error,setError]=useState(''),[busy,setBusy]=useState(false);
   const [browserOpen,setBrowserOpen]=useState(true),[source,setSource]=useState(null),[profile,setProfile]=useState('default');
@@ -26,44 +27,58 @@ export default function ReelsAnalyzer({active,models=[],defaultModel=''}) {
   async function perform(work){setBusy(true);setError('');try{const next=await work();if(next?.error)throw Error(next.error);return next;}catch(e){setError(e.message);return null;}finally{setBusy(false);}}
   const processing=!!state.active||!!state.recovering;
   return <section className="reels-analyzer" aria-label="Reels Analyzer">
-    <div className="reels-controls">
-      <strong>Reels Analyzer</strong>
-      <button disabled={processing} onClick={()=>setBrowserOpen(v=>!v)}>{browserOpen?'Hide account browser':'Open account browser'}</button>
+    <header className="reels-heading"><h2>Reels Analyzer</h2><p>Choose an account conversation, review your local models, then analyze its discovered reels. Saved summaries stay below.</p></header>
+    <div className="reels-setup">
+    <section className="reels-step" aria-labelledby={`${id}-account-heading`}>
+      <h3 id={`${id}-account-heading`}>1. Account &amp; conversation</h3>
+      <p>Use the account browser to sign in manually and open the conversation containing shared reels.</p>
+      <div className="reels-controls">
+      <button disabled={processing} aria-expanded={browserOpen&&!processing} aria-controls={`${id}-account-browser`} onClick={()=>setBrowserOpen(v=>!v)}>{browserOpen?'Hide account browser':'Open account browser'}</button>
       <button disabled={!desktop?.discoverReels||busy||processing} onClick={async()=>{
         const next=await perform(()=>desktop.discoverReels({profileId:profile}));if(next)setSource(next);
       }}>Use this conversation</button>
-      <button disabled={busy||processing||!source||!vision||!summaryModel} onClick={async()=>{
-        const next=await perform(()=>desktop.startReels({visionModel:vision,summaryModel,whisperModel:whisper,videoName}));if(next){setBrowserOpen(false);setSource(null);}
-      }}>Analyze discovered reels</button>
-      <button disabled={busy||!state.active||state.active.pauseRequested} onClick={()=>perform(()=>desktop.pauseReels())}>Pause after this reel</button>
-      <button disabled={busy||!state.active} onClick={()=>perform(()=>desktop.cancelReels())}>Cancel</button>
-      <button disabled={busy||processing||!desktop?.clearReelsCache} onClick={()=>perform(()=>desktop.clearReelsCache())}>Clear cache</button>
-    </div>
-    <div className="reels-controls">
+      </div>
+      <BrowserAccountStatus identified={accountCheck?.status==='identified'} message={accountCheck?.message} busy={busy} disabled={processing||!desktop?.reelsAccountControls} onCheck={async()=>{
+        const next=await perform(()=>desktop.reelsAccountControls({profileId:profile}));if(next)setAccountCheck(next);
+      }}/>
+      {source&&<p role="status">{source.reels.length} discovered reel(s) from {source.sourceUrl}. Scroll to older messages and select the conversation again to include them.</p>}
+    </section>
+    <section className="reels-step" aria-labelledby={`${id}-models-heading`}>
+      <h3 id={`${id}-models-heading`}>2. Local analysis</h3>
+      <div className="reels-models">
       <label>Local vision <select aria-label="Reels vision model" value={vision} disabled={processing} onChange={e=>setVision(e.target.value)}>
         <option value="">Choose an installed vision model</option>{visionModels.map(m=><option key={m.name} value={m.name}>{m.name}</option>)}
       </select></label>
       <label>Local summary <select aria-label="Reels summary model" value={summaryModel} disabled={processing} onChange={e=>setSummaryModel(e.target.value)}><option value="">Choose a local text model</option>{models.map(m=><option key={m.name} value={m.name}>{m.name}</option>)}</select></label>
       <label>Transcription <select value={whisper} disabled={processing} onChange={e=>setWhisper(e.target.value)}><option value="turbo">Whisper Turbo</option><option value="small">Whisper Small</option><option value="base">Whisper Base</option></select></label>
-      <BrowserAccountStatus identified={accountCheck?.status==='identified'} message={accountCheck?.message} busy={busy} disabled={processing||!desktop?.reelsAccountControls} onCheck={async()=>{
-        const next=await perform(()=>desktop.reelsAccountControls({profileId:profile}));if(next)setAccountCheck(next);
-      }}/>
+      </div>
       <details><summary>Page controls</summary>
         <label>Video label <input value={videoName} maxLength={200} placeholder="Leave blank for an unnamed player" onChange={e=>setVideoName(e.target.value)}/></label>
       </details>
+      <div className="reels-controls">
+      <button className="reels-start" disabled={busy||processing||!source||!vision||!summaryModel} onClick={async()=>{
+        const next=await perform(()=>desktop.startReels({visionModel:vision,summaryModel,whisperModel:whisper,videoName}));if(next){setBrowserOpen(false);setSource(null);}
+      }}>Analyze discovered reels</button>
+      {state.active&&<><button disabled={busy||state.active.pauseRequested} onClick={()=>perform(()=>desktop.pauseReels())}>Pause after this reel</button>
+      <button disabled={busy} aria-label="Cancel reel analysis" onClick={()=>perform(()=>desktop.cancelReels())}>Cancel</button></>}
+      </div>
+    </section>
     </div>
     {!desktop?.reelsState&&<p>Open the updated desktop app to acquire reels through your account.</p>}
     {(error||state.error)&&<p role="alert">{error||state.error}</p>}
     {state.recovering?<p role="status">Opening the saved conversation and verifying its account…</p>:state.active&&<p role="status">Reel {(state.active.index??0)+1} · {state.active.stage}{state.active.pauseRequested?' · Pausing after saved result and cleanup':''}</p>}
-    {source&&<p role="status">{source.reels.length} discovered reel(s) from {source.sourceUrl}. This is the visible conversation snapshot; scroll to older messages and select the source again to include them.</p>}
-    {browserOpen&&!processing&&<><p>Choose an isolated account profile, sign in normally, and open the conversation containing shared reels. Acquisition must pass before analysis; streaming media may require a site adapter.</p>
+    <div id={`${id}-account-browser`} hidden={!browserOpen||processing}>
+    {browserOpen&&!processing&&<><p>Choose an isolated account profile and sign in normally. Complete media acquisition must pass before analysis; some sites or streams may be unsupported.</p>
       <ViewerBrowser accountOnly active={active&&browserOpen&&!processing} onOpenSource={()=>{}}/></>}
+    </div>
     {!processing&&state.batches.filter(b=>['paused','interrupted','cancelled'].includes(b.status)).slice(0,5).map(b=><div className="reels-controls" key={b.id}>
       <span>{b.status} · {b.items.filter(i=>['complete','duplicate'].includes(i.status)).length}/{b.items.length} saved or already saved</span>
       <button disabled={busy} onClick={()=>perform(async()=>{setBrowserOpen(true);return desktop.navigateViewerBrowser(b.sourceUrl);})}>Open source conversation</button>
       <button disabled={busy} title="Opens the saved conversation in its selected account profile and skips saved reels" onClick={async()=>{const next=await perform(()=>desktop.resumeReels({batchId:b.id,videoName}));if(next)setBrowserOpen(false);}}>Resume remaining reels</button>
     </div>)}
     {state.batches.flatMap(b=>b.items.filter(i=>['unsupported','failed','interrupted'].includes(i.status))).slice(0,10).map(i=><p key={i.identity} className="reels-unavailable">{i.status==='unsupported'?'Acquisition unsupported or incomplete':'Analysis incomplete'} · <a href={i.url} target="_blank" rel="noreferrer">Original reel</a></p>)}
+    <details className="reels-maintenance"><summary>Cache management</summary><p>Clear temporary reel evidence after processing stops. Account sessions and saved summaries are retained.</p><button disabled={busy||processing||!desktop?.clearReelsCache} onClick={()=>perform(()=>desktop.clearReelsCache())}>Clear cache</button></details>
+    <h3>Saved summaries</h3>
     <div className="reels-results" aria-label="Saved reel summaries">{state.summaries.map(row=><article key={row.identity}>
       <p>{row.summary}</p>
       <p>{row.repository?<a href={row.repository} target="_blank" rel="noreferrer">{row.repository}</a>:<span>Repository link not identified.</span>} · <a href={row.reelUrl} target="_blank" rel="noreferrer">Original reel</a></p>

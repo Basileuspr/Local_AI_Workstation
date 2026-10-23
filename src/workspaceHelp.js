@@ -119,16 +119,16 @@ const overview = {
     example: "Create an identity project with a trigger token, add varied reference images, review captions, train, and compare the saved adapter in Generate with its matching base model.",
   },
   browser: {
-    purpose: "Browse public pages in tabs, manage bookmarks, and inspect available HTML, CSS, and JavaScript source.",
-    example: "Open a page, use New tab for another, and adjust the default 2-minute suspension timeout in Tab settings. Selecting a suspended tab reloads its page.",
+    purpose: "Use Web → Browser for interactive pages, isolated account profiles, bookmarks, and available HTML, CSS, and JavaScript source.",
+    example: "Expand Web and choose Browser. Open a page, use New tab for another, and adjust the default 2-minute suspension timeout in Tab settings. Selecting a suspended tab reloads its page.",
   },
   'web-system': {
-    purpose: 'Research a current question with public-page evidence, or deliberately configure recurring public sources with separate retention controls.',
-    example: 'Choose a local text model, ask a focused question, and optionally enter a public source URL. Use Research now, inspect citations and Coverage, then choose one source to Save to Knowledge. For recurring checks, add a source and explicitly enable background monitoring.',
+    purpose: 'Use Web → Research & Sources to search and preview without a model, research with a local model, configure recurring public sources, or import a public page into a source chat.',
+    example: 'Expand Web and choose Research & Sources. Start with Search & preview, or use Import page to retain a page and its images. For a cited answer choose Live research, select a local model and use Research now. Review citations and Coverage before explicitly saving selected evidence to Knowledge.',
   },
   'reels-analyzer': {
-    purpose: 'Acquire supported reels from a manually signed-in account browser and analyze verified media with local models while keeping brief saved summaries.',
-    example: 'Open account browser, select the original account profile, log in and Check account. Open a conversation, choose Use this conversation, select installed models, and Analyze discovered reels. Review saved summaries; unsupported acquisition remains a reported failure.',
+    purpose: 'Use Web → Reels Analyzer to acquire supported reels from a manually signed-in account conversation, analyze verified media locally, and keep brief saved summaries.',
+    example: 'Expand Web and choose Reels Analyzer. In Account & conversation, select the original profile, sign in, Check account and Use this conversation. In Local analysis, review installed models and Analyze discovered reels. Use Cache management only after processing stops; saved summaries and sign-ins are retained.',
   },
   "3d-viewer": {
     purpose: "View, build, edit, paint, and repair local 3D models without sending them to AI.",

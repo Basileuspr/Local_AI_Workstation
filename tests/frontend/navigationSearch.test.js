@@ -7,6 +7,8 @@ it('finds tabs by their visible name, full title, and route words across groups'
   expect(ids('  GENERATE images ')).toEqual(['generate']);
   expect(ids('image review')).toEqual(['review']);
   expect(ids('local files')).toEqual(['local-files']);
+  expect(ids('web')).toEqual(['browser', 'web-system', 'reels-analyzer']);
+  expect(ids('import page')).toEqual(['web-system']);
   expect(ids('3D')).toEqual(['slicer', '3d-viewer']);
   expect(ids('nothing-matches-this')).toEqual([]);
   expect(filterNavigationSections(sections, '   ')).toEqual(sections);

@@ -613,7 +613,7 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
         </button>
         <section id={pane.domId("chat-web-import")} className="chat-tool-panel chat-web-import" aria-label="Public page import" hidden={openTool !== 'web'}>
           <header><strong>Import a public page</strong><button type="button" className="chat-tool-button" onClick={() => { setOpenTool(null); toolBarRef.current?.querySelector('[aria-label="Internet / page import"]')?.focus(); }}>Close</button></header>
-          <WebAccess embedded onOpenSession={onOpenSession} onActivity={setWebActivity} />
+          <WebAccess embedded active={active && openTool === 'web'} onOpenSession={onOpenSession} onActivity={setWebActivity} />
         </section>
 
       </div>

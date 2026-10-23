@@ -10,6 +10,7 @@ function NavIcon({ kind }) {
     {kind === "chat" && <path d="M20 4H4v13h5l3 3 3-3h5V4ZM8 9h8M8 13h5" />}
     {kind === "image" && <><rect x="3" y="3" width="18" height="18" rx="3" /><circle cx="8" cy="8" r="1.5" /><path d="m3 17 5-5 4 4 4-6 5 7" /></>}
     {kind === "person" && <><circle cx="12" cy="7" r="4" /><path d="M4 21v-2a8 8 0 0 1 16 0v2" /></>}
+    {kind === "globe" && <><circle cx="12" cy="12" r="9" /><ellipse cx="12" cy="12" rx="4" ry="9" /><path d="M3 12h18M5 6h14M5 18h14" /></>}
   </svg>;
 }
 

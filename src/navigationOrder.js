@@ -3,7 +3,6 @@ const groups = [
     { id: "chats", label: "Chats" },
     { id: "library", label: "Index" },
     { id: "knowledge", label: "Knowledge" },
-    { id: "web-system", label: "Web Research & Sources" },
     { id: "canvas", label: "Canvas" },
     { id: "converter", label: "File Converter" },
     { id: "local-files", label: "Local Files" },
@@ -12,10 +11,14 @@ const groups = [
     { id: "hash-auditor", label: "Hash Auditor" },
     { id: "folder-review", label: "Folder Review" },
     { id: "audio", label: "Audio" },
-    { id: "reels-analyzer", label: "Reels Analyzer" },
     { id: "sound-mixer", label: "Sound Mixer", title: "Sound Mixer · soundboard, audio channels, EQ and recording" },
     { id: "slicer", label: "3D Slicer" },
     { id: "integrations", label: "Linked applications" },
+  ] },
+  { id: "web", label: "Web", icon: "globe", items: [
+    { id: "browser", label: "Browser", title: "Browser · pages, account profiles, tabs and bookmarks" },
+    { id: "web-system", label: "Research & Sources", title: "Web Research & Sources · search, preview, page import, live research and recurring sources" },
+    { id: "reels-analyzer", label: "Reels Analyzer", title: "Reels Analyzer · account conversations and local reel summaries" },
   ] },
   { id: "images", label: "Images", icon: "image", items: [
     { id: "images", label: "Gallery", title: "Image Gallery" },
@@ -40,7 +43,6 @@ const groups = [
     { id: "break-room", label: "Break Room" },
   ] },
   { id: "viewers", label: "Viewers", icon: "chat", items: [
-    { id: "browser", label: "Browser" },
     { id: "3d-viewer", label: "3D Viewer & Editor" },
     { id: "markdown", label: "Markdown Viewer" },
     { id: "html-viewer", label: "HTML Viewer" },
@@ -59,7 +61,14 @@ export const navigationSections = [
 export const NAVIGATION_ORDER_KEY = 'local-ai-workstation-tab-order-v1';
 const complete = (saved, defaults) => [...new Set([...(Array.isArray(saved) ? saved.filter(id => defaults.includes(id)) : []), ...defaults])];
 export function normalizeNavigationOrder(value) {
-  return { sections: ['utilities', ...complete(value?.sections, groups.map(section => section.id))],
+  const sections = complete(value?.sections, groups.map(section => section.id));
+  // Introduce Web beside Workspace in older arrangements while retaining the
+  // relative order of every existing group. Future explicit Web moves persist.
+  if (Array.isArray(value?.sections) && !value.sections.includes('web')) {
+    sections.splice(sections.indexOf('web'), 1);
+    sections.splice(sections.indexOf('workspace') + 1, 0, 'web');
+  }
+  return { sections: ['utilities', ...sections],
     tabs: Object.fromEntries(navigationSections.map(section => [section.id, complete(value?.tabs?.[section.id], section.items.map(item => item.id))])) };
 }
 export function loadNavigationOrder(storage = globalThis.localStorage) {

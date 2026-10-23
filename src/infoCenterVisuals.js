@@ -47,4 +47,4 @@ export const featureVisuals = {
   shortcuts: ['keys', 'book', 'Keyboard commands', 'Save', 'Personal reference'],
 };
 
-export const categorySymbols = { utilities: 'sliders', workspace: 'chat', images: 'landscape', characters: 'portrait', learning: 'book', viewers: 'browser' };
+export const categorySymbols = { utilities: 'sliders', workspace: 'chat', web: 'browser', images: 'landscape', characters: 'portrait', learning: 'book', viewers: 'browser' };
