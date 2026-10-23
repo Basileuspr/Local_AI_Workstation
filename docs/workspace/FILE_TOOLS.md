@@ -1,5 +1,11 @@
 # Local Files and Folder Review
 
+Long file-tool pages keep their primary actions and result filters in scrolling
+control groups. Packager exposes Create ZIP and Save ZIP above its file list;
+local documents keep Save/Save As available, and database results retain filtering,
+pagination and exports. In short or split panes, scroll within the group or use Tab
+to reach its remaining controls. Existing file-selection and save rules still apply.
+
 Use Local Files to open supported files deliberately. Opening a file does not
 automatically send it to a model. Folder Review prepares inventories and reviewed
 actions; it is not an automatic organizer.

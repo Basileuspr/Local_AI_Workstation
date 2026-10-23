@@ -1,5 +1,10 @@
 # Image Manager and folder tools
 
+The browsing toolbar keeps views, filters, thumbnail density, page size, Image
+tools and selection actions available while scrolling. Its height follows the
+actual pane, including split layouts. Scroll inside the toolbar or use Tab to
+reach the rest of a large group; the image list retains its scrolling space.
+
 Image Manager catalogs external still-image folders without importing their
 originals. Its separate SQLite catalog survives app-data reset/import. Desktop
 storage defaults to its user-data area; direct-backend use has a separate default.

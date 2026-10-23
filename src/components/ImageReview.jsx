@@ -1,3 +1,4 @@
+import ScrollToolbar from './ScrollToolbar';
 import {preventSelectionText} from '../fileSelection';
 import ImageThumbnail from "./ImageThumbnail";
 import VisualReview from './VisualReview';
@@ -111,6 +112,7 @@ export default function ImageReview({ active }) {
   });}
   return <section className="image-review" aria-label="Image Review">
     <header className="review-page-heading"><div><h1>Image Review</h1><p>Review images, add notes, and keep your favorites.</p></div></header>
+    <ScrollToolbar label="Image Review controls">
     <nav className="review-view-switcher" aria-label="Review tools">
       {[['images','Images'],['classify','People & scenes'],['organize','Organize files']].map(([key,label])=><button type="button" key={key} aria-pressed={view===key} onClick={()=>setView(key)}>{label}</button>)}
     </nav>
@@ -147,6 +149,9 @@ export default function ImageReview({ active }) {
       { label: "Delete selected copies", danger: true, onClick: items => batch.run({ items, selection, action: image => api.remove(image.id), confirm: "Delete " + items.length + " library copies? Original files and source chats/workflows are unchanged.", verb: "Deleted copies:", after: api.changed }) },
     ]} />
     {pages > 1 && <CollectionPager label="review images" page={currentPage} pages={pages} onChange={setPage} />}
+    </div>
+    </ScrollToolbar>
+    <div hidden={view !== 'images'}>
     {!filtered.length && <div className="review-empty"><h2>{library.images.length ? "No images match these filters" : "Your review starts here"}</h2><p>{library.images.length ? "Try All images, clear tags, or turn off Favorites only." : "Upload images to review them. Your original files stay in place."}</p>{library.images.length > 0 && <button type="button" onClick={()=>{setFolder("all");setFilters([]);setFavoritesOnly(false);setQuery("");setPage(0);}}>Show all images</button>}</div>}
     <div className={"image-gallery " + (compact ? "image-gallery-compact" : "")}>{filtered.slice(currentPage * size, (currentPage + 1) * size).map(image => <div className="gallery-item-row" key={image.id}>
       <SelectionCheckbox selection={selection} item={image} label={"image " + image.name} disabled={busy || batch.busy} />

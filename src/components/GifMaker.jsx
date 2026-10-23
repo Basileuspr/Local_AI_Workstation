@@ -1,3 +1,4 @@
+import ScrollToolbar from './ScrollToolbar';
 import { useEffect, useRef, useState } from "react";
 import ProtectedImage, { useImagePrivacy } from "../ImagePrivacy";
 import { apiUrl } from "../api";
@@ -211,14 +212,14 @@ export default function GifMaker({ open, input, readImage }) {
     <QueueTimeSummary kind="gif"/>
 
     <GifOutputFolder value={outputFolder} onChange={setOutputFolder} disabled={busy}/>
-    <div className="gif-maker-toolbar"><button type="button" disabled={busy} onClick={() => picker.current.click()}>Add images</button>
+    <ScrollToolbar as="div" label="GIF creation controls" className="gif-maker-toolbar"><button type="button" disabled={busy} onClick={() => picker.current.click()}>Add images</button>
       <input ref={picker} hidden type="file" multiple accept="image/png,image/jpeg,image/webp" onChange={event => { const files = Array.from(event.target.files); event.target.value = ""; void add(async () => files); }} />
-      <button type="button" disabled={busy || !frames.length} onClick={() => { frames.forEach(frame => URL.revokeObjectURL(frame.url)); replaceFrames([]); setError(""); setStatus(""); }}>Clear frames</button><span>{frames.length} / 60 frames</span></div>
+      <button type="button" disabled={busy || !frames.length} onClick={() => { frames.forEach(frame => URL.revokeObjectURL(frame.url)); replaceFrames([]); setError(""); setStatus(""); }}>Clear frames</button><span>{frames.length} / 60 frames</span><button type="submit" form="gif-animation-settings" disabled={busy || blocked || frames.length < 2 || !thumbnailsReady}>Create GIF</button>{result && !blocked && <GifSaveActions key={result.url} blob={result.blob} url={result.url} name={name} initialSaved={result.saved}/>}{busy && controller.current && <button type="button" onClick={() => controller.current?.abort()}>Cancel</button>}</ScrollToolbar>
     <div ref={preview} className="gif-maker-result">
       <h3>Animation preview</h3>
       {result && !blocked ? <>
         {open && <GifPlayer blob={result.blob} loop={result.loop} onCapture={(blob, frame) => showThumbnail(blob,gifFilename(name).replace(/\.gif$/i, `-frame-${frame}.png`),frames.map(item=>item.hash)).catch(failure=>setError(failure.message))} />}
-        <GifSaveActions key={result.url} blob={result.blob} url={result.url} name={name} initialSaved={result.saved}/>
+
         {thumbnail && <button type="button" className="gif-thumbnail" onClick={() => setViewThumbnail(true)} aria-label="Open captured thumbnail in image viewer"><ProtectedImage src={thumbnail.url} alt="Captured GIF thumbnail" /><span>View captured thumbnail</span></button>}
       </> : <p>{blocked && frames.length ? 'Unlock or remove locked frames to preview.' : 'Add at least two images and select Create GIF to play the animation here.'}</p>}
     </div>
@@ -243,7 +244,7 @@ export default function GifMaker({ open, input, readImage }) {
         <button type="button" disabled={busy || index === 0} aria-label={`Move frame ${index + 1} earlier`} onClick={() => replaceFrames(moveGifFrame(frames, index, -1))}>←</button>
         <button type="button" disabled={busy || index === frames.length - 1} aria-label={`Move frame ${index + 1} later`} onClick={() => replaceFrames(moveGifFrame(frames, index, 1))}>→</button>
       </div></li>)}</ol>
-    <form onSubmit={create}><fieldset disabled={busy}><legend>Animation settings</legend>
+    <form id="gif-animation-settings" onSubmit={create}><fieldset disabled={busy}><legend>Animation settings</legend>
       <label>Name<input value={name} maxLength={100} onChange={event => setName(event.target.value)} /></label>
       <ImageResolutionControls width={width} height={height} min={64} max={1024} prefix="GIF " onChange={size=>{setWidth(size.width);setHeight(size.height);setResult(null);}} />
       <label>Frame time (ms)<input type="number" required min="50" max="2000" step="10" value={duration} onChange={event => setting(setDuration, event.target.value)} /></label>
@@ -251,8 +252,8 @@ export default function GifMaker({ open, input, readImage }) {
       <label>Frame sizing<select aria-label="GIF frame sizing" value={fit} onChange={event => setting(setFit, event.target.value)}><option value="cover">Fill frame · crop edges</option><option value="contain">Fit whole image · keep borders</option></select></label>
       <label className="gif-maker-loop"><input type="checkbox" checked={loop} onChange={event => setting(setLoop, event.target.checked)} />Loop forever</label>
     </fieldset>
-      <button type="submit" disabled={busy || blocked || frames.length < 2 || !thumbnailsReady}>Create GIF</button>
-      {busy && controller.current && <button type="button" onClick={() => controller.current?.abort()}>Cancel</button>}
+
+
     </form>
     {blocked && frames.length > 0 && <p role="alert">Unlock or remove locked frames before creating or viewing this animation.</p>}
     {error && <p role="alert">{error}</p>}<p role="status">{status}</p>

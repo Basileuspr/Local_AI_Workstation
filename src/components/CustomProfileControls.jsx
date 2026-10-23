@@ -1,3 +1,4 @@
+import {confirmAction} from '../confirmAction';
 import { imageProfileChanged } from "../imageProfiles";
 import { useState } from "react";
 import { sortNamedItems } from "../alphabetical";
@@ -56,9 +57,9 @@ export default function CustomProfileControls() {
     setMode("");
   }
 
-  function deleteProfile() {
+  async function deleteProfile() {
     if (!selectedProfile) return;
-    if (!window.confirm(`Delete custom profile "${selectedProfile.name}"?`)) return;
+    if (!await confirmAction(`Delete custom profile "${selectedProfile.name}"?`)) return;
     dispatch({ type: "DELETE_CUSTOM_PROFILE", payload: selectedProfile.id });
     setMode("");
     showToast("Custom profile deleted", "success");
@@ -86,8 +87,8 @@ export default function CustomProfileControls() {
       </div>
       <p className="custom-profile-hint">Saves prompt, negative prompt, steps, guidance, and seed. {imageProfileChanged(selectedProfile, imageSettings) ? "Unsaved changes — click Update to save." : "Changes save only with Update."}</p>
       <BulkActions selection={selection} items={customProfiles} label="profiles" disabled={!!mode}
-        actions={[{label:"Delete selected profiles", danger:true, onClick:items => {
-          if (!window.confirm(`Delete ${items.length} selected custom profile(s)? This cannot be undone. Current image settings will be kept.`)) return;
+        actions={[{label:"Delete selected profiles", danger:true, onClick:async items => {
+          if (!await confirmAction(`Delete ${items.length} selected custom profile(s)? This cannot be undone. Current image settings will be kept.`)) return;
           dispatch({type:"DELETE_CUSTOM_PROFILES", payload:items.map(item => item.id)});
           selection.forget(items); showToast(`Deleted ${items.length} profiles`, "success");
         }}]} />

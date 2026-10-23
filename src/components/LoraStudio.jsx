@@ -1,3 +1,5 @@
+import ScrollToolbar from './ScrollToolbar';
+import {confirmAction} from '../confirmAction';
 import {hasSelectionModifier,preventSelectionText} from '../fileSelection';
 import ImageThumbnail from "./ImageThumbnail";
 import FreshFileInput from "./FreshFileInput";
@@ -262,7 +264,7 @@ export default function LoraStudio({ active = true }) {
   }
 
   async function clearImages() {
-    if (!project?.id || !window.confirm("Remove all copied training images from this project? Your original files are not affected.")) return;
+    if (!project?.id || !await confirmAction("Remove all copied training images from this project? Your original files are not affected.")) return;
     try {
       const updated = await api.clearLoraImages(project.id);
       setProject(updated);
@@ -429,10 +431,14 @@ export default function LoraStudio({ active = true }) {
 
   return (
     <section id="lora-studio">
-      <header className="lora-header">
-        <div><p className="image-studio-eyebrow">Local training</p><h1>LoRA Creation</h1></div>
+      <header><div><p className="image-studio-eyebrow">Local training</p><h1>LoRA Creation</h1></div></header>
+      <ScrollToolbar as="div" label="LoRA project controls" className="lora-header">
+
         <div className="lora-project-picker"><select aria-label="LoRA project" value={project.id} onChange={(event) => loadProject(event.target.value).catch(error => toast(error.message, "error"))} disabled={loading || trainingSubmitting || imageBatch.busy}>{projects.map((item) => <option key={item.id} value={item.id}>{item.name} ({item.image_count})</option>)}</select><button type="button" onClick={openCreateProject} disabled={loading || trainingSubmitting || imageBatch.busy}>+ New</button></div>
-      </header>
+      <button type="button" className="lora-secondary-button" onClick={saveProject} disabled={loading || workspaceBusy}>Save project settings</button><div className="lora-training-actions">{training.recovery_required ? <button className="lora-danger-button" type="button" onClick={recover} disabled={trainingSubmitting}>Recover previous run</button> : busy ? <button className="lora-danger-button" type="button" onClick={cancel}>Cancel safely</button> : <>
+              <button className="image-generate-btn" type="button" onClick={() => train(true)} disabled={loading || workspaceBusy || !project.vision_model || !project.images?.length || !hardware?.cuda_available || hardware?.training_ready === false || state.serviceStatus?.capabilities?.features?.training?.available === false}>Analyze &amp; Train</button>
+              <button className="lora-secondary-button" type="button" onClick={() => train()} disabled={loading || workspaceBusy || !hardware?.cuda_available || hardware?.training_ready === false || state.serviceStatus?.capabilities?.features?.training?.available === false}>Start local training</button>
+            </>}</div></ScrollToolbar>
       <div className="lora-layout">
         <div className="lora-column">
           <section className="lora-card">
@@ -446,7 +452,7 @@ export default function LoraStudio({ active = true }) {
               <label className="lora-span">Description<textarea value={project.description} disabled={workspaceBusy} onChange={(event) => editProject({ description: event.target.value })} placeholder="Optional" /></label>
               <label>Saved adapter name / folder<input value={project.output_location} disabled={workspaceBusy} onChange={(event) => editProject({ output_location: event.target.value })} /></label>
             </div>
-            <button type="button" className="lora-secondary-button" onClick={saveProject} disabled={loading || workspaceBusy}>Save project settings</button>
+
             <CharacterLinks kind="lora_project" targetId={project.id} label="LoRA project" disabled={workspaceBusy} />
           </section>
 
@@ -502,10 +508,7 @@ export default function LoraStudio({ active = true }) {
             <CpuPerformance report={training.cpu_assistance} timings={training.timings} />
             {busy && training.stage !== "analysis" && <><div className="lora-progress"><span style={{ width: `${Math.max(0, Math.min(100, training.percent || 0))}%` }} /></div><div className="lora-summary">Epoch {training.epoch || 0}/{training.epochs || settings.epochs} · step {training.step || 0}/{training.total_steps || "?"} · {training.percent || 0}% {training.loss != null ? `· loss ${Number(training.loss).toFixed(4)}` : ""}</div></>}
             <QueueRequestStatus projectId={project.id} kind="training" />
-            <div className="lora-training-actions">{training.recovery_required ? <button className="lora-danger-button" type="button" onClick={recover} disabled={trainingSubmitting}>Recover previous run</button> : busy ? <button className="lora-danger-button" type="button" onClick={cancel}>Cancel safely</button> : <>
-              <button className="image-generate-btn" type="button" onClick={() => train(true)} disabled={loading || workspaceBusy || !project.vision_model || !project.images?.length || !hardware?.cuda_available || hardware?.training_ready === false || state.serviceStatus?.capabilities?.features?.training?.available === false}>Analyze &amp; Train</button>
-              <button className="lora-secondary-button" type="button" onClick={() => train()} disabled={loading || workspaceBusy || !hardware?.cuda_available || hardware?.training_ready === false || state.serviceStatus?.capabilities?.features?.training?.available === false}>Start local training</button>
-            </>}</div>
+
 
             {training.error && <p className="lora-error">{training.error}</p>}
             <pre className="lora-log">{(training.logs || []).slice(-8).join("\n") || "No training logs yet."}</pre>

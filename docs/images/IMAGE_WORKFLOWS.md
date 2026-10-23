@@ -3,6 +3,10 @@
 Image Workflows supports explicit processing stages and iterative scenes.
 Choose sources and models, review inputs, then run. Each run captures a stable
 input snapshot; later edits do not rewrite completed history.
+Save, validate, prepare and run actions remain in the scrolling controls above the
+editor. Iterative scenes keep Generate first/next frame with the saved-scene
+controls. Small panes bound the toolbar height; scroll within it to reach every
+action while keeping the scene/stage editor visible.
 
 ## Processing stages
 

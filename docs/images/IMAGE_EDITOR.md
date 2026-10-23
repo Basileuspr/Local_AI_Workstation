@@ -3,6 +3,10 @@
 Open/drop a PNG, JPEG or WebP, or send an image from Gallery/chat to the editor.
 Local adjustments do not use a model or Prompt Queue. The source file is never
 overwritten; **Export edited PNG** creates a new full-resolution 8-bit sRGB image.
+Export, compare, preview size and history controls stay in the toolbar while you
+scroll through adjustments. In an inline chat edit, the export action is **Send
+edited image to chat**. Controls scroll within their own bounded group when the
+pane is short; Tab also reaches each control. Apply or cancel a crop before exporting.
 
 ## Adjust and compare
 

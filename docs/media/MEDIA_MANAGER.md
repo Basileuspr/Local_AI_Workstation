@@ -1,5 +1,10 @@
 # Media Manager
 
+The library keeps batch size, grouping, view, filters and selection actions in one
+bounded scrolling toolbar, replacing the separate overlapping batch/selection
+bars. Duplicates has persistent search and view controls. On wide panes,
+folder/date navigation scrolls independently beside the results.
+
 Media Manager is bundled under `media-manager/`. Open its workspace to launch
 the separate local module lazily; it is reused while switching tabs. An external
 Desktop installation is no longer required.

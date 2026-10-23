@@ -1,3 +1,4 @@
+import ScrollToolbar from './ScrollToolbar';
 import {preventSelectionText} from '../fileSelection';
 import ImageThumbnail from "./ImageThumbnail";
 import ProtectedImage from "../ImagePrivacy";
@@ -94,13 +95,13 @@ export default function WorkflowImageLibrary({ active, onFile, onLock, searchQue
   const currentPage = Math.min(page, pages - 1);
   const selection = useSelection(allImages, image => image.id, "", workflowViewerImages(filtered.slice(currentPage * 4, currentPage * 4 + 4)));
   return <section className="workflow-image-library" aria-label="Workflow Images folder">
-    <div className={`collection-toolbar ${workspace ? "image-library-results" : ""}`}>
+    <ScrollToolbar as="div" label="Collection controls" className={`collection-toolbar ${workspace ? "image-library-results" : ""}`}>
       <div className="collection-heading"><span>Workflow Images ({runs.reduce((count, run) => count + run.outputs.length + run.composites.length, 0)})</span>
         <button type="button" onClick={() => setRefresh(value => value + 1)}>Refresh</button></div>
       {!workspace && <input type="search" aria-label="Search workflow images" placeholder="Search workflows or runs…" value={query}
         onChange={event => { setQuery(event.target.value); setPage(0); }} />}
       <CollectionPager label="workflow runs" page={currentPage} pages={pages} onChange={setPage} />
-    </div>
+    </ScrollToolbar>
 
     {<BulkActions selection={selection} items={workflowViewerImages(filtered)} label="workflow images" actions={[
       ...(stitcher ? [{ label: 'Add selected to stitcher', onClick: () => stitcher.add(selectionInPickOrder(selection)) }] : []),

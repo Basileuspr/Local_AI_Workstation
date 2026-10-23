@@ -1,3 +1,4 @@
+import ScrollToolbar from './ScrollToolbar';
 import { useState } from 'react';
 
 export default function LocalDocument({ file, onSaved, onDirty, busy, run }) {
@@ -31,10 +32,10 @@ export default function LocalDocument({ file, onSaved, onDirty, busy, run }) {
     });
   }
   return <div>
-    <div className="local-toolbar"><button disabled={busy || !Object.keys(changes).length || !acknowledged} onClick={() => save(false)}>Save</button>
+    <ScrollToolbar as="div" label="Document save controls" className="local-toolbar"><button disabled={busy || !Object.keys(changes).length || !acknowledged} onClick={() => save(false)}>Save</button>
       <button disabled={busy || !acknowledged} onClick={() => save(true)}>Save As</button>
       <strong role="status">{Object.keys(changes).length ? 'Unsaved changes' : 'Saved'}</strong>
-      {file.data.read_only && <span>Original is read-only. Use Save As.</span>}</div>
+      {file.data.read_only && <span>Original is read-only. Use Save As.</span>}</ScrollToolbar>
     <details open><summary>Preservation and editing limits</summary>{file.data.warnings.map(message => <p key={message}>{message}</p>)}
 
       <label><input type="checkbox" checked={acknowledged} onChange={e => setAcknowledged(e.target.checked)}/> I reviewed these limits before saving.</label></details>

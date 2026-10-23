@@ -1,3 +1,5 @@
+import ScrollToolbar from './ScrollToolbar';
+import {confirmAction} from '../confirmAction';
 import {useRangeSelection} from '../useRangeSelection';
 import {preventSelectionText} from '../fileSelection';
 import ImageThumbnail, { ThumbnailRetryButton } from "./ImageThumbnail";
@@ -157,7 +159,7 @@ export default function FaceStudio({ active }) {
   });
 
   const removeDataset = () => guard("dataset", async () => {
-    if (!window.confirm(`Delete "${dataset.name}" and its face crops? Source images are not touched.`)) return;
+    if (!await confirmAction(`Delete "${dataset.name}" and its face crops? Source images are not touched.`)) return;
     await faces.deleteDataset(datasetId);
     const list = await refreshDatasets();
     setDatasetId(list[0]?.id || "");
@@ -235,7 +237,7 @@ export default function FaceStudio({ active }) {
 
   async function removeCrops(faceIds) {
     if (!faceIds.length || busy || running || removalLock.current) return;
-    if (!window.confirm(`Remove ${faceIds.length} face crop(s) from this dataset? Source images are not touched.`)) return;
+    if (!await confirmAction(`Remove ${faceIds.length} face crop(s) from this dataset? Source images are not touched.`)) return;
     removalLock.current = true;
     try {
       await guard("state", async () => {
@@ -432,7 +434,7 @@ export default function FaceStudio({ active }) {
 
       <div className="face-browser">
         <h2>3 · Browse, compare &amp; select</h2>
-        <div className="face-row face-toolbar">
+        <ScrollToolbar label="Face browsing controls"><div className="face-row face-toolbar">
           <label>Sort
             <select value={view.sort} onChange={(event) => setView({ ...view, sort: event.target.value })}>
               {SORTS.map((item) => <option key={item.id} value={item.id} disabled={item.id === "similarity" && !scores}>{item.label}</option>)}
@@ -475,7 +477,7 @@ export default function FaceStudio({ active }) {
           </button>}
           <a className="face-export" href={faces.exportUrl(datasetId)}
              aria-disabled={!allFaces.some((face) => face.state === "accepted")}>Export accepted faces</a>
-        </div>
+        </div></ScrollToolbar>
 
         <div className="face-grid">
           {visible.map((face) => {

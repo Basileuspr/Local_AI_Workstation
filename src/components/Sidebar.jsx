@@ -1,3 +1,4 @@
+import {confirmAction} from '../confirmAction';
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useStore, useDispatch, useRefs } from "../useStore.jsx";
 import * as api from "../api";
@@ -186,7 +187,7 @@ export default function Sidebar({ onLoadSession, onNewChat, onNavigate, imageLib
 
   async function handleRemoveGalleryImage(image, event) {
     event.stopPropagation();
-    if (!window.confirm(`Remove "${image.name}" from the gallery? The image will stay in its chat.`)) {
+    if (!await confirmAction(`Remove "${image.name}" from the gallery? The image will stay in its chat.`)) {
       return;
     }
     try {
@@ -203,7 +204,7 @@ export default function Sidebar({ onLoadSession, onNewChat, onNavigate, imageLib
 
   async function handlePermanentlyDeleteGalleryImage(image, event) {
     event.stopPropagation();
-    if (!window.confirm(`Permanently delete "${image.name}" from this chat and disk? This cannot be undone.`)) {
+    if (!await confirmAction(`Permanently delete "${image.name}" from this chat and disk? This cannot be undone.`)) {
       return;
     }
     try {

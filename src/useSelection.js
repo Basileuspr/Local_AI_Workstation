@@ -1,3 +1,4 @@
+import {confirmAction} from './confirmAction';
 import { useEffect, useRef, useState } from "react";
 import { batchFeedback, processBatch, selectedItems } from "./bulkActions";
 import {useRangeSelection} from './useRangeSelection';
@@ -41,9 +42,9 @@ export function useBatchAction() {
   const lock = useRef(false);
   async function run({items, action, key, confirm, selection, after, verb}) {
     if (lock.current || !items.length) return null;
-    if (confirm && !window.confirm(confirm)) return null;
     lock.current = true; setBusy(true); setFeedback(""); setHasError(false);
     try {
+      if (confirm && !await confirmAction(confirm)) return null;
       const result = await processBatch(items, action, key);
       selection?.forget(result.succeeded);
       setFeedback(batchFeedback(result, verb));

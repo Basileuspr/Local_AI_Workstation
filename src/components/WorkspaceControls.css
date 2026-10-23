@@ -154,7 +154,6 @@
 #app [data-capture-tab] .im-tabs { margin-block: 6px; padding-block: 4px; }
 #app [data-capture-tab] .im-controls { margin-block: 8px; align-items: end; }
 #app [data-capture-tab] .im-filters { align-items: end; gap: var(--control-gap); }
-#app [data-capture-tab] .im-sticky-controls { top: -18px; }
 #app [data-capture-tab] .im-stats { margin-block: 10px; gap: 6px 16px; }
 #app [data-capture-tab] .ie-controls { padding: 14px; }
 #app [data-capture-tab] .ie-toolbar { padding: 7px 10px; }
@@ -178,7 +177,6 @@
     .image-review, .image-manager, .character-studio, .face-studio,
     .learning-workspace, .hash-auditor, .folder-review-workspace,
     .shortcut-registry, .audio-workspace) { padding: 12px; }
-  #app [data-capture-tab] .im-sticky-controls { top: -12px; }
   #app [data-capture-tab] .browser-toolbar input { min-width: 0; flex-basis: 100%; }
   #app [data-capture-tab] .im-existing-tag select { width: auto; flex: 1; }
   #app [data-capture-tab] .ie-toolbar label { flex-wrap: wrap; }

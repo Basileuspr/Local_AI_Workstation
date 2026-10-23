@@ -84,7 +84,7 @@ const overview = {
   },
   "image-editor": {
     purpose: "Crop, rotate and adjust an image locally, then save an edited copy.",
-    example: "Open an image, choose Crop, draw or fine-tune a selection, and press Apply crop. Adjust contrast, compare with the original, then export the edited PNG. Undo restores an applied crop.",
+    example: "Open an image, choose Crop, draw or fine-tune a selection, and press Apply crop. Adjust contrast, compare with the original, then use Export edited PNG in the scrolling toolbar. In chat, the same action sends the edited image back to chat. Undo restores an applied crop.",
   },
   "gif-maker": {
     purpose: "Build an animated GIF from ordered image frames.",
@@ -96,7 +96,7 @@ const overview = {
   },
   "media-manager": {
     purpose: "Browse and organize media in the integrated Media Manager.",
-    example: "Select a media folder, scan it, filter the library to a date range, and review an organization plan before applying it.",
+    example: "Select a media folder, scan it, then use the persistent library controls for filters, grouping, view, batch size and selected-file actions. Scroll within the controls in a small pane. Review an organization plan before applying it.",
   },
   "image-manager": {
     purpose: "Browse and organize still images in folders on this computer.",

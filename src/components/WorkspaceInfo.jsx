@@ -17,6 +17,8 @@ export function WorkspaceHelpContent({ tab, learningRate }) {
         ? "Choose Workspace options → Side pane to keep a tool beside this chat. The selection and divider sizes are remembered for this chat."
         : "Use the Side pane selector in the top toolbar to keep another workspace visible, such as Browser beside Generate. Each workspace remembers its selection and divider sizes. Choose None or Unpin × to close the side pane."],
       ["Resize / switch tabs", "Drag the divider to share the available space. Narrow windows stack the panes vertically and allow scrolling. Switching tabs keeps workspace drafts and submitted image generation available; Stop explicitly cancels generation. Model jobs share the Prompt Queue, so GPU work may wait for another job."],
+      ["Scrolling controls", "Long library and editor pages keep their action and filter groups at the top as you scroll. In a small pane, scroll inside the control group or Tab through its controls. Separate groups stack without covering each other. Save and export actions use the same settings and selections as before."],
+      ["Typing after dialogs", "Confirmation dialogs keep your draft in place. Cancel or Escape leaves the requested action unapplied. Closing a native file dialog or leaving Browser/Media Manager returns keyboard input to the visible workspace without bringing a background app window forward."],
     ]]]} />
     <HelpSections sections={guide.sections} />
     {tab === "generate" && <ImageGenerationHelp />}

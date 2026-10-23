@@ -91,6 +91,23 @@ invocation. This does not replace global npm. A subsequent `npm ci` with npm
 10.9.3 installed the resulting lockfile successfully. Do not bypass peer checks
 with `--force` or `--legacy-peer-deps` to hide a resolver failure.
 
+## Workspace scrolling and input focus
+
+Use `ScrollToolbar` for opt-in groups on long renderer pages. It observes the
+nearest scrolling pane, shares a bounded height between visible groups and sets
+their stacking offsets and the pane's scroll padding. Keep the group inside a
+parent that spans its results; a wrapper containing only controls cannot stick
+through the results. Reuse the original handlers and disabled state. Menus inside
+bounded groups must use the existing top-layer ActionMenu or expand in normal flow.
+Keep independently scrolling editors and native surfaces in their existing layout.
+
+Use `confirmAction` for asynchronous in-page confirmations, with `await` before
+performing the action. Avoid blocking `window.confirm`/`alert` in the renderer.
+Native file/message dialogs use the focus-preserving facade in `electron/main.js`;
+embedded surfaces share idempotent placement and hand focus back when hidden.
+Focus recovery must not activate a background/minimized window, replace the active
+input, reset selection, or run on every repaint.
+
 ## Documentation ownership
 
 - Keep the root README short: startup, documentation and storage entry points.

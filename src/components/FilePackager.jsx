@@ -1,3 +1,4 @@
+import ScrollToolbar from './ScrollToolbar';
 import { useEffect, useRef, useState } from "react";
 import { apiUrl } from "../api";
 import { addPackageEntries, droppedPackageFiles, packageBytes, packageFilename, removePackageEntry, selectedPackageFiles } from "../filePackager";
@@ -78,12 +79,17 @@ export default function FilePackager() {
       <input ref={picker} hidden type="file" multiple onChange={event => { const files = selectedPackageFiles(event.target.files); event.target.value = ""; void add(() => files); }} />
       <input ref={folderPicker} hidden type="file" multiple webkitdirectory="" onChange={event => { const files = selectedPackageFiles(event.target.files); event.target.value = ""; void add(() => files); }} />
     </div>
-    <div className="packager-settings">
+    <ScrollToolbar label="Package controls">
+<div className="tools-toolbar"><button type="button" className="packager-create" disabled={busy || !entries.length} onClick={createPackage}>{busy ? "Working…" : "Create ZIP"}</button>
+      {busy && request.current && <button type="button" onClick={() => request.current?.abort()}>Cancel request</button>}</div>
+{result && <div className="packager-ready"><div><strong>{result.name}</strong><p>{result.fileCount} files · {packageBytes(result.size)}</p></div><a href={result.url} download={result.name}>Save ZIP</a></div>}
+<div className="packager-settings">
       <label>Package name<input disabled={busy} value={name} maxLength={120} onChange={event => { setName(event.target.value); setResult(null); }} placeholder="Package" /></label>
       <label>ZIP mode<select disabled={busy} value={compression} onChange={event => { setCompression(event.target.value); setResult(null); }}>
         <option value="compressed">Compressed · smaller ZIP</option><option value="stored">Fast · no compression</option>
       </select></label>
     </div>
+</ScrollToolbar>
 
     <div className="packager-list-heading"><h2>Package contents</h2><span>{fileCount} file{fileCount === 1 ? "" : "s"} · {packageBytes(total)}</span>
       <button type="button" disabled={busy || !entries.length} onClick={() => { setEntries([]); setResult(null); setError(""); setStatus("Selection cleared. Original files were not changed."); }}>Clear list</button></div>
@@ -93,9 +99,8 @@ export default function FilePackager() {
       <span className="packager-file-preview"><FileImageThumbnail file={entry.file} /><span className="packager-path" title={entry.path}>{entry.path}{entry.directory ? "/" : ""}</span></span><span>{entry.directory ? "Folder" : packageBytes(entry.file.size)}</span>
       {removal.controls(entry,entry.path)}
     </li>)}</ul> : <p className="tools-empty">No files added yet.</p>}
-    <div className="tools-toolbar"><button type="button" className="packager-create" disabled={busy || !entries.length} onClick={createPackage}>{busy ? "Working…" : "Create ZIP"}</button>
-      {busy && request.current && <button type="button" onClick={() => request.current?.abort()}>Cancel request</button>}</div>
+
     <p role="status">{status}</p>{error && <p role="alert" className="functions-error">{error}</p>}
-    {result && <div className="packager-ready"><div><strong>{result.name}</strong><p>{result.fileCount} files · {packageBytes(result.size)}</p></div><a href={result.url} download={result.name}>Save ZIP</a></div>}
+
   </section>;
 }

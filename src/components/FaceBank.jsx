@@ -1,3 +1,4 @@
+import {confirmAction} from '../confirmAction';
 import {useRangeSelection} from '../useRangeSelection';
 import {preventSelectionText} from '../fileSelection';
 import ImageThumbnail from "./ImageThumbnail";
@@ -137,7 +138,7 @@ export default function FaceBank({ active = true, initialId = '', openCharacter,
     "Faces moved. Both characters were recalculated.");
 
   const drop = () => act("remove", async () => {
-    if (!window.confirm(`Remove ${selected.size} face(s) from this character? The crops stay in their dataset.`)) return;
+    if (!await confirmAction(`Remove ${selected.size} face(s) from this character? The crops stay in their dataset.`)) return;
     await faces.removeMembers(activeId, [...selected]);
   }, "Removed from this character. The dataset crops are untouched.");
 
@@ -158,7 +159,7 @@ export default function FaceBank({ active = true, initialId = '', openCharacter,
   }
 
   const removeCharacter = () => guard("delete", async () => {
-    if (!window.confirm(`Delete "${character.name}"? Its faces, linked resources, and saved files are preserved.`)) return;
+    if (!await confirmAction(`Delete "${character.name}"? Its faces, linked resources, and saved files are preserved.`)) return;
     await faces.deleteCharacter(activeId);
     const list = await refresh();
     setActiveId(list[0]?.id || "");

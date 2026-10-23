@@ -1,3 +1,4 @@
+import ScrollToolbar from './ScrollToolbar';
 import { useEffect, useRef, useState } from "react";
 import { previewDocument } from "../codePreview";
 import {downloadBlob} from '../downloadBlob';
@@ -20,7 +21,7 @@ export default function CodeViewer({ kind, incoming }) {
   }
   return <section className="tools-workspace" onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); void read(event.dataTransfer.files[0]); }}>
     <header className="tools-heading"><h1>{styling ? "CSS / Styling Viewer" : `${label} Viewer`}</h1>{origin && <p>From {origin.url}{origin.truncated?' · Partial source (inspection size limit)':''}</p>}</header>
-    <div className="tools-toolbar">
+    <ScrollToolbar as="div" label="Code controls" className="tools-toolbar">
       <ActionMenu label="File actions" title={`${label} file actions`} actions={[
         {label:`Open ${label} file`, onClick:() => input.current.click()},
         {label:'Copy source', disabled:!source, onClick:async() => {try{await navigator.clipboard.writeText(source);setNotice('Source copied.');}catch(failure){setError(failure.message);}}},
@@ -28,7 +29,7 @@ export default function CodeViewer({ kind, incoming }) {
       <input ref={input} type="file" hidden accept={javascript?'.js,.mjs,.cjs,text/javascript':styling ? ".css,text/css" : ".html,.htm,text/html"} onChange={event => { void read(event.target.files[0]); event.target.value = ""; }} />
       {!javascript && <button type="button" onClick={() => setPreview(preview !== null ? null : previewDocument(styling ? html : source, styling ? source : ""))} aria-pressed={preview !== null}>{preview !== null ? 'Edit source' : 'Preview'}</button>}
       <button disabled={!source} onClick={()=>downloadBlob(new Blob([source],{type:'text/plain;charset=utf-8'}),`page-source.${kind}`)}>Save source</button>
-    </div>
+    </ScrollToolbar>
     {error && <p role="alert">{error}</p>}
     {notice && <p role="status">{notice}</p>}
     <textarea className="tools-editor" hidden={preview !== null} aria-label={`${label} source`} value={source} onChange={event => setSource(event.target.value)} spellCheck={false} />

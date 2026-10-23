@@ -1,3 +1,4 @@
+import {confirmAction} from '../confirmAction';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { getPaintDocument, paintSurface } from '../paintDocument';
 import { paintDimensions, paintRect } from '../paintPixels';
@@ -162,7 +163,7 @@ export default function CanvasPaintWorkspace() {
     }
     setNotice(mode === 'open' ? `Opened ${file.name}.` : `Imported ${file.name} as a layer.`); setTool('select'); setCurve(null); setPolygon([]); fitted.current = false; fit();
   }
-  async function openFiles(files, mode) { if (mode === 'open' && value.dirty && !window.confirm('Replace the current canvas? Save a project first to keep its layers.')) return; setBusy(true); try { if (textDraft) applyText(); for (const file of files) await importFile(file, mode); } finally { setBusy(false); } }
+  async function openFiles(files, mode) { if (mode === 'open' && value.dirty && !await confirmAction('Replace the current canvas? Save a project first to keep its layers.')) return; setBusy(true); try { if (textDraft) applyText(); for (const file of files) await importFile(file, mode); } finally { setBusy(false); } }
   async function save(format = engine.file?.format || 'png', saveAs = false, name = value.name, quality = .92) {
     if (textDraft) applyText(); setBusy(true);
     try {
@@ -202,7 +203,7 @@ export default function CanvasPaintWorkspace() {
       const factor = fields.units === 'inches' ? 96 : fields.units === 'cm' ? 96 / 2.54 : 1;
       const width = fields.units === 'percent' ? Math.round(value.width * Number(fields.width) / 100) : Math.round(Number(fields.width) * factor);
       const height = fields.units === 'percent' ? Math.round(value.height * Number(fields.height) / 100) : Math.round(Number(fields.height) * factor);
-      if (dialog === 'new') { if (value.dirty && !window.confirm('Replace the current canvas? Save a project first to keep its layers.')) return; engine.newDocument(width, height, fields.background); }
+      if (dialog === 'new') { if (value.dirty && !await confirmAction('Replace the current canvas? Save a project first to keep its layers.')) return; engine.newDocument(width, height, fields.background); }
       else engine.resize(width, height, { scale: dialog === 'resize', background: fields.background, smooth: fields.smooth, skewX: Number(fields.skewX), skewY: Number(fields.skewY) });
       setDialog(null); fitted.current = false; fit();
     });

@@ -1,3 +1,4 @@
+import ScrollToolbar from './ScrollToolbar';
 import { useRef, useState } from 'react';
 import { featureCategories, featureDirectory, filterFeatures } from '../featureUseCases';
 import { WorkspaceHelpContent } from './WorkspaceInfo';
@@ -20,7 +21,7 @@ export default function InfoCenter({ onOpenWorkspace }) {
       <p>What would you like to do? Explore use cases for every feature, try an example, or open a workspace to get started.</p>
       <div className="info-center-legend" aria-label="How to use this guide"><span><FeatureIcon kind="landscape" />See an example</span><span><FeatureIcon kind="pen" />Try a task</span><span><FeatureIcon kind="browser" />Open the workspace</span></div>
     </header>
-    <div className="info-center-filters" role="search" aria-label="Feature directory">
+    <ScrollToolbar as="div" label="Feature directory controls" className="info-center-filters" role="search" aria-label="Feature directory">
       <label className="info-center-search">Search features and use cases
         <input ref={search} type="search" value={query} placeholder="Try: summarize, duplicates, transcript, citations…"
           onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Escape') setQuery(''); }} />
@@ -30,7 +31,7 @@ export default function InfoCenter({ onOpenWorkspace }) {
         {featureCategories.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
       </select></label>
       {(query || category !== 'all') && <button type="button" onClick={reset}>Clear filters</button>}
-    </div>
+    </ScrollToolbar>
     <p className="info-center-count" role="status">{features.length} of {featureDirectory.length} features{query || category !== 'all' ? ' match your filters' : ' · use cases, examples, and control guides'}</p>
     {!features.length && <div className="info-center-empty"><h2>No matching features</h2><p>Try a broader task, a feature name, or another category.</p><button type="button" onClick={reset}>Show all features</button></div>}
     {featureCategories.map(group => {

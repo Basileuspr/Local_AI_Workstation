@@ -1,3 +1,4 @@
+import ScrollToolbar from './ScrollToolbar';
 import { useEffect, useRef, useState } from 'react';
 import { sharedPollingObserver } from '../polling';
 import { folderReviewDefaults, folderReviewExport, folderReviewModels, folderReviewRequest, readFolderReviewStatus, folderReviewRunning } from '../folderReview';
@@ -82,7 +83,14 @@ export default function FolderReview({ active = true, models = [], defaultModel 
   return <section className="folder-review-workspace" aria-labelledby="folder-review-heading">
     <header><h1 id="folder-review-heading">Folder Review</h1>
       </header>
-    <div className="folder-review-settings">
+    <ScrollToolbar label="Folder Review controls"><div className="folder-review-actions"><button type="button" disabled={busy || !root.trim() || !model || !!connectionError} onClick={() => act(start)}>Start Folder Review</button>
+        {status?.active && <button type="button" disabled={working || reviews.find(item => item.id === status.active)?.status === 'cancelling'} onClick={() => act(async () => { await folderReviewRequest(`/reviews/${status.active}/cancel`, { body: {} }); observer.current?.invalidate(); })}>Stop review</button>}
+        <button type="button" disabled={working} onClick={() => act(() => observer.current?.invalidate())}>Refresh results</button></div>    {reviews.length > 0 && <label>Saved review<select value={reviewId} onChange={event => selectReview(event.target.value)}>{reviews.map(item => <option key={item.id} value={item.id}>{new Date(item.started_at).toLocaleString()} · {item.root} · {item.status.replaceAll('_', ' ')}</option>)}</select></label>}
+    {review && !folderReviewRunning(review.status) && <div className="folder-review-actions">
+      <button type="button" disabled={working} onClick={() => act(async () => setReport((await folderReviewRequest(`/reviews/${reviewId}`)).report))}>Show full report</button>
+      <a href={folderReviewExport(reviewId)} download>Download Markdown report</a>
+    </div>}
+</ScrollToolbar><div className="folder-review-settings">
       <label>Folder<div className="folder-review-actions"><input value={root} onChange={event => setRoot(event.target.value)} placeholder="Paste a local folder path" disabled={busy}/>
         <button type="button" disabled={busy} onClick={() => act(chooseFolder)}>Browse…</button></div></label>
       <label>Review model<select value={model} disabled={busy} onChange={event => { modelTouched.current = true; setModel(event.target.value); }}>
@@ -95,12 +103,9 @@ export default function FolderReview({ active = true, models = [], defaultModel 
         {[['max_entries', 'Maximum discovered entries', 1, 10000], ['max_chars', 'Readable characters per file', 1000, 1000000], ['batch_chars', 'Characters per text batch', 500, 6000]].map(([key, label, min, max]) => <label key={key}>{label}<input type="number" min={min} max={max} value={options[key]} disabled={busy} onChange={event => setOptions({ ...options, [key]: Number(event.target.value) })}/></label>)}
         <label>Maximum file size (MiB)<input type="number" min={1} max={32} value={options.max_bytes / 1048576} disabled={busy} onChange={event => setOptions({ ...options, max_bytes: Number(event.target.value) * 1048576 })}/></label>
       </div></details>
-      <div className="folder-review-actions"><button type="button" disabled={busy || !root.trim() || !model || !!connectionError} onClick={() => act(start)}>Start Folder Review</button>
-        {status?.active && <button type="button" disabled={working || reviews.find(item => item.id === status.active)?.status === 'cancelling'} onClick={() => act(async () => { await folderReviewRequest(`/reviews/${status.active}/cancel`, { body: {} }); observer.current?.invalidate(); })}>Stop review</button>}
-        <button type="button" disabled={working} onClick={() => act(() => observer.current?.invalidate())}>Refresh results</button></div>
+
     </div>
     {(error || connectionError || review?.error) && <p role="alert">{error || connectionError || review.error}</p>}
-    {reviews.length > 0 && <label>Saved review<select value={reviewId} onChange={event => selectReview(event.target.value)}>{reviews.map(item => <option key={item.id} value={item.id}>{new Date(item.started_at).toLocaleString()} · {item.root} · {item.status.replaceAll('_', ' ')}</option>)}</select></label>}
     {review && <div className="folder-review-progress" role="status"><strong>{review.status.replaceAll('_', ' ')} · {review.processed} of {review.total} recorded entries processed</strong>
       <span>{review.phase}{review.current_path && ` · ${review.current_path}`}{review.batches > 0 && ` · ${review.processing?.operation === 'compacting' ? 'Compaction' : 'Text'} batch ${review.batch}/${review.batches}`}</span>
       <span>{Object.entries(review.types || {}).map(([kind, count]) => `${count} ${kind}`).join(' · ')}</span>
@@ -109,10 +114,6 @@ export default function FolderReview({ active = true, models = [], defaultModel 
       {review.data_warnings?.map((warning, index) => <p className="folder-review-warning" key={index}>{warning}</p>)}
       {!folderReviewRunning(review.status) && !review.inventory_complete && <p className="folder-review-warning">Folder inventory is incomplete. See the configured entry limit and recorded errors.</p>}
       {review.status === 'interrupted' && <p>App stopped before completion. Start a new review to read the remaining files.</p>}
-    </div>}
-    {review && !folderReviewRunning(review.status) && <div className="folder-review-actions">
-      <button type="button" disabled={working} onClick={() => act(async () => setReport((await folderReviewRequest(`/reviews/${reviewId}`)).report))}>Show full report</button>
-      <a href={folderReviewExport(reviewId)} download>Download Markdown report</a>
     </div>}
     {report && <details open className="folder-review-report"><summary>Full report</summary><button type="button" onClick={() => act(() => navigator.clipboard.writeText(report))}>Copy report</button><pre>{report}</pre></details>}
     {files && <><h2>Per-file findings</h2><FolderReviewFiles items={files.items}/>

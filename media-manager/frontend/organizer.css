@@ -408,6 +408,18 @@ media-organizer .mo-display-toolbar { position: sticky; top: 0; z-index: 40; dis
 media-organizer .mo-display-toolbar label { font-size: 12px; }
 media-organizer .mo-display-toolbar select { min-width: 80px; }
 media-organizer .mo-display-toolbar span { margin-left: auto; color: var(--text-dim); font-size: 12px; }
+/* One bounded group keeps filters, views and selection actions together. The
+   viewport here is the embedded Media Manager pane, including split layouts. */
+media-organizer .mo-library-controls { position: sticky; top: 0; z-index: 40; max-height: 40dvh; overflow: auto; scrollbar-gutter: stable; padding: 8px; margin-bottom: 12px; background: var(--bg-surface); border: 1px solid var(--border-active); border-radius: 7px; box-shadow: 0 4px 12px #0004; }
+media-organizer .mo-library-controls:focus-visible { outline-offset: -2px; }
+media-organizer .mo-library-controls :is(.mo-display-toolbar, .mo-selection-bar) { position: static; padding: 4px 0; margin: 0; border: 0; box-shadow: none; }
+media-organizer .mo-library-controls .mo-filters { margin: 8px 0; }
+media-organizer .mo-library-controls .mo-library-heading { flex-wrap: wrap; gap: 8px; }
+media-organizer .mo-library-controls .mo-segmented { flex-wrap: wrap; flex-shrink: 1; }
+media-organizer .mo-library-controls .mo-category-tags { margin-block: 6px; }
+@media (min-width: 901px) {
+  media-organizer .mo-sidebar { position: sticky; top: 0; align-self: start; max-height: 100dvh; overflow: auto; }
+}
 media-organizer .mo-delete-action { color: #ffb2ac; border-color: #985a56; }
 media-organizer .mo-delete-review { max-height: 40vh; overflow: auto; margin: 14px 0; }
 media-organizer .mo-delete-review p { display: grid; gap: 6px; padding: 10px; border-bottom: 1px solid #344255; }

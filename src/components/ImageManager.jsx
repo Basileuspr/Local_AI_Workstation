@@ -1,3 +1,4 @@
+import ScrollToolbar from './ScrollToolbar';
 import ImageThumbnail from "./ImageThumbnail";
 import ImageManagerTools from './ImageManagerTools';
 import VisualReview from './VisualReview';
@@ -215,7 +216,7 @@ export default function ImageManager({ active = true }) {
   const disabled = running || busy;
   const browsing = filters.folder_id !== images.NO_IMAGE_FOLDER;
   return <section className="image-manager" data-density={density} aria-label="Image Manager">
-    <header className="im-heading"><div><h2>Image Manager</h2></div><button onClick={() => setToolsOpen(true)}>Image tools</button></header>
+    <header className="im-heading"><div><h2>Image Manager</h2></div></header>
     <VisualReview source="image-manager" active={active} ids={selected.length ? selected : page.images.map(image=>image.id)} onChanged={()=>setRevision(value=>value+1)} />
 
     <div className="im-stats"><span>{state.summary.images.toLocaleString()} images</span><span>{images.bytesLabel(state.summary.bytes)}</span><span>{state.summary.favorites} favorites</span><span>{state.duplicates.length} exact duplicate groups</span></div>
@@ -235,8 +236,9 @@ export default function ImageManager({ active = true }) {
     </div>}
     {error && <p role="alert" className="im-error">{error}<button onClick={() => setError('')} aria-label="Dismiss error">✕</button></p>}
     {notice && <p role="status" className="im-note">{notice}</p>}
-    <div className="im-sticky-controls">
-    <nav className="im-tabs" aria-label="Image Manager views">{['library', 'duplicates', 'hidden', 'organize', 'functions', 'history', 'trash'].map(id => <button key={id} aria-current={view === id ? 'page' : undefined} onClick={() => chooseView(id)}>{id[0].toUpperCase() + id.slice(1)}{['trash', 'hidden'].includes(id) ? ` (${state.summary[id] || 0})` : ''}</button>)}</nav>
+    <ScrollToolbar as="div" label="Image Manager controls" className="im-sticky-controls">
+    <button onClick={() => setToolsOpen(true)}>Image tools</button>
+<nav className="im-tabs" aria-label="Image Manager views">{['library', 'duplicates', 'hidden', 'organize', 'functions', 'history', 'trash'].map(id => <button key={id} aria-current={view === id ? 'page' : undefined} onClick={() => chooseView(id)}>{id[0].toUpperCase() + id.slice(1)}{['trash', 'hidden'].includes(id) ? ` (${state.summary[id] || 0})` : ''}</button>)}</nav>
       {['library', 'duplicates', 'hidden'].includes(view) && <>
       <ImageManagerFilters filters={filters} page={page} folders={state.folders} view={view} onFilter={filter} onReset={resetFilters} pageSize={pageSize} onPageSize={changePageSize} density={density} onDensity={changeDensity}/>
       <div className="im-selection"><span title="Ctrl-click toggles files. Shift-click selects a range on the shown page. Ctrl+Shift adds a range.">{selected.length} selected · <span role="status">Showing {page.images.length} of {page.total} matches</span></span><button disabled={!page.images.length} onClick={() => setSelected(current => [...new Set([...current, ...page.images.map(image => image.id)])].slice(0, 1000))}>Select page</button>
@@ -261,7 +263,7 @@ export default function ImageManager({ active = true }) {
         </>}
       </div>
       </>}
-    </div>
+    </ScrollToolbar>
     {['library', 'duplicates', 'hidden'].includes(view) && <>
       {view === 'duplicates' && <div className="im-duplicates"><div className="im-controls"><button disabled={disabled || !sourceIds.length} onClick={() => perform(() => start('duplicates', scope))}>Find exact duplicates</button><button onClick={() => { setFilters({ ...emptyFilters, folder_id: '', duplicates: true }); setOffset(0); setSelected([]); }}>Show all checked duplicates</button><button disabled={disabled || !state.duplicates.length || !state.folders.some(folder => folder.purpose === 'source')} onClick={() => setDuplicateFolder({ sourceId: state.folders.find(folder => folder.id === filters.folder_id && folder.purpose === 'source')?.id || sourceIds[0] || state.folders.find(folder => folder.purpose === 'source')?.id || '', mode: 'move', members: 'extra' })}>Send duplicates to folder</button></div>{state.duplicates.map(group => <button className={filters.digest === group.sha256 ? 'selected' : ''} key={group.sha256} onClick={() => { setFilters({ ...emptyFilters, folder_id: '', digest: group.sha256 }); setOffset(0); setSelected([]); }}>{group.count} files · {images.bytesLabel(group.bytes)} each · {group.sha256.slice(0, 12)}…</button>)}</div>}
       <div className="im-grid">{page.images.map(image => <article key={image.id} className={selected.includes(image.id) ? 'selected' : ''}>

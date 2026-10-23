@@ -11,7 +11,9 @@
  * It does NOT do any AI logic. That's Python's job.
  */
 
-const { app, BrowserWindow, WebContentsView, session, Tray, Menu, nativeImage, clipboard, ClipboardItem, screen, shell, ipcMain, dialog, protocol, net } = require("electron");
+const { app, BrowserWindow, WebContentsView, session, Tray, Menu, nativeImage, clipboard, ClipboardItem, screen, shell, ipcMain, dialog: nativeDialog, protocol, net } = require("electron");
+const {createFocusedDialog} = require('./dialogFocus');
+const dialog = createFocusedDialog(nativeDialog);
 const fs = require("fs");
 const path = require("path");
 const { spawn } = require("child_process");

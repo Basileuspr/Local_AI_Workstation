@@ -1,3 +1,4 @@
+import {confirmAction} from '../confirmAction';
 import { useRef } from "react";
 
 // Retain the native input, its ref, and existing change handlers. Browser-only
@@ -21,7 +22,7 @@ export default function FreshFileInput({ ref, onClick, ...props }) {
       input.files = transfer.files;
       input.dispatchEvent(new Event("change", { bubbles: true }));
     } catch (error) {
-      window.alert(error.message || "Could not open the file chooser.");
+      await confirmAction(error.message || "Could not open the file chooser.", {notice:true});
     } finally { opening.current = false; }
   }
   return <input {...props} type="file" ref={ref} onClick={choose} />;

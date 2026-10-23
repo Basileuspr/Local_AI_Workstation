@@ -1,3 +1,4 @@
+import ScrollToolbar from './ScrollToolbar';
 import {useEffect,useRef,useState,useSyncExternalStore} from 'react';
 import {audioOutput} from '../audioOutput';
 import {channelIsMuted,flatChannel,mixerChannels,mixerPreset,normalizeMixerSettings} from '../mixerSettings';
@@ -72,14 +73,21 @@ export default function SoundMixer({active=true}) {
         <label className="sm-limiter"><input type="checkbox" checked={settings.limiter} onChange={event=>update({...settings,limiter:event.target.checked})}/> Peak limiter</label></div>
       <SoundOutputSettings recording={busy} showMixerLink={false}/>
     </section>
-    <div className="sm-board-toolbar"><div><label>Preset <select value={preset} onChange={event=>setPreset(event.target.value)}><option value="flat">Flat</option><option value="voice">Voice focus</option><option value="music">Music balance</option></select></label>
+    <ScrollToolbar label="Mixer and recording controls"><div className="sm-record-actions"><button type="button" className="sm-record-button" disabled={busy} onClick={()=>run(()=>mixer.startRecording())}>Record mix</button><button type="button" disabled={!['recording','starting'].includes(status.recording)} onClick={()=>mixer.stopRecording()}>{status.recording==='saving'?'Saving…':status.recording==='starting'?'Cancel recording':'Stop recording'}</button>
+        <span>{status.recording==='starting'?'Preparing recording…':busy?'Recording continues across tabs.':status.result?'Recording ready to save.':'Ready to record'} {status.recordingBytes>0?`· ${(status.recordingBytes/1024/1024).toFixed(2)} MB`:''}</span></div>{status.result && <button type="button" onClick={()=>downloadBlob(status.result.blob,status.result.name)}>Save recording</button>}<div className="sm-board-toolbar"><div><label>Preset <select value={preset} onChange={event=>setPreset(event.target.value)}><option value="flat">Flat</option><option value="voice">Voice focus</option><option value="music">Music balance</option></select></label>
       <button type="button" onClick={()=>{update(mixerPreset(preset));setNotice('Preset applied.');}}>Apply preset</button>
       <button type="button" disabled={!Object.values(settings.channels).some(value=>value.solo)} onClick={clearSolos}>Clear solos</button></div>
       <div><ActionMenu label="Board settings" actions={[
         {label:'Save settings', onClick:()=>{downloadBlob(new Blob([JSON.stringify({format:'law-sound-mixer',version:1,settings},null,2)],{type:'application/json'}),'mixer-settings.json');setNotice('Settings download started.');}},
         {label:'Load settings', onClick:()=>settingsFile.current.click()},
       ]}/><input ref={settingsFile} hidden type="file" accept=".json,application/json" onChange={event=>{void run(()=>loadSettings(event.target.files[0]));event.target.value='';}}/></div>
-    </div>
+    </div></ScrollToolbar>
+<section className="sm-recorder" aria-label="Mix recorder"><div className="sm-record-heading"><div><h3><i className={busy?'sm-recording-dot':''}/> Mix recorder</h3><p>Processed app channels, local tracks & enabled microphone · up to 5 minutes</p></div><output className="sm-record-time">{clock(status.recordingSeconds)}</output></div>
+
+      {busy && <Meter value={levels.record} label="Recorded mix level" large/>}
+      {status.result && <div className="sm-record-result"><audio ref={recordPreview} controls preload="metadata" src={status.result.url} data-mixer-channel="audio" aria-label="Recorded mix preview"/><span>{clock(status.result.duration)} · {(status.result.blob.size/1024/1024).toFixed(2)} MB</span><button type="button" onClick={()=>{recordPreview.current?.pause();mixer.clearResult();}}>Clear recording</button></div>}
+      <p className="sm-record-note">Desktop browser / linked players and installed Windows voices stay outside this recording. App and local track recordings follow master volume and channel settings. Save before refreshing or closing.</p>
+    </section>
     {(error || status.error || status.routeError) && <p className="sm-error" role="alert">{error || status.error || status.routeError}{(error || status.error) && <button type="button" onClick={()=>{setError('');mixer.clearError();}}>Dismiss</button>}</p>}
     {notice && <p className="sm-notice" role="status">{notice}</p>}
     <div className="sm-section-heading"><h3>App channels</h3><span>Settings stay linked when you switch tabs</span></div>
@@ -105,13 +113,7 @@ export default function SoundMixer({active=true}) {
         <div className="sm-track-footer"><label><input type="checkbox" checked={track.loop} onChange={event=>run(()=>mixer.transport(track.id,'loop',event.target.checked))}/> Loop</label><button type="button" aria-label={`Remove ${track.name}`} onClick={()=>run(()=>mixer.removeTrack(track.id))}>Remove</button></div>{track.error && <small role="alert">{track.error}</small>}
       </Channel>)}</div>
     </section>
-    <section className="sm-recorder" aria-label="Mix recorder"><div className="sm-record-heading"><div><h3><i className={busy?'sm-recording-dot':''}/> Mix recorder</h3><p>Processed app channels, local tracks & enabled microphone · up to 5 minutes</p></div><output className="sm-record-time">{clock(status.recordingSeconds)}</output></div>
-      <div className="sm-record-actions"><button type="button" className="sm-record-button" disabled={busy} onClick={()=>run(()=>mixer.startRecording())}>Record mix</button><button type="button" disabled={!['recording','starting'].includes(status.recording)} onClick={()=>mixer.stopRecording()}>{status.recording==='saving'?'Saving…':status.recording==='starting'?'Cancel recording':'Stop recording'}</button>
-        <span>{status.recording==='starting'?'Preparing recording…':busy?'Recording continues across tabs.':status.result?'Recording ready to save.':'Ready to record'} {status.recordingBytes>0?`· ${(status.recordingBytes/1024/1024).toFixed(2)} MB`:''}</span></div>
-      {busy && <Meter value={levels.record} label="Recorded mix level" large/>}
-      {status.result && <div className="sm-record-result"><audio ref={recordPreview} controls preload="metadata" src={status.result.url} data-mixer-channel="audio" aria-label="Recorded mix preview"/><span>{clock(status.result.duration)} · {(status.result.blob.size/1024/1024).toFixed(2)} MB</span><button type="button" onClick={()=>downloadBlob(status.result.blob,status.result.name)}>Save recording</button><button type="button" onClick={()=>{recordPreview.current?.pause();mixer.clearResult();}}>Clear recording</button></div>}
-      <p className="sm-record-note">Desktop browser / linked players and installed Windows voices stay outside this recording. App and local track recordings follow master volume and channel settings. Save before refreshing or closing.</p>
-    </section>
+
     <details className="sm-routing-info"><summary>What’s connected to the board?</summary><p>Speech controls generated chat audio and installed voice volume. Audio covers transcription, extraction and voice previews. Video covers app video previews. Alerts covers timer sounds. Desktop channels control HTML player volume and mute; external Web Audio players support mute only and use Windows output settings. EQ, pan and meters require a processed app player. Microphone monitoring starts off every time.</p><p>Local files, microphone audio and mix recordings stay on this computer. A refresh releases live inputs and clears unsaved audio; your board settings are retained.</p></details>
   </div>;
 }

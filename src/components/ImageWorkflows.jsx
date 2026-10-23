@@ -1,3 +1,5 @@
+import ScrollToolbar from './ScrollToolbar';
+import {confirmAction} from '../confirmAction';
 import ImageThumbnail from "./ImageThumbnail";
 import ImageGenerationSizing from './ImageGenerationSizing';
 import {useImageRemoval} from './ImageRemovalControls';
@@ -200,7 +202,7 @@ function StageWorkflows({ active }) {
   }
 
   async function load(id) {
-    if (dirty && !window.confirm("Discard unsaved workflow changes and load the saved version?")) return;
+    if (dirty && !await confirmAction("Discard unsaved workflow changes and load the saved version?")) return;
     const [workflow, history] = await Promise.all([api.get(id), api.jobs(id)]);
     accept(workflow);
     setJobs(history.jobs);
@@ -209,7 +211,7 @@ function StageWorkflows({ active }) {
   }
 
   async function create() {
-    if (dirty && !window.confirm("Discard unsaved workflow changes and create a new workflow?")) return;
+    if (dirty && !await confirmAction("Discard unsaved workflow changes and create a new workflow?")) return;
     accept(await api.create());
     setJobs([]);
     setExecution(null);
@@ -273,7 +275,7 @@ function StageWorkflows({ active }) {
     {notice && <p role="status" className="workflow-notice">{notice}</p>}
     {warnings.map(warning => <p className="workflow-error" key={warning}>{warning}</p>)}
     {!catalog ? <button disabled={busy} onClick={() => run(initialize)}>Load workflow workspace</button> : <>
-      <fieldset disabled={busy} className="workflow-toolbar">
+      <ScrollToolbar as="fieldset" label="Workflow controls" disabled={busy} className="workflow-toolbar">
         <select aria-label="Saved workflow" value={draft?.id || ""} onChange={event => run(() => load(event.target.value))}>
           <option value="" disabled>Choose a saved workflow</option>
           {library.map(item => <option key={item.id} value={item.id}>{item.name}{item.deletion_pending ? " · cleanup pending" : ""}</option>)}
@@ -283,12 +285,13 @@ function StageWorkflows({ active }) {
           <button onClick={() => run(async () => { await saveCurrent(); setNotice("Workflow saved."); })}>{dirty ? "Save changes" : "Saved"}</button>
           <button onClick={() => run(async () => { accept(await api.branch(await saveCurrent())); setJobs([]); setExecution(null); setNotice("Next-scene draft created. Choose a kept result as the source for the next scene."); })}>Branch next scene</button>
         </>}
+        {draft && <div className="workflow-actions"><button disabled={busy} onClick={() => run(async () => setReport(await api.validate(await saveCurrent())))}>Validate inputs</button><button disabled={busy} onClick={() => run(prepare)}>Prepare snapshot</button><button disabled={busy || !draft.stages.length} onClick={() => run(execute)}>Run workflow</button></div>}
         <ActionMenu label="Workflow options" actions={[
           {label:'Refresh providers', disabled:busy, onClick:() => run(async () => setCatalog(await api.catalog()))},
           draft && {label:'Reload saved', disabled:busy, onClick:() => run(() => load(draft.id))},
           draft && {label:'Delete workflow', danger:true, disabled:busy || runIsActive(execution), onClick:() => setDeleting([{id:draft.id, name:draft.name, revision:draft.revision}])},
         ]}/>
-      </fieldset>
+      </ScrollToolbar>
       <BulkActions selection={workflowSelection} items={library} label="workflows" disabled={busy}
         actions={[{label:"Delete selected workflows", danger:true, onClick:setDeleting}]} />
       {workflowSelection.enabled && <div className="workflow-selection-list">{library.map(item => <label key={item.id}><SelectionCheckbox selection={workflowSelection} item={item} label={`workflow ${item.name}`} disabled={busy} /> {item.name}{item.deletion_pending ? " · retry cleanup" : ""}</label>)}</div>}
@@ -322,8 +325,8 @@ function StageWorkflows({ active }) {
           <section className="workflow-card">
             <h2>3 · Processing stages</h2>
             <BulkActions selection={stageSelection} items={draft.stages} label="stages" disabled={busy}
-              actions={[{label:"Remove selected stages", danger:true, onClick:items => {
-                if (!window.confirm(`Remove ${items.length} selected stage(s) from this draft? Remaining stages may need new source selections. Save changes to keep this edit.`)) return;
+              actions={[{label:"Remove selected stages", danger:true, onClick:async items => {
+                if (!await confirmAction(`Remove ${items.length} selected stage(s) from this draft? Remaining stages may need new source selections. Save changes to keep this edit.`)) return;
                 const ids = new Set(items.map(item => item.id));
                 change({stages:draft.stages.filter(stage => !ids.has(stage.id))}); stageSelection.forget(items);
               }}]} />
@@ -385,7 +388,7 @@ function StageWorkflows({ active }) {
             onUseText={text => { change({ prompt_settings: { ...draft.prompt_settings, prompt: text.slice(0, 12000) } }); setNotice("Description copied to the draft prompt. Review it before saving or running."); }} />
           <section className="workflow-card">
             <h2>Preparation</h2><p>{dirty ? "Unsaved changes" : `Saved revision ${draft.revision}`} · Validate and Prepare save pending changes first.</p>
-            <div className="workflow-actions"><button disabled={busy} onClick={() => run(async () => setReport(await api.validate(await saveCurrent())))}>Validate inputs</button><button disabled={busy} onClick={() => run(prepare)}>Prepare snapshot</button><button disabled={busy || !draft.stages.length} onClick={() => run(execute)}>Run workflow</button></div>
+
             {report && <div aria-live="polite"><h3>{snapshot ? `Snapshot revision ${snapshot.snapshot.revision}` : `Draft revision ${report.revision}`}</h3><p>{report.ready ? "Ready to run with the selected local providers." : "Resolve these issues before running."}</p><ul>{report.issues.map((issue, index) => <li key={index}>{issue.message}</li>)}</ul></div>}
           </section>
           <section className="workflow-card"><h2>Snapshots and runs</h2>

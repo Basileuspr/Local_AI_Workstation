@@ -1,3 +1,4 @@
+import ScrollToolbar from './ScrollToolbar';
 import { useEffect, useRef, useState } from "react";
 import { apiUrl } from "../api";
 import { sharedPollingObserver, readPollingJson } from "../polling";
@@ -155,6 +156,7 @@ export default function HashAuditor({ active = true }) {
       <span>{latest.hashed.toLocaleString()} files hashed · {formatAuditBytes(latest.bytes_hashed)} read · {latest.skipped} skipped · {latest.errors} errors</span>
       <small>{latest.current_path || latest.message}</small><small>Started {auditDate(latest.started_at)}{latest.finished_at && ` · Finished ${auditDate(latest.finished_at)}`}</small>
     </div>}
+<ScrollToolbar label="Audit results controls">
     <div className="hash-catalog-toolbar"><div className="hash-audit-actions"><button type="button" aria-pressed={view === "matches"} onClick={() => chooseView("matches")}>Matches</button>
       <button type="button" aria-pressed={view === "inventory"} onClick={() => chooseView("inventory")}>Recorded files</button>
       <button type="button" onClick={refresh} disabled={loading}>Refresh results</button></div>
@@ -162,6 +164,7 @@ export default function HashAuditor({ active = true }) {
     <p className="hash-catalog-note">All recorded locations · {(status?.counts?.verified || 0).toLocaleString()} verified file records. Matches reflect the last recorded reads, not live monitoring.</p>
     {view === "matches" ? <label className="hash-mode">Match by<select aria-label="Hash match criteria" value={mode} onChange={event => { setMode(event.target.value); setOffset(0); setResult(null); }}>{matchModes.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
       : <form className="hash-search" onSubmit={event => { event.preventDefault(); setSearch(searchDraft.trim()); setOffset(0); }}><input aria-label="Find recorded file path" placeholder="Find a recorded path…" value={searchDraft} onChange={event => setSearchDraft(event.target.value)} /><button type="submit">Find</button></form>}
+</ScrollToolbar>
     {mode !== "hash" && view === "matches" && <p className="hash-candidate">Metadata candidates are not proof of identical file contents. Compare the SHA-256 hashes to confirm content matches.</p>}
     {loading && <p role="status">Loading recorded results…</p>}
     {resultError && <p role="alert">{resultError}</p>}

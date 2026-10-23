@@ -1,0 +1,5 @@
+.action-confirmation { color: var(--text); background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 20px; max-width: min(480px, 90vw); max-height: 80vh; overflow: auto; }
+.action-confirmation::backdrop { background: #0008; }
+.action-confirmation p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.action-confirmation > div { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 10px; }
+.action-confirmation button { padding: 8px 14px; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 5px; }

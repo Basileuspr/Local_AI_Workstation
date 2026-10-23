@@ -1,3 +1,4 @@
+import {confirmAction} from '../confirmAction';
 import { memo, useRef, useState } from "react";
 import MarkdownMessage from "./MarkdownMessage";
 import { useDispatch } from "../useStore";
@@ -146,8 +147,8 @@ export default memo(function Tools() {
           </button>
           {managing && <div className="tools-toolbar">
             <button type="button" disabled={!!draft} aria-label={`Edit ${button.name}`} onClick={() => setDraft({ ...button })}>Edit</button>
-            <button type="button" disabled={!!draft} aria-label={`Remove ${button.name}`} onClick={() => {
-              if (window.confirm(`Remove function button "${button.name}"?`)) persist(buttons.filter(item => item.id !== button.id));
+            <button type="button" disabled={!!draft} aria-label={`Remove ${button.name}`} onClick={async () => {
+              if (await confirmAction(`Remove function button "${button.name}"?`)) persist(buttons.filter(item => item.id !== button.id));
             }}>Remove</button>
           </div>}
         </div>)}

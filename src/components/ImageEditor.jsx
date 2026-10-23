@@ -1,3 +1,4 @@
+import ScrollToolbar from './ScrollToolbar';
 import { updateColorSample, removeColorSample } from '../imageEditorColors';
 import ImageMagic from './ImageMagic';
 import { useEffect, useRef, useState } from "react";
@@ -178,20 +179,22 @@ export default function ImageEditor({ inlineInput, onSave, onCancel }) {
     {error && <p className="ie-error" role="alert">{error}</p>}{notice && <p className="ie-notice" role="status">{notice}</p>}
     {removal.toolbar}
     {session && removal.controls({id:'source'}, 'editor source image')}
-    <div className="ie-history ie-main-history" role="toolbar" aria-label="Image editing tools"><button disabled={!history.length || busy} onClick={undo}>Undo</button><button disabled={!future.length || busy} onClick={redo}>Redo</button><button disabled={!session || busy || !!crop || !hasCurrentPass(edit)} onClick={() => change({ ...edit, settings: { ...edit.anchor }, colorEdits: [] })}>Reset</button>
+    <ScrollToolbar as="div" label="Image editing tools" className="ie-history ie-main-history" role="toolbar" aria-label="Image editing tools"><button className="ie-export" disabled={!session || busy || !!crop} onClick={save}>{exporting ? "Preparing full-size PNG…" : onSave ? "Send edited image to chat" : "Export edited PNG"}</button>
+<button disabled={!history.length || busy} onClick={undo}>Undo</button><button disabled={!future.length || busy} onClick={redo}>Redo</button><button disabled={!session || busy || !!crop || !hasCurrentPass(edit)} onClick={() => change({ ...edit, settings: { ...edit.anchor }, colorEdits: [] })}>Reset</button>
       <button disabled={!session || busy || rendering || !cropFitsStages} aria-pressed={!!crop} onClick={()=>{setCrop(crop ? null : [.1,.1,.9,.9]);setCompare(false);setColorArmed(false);setNotice("");}}>Crop</button>
-      <div className="ie-rotation-controls" role="group" aria-label="Image rotation">
-        <button disabled={!session || busy || !!crop} title="Rotate 90° counterclockwise" onClick={() => adjust({ ...settings, rotation: ((settings.rotation || 0) + 270) % 360 })}>Rotate left</button>
-        <button disabled={!session || busy || !!crop} title="Rotate 90° clockwise" onClick={() => adjust({ ...settings, rotation: ((settings.rotation || 0) + 90) % 360 })}>Rotate right</button>
-      </div>
-    </div>
-    <div className="ie-workspace">
-      <div className="ie-viewer"><div className="ie-toolbar">
+      <div className="ie-toolbar">
         <button disabled={!session || !!crop} aria-pressed={compare} onClick={() => setCompare(value => !value)}>{compare ? "Show edited" : "Show original"}</button>
         <label>Preview size<select aria-label="Preview size" value={zoom} disabled={!session || !!crop} onChange={event => setZoom(event.target.value)}><option value="fit">Fit image</option><option value="100">100% · actual pixels</option><option value="200">200% · inspect pixels</option></select></label>
         <button disabled={!session || busy || !!crop} onClick={event=>{const panel=event.currentTarget.closest(".image-editor").querySelector(".ie-magic");panel.open=true;panel.scrollIntoView({block:"start",behavior:"smooth"});}}>Magic Edit</button>
         <span aria-live="polite">{session ? `${compare ? "Original" : "Edited"}${rendering && !compare ? " · Updating…" : ""}` : "No image loaded"}</span>
       </div>
+<div className="ie-rotation-controls" role="group" aria-label="Image rotation">
+        <button disabled={!session || busy || !!crop} title="Rotate 90° counterclockwise" onClick={() => adjust({ ...settings, rotation: ((settings.rotation || 0) + 270) % 360 })}>Rotate left</button>
+        <button disabled={!session || busy || !!crop} title="Rotate 90° clockwise" onClick={() => adjust({ ...settings, rotation: ((settings.rotation || 0) + 90) % 360 })}>Rotate right</button>
+      </div>
+    </ScrollToolbar>
+    <div className="ie-workspace">
+      <div className="ie-viewer">
       {crop && <div className="ie-crop-tools" aria-label="Crop controls">
         <p>Drag to draw a crop, move it, or resize its corners. Fine-tune in pixels.</p>
         <fieldset disabled={busy || rendering} className="ie-crop-fields"><legend className="ie-sr-only">Crop pixel bounds</legend>{[['x','Left'],['y','Top'],['width','Width'],['height','Height']].map(([key,label])=><label key={key}>{label}<input type="number" aria-label={`Crop ${label.toLowerCase()}`} min={key==='width'||key==='height'?1:0} max={key==='x'||key==='width'?editedSize.width:editedSize.height} step="1" value={selectedCrop?.[key] ?? ''} onChange={event=>{if(event.target.value!=='')cropField(key,Number(event.target.value));}} /></label>)}</fieldset>
@@ -235,7 +238,7 @@ export default function ImageEditor({ inlineInput, onSave, onCancel }) {
 
 
         <button className="ie-start-over" disabled={!session || busy || (!edit.stages.length && !hasCurrentPass(edit))} onClick={()=>change(newEditState())}>Start from original</button>
-        <button className="ie-export" disabled={!session || busy || !!crop} onClick={save}>{exporting ? "Preparing full-size PNG…" : onSave ? "Send edited image to chat" : "Export edited PNG"}</button>
+
 
       </aside>
     </div>

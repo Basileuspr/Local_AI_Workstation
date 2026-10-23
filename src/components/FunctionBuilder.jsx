@@ -1,3 +1,5 @@
+import ScrollToolbar from './ScrollToolbar';
+import {confirmAction} from '../confirmAction';
 import { useEffect, useRef, useState } from 'react';
 import { useDispatch } from '../useStore';
 import { createMessageId } from '../messageIds';
@@ -119,7 +121,7 @@ export default function FunctionBuilder({ legacyBusy = false }) {
     </div>}
     {draft && <form className="functions-editor function-sequence-editor" onSubmit={event => { event.preventDefault(); void act(async () => { validateWorkflow(draft); persist(items.some(item => item.id === draft.id) ? items.map(item => item.id === draft.id ? draft : item) : [...items, draft]); setDraft(null); }); }}>
       <label>Function name<input autoFocus required maxLength={80} value={draft.name} onChange={event => setDraft({ ...draft, name: event.target.value })}/></label>
-      <ol className="function-step-list">{draft.steps.map((step, index) => <li key={index}>
+      <ScrollToolbar label="Function editor controls"><div className="tools-toolbar"><button type="button" disabled={draft.steps.length >= 30} onClick={() => setDraft({ ...draft, steps: [...draft.steps, defaultStep('launch')] })}>+ THEN add step</button><button type="submit">Save function</button><button type="button" onClick={() => setDraft(null)}>Cancel</button></div></ScrollToolbar><ol className="function-step-list">{draft.steps.map((step, index) => <li key={index}>
         {index > 0 && <strong className="function-then">THEN</strong>}
         <div className="function-step">
           <label>Step {index + 1}<select aria-label={`Step ${index + 1} action`} value={step.type} onChange={event => { setControls({}); setDraft({ ...draft, steps: draft.steps.map((current, offset) => offset === index ? defaultStep(event.target.value) : current) }); }}>{stepTypes.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
@@ -160,7 +162,7 @@ export default function FunctionBuilder({ legacyBusy = false }) {
             <button type="button" disabled={draft.steps.length === 1} onClick={() => { setControls({}); setDraft({ ...draft, steps: draft.steps.filter((_, offset) => offset !== index) }); }}>Remove step</button></div>
         </div>
       </li>)}</ol>
-      <div className="tools-toolbar"><button type="button" disabled={draft.steps.length >= 30} onClick={() => setDraft({ ...draft, steps: [...draft.steps, defaultStep('launch')] })}>+ THEN add step</button><button type="submit">Save function</button><button type="button" onClick={() => setDraft(null)}>Cancel</button></div>
+
 
     </form>}
     {error && <p className="functions-error" role="alert">{error}</p>}
@@ -169,7 +171,7 @@ export default function FunctionBuilder({ legacyBusy = false }) {
       <ActionMenu label="Function options" title={`Options for ${item.name}`} actions={[
         {label:'Edit', disabled:!!draft || busy, onClick:() => { setControls({}); setDraft(structuredClone(item)); }},
         {label:'Duplicate', disabled:!!draft || busy, onClick:() => newDraft({ ...item, name: `${item.name.slice(0, 70)} copy` })},
-        {label:'Remove', danger:true, disabled:busy, onClick:() => { if (window.confirm(`Remove function "${item.name}"?`)) void act(async () => persist(items.filter(value => value.id !== item.id))); }},
+        {label:'Remove', danger:true, disabled:busy, onClick:async () => { if (await confirmAction(`Remove function "${item.name}"?`)) void act(async () => persist(items.filter(value => value.id !== item.id))); }},
       ]}/>
     </article>)}</div>
     {run && <section className="function-result" aria-label="Function run result">

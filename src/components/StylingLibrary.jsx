@@ -1,3 +1,4 @@
+import ScrollToolbar from './ScrollToolbar';
 import { useEffect, useRef, useState } from 'react';
 import { downloadBlob } from '../downloadBlob';
 import { filterStylingExamples, stylingCategories, stylingExamples, stylingExampleCSS, stylingExampleDocument } from '../stylingLibrary';
@@ -77,7 +78,8 @@ export default function StylingLibrary({ active = true, onEdit }) {
   return <section className="styling-library" aria-label="Styling Library">
     <header className="sl-heading"><div><span className="sl-category-label">DESIGN EXAMPLES</span><h1>Styling Library</h1>
       <p>Explore a look. See how it works. Make it your own.</p></div><span className="sl-offline-label">{stylingExamples.length} offline examples</span></header>
-    <div className="sl-toolbar">
+    <ScrollToolbar label="Styling Library controls">
+<div className="sl-toolbar">
       <label className="sl-search"><span>Find an example</span><input type="search" placeholder="Buttons, gradients, loading…" value={query} onChange={event => setQuery(event.target.value)} /></label>
       <label><span>Preview theme</span><select value={theme} onChange={event => setTheme(event.target.value)}><option value="dark">Dark</option><option value="light">Light</option></select></label>
       <button type="button" disabled={reducedMotion} title={reducedMotion ? 'Your device prefers reduced motion.' : 'Pause or play animations in the previews.'}
@@ -85,6 +87,7 @@ export default function StylingLibrary({ active = true, onEdit }) {
     </div>
     <nav className="sl-categories" aria-label="Example categories">{['All', ...stylingCategories].map(name => <button key={name} type="button" aria-label={`${name} examples`} aria-pressed={category === name}
       onClick={() => setCategory(name)}>{name}<span>{name === 'All' ? stylingExamples.length : stylingExamples.filter(example => example.category === name).length}</span></button>)}</nav>
+</ScrollToolbar>
     <div className="sl-result-count" role="status">{examples.length} {examples.length === 1 ? 'example' : 'examples'}{category !== 'All' ? ` · ${category}` : ''}</div>
     {examples.length ? <div className="sl-gallery">{examples.map(example => <article className="sl-example" key={example.id}>
       <div className="sl-preview">{active && <iframe title={`${example.title} preview`} sandbox="" referrerPolicy="no-referrer" loading="lazy"

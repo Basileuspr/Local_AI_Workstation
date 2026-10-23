@@ -1,3 +1,4 @@
+import ScrollToolbar from './ScrollToolbar';
 import {preventSelectionText} from '../fileSelection';
 import ImageThumbnail from "./ImageThumbnail";
 import { useEffect, useState } from "react";
@@ -31,7 +32,7 @@ export default function CollectionImages({ images, folders = [], tags = [], titl
   const selection = useSelection(images, item => item.id, title, filtered.slice(current * size, (current + 1) * size));
   const apply = (items, action, verb, confirm) => batch.run({ items, action, verb, confirm, selection, after: api.changed });
   return <section aria-label={title}>
-    <div className={`collection-toolbar ${workspace ? "image-library-results" : ""}`}>
+    <ScrollToolbar as="div" label="Collection controls" className={`collection-toolbar ${workspace ? "image-library-results" : ""}`}>
       {workspace ? <span className="image-library-result-count">{filtered.length} {query ? "matching " : ""}image{filtered.length === 1 ? "" : "s"}</span> : <><h3>{title} ({images.length})</h3><button type="button" onClick={() => setCompact(value => !value)}>{compact ? "Larger thumbnails" : "Compact view"}</button>
       <input type="search" aria-label={`Search ${title}`} value={query} onChange={event => { setQuery(event.target.value); setPage(0); }} placeholder="Search names…" /></>}
       <BulkActions selection={selection} items={filtered} label="images" batch={batch} actions={[
@@ -44,7 +45,7 @@ export default function CollectionImages({ images, folders = [], tags = [], titl
         { label: "Delete selected copies", danger: true, onClick: items => apply(items, item => api.remove(item.id), "Deleted copies:", `Delete ${items.length} library image copy/copies and their ratings? Source chats, workflows and original uploaded files are unchanged.`) },
       ]} />
       <CollectionPager label="images" page={current} pages={pages} onChange={setPage} />
-    </div>
+    </ScrollToolbar>
     {!filtered.length && <p className="gallery-empty">{query ? "No matching images. Try another name." : "No images here yet."}</p>}
     <div className={`image-gallery ${compact ? "image-gallery-compact" : ""}`}>{filtered.slice(current * size, (current + 1) * size).map(image => <div className="gallery-item-row" key={image.id}>
       <SelectionCheckbox selection={selection} item={image} label={`image ${image.name}`} disabled={batch.busy} />

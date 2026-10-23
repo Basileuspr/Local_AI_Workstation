@@ -16,7 +16,7 @@ function desktop(env = {}, httpMock = null) {
   const app = { isPackaged: false, getPath: () => "C:\\fixture", setPath() {}, on() {},
     whenReady: () => new Promise(() => {}), requestSingleInstanceLock: () => true,
     disableHardwareAcceleration: vi.fn(), quit: vi.fn(), commandLine: { appendSwitch: vi.fn() } };
-  const electron = { app, ipcMain: { on() {}, handle() {} },
+  const electron = { app, dialog: {}, ipcMain: { on() {}, handle() {} },
     protocol: { registerSchemesAsPrivileged() {}, handle: (scheme, handler) => handlers.set(scheme, handler) },
     net: { fetch: vi.fn(async () => new Response("recovery")) } };
   const module = { exports: {} };

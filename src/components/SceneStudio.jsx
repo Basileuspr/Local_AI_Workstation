@@ -1,3 +1,5 @@
+import ScrollToolbar from './ScrollToolbar';
+import {confirmAction} from '../confirmAction';
 import { useEffect, useRef, useState } from "react";
 import * as api from "../imageWorkflowApi";
 import * as faces from "../faceApi";
@@ -158,15 +160,16 @@ export default function SceneStudio({ active, sceneToOpen, onSceneOpened }) {
     <header className="workflow-heading"><div><p className="workflow-eyebrow">PERSISTENT SCENES · ONE FRAME AT A TIME</p><h1>Iterative scenes</h1></div><span className="workflow-badge">Review each result before continuing</span></header>
     {error && <p className="workflow-error" role="alert">{error}</p>}{notice && <p className="workflow-notice" role="status">{notice}</p>}
     {error && sceneToOpen && <button disabled={busy} onClick={() => run(openRequestedScene)}>Retry opening analyzed scene</button>}
-    <fieldset className="workflow-toolbar" disabled={busy}>
+    <ScrollToolbar as="fieldset" label="Scene controls" className="workflow-toolbar" disabled={busy}>
       <select aria-label="Saved iterative scene" value={draft?.id || ""} onChange={e => run(() => load(e.target.value))}><option value="" disabled>Choose a scene</option>{library.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
       <button onClick={() => run(async () => { accept(await api.create("scene")); setFrames([]); setRuns([]); setExecution(null); await refreshLibrary(); })}>+ New iterative scene</button>
       {draft && <button onClick={() => run(async () => { await refreshLibrary(); setNotice("Scene saved."); })}>{saving ? "Saving…" : dirty ? "Save scene" : "Saved"}</button>}
-      <ActionMenu label="Scene options" actions={[
-        draft && {label:'Reload saved', disabled:busy, onClick:() => run(async () => { if (!dirty || window.confirm("Discard unsaved edits and reload the saved scene?")) { if (savingTask.current) await savingTask.current; await load(draft.id); } }, false)},
+      {draft && <button className="scene-generate" disabled={runIsActive(execution) || !scene.model_id || !models?.available} onClick={() => run(async () => { setExecution(await api.execute(current.current)); await history(current.current.id); })}>{scene.source_asset_id ? "Generate next frame" : "Generate first frame"}</button>}
+<ActionMenu label="Scene options" actions={[
+        draft && {label:'Reload saved', disabled:busy, onClick:() => run(async () => { if (!dirty || await confirmAction("Discard unsaved edits and reload the saved scene?")) { if (savingTask.current) await savingTask.current; await load(draft.id); } }, false)},
         {label:'Refresh models and characters', disabled:busy, onClick:() => run(async () => { setCatalog(await api.catalog()); setCharacters((await faces.listCharacters()).characters); await refreshLibrary(); })},
       ]}/>
-    </fieldset>
+    </ScrollToolbar>
     {!draft ? <div className="workflow-empty"><h2>Keep the scene between frames</h2></div> : <div className="workflow-layout">
       <fieldset className="workflow-editor" disabled={busy}>
         <section className="workflow-card"><Field label="Scene name"><input maxLength={120} value={draft.name} onChange={e => change({name:e.target.value})} /></Field>
@@ -204,7 +207,7 @@ export default function SceneStudio({ active, sceneToOpen, onSceneOpened }) {
           <div className="workflow-numbers">{[["seed", "Seed (−1 = random)",-1,4294967295,1],["steps","Steps",1,MAX_IMAGE_STEPS,1],["guidance","Guidance",0,MAX_IMAGE_GUIDANCE,.1]].map(([key,label,min,max,step]) => <Field label={label} key={key}><input type="number" min={min} max={max} step={step} value={draft.prompt_settings[key]} onChange={e => change({prompt_settings:{...draft.prompt_settings,[key]:Number(e.target.value)}})} /></Field>)}</div>
           <Field label="Negative prompt"><textarea maxLength={12000} rows={2} value={draft.prompt_settings.negative_prompt} onChange={e => change({prompt_settings:{...draft.prompt_settings,negative_prompt:e.target.value}})} /></Field>
           <details><summary>Complete prompt for the next frame</summary><p className="workflow-result-text">{scenePrompt(state) || "Enter visible scene details above."}</p></details>
-          <button className="scene-generate" disabled={runIsActive(execution) || !scene.model_id || !models?.available} onClick={() => run(async () => { setExecution(await api.execute(current.current)); await history(current.current.id); })}>{scene.source_asset_id ? "Generate next frame" : "Generate first frame"}</button>
+
           {models && !models.available && <p className="workflow-muted">CUDA is unavailable. You can edit and save scenes; generation requires the local SDXL runtime.</p>}
         </fieldset>
         {execution && <section className="workflow-card"><h2>Run · {execution.status}</h2><p role="status">{execution.phase}</p>{execution.total_steps > 0 && <progress value={execution.step} max={execution.total_steps} aria-label="Scene generation progress" />}{execution.error && <p className="workflow-error">{execution.error}</p>}{runIsActive(execution) && <button disabled={execution.status === "cancelling"} onClick={() => { void api.stop(execution.workflow_id, execution.id).then(setExecution).catch(err => setError(err.message)); }}>{execution.status === "cancelling" ? "Stopping safely…" : "Stop generation"}</button>}</section>}

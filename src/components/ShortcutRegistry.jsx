@@ -1,3 +1,4 @@
+import ScrollToolbar from './ScrollToolbar';
 import { useRef, useState } from "react";
 import { builtInEntries, entryTypes, filterRegistry, loadPersonalEntries, savePersonalEntries, registryMarkdown, WORD_SCOPE, loadRegistryFolders, saveRegistryFolders, registryFolders } from "../shortcutRegistry";
 import { downloadBlob } from "../downloadBlob";
@@ -94,7 +95,8 @@ export default function ShortcutRegistry() {
   return <section className="tools-workspace shortcut-registry" aria-labelledby="shortcut-registry-title">
     <header className="tools-heading"><p className="tools-eyebrow">Reference library</p><h1 id="shortcut-registry-title">Shortcut Registry</h1>
       </header>
-    <div className="tools-toolbar">
+    <ScrollToolbar label="Shortcut Registry controls">
+<div className="tools-toolbar">
       <button type="button" disabled={!!loadedFolders.error} onClick={() => { setNewFolder(""); requestAnimationFrame(() => folderInput.current?.focus()); }}>New application folder</button>
       <button type="button" ref={addButton} disabled={!!loaded.error} onClick={() => openEditor()}>Add personal entry</button>
       <ActionMenu label="Reference options" actions={[
@@ -103,6 +105,14 @@ export default function ShortcutRegistry() {
       ]}/>
     </div>
 
+<div className="registry-filters">
+      <label>Search<input type="search" value={filters.query} placeholder="Try Ctrl+Enter, formatting, or review" onChange={event => setFilter("query", event.target.value)} /></label>
+      <label>Application<select value={filters.application} onChange={event => setFilter("application", event.target.value)}><option value="">All applications</option>{applications.map(value => <option key={value}>{value}</option>)}</select></label>
+      <label>Category<select value={filters.category} onChange={event => setFilter("category", event.target.value)}><option value="">All categories</option>{categories.map(value => <option key={value}>{value}</option>)}</select></label>
+      <label>Type<select value={filters.type} onChange={event => setFilter("type", event.target.value)}><option value="">All types</option>{entryTypes.map(value => <option key={value}>{value}</option>)}</select></label>
+      <button type="button" onClick={() => { setExpandedFolders({}); setFilters({ query: "", application: "", category: "", type: "" }); }}>Clear filters</button>
+    </div>
+</ScrollToolbar>
     {error && <p className="functions-error" role="alert">{error}</p>}
     {folderError && <p className="functions-error" role="alert">{folderError}</p>}
     {iconError && <p className="functions-error" role="alert">{iconError}</p>}
@@ -130,13 +140,7 @@ export default function ShortcutRegistry() {
 
       <div className="tools-toolbar"><button type="submit">Save entry</button><button type="button" onClick={closeEditor}>Cancel</button></div>
     </form>}
-    <div className="registry-filters">
-      <label>Search<input type="search" value={filters.query} placeholder="Try Ctrl+Enter, formatting, or review" onChange={event => setFilter("query", event.target.value)} /></label>
-      <label>Application<select value={filters.application} onChange={event => setFilter("application", event.target.value)}><option value="">All applications</option>{applications.map(value => <option key={value}>{value}</option>)}</select></label>
-      <label>Category<select value={filters.category} onChange={event => setFilter("category", event.target.value)}><option value="">All categories</option>{categories.map(value => <option key={value}>{value}</option>)}</select></label>
-      <label>Type<select value={filters.type} onChange={event => setFilter("type", event.target.value)}><option value="">All types</option>{entryTypes.map(value => <option key={value}>{value}</option>)}</select></label>
-      <button type="button" onClick={() => { setExpandedFolders({}); setFilters({ query: "", application: "", category: "", type: "" }); }}>Clear filters</button>
-    </div>
+
     <div className="registry-folder-tools"><p className="tools-note" role="status">{visible.length} of {entries.length} entries · {folders.length} application {folders.length === 1 ? "folder" : "folders"}</p>
       <button type="button" onClick={() => setExpandedFolders(Object.fromEntries(applications.map(application => [application, false])))}>Collapse all folders</button></div>
     <div className="registry-folders">{folders.map((folder, index) => {

@@ -44,8 +44,9 @@ describe("Media Manager page initialization", () => {
     child.stdin = new EventEmitter();
     child.stdin.end = vi.fn();
     const contents = new EventEmitter();
-    let destroyed = false;
+    let destroyed = false, throttle = true;
     Object.assign(contents, { isDestroyed: () => destroyed, close: () => { destroyed = true; },
+      getBackgroundThrottling: () => throttle, setBackgroundThrottling: value => { throttle = value; },
       setWindowOpenHandler: vi.fn(), loadURL: vi.fn(async () => {}), executeJavaScript: vi.fn(async () => initialized) });
     const children = [];
     const win = { getContentSize: () => [1200, 800], webContents: { getZoomFactor: () => 1 },
@@ -57,7 +58,9 @@ describe("Media Manager page initialization", () => {
       visible = false;
       setVisible(visible) { this.visible = visible; }
       getVisible() { return this.visible; }
-      setBounds = vi.fn();
+      bounds = {x:0,y:0,width:0,height:0};
+      getBounds() { return this.bounds; }
+      setBounds = vi.fn(bounds => { this.bounds = bounds; });
     }
     const manager = createMediaManager({ WebContentsView: View, session, getWindow: () => win,
       python: "fixture-python", directory: path.resolve("media-manager"),

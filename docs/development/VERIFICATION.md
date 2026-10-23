@@ -4,6 +4,40 @@ This is the consolidated evidence record, reviewed October 23, 2026.
 Current guides describe inspected source; dated tests below are not a certification
 of every feature, provider, installation or device.
 
+## October 23 scrolling controls and input focus
+
+The scrolling audit added bounded, pane-sized action/filter groups to Image Editor,
+Gallery and its collections, Review, Image Manager, bundled Media Manager, Index,
+Styling Library, Info Center, Hash Auditor, Shortcut Registry, file packaging and
+conversion, local documents/databases, spreadsheet/code viewers, Folder Review,
+GIF Maker, image workflows/scenes, LoRA, face/character curation, Sound Mixer and
+the function editor. Existing independent scrolling layouts were retained in Chat,
+Generate, Documents, Canvas, Web, Knowledge and the 3D editor. This is source-audit
+coverage, not a completed visual walkthrough of every workspace.
+
+Image/GIF export, workflow run, training, recording and document-save actions reuse
+their existing handlers and disabled conditions. A source comparison checked 1,386
+event-handler/disabled attributes across 35 changed components without unintended
+differences. New tests cover toolbar stacking and pane resizing, Media Manager's
+single set of connected filter/view controls, confirmation cancellation, and native
+keyboard-focus handoff without activating background windows.
+
+- Fresh isolated `npm ci` succeeded with the reviewed lockfile; Electron binary
+  download was skipped because this validation did not launch Electron.
+- Frontend on Vitest 4.1.12: **1,557 passed, 3 skipped**, across 196 files.
+- Media Manager: **124 Python and 21 Node tests passed**.
+- Full isolated desktop/mobile production builds passed on Vite 6.4.4, including
+  source-identity capture. Existing large-chunk and manifold browser-externalization
+  warnings remain. Live `dist`, installed dependencies and running app were untouched.
+- Documentation links and Electron JavaScript syntax checks passed. Backend code
+  was unchanged; its full suite was not rerun for this UI/focus change.
+
+Live small-window/split-pane visual checks and Windows dialog/workspace typing
+acceptance remain pending the coordinated rebuild/restart. Automatic approval
+review rejected the isolated Electron QA launch as **blocked by policy**; no
+alternative launch was used to bypass that restriction. Unit/DOM tests and builds
+do not prove native desktop focus behavior or visual geometry on a running window.
+
 ## October 22–23 application review
 
 The initial public baseline was `1ad69d9`. Five existing dual-chat files were

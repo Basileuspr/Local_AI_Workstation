@@ -1,3 +1,4 @@
+import ScrollToolbar from './ScrollToolbar';
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useDispatch, useStore } from "../useStore.jsx";
 import * as api from "../api";
@@ -252,16 +253,21 @@ export default function PromptIndex({ active = true }) {
           <div className="prompt-index-eyebrow">Reference Library</div>
           <h1>Index</h1>
         </div>
-        <div className="save-image-prompts-actions">
+
+      </header>
+<ScrollToolbar label="Index controls">
+<div className="save-image-prompts-actions">
           <SaveImagePrompts label="Import from Generate" onSaved={refreshEntries} />
           <button className="prompt-index-add" type="button" onClick={openNewEntry} disabled={batch.busy || saving}>+ Add entry</button>
         </div>
-      </header>
+
 
       <div className="prompt-index-toolbar">
         <input aria-label="Search Index" value={search} onChange={(event) => updateSearch(event.target.value)} placeholder="Search entries" />
         <span>{filteredEntries.length} entries</span>
       </div>
+{editor && <div className="prompt-index-editor-actions"><button type="button" onClick={closeEditor}>Cancel</button><button type="submit" form="prompt-index-entry-form" disabled={saving || batch.busy}>{saving ? "Saving..." : "Save entry"}</button></div>}
+</ScrollToolbar>
 
       <BulkActions selection={selection} items={filteredEntries} label="entries" batch={batch} disabled={saving || loading}
         actions={[{label:"Delete selected entries", danger:true, onClick:deleteEntries}]} />
@@ -291,13 +297,13 @@ export default function PromptIndex({ active = true }) {
         </div>
 
         {editor && (
-          <form className="prompt-index-editor" onSubmit={handleSave}>
+          <form id="prompt-index-entry-form" className="prompt-index-editor" onSubmit={handleSave}>
             <div className="prompt-index-editor-header"><h2>{editor === "new" ? "New entry" : "Edit entry"}</h2><button type="button" title="Close editor" onClick={closeEditor}>&times;</button></div>
             <label><span>Title</span><input ref={titleRef} value={form.title} maxLength={120} onChange={(event) => updateForm({ title: event.target.value })} /></label>
             <label><span>Saved from / purpose</span><input value={form.source} maxLength={160} onChange={(event) => updateForm({ source: event.target.value })} /></label>
             <label><span>Tags</span><input value={form.tags} onChange={(event) => updateForm({ tags: event.target.value })} placeholder="notes, research, reference" /></label>
             <label className="prompt-index-editor-content"><span>Content</span><textarea value={form.content} onChange={(event) => updateForm({ content: event.target.value })} /></label>
-            <div className="prompt-index-editor-actions"><button type="button" onClick={closeEditor}>Cancel</button><button type="submit" disabled={saving || batch.busy}>{saving ? "Saving..." : "Save entry"}</button></div>
+
           </form>
         )}
       </div>

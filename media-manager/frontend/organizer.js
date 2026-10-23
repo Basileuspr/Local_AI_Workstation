@@ -57,7 +57,6 @@ export class MediaOrganizer extends HTMLElement {
           <div class="mo-sidebar-bottom">${icon('folder')}<div><strong>Your folders. Your files.</strong></div></div>
         </aside>
         <main class="mo-main">
-          <div class="mo-display-toolbar"><label for="mo-page-size">Items at a time</label><select id="mo-page-size">${mediaBatchSizes.map(size => `<option value="${size}" ${mediaBatchSize(size) === this.pageSize ? 'selected' : ''}>${size}</option>`).join('')}</select><span id="mo-visible-count" role="status"></span></div>
           <div class="mo-workspace-tabs" role="tablist" aria-label="Media workspace"><button id="mo-library-tab" role="tab" aria-selected="true" aria-controls="mo-organize-panel" data-tab="library">${icon('grid')} Media library</button><button id="mo-duplicates-tab" role="tab" aria-selected="false" aria-controls="mo-duplicates-panel" tabindex="-1" data-tab="duplicates">${icon('film')} Duplicates <span id="mo-duplicate-tab-count">0</span></button></div>
           <div class="mo-capture-access"><button id="mo-snapshots">Snapshots</button><button id="mo-clips">Saved clips</button></div>
           <div id="mo-organize-panel" role="tabpanel" aria-labelledby="mo-library-tab">
@@ -79,20 +78,24 @@ export class MediaOrganizer extends HTMLElement {
           </section>
           <details id="mo-job-details" hidden><summary>Operation report</summary><pre></pre></details>
           <section id="mo-library" class="mo-library" aria-labelledby="mo-library-title" tabindex="-1">
-            <div class="mo-library-heading"><div><h2 id="mo-library-title">Your media, by date <span id="mo-count">0</span></h2><p id="mo-scope-description">All catalog folders.</p></div><div class="mo-segmented" aria-label="Media layout"><label>Group by<select id="mo-grouping" aria-label="Group media by"><option value="day">Day</option><option value="month" selected>Month</option><option value="year">Year</option><option value="none">No groups</option></select></label><button data-view="gallery" aria-label="Large gallery view" aria-pressed="false">Large previews</button><button data-view="grid" aria-label="Grid view" aria-pressed="true">${icon('grid')}</button><button data-view="list" aria-label="List view" aria-pressed="false">${icon('list')}</button></div></div>
+            <div><h2 id="mo-library-title">Your media, by date <span id="mo-count">0</span></h2><p id="mo-scope-description">All catalog folders.</p></div>
+            <div class="mo-library-controls" role="region" aria-label="Media library controls" tabindex="0">
             <div class="mo-filters"><label class="mo-search">${icon('search')}<input id="mo-search" type="search" placeholder="Search filenames, folders, or categories" aria-label="Search media"></label><select id="mo-category" aria-label="Filter by category"><option value="">All categories</option></select><select id="mo-order" aria-label="Sort media"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="duration-desc">Duration · longest first</option><option value="duration-asc">Duration · shortest first</option><option value="size-desc">Size · largest first</option><option value="size-asc">Size · smallest first</option><option value="type-asc">Type / codec</option><option value="name-asc">Filename · A–Z</option><option value="name-desc">Filename · Z–A</option><option value="resolution-desc">Resolution · highest first</option><option value="fps-desc">Frame rate · highest first</option><option value="bitrate-desc">Bit rate · highest first</option></select><button id="mo-review" aria-pressed="false">Needs review <span id="mo-review-count">0</span></button><button id="mo-show-duplicates" aria-pressed="false" title="Show extra copies of identical files">Show duplicates</button></div>
+          <div class="mo-display-toolbar"><label for="mo-page-size">Items at a time</label><select id="mo-page-size">${mediaBatchSizes.map(size => `<option value="${size}" ${mediaBatchSize(size) === this.pageSize ? 'selected' : ''}>${size}</option>`).join('')}</select><span id="mo-visible-count" role="status"></span></div>
+            <div class="mo-library-heading"><div class="mo-segmented" aria-label="Media layout"><label>Group by<select id="mo-grouping" aria-label="Group media by"><option value="day">Day</option><option value="month" selected>Month</option><option value="year">Year</option><option value="none">No groups</option></select></label><button data-view="gallery" aria-label="Large gallery view" aria-pressed="false">Large previews</button><button data-view="grid" aria-label="Grid view" aria-pressed="true">${icon('grid')}</button><button data-view="list" aria-label="List view" aria-pressed="false">${icon('list')}</button></div></div>
             <details class="mo-advanced-filters"><summary>More filters · type, duration, size, audio, Trash</summary><div class="mo-frame-options"><label>Type / codec<select id="mo-type"><option value="">All types</option></select></label><label>Library status<select id="mo-library-status"><option value="">Active media</option><option value="trash">Recoverable Trash</option></select></label><label>Audio<select id="mo-audio"><option value="">Any audio</option><option value="sound">Has audio</option><option value="silent">No audio</option></select></label><label>Minimum duration (seconds)<input id="mo-minDuration" type="number" min="0" step="any"></label><label>Maximum duration (seconds)<input id="mo-maxDuration" type="number" min="0" step="any"></label><label>Minimum size (MiB)<input id="mo-minSize" type="number" min="0" step="any"></label><label>Maximum size (MiB)<input id="mo-maxSize" type="number" min="0" step="any"></label></div></details>
             <div id="mo-user-tags" class="mo-category-tags" role="group" aria-label="Custom tag filters"></div>
             <div id="mo-category-tags" class="mo-category-tags" role="group" aria-label="Category filter tags" hidden></div>
             <div class="mo-trash-controls"><button id="mo-trash-view">View Trash</button></div>
             <div id="mo-selection-bar" class="mo-selection-bar" hidden><span id="mo-selection-count" role="status" title="Ctrl-click toggles clips. Shift-click selects a displayed range. Ctrl+Shift adds a range.">0 selected</span><div><button id="mo-select-matching">Select matching clips</button><button id="mo-clear-selection" disabled>Clear selection</button><button id="mo-delete-selected" class="mo-delete-action" disabled>Delete selected</button><button id="mo-restore-selected" hidden disabled>Restore selected</button><button id="mo-tag-selected" disabled>Tag selected</button><button id="mo-sort-custom" class="mo-primary" disabled>${icon('folder')} Place in folder</button><button id="mo-new-with-selected" disabled>Start Folder with item</button><button id="mo-rotate-selected" disabled title="Rotate view right; originals unchanged">Rotate selected ↷</button></div></div>
+            </div>
             <div id="mo-results" aria-live="polite"></div>
           </section>
           <footer class="mo-footer"><span>${icon('clock')} Dates follow the scan’s best available evidence.</span><span>Unknown dates stay visible.</span></footer>
           </div>
           <section id="mo-duplicates-panel" role="tabpanel" aria-labelledby="mo-duplicates-tab" tabindex="-1" hidden>
             <div class="mo-duplicate-heading"><div><h1>Duplicates</h1><p id="mo-duplicate-summary">No duplicate scan loaded.</p></div><label class="mo-duplicate-history">Saved scan<select id="mo-duplicate-history"><option value="">Start a new scan</option></select></label></div>
-            <div class="mo-duplicate-toolbar"><label class="mo-search">${icon('search')}<input id="mo-duplicate-search" type="search" aria-label="Search duplicates" placeholder="Search filenames or locations"></label><select id="mo-duplicate-year" aria-label="Filter duplicates by year"><option value="">All dates</option></select><select id="mo-duplicate-order" aria-label="Sort duplicate groups by date"><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select><button id="mo-duplicate-size" aria-pressed="false">Larger previews</button></div>
+            <div class="mo-duplicate-toolbar mo-library-controls" role="region" aria-label="Duplicate controls" tabindex="0"><label class="mo-search">${icon('search')}<input id="mo-duplicate-search" type="search" aria-label="Search duplicates" placeholder="Search filenames or locations"></label><select id="mo-duplicate-year" aria-label="Filter duplicates by year"><option value="">All dates</option></select><select id="mo-duplicate-order" aria-label="Sort duplicate groups by date"><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select><button id="mo-duplicate-size" aria-pressed="false">Larger previews</button></div>
             <p id="mo-duplicate-job" class="mo-duplicate-job" role="status" hidden></p><p id="mo-duplicate-notice" class="mo-status mo-error" role="alert" hidden></p>
             <div id="mo-duplicate-results"></div>
           </section>
@@ -122,6 +125,14 @@ export class MediaOrganizer extends HTMLElement {
     mountReview(this);
     this.renderLibrary();
     try { if (sessionStorage.getItem('mo-active-tab') === 'duplicates') this.switchTab('duplicates'); } catch {}
+    this.originalScrollPadding = document.documentElement.style.scrollPaddingTop;
+    if (typeof ResizeObserver === 'function') {
+      this.controlsObserver = new ResizeObserver(() => {
+        const height = Math.max(0, ...[...this.querySelectorAll('.mo-library-controls')].map(node => node.getBoundingClientRect().height));
+        document.documentElement.style.scrollPaddingTop = `${height + 8}px`;
+      });
+      this.querySelectorAll('.mo-library-controls').forEach(node => this.controlsObserver.observe(node));
+    }
     this.poll();
     this.checkAvailability = () => { if (!document.hidden) void this.poll(); };
     window.addEventListener('focus', this.checkAvailability);
@@ -130,6 +141,8 @@ export class MediaOrganizer extends HTMLElement {
     this.dataset.mediaManagerReady = 'true';
   }
   disconnectedCallback() {
+    this.controlsObserver?.disconnect();
+    document.documentElement.style.scrollPaddingTop = this.originalScrollPadding || '';
     delete this.dataset.mediaManagerReady;
     this.removePopupDismissal?.(); this.removePopupDismissal = null;
     clearInterval(this.availabilityTimer);

@@ -1,5 +1,6 @@
 // Change the native surface only when its actual geometry/visibility changes.
 // Disable background throttling after showing it (not while it is hidden).
+const {focusContents} = require('./dialogFocus');
 function placeBrowserView(view,win,value) {
     const wc=view.webContents,b=value?.bounds;
     let bounds=null;
@@ -15,7 +16,12 @@ function placeBrowserView(view,win,value) {
         if(['x','y','width','height'].some(key=>old[key]!==bounds[key])){view.setBounds(bounds);changed=true;}
     }
     const visible=!!bounds;
-    if(view.getVisible()!==visible){view.setVisible(visible);changed=true;}
+    if(view.getVisible()!==visible){
+        const leavingFocusedView = !visible && wc.isFocused?.();
+        const keepHostFocus = visible && win?.webContents.isFocused?.();
+        view.setVisible(visible);changed=true;
+        if(leavingFocusedView || keepHostFocus) focusContents(win, win?.webContents);
+    }
     const throttle=!visible || win?.isVisible?.()===false || !!win?.isMinimized?.();
     if(wc.getBackgroundThrottling()!==throttle)wc.setBackgroundThrottling(throttle);
     return changed;

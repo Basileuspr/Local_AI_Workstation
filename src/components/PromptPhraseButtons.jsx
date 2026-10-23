@@ -1,3 +1,4 @@
+import {confirmAction} from '../confirmAction';
 import { useState } from "react";
 import "./PromptPhraseButtons.css";
 import { useRefs } from "../useStore.jsx";
@@ -104,8 +105,8 @@ export default function PromptPhraseButtons() {
         </div>
         <CollectionPager label="phrases" page={currentPage} pages={pages} onChange={setPage} />
         {managing && <BulkActions selection={selection} items={filtered} label="phrase buttons" disabled={!!draft}
-          actions={[{label:"Remove selected buttons", danger:true, onClick:items => {
-            if (!window.confirm(`Remove ${items.length} selected phrase button(s)? This cannot be undone.`)) return;
+          actions={[{label:"Remove selected buttons", danger:true, onClick:async items => {
+            if (!await confirmAction(`Remove ${items.length} selected phrase button(s)? This cannot be undone.`)) return;
             const ids = new Set(items.map(item => item.id));
             if (persist(phrases.filter(item => !ids.has(item.id)))) { selection.forget(items); setFeedback(`Removed ${items.length} phrase buttons.`); }
           }}]} />}
@@ -121,8 +122,8 @@ export default function PromptPhraseButtons() {
               <button type="button" aria-label={`Edit ${phrase.name}`} disabled={!!draft}
                 onClick={() => setDraft({ ...phrase })}>Edit</button>
               <button type="button" aria-label={`Remove ${phrase.name}`} disabled={!!draft}
-                onClick={() => {
-                  if (window.confirm(`Remove phrase button "${phrase.name}"?`)) {
+                onClick={async () => {
+                  if (await confirmAction(`Remove phrase button "${phrase.name}"?`)) {
                     persist(phrases.filter((item) => item.id !== phrase.id));
                   }
                 }}>×</button>

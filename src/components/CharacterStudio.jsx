@@ -1,3 +1,4 @@
+import ScrollToolbar from './ScrollToolbar';
 import {useRangeSelection} from '../useRangeSelection';
 import {preventSelectionText,hasSelectionModifier} from '../fileSelection';
 import ImageThumbnail, { ThumbnailRetryButton } from "./ImageThumbnail";
@@ -180,15 +181,15 @@ export default function CharacterStudio({ active, openDataset }) {
 
   return <div className="character-studio">
     <header className="character-header"><div><span className="character-eyebrow">Training image curation</span><h1>Character Parts</h1></div></header>
-    {dataset && <section className="character-exports" aria-label="Export character media"><ActionMenu label="Export media" actions={[
+
+    {error && <p className="character-error" role="alert">{error}</p>}{notice && <p className="character-notice" role="status">{notice}</p>}
+    <ScrollToolbar as="div" label="Character dataset controls" className="character-datasets">{dataset && <section className="character-exports" aria-label="Export character media"><ActionMenu label="Export media" actions={[
       {label:`Export Selected Media (${selected.size})`, disabled:disabled || !selected.size, onClick:() => exportMedia('selected')},
       {label:`Export Approved Media (${acceptedCount})`, disabled:disabled || !acceptedCount, onClick:() => exportMedia('approved')},
       {label:`Export Reject Media (${rejectedCount})`, disabled:disabled || !rejectedCount, onClick:() => exportMedia('rejected')},
-    ]}/></section>}
-    {error && <p className="character-error" role="alert">{error}</p>}{notice && <p className="character-notice" role="status">{notice}</p>}
-    <div className="character-datasets"><label>Character dataset<select value={datasetId} disabled={disabled || running} onChange={event => setDatasetId(event.target.value)}><option value="">Choose a dataset</option>{datasets.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+    ]}/></section>}<label>Character dataset<select value={datasetId} disabled={disabled || running} onChange={event => setDatasetId(event.target.value)}><option value="">Choose a dataset</option>{datasets.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
       <form onSubmit={event => { event.preventDefault(); guard(async () => { const data = await api.create(newName); await refreshList(); setDatasetId(data.id); setNewName(""); }); }}><label>New dataset name<input value={newName} maxLength={120} disabled={disabled || running} onChange={event => setNewName(event.target.value)} placeholder="Character name or training set" /></label><button disabled={disabled || running || !newName.trim()}>Create dataset</button></form>
-    </div>
+    </ScrollToolbar>
     {dataset && <CharacterLinks kind="parts" targetId={dataset.id} label="parts dataset" disabled={disabled || running} />}
     {!dataset ? <div className="character-empty"><h2>Build a complete character training set</h2></div> : <>
       <div className="character-actions">
@@ -216,14 +217,14 @@ export default function CharacterStudio({ active, openDataset }) {
 
             {run && <div className="character-run" role="status"><strong>{run.message}</strong><span>{run.processed} / {run.total} images</span>{running && <><progress max={run.total} value={run.processed} /><button disabled={run.status === "cancelling"} onClick={() => guard(async () => { setRun((await api.stop(datasetId, run.id)).run); await refresh(); })}>{run.status === "cancelling" ? "Stopping…" : "Stop analysis"}</button></>}{run.errors.length > 0 && <details><summary>{run.errors.length} image errors</summary>{run.errors.map((item, i) => <p key={i}>{dataset.sources.find(source => source.id === item.source_id)?.name}: {item.message}</p>)}</details>}</div>}
           </details>
-          {catalog && <section className="character-selections"><h2>Review selections</h2><div className="character-filters">
+          {catalog && <section className="character-selections"><h2>Review selections</h2><ScrollToolbar label="Character selection controls"><div className="character-filters">
             <label>Region<select value={filters.part} onChange={event => chooseRegion(event.target.value)}><option value="">All regions</option>{Object.entries(catalog.parts).map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
             <label>Side<select value={filters.side} onChange={event => setFilters(value => ({ ...value, side: event.target.value }))}><option value="">All sides</option>{Object.entries(catalog.sides).map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
             <label>View<select value={filters.view} onChange={event => setFilters(value => ({ ...value, view: event.target.value }))}><option value="">All viewing angles</option>{Object.entries(catalog.views).map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
             <label>Review state<select value={filters.state} onChange={event => setFilters(value => ({ ...value, state: event.target.value }))}><option value="">All selections</option><option value="pending">Not yet reviewed</option><option value="accepted">Accepted</option><option value="rejected">Rejected</option></select></label>
           </div><label className="character-inline-check"><input type="checkbox" checked={onlySource} onChange={event => setOnlySource(event.target.checked)} />Current source image only</label>
             <div className="character-actions"><button disabled={!visible.length} onClick={() => setSelected(new Set(visible.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map(item => item.id)))}>Select this page</button><button disabled={!selected.size} onClick={() => setSelected(new Set())}>Clear selection</button><button disabled={disabled || running || !selected.size} onClick={()=>removeSelections([...selected])}>Remove selected from view</button><span>{selected.size} selected · {visible.length} matching</span>{["accepted", "rejected", "pending"].map(state => <button key={state} disabled={disabled || !selected.size} onClick={() => decide(state)}>{state === "accepted" ? "Accept" : state === "rejected" ? "Reject" : "Review later"}</button>)}</div>
-            <div className="character-selection-grid">{visible.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map(item => <article key={item.id} className={`character-tile ${item.state} ${item.id === focusId ? "focus-reference" : ""}`}>
+            </ScrollToolbar><div className="character-selection-grid">{visible.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map(item => <article key={item.id} className={`character-tile ${item.state} ${item.id === focusId ? "focus-reference" : ""}`}>
               <label className="character-tile-select"><input type="checkbox" aria-label={`Select ${catalog.parts[item.part]} ${item.detail}`} checked={selected.has(item.id)} onMouseDown={preventSelectionText} onClick={event => regionRange.toggle(item.id,event)} onChange={() => {}} /><span>{item.state === "pending" ? "Unreviewed" : item.state}</span></label>
               <button className="character-tile-image" type="button" onMouseDown={preventSelectionText} onClick={event => hasSelectionModifier(event) ? regionRange.toggle(item.id,event) : setEditor(item)} aria-label={`Review ${catalog.parts[item.part]} ${item.detail}`}><ImageThumbnail src={api.cropUrl(datasetId, item.id, dataset.revision)} alt={`${catalog.parts[item.part]} crop`} loading="lazy" /></button>
               {selected.has(item.id) && <MediaCardActions image={{ id: item.id, name: `${catalog.parts[item.part]} ${item.detail} crop`, url: api.cropUrl(datasetId, item.id, dataset.revision) }} />}

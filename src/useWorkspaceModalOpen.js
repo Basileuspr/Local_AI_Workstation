@@ -5,10 +5,11 @@ import {useEffect,useState} from 'react';
 export function useWorkspaceModalOpen() {
   const [open,setOpen]=useState(false);
   useEffect(()=>{
-    const update=()=>setOpen([...document.querySelectorAll('dialog[open], .disclosure-panel:not([hidden])')].some(node=>node.getClientRects().length>0));
+    const update=()=>setOpen([...document.querySelectorAll('dialog[open], .disclosure-panel:not([hidden]), [popover]:popover-open')].some(node=>node.getClientRects().length>0));
     const observer=new MutationObserver(update);
     observer.observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['open','hidden']});
-    update();return ()=>observer.disconnect();
+    document.addEventListener('toggle', update, true);
+    update();return ()=>{observer.disconnect();document.removeEventListener('toggle',update,true);};
   },[]);
   return open;
 }

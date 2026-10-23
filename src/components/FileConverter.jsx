@@ -1,3 +1,4 @@
+import ScrollToolbar from './ScrollToolbar';
 import { useRef, useState } from "react";
 import {useImageRemoval} from './ImageRemovalControls';
 import { apiUrl } from "../api";
@@ -44,11 +45,11 @@ export default function FileConverter() {
   }
   return <section className="tools-workspace" onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();if(!busy)setFiles(Array.from(e.dataTransfer.files));}}>
     <header className="tools-heading"><h1>File Converter</h1><p>Still images up to 100 MB and 24 megapixels each.</p></header>
-    <div className="tools-toolbar"><button disabled={busy} onClick={()=>input.current.click()}>Choose images</button><input ref={input} hidden multiple type="file" accept="image/*" onChange={e=>{setFiles(Array.from(e.target.files));e.target.value="";}} />
+    <ScrollToolbar as="div" label="Conversion controls" className="tools-toolbar"><button disabled={busy} onClick={()=>input.current.click()}>Choose images</button><input ref={input} hidden multiple type="file" accept="image/*" onChange={e=>{setFiles(Array.from(e.target.files));e.target.value="";}} />
       <label>Convert to <select disabled={busy} value={target} onChange={e=>setTarget(e.target.value)}>{["png","jpg","webp","bmp","tiff","ico"].map(format=><option key={format} value={format}>{format.toUpperCase()}</option>)}</select></label>
       {target === 'ico' && <><label>Largest icon size<select aria-label="Largest icon size" disabled={busy} value={iconSize} onChange={event => setIconSize(Number(event.target.value))}>{[16,24,32,48,64,128,256].map(size => <option key={size} value={size}>{size} × {size}</option>)}</select></label><label>Icon fit<select aria-label="Icon fit" disabled={busy} value={iconFit} onChange={event => setIconFit(event.target.value)}><option value="contain">Fit · transparent padding</option><option value="cover">Fill · crop edges</option></select></label></>}
       <button disabled={busy||!files.length} onClick={convert}>Convert {files.length || ""} file{files.length===1?"":"s"}</button>
-    </div>
+    </ScrollToolbar>
     {target === 'ico' && <p>Creates a Windows ICO with smaller icon sizes included. Fit keeps the entire image; Fill makes it occupy the square. Small inputs are enlarged to the selected size.</p>}
 
     {files.length > 0 && <ThumbnailRetryButton />}

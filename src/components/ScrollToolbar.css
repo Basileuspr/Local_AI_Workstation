@@ -1,0 +1,26 @@
+.scroll-toolbar.scroll-toolbar {
+  position: sticky;
+  top: var(--toolbar-top, 0px);
+  z-index: 12;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  max-height: var(--toolbar-limit, 40vh);
+  overflow: auto;
+  background: var(--bg-card, var(--bg, #20232b));
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px;
+  margin-block: 0 12px;
+  box-shadow: 0 3px 8px #0002;
+  scrollbar-gutter: stable;
+}
+.scroll-toolbar:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.scroll-toolbar > :first-child { margin-top: 0; }
+.scroll-toolbar > :last-child { margin-bottom: 0; }
+.scroll-toolbar .image-library-folder-menu > div { position: static; }
+.scroll-toolbar .ie-export { color: var(--accent); border-color: var(--accent); }
+.scroll-toolbar .sm-record-actions { margin: 0; }
+.scroll-toolbar .sm-board-toolbar { margin-block: 6px 0; }

@@ -1,3 +1,5 @@
+import ScrollToolbar from './ScrollToolbar';
+import {confirmAction} from '../confirmAction';
 import {preventSelectionText} from '../fileSelection';
 import ImageThumbnail from "./ImageThumbnail";
 import ProtectedImage from "../ImagePrivacy";
@@ -96,7 +98,7 @@ export default function ImageGallery({ images, onOpen, onRemove, onDelete, onIma
   const workspace = <section className="image-library-workspace" aria-label="Image library" data-density={compact ? "compact" : "comfortable"}>
     <header className="image-library-header"><div><p className="image-library-eyebrow">Image library</p><h1>{title}</h1></div>
       </header>
-    <div className="image-library-toolbar">
+    <ScrollToolbar as="div" label="Gallery controls" className="image-library-toolbar">
       <button type="button" className="stitcher-launch" aria-pressed={stitcher.enabled} disabled={stitcher.busy} onClick={() => stitcher.setEnabled(!stitcher.enabled)}>Image stitcher{stitcher.frames.length ? ` (${stitcher.frames.length})` : ''}</button>
       <button type="button" disabled={!destinations} onClick={() => destinations.openGifMaker()}>GIF Maker</button>
       <label className="image-library-mobile-collection">Collection<select aria-label="Image collection" value={folder} onChange={event => chooseFolder(event.target.value)}>
@@ -110,11 +112,11 @@ export default function ImageGallery({ images, onOpen, onRemove, onDelete, onIma
       </div>
       {selectedFolder && <details className="image-library-folder-menu" ref={folderMenu} open={folderMenuOpen} onToggle={event => setFolderMenuOpen(event.currentTarget.open)}><summary>Folder options</summary><div>
         <button type="button" onClick={() => { setFolderMenuOpen(false); setFolderEditor(selectedFolder); }}>Rename folder</button><button type="button" onClick={async () => {
-          if (!window.confirm(`Delete folder "${selectedFolder.name}"? Its images stay in Saved Images.`)) return;
+          if (!await confirmAction(`Delete folder "${selectedFolder.name}"? Its images stay in Saved Images.`)) return;
           try { await libraryApi.deleteFolder(selectedFolder.id); chooseFolder("saved"); libraryApi.changed(); } catch (failure) { setError(failure.message); }
         }}>Delete folder</button>
       </div></details>}
-    </div>
+    </ScrollToolbar>
     {(error || library.error) && <p role="alert">{error || library.error}</p>}
     <ImageStitcher stitcher={stitcher} active={active} />
     {folder === 'review' && <ImageReview active={active} />}
@@ -131,7 +133,7 @@ export default function ImageGallery({ images, onOpen, onRemove, onDelete, onIma
     {folderEditor && <FolderEditor folder={folderEditor.id ? folderEditor : null} onClose={() => setFolderEditor(null)} onSaved={saved => { setFolderEditor(null); setFolder(`folder:${saved.id}`); }} />}
     {filing && <FileImagesDialog images={filing} folders={library.folders} onClose={() => setFiling(null)} />}
     <div hidden={!["general", "hidden"].includes(folder)}>
-    <div className="collection-toolbar image-library-results">
+    <ScrollToolbar as="div" label="Gallery selection controls" className="collection-toolbar image-library-results">
       <span className="image-library-result-count">{filtered.length} {query ? "matching " : ""}image{filtered.length === 1 ? "" : "s"}</span>
       <CollectionPager label="images" page={currentPage} pages={pages} onChange={setPage} />
       <BulkActions selection={selection} items={filtered} label="images" batch={batch} actions={[
@@ -142,7 +144,7 @@ export default function ImageGallery({ images, onOpen, onRemove, onDelete, onIma
         {label:"Lock selected images", onClick:lockImages},
         {label:"Delete selected images", danger:true, onClick:items => removeSelected(items, true)},
       ]} />
-    </div>
+    </ScrollToolbar>
     {!filtered.length && <div className="image-library-empty"><strong>{query ? "No matching images" : hidden ? "No hidden images" : "Your images, in one place"}</strong>
       <p>{query ? "Try another image name or chat title." : hidden ? "Images you hide from the gallery will appear here." : "Images uploaded or generated in chats will appear here. Choose Workflow Images to browse completed workflow runs."}</p>
       {query && <button type="button" onClick={() => setQuery("")}>Clear search</button>}</div>}

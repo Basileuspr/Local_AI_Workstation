@@ -5,6 +5,7 @@ const { spawn } = require("node:child_process");
 const { randomUUID } = require("node:crypto");
 const { snapshotDocument } = require("./captureSnapshot");
 const {createNativeMixer} = require('./soundMixer');
+const {placeBrowserView} = require('./browserPlacement');
 
 function childEnvironment(environment) {
     const allowed = /^(path|pathext|systemroot|windir|comspec|temp|tmp|userprofile|appdata|localappdata|programfiles|programfiles\(x86\)|programdata|homedrive|homepath|home|lang)$/i;
@@ -24,25 +25,14 @@ function createMediaManager({ WebContentsView, session, getWindow, python, direc
     let child = null, view = null, pending = null, origin = null, disposed = false, failure = null;
     let placement = { visible: false };
 
-    function hide() {
-        view?.setVisible(false);
-    }
     function place(value) {
         placement = value || { visible: false };
         if (!view || view.webContents.isDestroyed()) return;
-        const window = getWindow();
-        const bounds = placement.bounds;
-        if (!window || !placement.visible || !bounds || ![bounds.x, bounds.y, bounds.width, bounds.height].every(Number.isFinite)) { hide(); return; }
-        const [width, height] = window.getContentSize();
-        const scale = window.webContents.getZoomFactor();
-        const x = Math.max(0, Math.round(bounds.x * scale)), y = Math.max(0, Math.round(bounds.y * scale));
-        const w = Math.min(width - x, Math.round(bounds.width * scale)), h = Math.min(height - y, Math.round(bounds.height * scale));
-        if (w <= 0 || h <= 0) { hide(); return; }
-        view.setBounds({ x, y, width: w, height: h });
-        view.setVisible(true);
+        placeBrowserView(view, getWindow(), placement);
     }
     function closeView() {
         if (!view) return;
+        if (!view.webContents.isDestroyed()) placeBrowserView(view, getWindow(), {visible:false});
         getWindow()?.contentView.removeChildView(view);
         if (!view.webContents.isDestroyed()) view.webContents.close();
         view = null;
