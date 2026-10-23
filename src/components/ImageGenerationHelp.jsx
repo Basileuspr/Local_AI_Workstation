@@ -53,7 +53,7 @@ const scales = [
   },
   {
     title: "Width & height · canvas size",
-    description: "Choose an aspect ratio and resolution, or enter dimensions in multiples of 8. Hardware determines the upper limit. Allow longer waits unlocks larger sizes with slower memory-saving offload; it cannot guarantee that every request fits.",
+    description: "Choose an aspect ratio and resolution, or enter dimensions in multiples of 8 for SDXL or 16 for Verboa. Hardware determines the upper limit. Allow longer waits unlocks larger sizes with slower memory-saving offload; it cannot guarantee that every request fits.",
     rows: [
       ["256–512 · Draft", "Small canvases are faster but may lose detail or composition quality."],
       ["1024 × 1024 · Default", "A square canvas at the app's default size."],
@@ -90,8 +90,8 @@ export default function ImageGenerationHelp() {
             <div><dt>Seed</dt><dd>Blank picks a random seed. A fixed number helps repeat a comparison with the same settings and environment. Seed 20 is not stronger than seed 5.</dd></div>
             <div><dt>Image model & LoRA adapter</dt><dd>The model supplies the base visual behavior; an adapter adds learned features. Choose a model first, then an adapter trained for it. Names are not a potency ranking.</dd></div>
             <div><dt>Prompt & negative prompt</dt><dd>Prompt describes what you want, such as “soft morning light.” Negative prompt describes what to discourage, such as “text, watermark.” More words do not necessarily mean more control.</dd></div>
-            <div><dt>Long-prompt encoding</dt><dd>On allows up to four token chunks; off uses the native token window and truncates excess text. This controls prompt capacity, not strength.</dd></div>
-            <div><dt>Built-in & custom profiles</dt><dd>Built-in profiles adjust chat behavior. Custom profiles save both image and chat settings; changes autosave while a custom profile is selected.</dd></div>
+            <div><dt>Long-prompt encoding</dt><dd>For SDXL, On allows up to four token chunks; Off uses the native token window and truncates excess text. Verboa uses its native token window without chunking and rejects an overlong prompt or negative prompt. Check the selected model’s token counts and shorten text when needed. This controls prompt capacity, not strength.</dd></div>
+            <div><dt>Built-in & custom profiles</dt><dd>Built-in profiles replace chat settings and the system prompt. Custom image profiles save only prompt, negative prompt, steps, guidance and seed. Click Update to save changes to a selected image profile. Applying it keeps model, size, LoRA and chat settings.</dd></div>
             <div><dt>Tab options → Reset defaults</dt><dd>Clears both prompts, model, adapter, profile selections, seed and the current preview. Restores {defaultImageSettings.width} × {defaultImageSettings.height}, {defaultImageSettings.steps} steps, guidance {defaultImageSettings.guidanceScale}, adapter strength {defaultImageSettings.loraScale}, and long-prompt encoding on. Saved profiles, images and chats remain available. Stop an active generation before resetting.</dd></div>
           </dl>
         </section>

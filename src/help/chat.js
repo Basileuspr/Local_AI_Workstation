@@ -28,7 +28,7 @@ export const chatHelp = [
     ['Checklists', 'Edit checklist items in an assistant message and save to retain the change history. Other text in that message is preserved.'],
   ]],
   ['Chat options and memory', [
-    ['Response length', 'Select a token preset or enter an exact Maximum output tokens value from 1 to 32,768. Automatic uses up to 2,048 tokens. The backend caps output at half the effective context window and may reduce it further for a large prompt. Thinking shares this cap with the visible answer. Models can stop early; tokens are not words. Each tool round has its own cap; document, Canvas and OCR tasks use separate budgets.'],
+    ['Response length', 'Select a token preset or enter an exact Maximum output tokens value from 1 to 32,768. Automatic uses up to 2,048 tokens. The backend caps output at half the effective context window and may reduce it further for a large prompt. Thinking shares this cap with the visible answer. Models can stop early; tokens are not words. Each tool round has its own cap; document and OCR tasks use separate budgets.'],
     ['Knowledge', 'Off supplies no Knowledge excerpts. All searches the available index; Selected searches only your chosen documents. At most five relevant excerpts are supplied within the context budget.'],
     ['Context estimate', 'Estimates text, image and message tokens conservatively. Counts before sending are estimates, not exact tokenization. Provider counts describe the processed request. The backend bounds each request and reserves room for its reply.'],
     ['Context budget details', 'Breaks down system instructions, rolling summary, recent messages and reserves. Last request reports the processed request’s counts when available. Saved history is preserved.'],
@@ -74,7 +74,7 @@ export const chatHelp = [
     ['Image conversion', 'An explicit conversion request for an attached image can run the app’s local image converter. The original stays unchanged.'],
     ['/docx', 'Describe a document after /docx and Send to create a Word document through the app’s document flow.'],
     ['/docx append', 'Add another section to the latest Word document in this chat. Add to document on an attachment selects that document; describe only the new content and Send. Each reply includes a new version with the earlier content preserved.'],
-    ['Canvas', 'Explicit canvas or whiteboard requests can use the app’s structured canvas editing flow. Selected objects are supplied, or the whole canvas when none are selected.'],
+    ['Canvas', 'Open Canvas (Paint) and choose Use in chat to stage a removable PNG of the current artwork. Send it with a question to a vision-capable model. Chat does not edit Paint layers or selected objects.'],
     ['Internet import', 'Explicitly imports one public HTTP(S) page and available images into a saved source. A new chat receives bounded extracted text with attribution; text inside images is not read automatically.'],
     ['Import limits', 'Web imports are spaced at least 10 seconds apart, limited to 30 requests per hour, and cached for 24 hours. Images count toward the limits; local and private-network addresses are refused.'],
     ['Audio transcription', 'Record or upload audio, transcribe, review the text, then explicitly insert it into your message. Transcribing alone does not send a chat message.'],

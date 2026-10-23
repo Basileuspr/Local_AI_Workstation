@@ -106,7 +106,7 @@ export const fileToolHelp = {
   markdown: [['Text and preview', [
     ['Plain Text', 'Paste or edit the Markdown source.'],
     ['Show Markdown', 'Renders headings, lists, code blocks and other supported Markdown from your current text.'],
-    ['Copy / Save', 'Copies or downloads the current text using the available controls.'],
+    ['Copy text', 'Select text in Plain Text and use Ctrl+C to copy it. Paste into a text editor to save a .md file.'],
     ['Draft lifetime', 'Text stays while switching workspaces. Refreshing or closing the app clears this draft.'],
   ]]],
   spreadsheets: [['CSV controls', [

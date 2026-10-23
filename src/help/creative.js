@@ -51,10 +51,10 @@ export const creativeHelp = {
     ['Plan the next frame', 'Choose an installed Ollama model and describe your intention. Propose visual actions shows concrete before/after changes and uncertainties without modifying the scene. Select actions and Apply reviewed actions, then generate separately. Completed proposals are saved; edited scenes require a new plan. Stop planning cancels local inference.'],
     ['New scene / starting image', 'Saves character, camera, lighting, pose and object state. Generate the first frame from text or attach an image.'],
     ['Scene options', 'Contains Reload saved and Refresh models and characters. Reload still asks before discarding unsaved changes.'],
-    ['State fields', 'Edits save automatically. Change the fields for the next frame; other details carry forward. Natural-language action planning is not implemented.'],
+    ['State fields', 'Edits save automatically. Change the fields for the next frame; other details carry forward. Plan the next frame can propose changes from a written intention. Review and apply the selected actions before generating.'],
     ['Character references', 'Copies the profile’s chosen references for review. This adapter conditions on the previous frame and text; it does not use a face adapter.'],
     ['Object state / JSON', 'Retain object identity while changing placement or contact. Applying edited JSON validates before replacing saved state.'],
-    ['Denoising / Generate', 'Denoising applies when a source is selected. Generation needs the local SDXL CUDA runtime and supports up to 1024 × 1024. Review identity, hands and objects after each frame.'],
+    ['Denoising / Generate', 'Denoising applies when a source is selected. Generation needs the local SDXL CUDA runtime. Dimensions use multiples of 8 within detected hardware limits. Allow longer waits for larger images unlocks the extended range, up to 2048 pixels per side; a large request can still run out of memory. Review identity, hands and objects after each frame.'],
     ['Choose frame / regenerate / branch', 'Restores the frame’s state, restores original inputs for another run, or makes a separate branch. Earlier frames remain saved.'],
   ]]],
   lora: [['Preparation workflow', [

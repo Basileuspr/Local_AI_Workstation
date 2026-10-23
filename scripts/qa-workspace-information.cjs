@@ -19,22 +19,25 @@ app.whenReady().then(async()=>{
   const capture=async name=>{for(let i=0;i<3;i++){win.webContents.invalidate();await sleep(140);}fs.writeFileSync(path.join(work,name),(await win.webContents.capturePage(undefined,{stayHidden:true,stayAwake:true})).toPNG());};
   await win.loadURL('app://local/tests/fixtures/workspaceInfo.html');
   await until(`!!document.querySelector('nav[aria-label="Preview workspaces"]')`,'fixture');
-  const tabs=await js(`[...document.querySelectorAll('nav[aria-label="Preview workspaces"] button')].map(b=>b.textContent).filter(t=>t!=="Pin reference in preview")`);
-  assert.equal(tabs.length,34);
-  for(const label of tabs){
-    await js(`[...document.querySelectorAll('nav[aria-label="Preview workspaces"] button')].find(b=>b.textContent===${JSON.stringify(label)}).click()`);
-    await until(`document.querySelector('.workspace-navigation .workspace-info-button')?.getAttribute('aria-label')===${JSON.stringify((label==='Chat'?'Chats':label)+' information')}`,label);
+  const tabs=await js(`[...document.querySelectorAll('nav[aria-label="Preview workspaces"] button[data-workspace-id]')].map(b=>({id:b.dataset.workspaceId,label:b.textContent}))`);
+  const panes=await js(`[...document.querySelectorAll('[data-capture-tab]')].map(p=>p.dataset.captureTab)`);
+  assert(tabs.length>0,'Registered workspaces are present');
+  assert.equal(new Set(tabs.map(tab=>tab.id)).size,tabs.length,'Workspace controls are unique');
+  assert.deepEqual(tabs.map(tab=>tab.id).sort(),panes.sort(),'Every fixture workspace has a navigation control');
+  for(const {id,label} of tabs){
+    await js(`[...document.querySelectorAll('nav[aria-label="Preview workspaces"] button[data-workspace-id]')].find(b=>b.dataset.workspaceId===${JSON.stringify(id)}).click()`);
+    await until(`document.querySelector('.workspace-navigation .workspace-info-button')?.getAttribute('aria-label')===${JSON.stringify((id==='chats'?'Chats':label)+' information')}`,label);
     await js("document.querySelector('.workspace-navigation .workspace-info-button').click()");
     const result=await js(`(()=>{const d=document.querySelector('.workspace-navigation .workspace-info-dialog');return {open:d.open,paragraphs:d.querySelectorAll('p').length,entries:d.querySelectorAll('dt').length,text:d.innerText,overflow:d.scrollWidth>d.clientWidth+1};})()`);
     assert(result.open,label);assert.equal(result.paragraphs,0,label);assert(result.entries>15,label);assert(!result.overflow,label);
-    if(label==='Chat'){for(const term of ['Chat model','Temperature','Tools and tool calls','Automatic tool execution is not connected'])assert(result.text.includes(term));await capture('chat-information.png');}
-    if(label==='Image Manager'){assert(result.text.includes('Name / Save name'));await capture('image-manager-information.png');}
-    if(label==='Media Manager')assert(await js('document.body.textContent.includes("Embedded view covered by dialog")'));
+    if(id==='chats'){for(const term of ['Chat model','Temperature','Tools and tool calls','Enable Local model tool use','Actions that change data require review'])assert(result.text.includes(term),`Chat guide: ${term}`);await capture('chat-information.png');}
+    if(id==='image-manager'){assert(result.text.includes('Name / Save name'));await capture('image-manager-information.png');}
+    if(id==='media-manager')assert(await js('document.body.textContent.includes("Embedded view covered by dialog")'));
     await js("document.querySelector('.workspace-navigation .workspace-info-heading button').click()");
     await until("document.activeElement===document.querySelector('.workspace-navigation .workspace-info-button')",'return focus');
   }
-  checks.push('All 34 real AppLayout information buttons open their scoped guides with individual entries, no paragraph blocks, no horizontal overflow, and focus restoration');
-  await js("[...document.querySelectorAll('nav[aria-label=\"Preview workspaces\"] button')].find(b=>b.textContent==='Chat').click()");
+  checks.push(`All ${tabs.length} real AppLayout information buttons open their scoped guides with individual entries, no paragraph blocks, no horizontal overflow, and focus restoration`);
+  await js("document.querySelector('nav[aria-label=\"Preview workspaces\"] button[data-workspace-id=\"chats\"]').click()");
   await until("document.querySelector('.workspace-navigation .workspace-info-button')?.getAttribute('aria-label')==='Chats information'",'chat');
   await js("document.querySelector('[aria-label=\"chats draft\"]').value='Keep this neutral draft';document.querySelector('.workspace-navigation .workspace-info-button').click()");
   win.webContents.sendInputEvent({type:'keyDown',keyCode:'Escape'});win.webContents.sendInputEvent({type:'keyUp',keyCode:'Escape'});

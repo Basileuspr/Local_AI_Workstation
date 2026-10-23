@@ -80,7 +80,7 @@ const overview = {
   },
   review: {
     purpose: "Classify images with ratings, tags, captions, local face grouping, and optional scene analysis, then file them into Gallery folders.",
-    example: "Upload images, choose Review image, save a caption and tags, then use Add to folder. For face or scene grouping, open Review & classify and select available local models.",
+    example: "Upload images, choose Start review, and edit captions and tags. Done & next marks an image reviewed while keeping any existing rating. Open People & scenes for grouping and classification. To file copies, use Select images → More actions → Add selected to folder, then Apply.",
   },
   "image-editor": {
     purpose: "Crop, rotate and adjust an image locally, then save an edited copy.",

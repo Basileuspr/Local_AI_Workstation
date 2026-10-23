@@ -1,8 +1,8 @@
 export const workstationHelp = {
   library: [['Index controls', [
-    ['Search / category / tags', 'Find saved prompt and reference entries by their content and organization.'],
+    ['Search Index', 'Search saved entries by title, content, Saved from / purpose or tags. Matching entries appear as cards.'],
     ['Select / Copy', 'Select an entry to inspect it and copy its text for reuse.'],
-    ['New / edit entry', 'Saves authored content and its category or tags.'],
+    ['Add entry / Edit', 'Set Title, Saved from / purpose, comma-separated Tags and Content, then choose Save entry.'],
     ['Knowledge connections', 'Links an Index entry to Knowledge documents through explicit connections.'],
   ]]],
   knowledge: [['Documents and retrieval', [

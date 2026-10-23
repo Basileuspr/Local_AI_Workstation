@@ -28,7 +28,7 @@ function Fixture() {
   const [tab, setTab] = useState("shortcuts"), [pinned, setPinned] = useState(null);
   return <AppLayout activeTab={tab} pinnedTab={pinned} pinnedTitle={appTabLabels[pinned]} onUnpin={() => setPinned(null)} onRefresh={() => {}}
     sidebar={() => <nav style={{padding:12,overflowY:"auto",height:"100%"}} aria-label="Preview workspaces">
-      {appTabs.map(id => <button key={id} type="button" style={{display:"block",marginBottom:5}} onClick={() => setTab(id)}>{appTabLabels[id]}</button>)}
+      {appTabs.map(id => <button key={id} type="button" data-workspace-id={id} style={{display:"block",marginBottom:5}} onClick={() => setTab(id)}>{appTabLabels[id]}</button>)}
       <button type="button" onClick={() => {setPinned("shortcuts");setTab("chats");}}>Pin reference in preview</button>
     </nav>}>
     {appTabs.map(id => <div key={id} data-capture-tab={id} className="tab-content" style={{display:id === tab || (tab === "chats" && pinned === id) ? "flex" : "none",overflow:"auto"}}>
