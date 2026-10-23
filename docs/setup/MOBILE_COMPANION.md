@@ -73,6 +73,38 @@ to share a local service within the private tailnet. Its separate
 explains certificate-name disclosure. VPN account setup and actual device/network
 reachability require verification on your devices.
 
+### Android Tailscale connection helper
+
+The separately packaged **Workstation Companion 0.3.0** Android shell adds
+**Connect Tailscale automatically**, enabled by default and saved on the phone.
+For a saved `.ts.net` desktop address, opening or returning to Companion opens
+Tailscale and requests connection when no VPN is active. Return to Companion
+after it connects. Sign in and approve the initial VPN prompt in Tailscale when
+required. An active VPN is left alone; Companion cannot identify its owner.
+
+The native connection menu, Connection settings and failed-page dialog also
+offer **Connect Tailscale**, including while the desktop is unreachable. With
+an active or unknown VPN, the manual action opens Tailscale's own controls.
+If Tailscale is missing, the app offers installation help. Disable automatic
+connection in the native menu or Connection settings to manage it yourself.
+
+After returning, a main page that failed for a network reason retries at most
+three times within 20 seconds while a VPN is present. A loaded phone interface
+keeps its drafts and requests fresh data using its existing foreground behavior.
+Failed automatic attempts do not repeatedly reopen Tailscale in the same activity,
+and cold starts have a one-minute cooldown. This is a foreground helper, not an
+always-on VPN service, and a VPN transport does not prove desktop reachability.
+
+The helper uses Tailscale's explicit
+[CONNECT_VPN receiver](https://github.com/tailscale/tailscale-android/blob/main/android/src/main/java/com/tailscale/ipn/IPNReceiver.java).
+It sends no desktop address, credentials or invitation code. Tailscale retains
+its sign-in and Android VPN-consent checks; no permission is bypassed. The native
+shell adds only visibility of Tailscale's package, with no new Android permission.
+Install this signed APK over the existing app to retain its address and pairing;
+do not uninstall first. Native changes require an APK upgrade and are not delivered
+by the desktop's **Update phone app** web-interface button. Automated build checks
+do not verify installation, intent delivery or VPN behavior on a physical phone.
+
 ### Direct private LAN HTTPS
 
 Use a specific private IPv4 address, an unused port, and certificate/private-key
