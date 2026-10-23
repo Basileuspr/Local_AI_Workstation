@@ -1,7 +1,14 @@
 .chat-conversation {
+  --chat-content-width: calc(var(--chat-width, 800px) - 80px);
   display: flex; flex-direction: column; flex: 1 0 280px; min-width: 0;
-  width: calc(100% - 48px); max-width: 800px; margin: 20px auto;
+  width: calc(100% - 48px); max-width: var(--chat-width, 800px); margin: 20px auto;
   background: var(--bg-surface); border: 1px solid var(--border); border-radius: 14px;
+}
+.chat-conversation :is(.message, .message-wrapper, .checklist-status, .chat-upload-control,
+  .chat-composer-tools, .chat-edit-selection, .chat-document-target, .chat-import-progress),
+.chat-conversation :is(#input-row, #input-row-secondary),
+.chat-conversation :is(#input-area, #input-area-secondary) > .queue-request-status {
+  max-width: var(--chat-content-width);
 }
 .chat-conversation :is(#messages, #messages-secondary) { padding-block: 24px; gap: 20px; }
 .chat-conversation :is(#input-area, #input-area-secondary) { border-radius: 0 0 13px 13px; }

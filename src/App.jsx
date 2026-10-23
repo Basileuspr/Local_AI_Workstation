@@ -134,6 +134,7 @@ function AppInner() {
     savePreferences(pickPreferences(state));
   }, [
     state.appearance,
+    state.chatWidth,
     state.startupBehavior,
     state.activeProfile,
     state.temperature,

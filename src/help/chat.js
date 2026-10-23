@@ -1,6 +1,6 @@
 export const chatHelp = [
   ['Transcript navigation', [
-    ['Conversation area', 'On large screens, messages and the composer share a centered conversation area with subtle edges and space on either side. Narrow windows and split panes use the available width. Long replies scroll inside the transcript while the composer stays below it. Each chat has its own area.'],
+    ['Conversation area / Chat width', 'Messages and the composer share a centered area. In Chat options, adjust Chat width from 640 to 1,600 pixels with the slider or arrow keys. Messages and the composer widen together. Reset width restores 800 pixels. The maximum width is remembered for both chats on this computer; narrow windows and split panes fit the available space. Long replies scroll inside the transcript while the composer stays below it.'],
     ['Code blackboard / Copy code', 'Fenced code appears on a dark board with an always-visible Copy code button that stays at the top when the block scrolls. Copy preserves indentation and excludes the fence and language label. Tab to the scrollable board or its copy button; copy success or failure is announced. Works in desktop and phone chat.'],
     ['Pin / Unpin', 'Save a message pin with this conversation. Pinning does not change the message or send it to the model again.'],
     ['Pinned', 'Open the list of pinned messages and choose one to jump to its original position in the transcript.'],

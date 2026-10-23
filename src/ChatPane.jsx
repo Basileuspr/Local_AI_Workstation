@@ -1,4 +1,6 @@
 import { createContext, useContext, useRef, useState } from "react";
+import { useStore } from './useStore';
+import { normalizeChatWidth } from './chatLayout';
 
 const PaneContext = createContext({ id: "primary", label: "Chat A", dual: false, focused: true,
   domId: value => value, focus: () => {} });
@@ -15,12 +17,14 @@ export function DualChatProvider({ children }) {
 
 export function ChatPaneProvider({ id, dual = false, children }) {
   const chats = useDualChat();
+  const width = normalizeChatWidth(useStore()?.chatWidth);
   const focused = !chats || chats.focused === id;
   const value = { id, label: id === "primary" ? "Chat A" : "Chat B", dual, focused,
     domId: name => id === "primary" ? name : `${name}-secondary`,
     focus: () => chats?.setFocused(id) };
   return <PaneContext.Provider value={value}>
     <section className={`chat-session-surface${focused ? " focused-chat" : ""}`} data-chat-pane={id}
+      style={{ '--chat-width': `${width}px` }}
       aria-label={value.label} onFocusCapture={value.focus} onPointerDownCapture={value.focus}>{children}</section>
   </PaneContext.Provider>;
 }

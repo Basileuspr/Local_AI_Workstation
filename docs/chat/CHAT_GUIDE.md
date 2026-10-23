@@ -7,6 +7,11 @@ session. Typing alone does not. Startup normally opens a blank workspace;
 
 ## Compose and control a response
 
+- **Chat options → Chat width** adjusts the centered conversation area from 640
+  to 1,600 pixels. Drag the slider or use its arrow keys; **Reset width** restores
+  800 pixels. Messages and the composer resize together. The maximum width is
+  remembered for both chats on this computer, and smaller panes fit their available
+  space. Long replies scroll above the composer.
 - Enter sends text; use the composer’s image-generation action for an image job.
   The selected chat model and the image model are separate settings.
 - **Response length** accepts an exact limit from 1 to 32,768 tokens. Automatic

@@ -6,6 +6,7 @@ import {audioOutput} from './audioOutput';
 import {defaultMixerSettings, normalizeMixerSettings} from './mixerSettings';
 import { loadStartupNavigation } from "./navigation";
 import { orderModels } from "./modelOrder";
+import { CHAT_WIDTH, normalizeChatWidth } from './chatLayout';
 
 import { normalizeResponseLength, validResponseLength } from './responseBudget';
 import { imageProfileSettings } from "./imageProfiles";
@@ -54,6 +55,7 @@ const initialState = {
 
   // Settings
   appearance: defaultAppearance,
+  chatWidth: CHAT_WIDTH.default,
   settingsOpen: false,
   slidersOpen: false,
   activeProfile: "balanced",
@@ -466,6 +468,9 @@ export function reducer(state, action) {
     case "SET_APPEARANCE":
       return { ...state, appearance: normalizeAppearance({ ...state.appearance, ...action.payload }) };
 
+    case "SET_CHAT_WIDTH":
+      return { ...state, chatWidth: normalizeChatWidth(action.payload) };
+
     case "RESET_APPEARANCE":
       return { ...state, appearance: { ...defaultAppearance } };
 
@@ -545,10 +550,11 @@ export function ChatStoreProvider({ children }) {
     if(action.type === 'RESET_PREFERENCES') {
       parentDispatch({type:'SET_SOUND_OUTPUT',payload:defaultSoundOutput});
       parentDispatch({type:'SET_SOUND_MIXER',payload:defaultMixerSettings});
+      parentDispatch({type:'SET_CHAT_WIDTH',payload:CHAT_WIDTH.default});
       localDispatch(action);return;
     }
     if (["SHOW_TOAST", "SET_SESSIONS", "SESSION_TITLE_UPDATED", "SET_SESSION_IMAGES", "SET_KB_DOCUMENTS", "OPEN_INDEX_ENTRY", "OPEN_KNOWLEDGE_NODE",
-      "OPEN_IMAGE_WORKFLOW", "OPEN_ITERATIVE_SCENE", "SET_ACTIVE_LORA_PROJECT", "SET_APPEARANCE", "RESET_APPEARANCE", "SET_STARTUP_BEHAVIOR", "SET_SOUND_OUTPUT", "SET_SOUND_MIXER"].includes(action.type)
+      "OPEN_IMAGE_WORKFLOW", "OPEN_ITERATIVE_SCENE", "SET_ACTIVE_LORA_PROJECT", "SET_APPEARANCE", "RESET_APPEARANCE", "SET_CHAT_WIDTH", "SET_STARTUP_BEHAVIOR", "SET_SOUND_OUTPUT", "SET_SOUND_MIXER"].includes(action.type)
       || action.type === "SET_SIDEBAR_TAB") parentDispatch(action);
     else localDispatch(action);
   }, [parentDispatch]);
@@ -556,7 +562,7 @@ export function ChatStoreProvider({ children }) {
   const state = { ...local, connected: parent.connected, serviceStatus: parent.serviceStatus,
     modelsError: parent.modelsError, models: orderModels(parent.models, local.modelOrder),
     sessions: parent.sessions, kbDocuments: parent.kbDocuments, sessionImages: parent.sessionImages,
-    appearance: parent.appearance, soundOutput: parent.soundOutput, soundMixer: parent.soundMixer, startupBehavior: parent.startupBehavior, activeSidebarTab: parent.activeSidebarTab };
+    appearance: parent.appearance, chatWidth: parent.chatWidth, soundOutput: parent.soundOutput, soundMixer: parent.soundMixer, startupBehavior: parent.startupBehavior, activeSidebarTab: parent.activeSidebarTab };
   return <StoreContext.Provider value={state}><DispatchContext.Provider value={dispatch}>
     <RefsContext.Provider value={refs.current}>{children}</RefsContext.Provider>
   </DispatchContext.Provider></StoreContext.Provider>;

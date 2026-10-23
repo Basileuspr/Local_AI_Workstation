@@ -12,6 +12,12 @@
 .chat-option-group p { font-size: 12px; line-height: 1.5; color: var(--text-dim); }
 .chat-option-group label { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .chat-option-group > label select { flex: 1; }
+.chat-width-control { display: grid; gap: 6px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.chat-width-control label { justify-content: space-between; }
+.chat-width-control output { color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.chat-width-control input[type=range] { width: 100%; min-height: 32px; cursor: pointer; }
+.chat-width-control input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.chat-width-control button { justify-self: start; }
 .chat-options .model-order-control { display: block; }
 .chat-options :is(button, :is(#settings-toggle, #settings-toggle-secondary), :is(#response-length, #response-length-secondary)) { font: 12px var(--font-body); padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-input); color: var(--text); text-align: left; cursor: pointer; }
 .chat-options button:disabled { opacity: .45; cursor: default; }

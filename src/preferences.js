@@ -1,4 +1,5 @@
 import { normalizeResponseLength } from './responseBudget';
+import { CHAT_WIDTH, normalizeChatWidth } from './chatLayout';
 import { defaultRoleplayConfig, mergeRoleplayConfig } from "./roleplayPrompt";
 import { defaultAppearance, normalizeAppearance } from "./appearance";
 import {defaultMixerSettings, normalizeMixerSettings} from './mixerSettings';
@@ -39,6 +40,7 @@ export function normalizeVoiceOutput(value = {}) {
 const DEFAULT_PREFERENCES = {
   startupBehavior: "new",
   appearance: defaultAppearance,
+  chatWidth: CHAT_WIDTH.default,
   activeProfile: "balanced",
   temperature: 0.7,
   topP: 0.9,
@@ -82,6 +84,7 @@ export function loadPreferences() {
         responseLength: normalizeResponseLength(saved.responseLength ?? saved.numPredict),
         numPredict: normalizeResponseLength(saved.responseLength ?? saved.numPredict),
         appearance: normalizeAppearance(saved.appearance),
+        chatWidth: normalizeChatWidth(saved.chatWidth),
         roleplay: mergeRoleplayConfig(saved.roleplay),
         imageSettings: { ...defaultImageSettings, ...(saved.imageSettings || {}) },
         voiceOutput: normalizeVoiceOutput(saved.voiceOutput),
@@ -114,6 +117,7 @@ export function pickPreferences(state) {
   return {
     startupBehavior: state.startupBehavior === "resume" ? "resume" : "new",
     appearance: normalizeAppearance(state.appearance),
+    chatWidth: normalizeChatWidth(state.chatWidth),
     activeProfile: state.activeProfile,
     temperature: state.temperature,
     topP: state.topP,

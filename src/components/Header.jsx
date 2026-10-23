@@ -9,6 +9,7 @@ import { useChatPane } from "../ChatPane";
 import { useChatActivities } from "./ChatActivityNotice";
 import { saveChatModelChoice } from "../chatModelChoices";
 import ResponseLengthControl from './ResponseLengthControl';
+import ChatWidthControl from './ChatWidthControl';
 import ModelOrder from "./ModelOrder";
 import KnowledgeContext from "./KnowledgeContext";
 import ThinkingTrace from "./ThinkingTrace";
@@ -147,7 +148,7 @@ export default function Header({ onSessionRenamed, onCompactMemory }) {
       </span>}
       <DisclosurePanel label="Chat options" className="chat-options"
         indicator={influencePlan.warnings.length ? "!" : null}
-        title={`Response length, Knowledge, model settings, context, thinking, rename, and exports. Roleplay ${influencePlan.summary.roleplay?.name || 'off'}; Knowledge ${influencePlan.summary.knowledge}; saved memories ${influencePlan.useDurableMemory ? 'on' : 'off'}.${influencePlan.warnings.length ? ` ${influencePlan.warnings.length} potential instruction overlaps.` : ''}`}>
+        title={`Chat width, response length, Knowledge, model settings, context, thinking, rename, and exports. Roleplay ${influencePlan.summary.roleplay?.name || 'off'}; Knowledge ${influencePlan.summary.knowledge}; saved memories ${influencePlan.useDurableMemory ? 'on' : 'off'}.${influencePlan.warnings.length ? ` ${influencePlan.warnings.length} potential instruction overlaps.` : ''}`}>
         {close => <>
           <div className="chat-options-grid">
             <section className="chat-option-group" aria-label="Response options">
@@ -165,6 +166,7 @@ export default function Header({ onSessionRenamed, onCompactMemory }) {
             </section>
             <section className="chat-option-group" aria-label="Conversation options">
               <h3>Conversation</h3>
+              <ChatWidthControl />
               <div className={`context-meter ${contextStatus.className}`}
                 title={`Estimated prompt context: ${Math.round(contextUsage.promptTokens)} of ${Math.round(contextUsage.usableInputTokens)} usable tokens. ${contextStatus.label}.`}>
                 <span>Context estimate</span><strong>~{formatTokenEstimate(contextUsage.promptTokens)} / {formatTokenEstimate(contextUsage.windowTokens)}</strong>
