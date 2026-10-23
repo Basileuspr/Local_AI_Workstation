@@ -81,6 +81,27 @@ The native Android viewer and a browser have different platform capabilities.
 Private API responses/media are excluded from the shell’s offline cache; pairing
 does not mean private work is available offline.
 
+## Character intake
+
+Open **More tools → Character profiles**, choose **New character** or a saved
+profile, and edit its name, biography, notes and tags. **Save character** writes
+explicitly to the desktop's character store. Drafts stay in memory while moving
+between the four core tabs. Save or discard edits before choosing another profile.
+
+Desktop changes are checked before saving. A conflict preserves your phone draft;
+copy any text you want to keep, then use **Discard edits and reload** to load the
+current saved values before editing again.
+
+Under **Image references**, link visible Saved Images from the desktop library.
+Tap a linked image for the shared pinch/zoom viewer. **Unlink reference** removes
+the association and keeps the original file. Hidden, locked or missing images
+become unavailable placeholders; their associations are retained. Use the desktop
+library to make additional reference images available.
+
+Profile intake is separate from generation and training. Existing desktop-only
+references stay in their owning workspaces. Raw phone uploads and LoRA management
+are outside this intake screen.
+
 ## Hosted interface updates
 
 Dashboard → Mobile companion → **Update phone app** builds the current hosted

@@ -24,6 +24,18 @@
 .image-batch table { border-collapse: collapse; width: 100%; font-size: .8rem; }
 .image-batch th, .image-batch td { padding: 8px; text-align: left; border-bottom: 1px solid var(--line); }
 .batch-members { display: grid; gap: 12px; margin: 0; padding-left: 22px; font-size: .85rem; }
+.companion-more summary { color: var(--muted); font-size: .85rem; }
+.character-intake, .character-picker, .character-form, .character-references { display: grid; gap: 16px; min-width: 0; }
+.character-intake .section-heading { margin-bottom: 0; }
+.character-intake .row > label { flex: 1; min-width: 140px; }
+.character-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+.character-tags button { overflow-wrap: anywhere; text-align: left; }
+.character-reference { display: grid; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.character-reference .row > span { overflow-wrap: anywhere; min-width: 0; flex: 1; }
+.character-reference img { max-width: 100%; max-height: 180px; object-fit: contain; }
+.character-image-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 16px 0; }
+.character-image-choices button { display: flex; flex-direction: column; width: 100%; min-width: 0; overflow-wrap: anywhere; font-size: .8rem; }
+.character-image-choices img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; }
 @media (min-width: 560px) {
   .session-picker > label { flex-basis: auto; }
   .image-batch-fields { grid-template-columns: repeat(3, minmax(0, 1fr)); }

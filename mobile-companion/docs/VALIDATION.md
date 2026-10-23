@@ -19,7 +19,29 @@ same-conversation jobs were checked using temporary app data and build outputs.
 The live desktop and deployed phone assets were not replaced or restarted.
 Physical-phone behavior and real provider/GPU inference remain unverified.
 
-## Folder consolidation
+## October 23 character intake
+
+Profile names, biography, notes and tags share the desktop character store.
+Visible Saved Image references use existing stable IDs; unavailable links remain
+represented without private image metadata. Explicit saves check a revision of
+the saved profile and preserve unrelated manual/desktop reference fields.
+
+- Full backend suite: 2,221 passed; 2 existing directory-symlink skips. The new
+  character API's 13 focused tests cover persistence, stale writes, bounded inputs,
+  pairing/origin checks, idempotent references and hidden/locked/missing policy.
+- Final companion backend/publication suite: 81 passed.
+- Full frontend suite: 1,568 passed; 3 existing skips.
+- Desktop and phone production builds passed in a temporary source copy using
+  the existing installed dependencies; the desktop source record matched.
+- Temporary phone build and HTTPS Chromium flow passed profile creation, a
+  desktop-edit conflict retaining the phone draft, explicit discard/reload,
+  saved reference viewing with pinch/zoom, and persistence after page reload.
+- The four core tabs remain available; profiles open through More tools.
+
+No LoRA workflows, raw uploads, dependency installation, APK changes or live
+activation were added. Real device/provider/GPU acceptance remains separate.
+
+## Folder consolidation record
 
 Checked on October 23, 2026, with the published image-scan refresh fix included.
 The move groups 74 existing source files under `mobile-companion/` and keeps

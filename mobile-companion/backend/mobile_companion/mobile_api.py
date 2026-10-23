@@ -24,6 +24,7 @@ from mobile_companion.mobile_access import COOKIE, DEVICE_LIFETIME
 from mobile_companion.mobile_jobs import MobileSubmission
 from services.bridge_store import TERMINAL
 from mobile_companion.mobile_updates import MobileUpdates, VERSION
+from mobile_companion.mobile_characters import router as character_router
 
 MAX_BODY = 64 * 1024
 ID = re.compile(r"^[A-Za-z0-9_-]{1,100}$")
@@ -45,7 +46,7 @@ def session_image_items():
 def gallery_items():
     items = session_image_items()
     for value in image_library.public_index()["images"]:
-        if ID.fullmatch(value["id"]) and not value.get("review_only"):
+        if ID.fullmatch(value["id"]) and not value.get("review_only") and not value.get("hidden"):
             items.append({"id": "library/" + value["id"], "name": value["name"],
                           "url": "/api/media/library/" + value["id"], "updated_at": value.get("created_at", ""),
                           "source": "library"})
@@ -116,6 +117,7 @@ def create_mobile_api(jobs, access, origin, assets, *, updates=None):
         await jobs.close()
 
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
+    app.include_router(character_router)
 
     @app.middleware("http")
     async def guard(request, call_next):

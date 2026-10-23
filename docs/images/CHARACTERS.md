@@ -19,6 +19,14 @@ Audio can save a voice reference to a character. Applying it to voice generation
 explicitly replaces that tool’s current reference; it does not play or generate
 audio automatically. Verify any reference transcript before use.
 
+## Phone character intake
+
+The [phone companion](../../mobile-companion/docs/SETUP.md#character-intake) also
+supports profile creation/editing and visible Saved Image references through
+**More tools → Character profiles**. Saves share this character store, preserve
+other desktop references and reject stale edits while retaining the phone draft.
+Phone intake does not start training or generation.
+
 ## Roleplay and Knowledge
 
 Loading a saved character into roleplay copies its current profile into the

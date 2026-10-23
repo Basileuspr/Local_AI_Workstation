@@ -22,8 +22,10 @@ work = Path(os.environ["LAW_MOBILE_QA_DIR"])
 assert Path(os.environ["LAW_DATA_DIR"]).is_relative_to(work)
 import main
 from routes import image_generation
+from routes.image_library import router as library_router
 from mobile_companion import routes as mobile_routes
 from services import image_library, image_store, session_store
+from services.faces import bank
 from mobile_companion.mobile_companion import MobileCompanion, MobileListen
 from services.session_guard import SessionGuard
 
@@ -66,7 +68,6 @@ def generate(request, *args, **kwargs):
 main._chat = chat
 main.prepare_runtime = image_generation.prepare_runtime = prepare
 image_generation._generate_image = generate
-image_library.public_index = lambda: {"images": [], "folders": []}
 desktop = FastAPI()
 desktop.add_middleware(SessionGuard)
 desktop.post("/chat")(main.chat)
@@ -77,7 +78,22 @@ desktop.get("/models")(lambda: {"models": [{"name": "Fixture chat model"}]})
 desktop.get("/image-generation/models")(lambda: {"models": [{"id": "fixture-image", "name": "Fixture image model"}],
     "loras": [{"id": "fixture-adapter", "name": "Fixture adapter", "base_model_id": "fixture-image"}], "runtime": {"ready": True}})
 desktop.include_router(image_generation.router)
+desktop.include_router(library_router)
 desktop.include_router(mobile_routes.router)
+
+
+@desktop.post('/qa/character-reference')
+def seed_character_reference():
+    data = io.BytesIO()
+    Image.new('RGB', (256, 256), 'green').save(data, 'PNG')
+    value = image_library.import_image(data.getvalue(), 'Phone character reference.png', origin={'kind': 'generated'})
+    return {'id': value['id']}
+
+
+@desktop.post('/qa/character-edit/{character_id}')
+def desktop_character_edit(character_id: str):
+    bank.update_character(character_id, notes='Desktop edit during phone draft')
+    return {'saved': True}
 
 session = session_store.create_session("Weekend ideas")
 session_store.append_messages(session["id"], [{"id": "welcome", "role": "assistant", "content": "What would you like to explore today?"}])

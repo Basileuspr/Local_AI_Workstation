@@ -207,6 +207,55 @@ app.whenReady().then(async () => {
   await capture('batch-and-queued-chat.png');
   assert.equal(await js('document.documentElement.scrollWidth<=innerWidth'), true, 'batch controls fit phone');
   console.log('Batch generation, named conversations and ordered same-chat turns passed');
+  const seedReference = await fetch(`http://127.0.0.1:${localPort}/qa/character-reference`, {
+    method: 'POST', headers: {'Origin': 'app://local', 'x-law-session': 'isolated-mobile-qa'} });
+  assert.equal(seedReference.status, 200);
+  await js("document.querySelector('.companion-more').open=true");
+  await click('Character profiles');
+  await click('New character');
+  await set('[aria-label="Character name"]', 'Rowan from phone');
+  await set('[aria-label="Character biography"]', 'A quiet explorer in a green coat.');
+  await set('[aria-label="Character notes"]', 'Phone notes');
+  await set('[aria-label="Character tag"]', 'green coat');
+  await click('Add tag');
+  await click('Save character');
+  await until("document.querySelector('.character-intake')?.textContent.includes('Character saved.')", 'character saved');
+  await until("/^[a-f0-9]{32}$/.test(document.querySelector('[aria-label=\"Saved character\"]')?.value||'')", 'saved character selected after refresh');
+  const characterId = await js("document.querySelector('[aria-label=\"Saved character\"]').value");
+  const profileFile = path.join(work, 'data/face_bank', characterId + '.json');
+  assert.deepEqual(JSON.parse(fs.readFileSync(profileFile, 'utf8')).tags, ['green coat']);
+  await until("document.querySelector('[aria-label=\"Character notes\"]')", 'saved profile reloaded');
+  await set('[aria-label="Character notes"]', 'Keep this unsaved phone draft');
+  const desktopEdit = await fetch(`http://127.0.0.1:${localPort}/qa/character-edit/${characterId}`, {
+    method: 'POST', headers: {'Origin': 'app://local', 'x-law-session': 'isolated-mobile-qa'} });
+  assert.equal(desktopEdit.status, 200);
+  await click('Save character');
+  await until("document.querySelector('.character-intake [role=alert]')?.textContent.includes('draft is kept')", 'stale profile rejected');
+  assert.equal(await js("document.querySelector('[aria-label=\"Character notes\"]').value"), 'Keep this unsaved phone draft');
+  await click('Discard edits and reload');
+  await until("document.querySelector('[aria-label=\"Character notes\"]')?.value==='Desktop edit during phone draft'", 'explicit discard reloads desktop edit');
+  await js("document.querySelector('.character-references details').open=true");
+  await until("document.querySelector('[aria-label=\"Link Phone character reference.png\"]')", 'public reference available');
+  await js("document.querySelector('[aria-label=\"Link Phone character reference.png\"]').click()");
+  await until("document.querySelector('.character-reference .image-preview img')?.naturalWidth>0", 'reference linked and visible');
+  await js("document.querySelector('.character-reference .image-preview').click()");
+  await checkImageGestures();
+  await js("document.querySelector('[aria-label=\"Close image\"]').click()");
+  assert.equal(JSON.parse(fs.readFileSync(profileFile, 'utf8')).resources.length, 1);
+  await win.reload();
+  await until("document.querySelector('.companion-more')", 'paired after character reload');
+  await js("document.querySelector('.companion-more').open=true");
+  await click('Character profiles');
+  await until(`document.querySelector('[aria-label="Saved character"] option[value="${characterId}"]')`, 'saved character listed');
+  await set('[aria-label="Saved character"]', characterId);
+  await until("document.querySelector('[aria-label=\"Character biography\"]')?.value==='A quiet explorer in a green coat.'", 'character persisted after reload');
+  assert.equal(await js("document.querySelector('[aria-label=\"Character notes\"]').value"), 'Desktop edit during phone draft');
+  assert.equal(await js("document.querySelectorAll('nav button').length"), 4, 'core navigation unchanged');
+  assert.equal(await js('document.documentElement.scrollWidth<=innerWidth'), true, 'character controls fit phone');
+  await capture('character-intake.png');
+  await js("document.querySelector('.character-references').scrollIntoView({block:'start'})");
+  await capture('character-references.png');
+  console.log('Character intake, persistence, stale-draft protection and zoomable references passed');
   if (updateQA) {
     const desktop = async (route = '', method = 'GET') => {
       const response = await fetch(`http://127.0.0.1:${localPort}/mobile${route}`, {method,
@@ -271,6 +320,6 @@ app.whenReady().then(async () => {
   assert.equal(await js("fetch('/api/state').then(response=>response.status)"), 401);
   const actualErrors = errors.filter(error => !/ERR_INTERNET_DISCONNECTED|401|favicon|network error/i.test(error));
   assert.deepEqual(actualErrors, []);
-  fs.writeFileSync(path.join(work, 'result.json'), JSON.stringify({ passed: true, viewport: '390x844', inference: 'synthetic', checked: ['HTTPS pairing', 'secure HttpOnly cookie', 'streaming chat', 'reload during job', 'conversation persistence', 'shared generation controls and forwarded values', 'positive and negative prompt retention', 'desktop Generate task results', 'multiple images queued in the same chat', 'image queue and gallery', 'newest/oldest image order', 'source/conversation/date/search filters', 'filter retention and reset', 'chat and gallery pinch zoom', 'touch pan and Fit reset', 'original download hash', 'private-cache exclusion', 'offline shell and reconnect', 'logout revocation'] }, null, 2));
+  fs.writeFileSync(path.join(work, 'result.json'), JSON.stringify({ passed: true, viewport: '390x844', inference: 'synthetic', checked: ['conversation names', 'atomic image batches', 'ordered same-chat turns', 'future-prompt exclusion', 'character intake and persistence', 'stale character drafts', 'zoomable character references', 'HTTPS pairing', 'secure HttpOnly cookie', 'streaming chat', 'reload during job', 'conversation persistence', 'shared generation controls and forwarded values', 'positive and negative prompt retention', 'desktop Generate task results', 'multiple images queued in the same chat', 'image queue and gallery', 'newest/oldest image order', 'source/conversation/date/search filters', 'filter retention and reset', 'chat and gallery pinch zoom', 'touch pan and Fit reset', 'original download hash', 'private-cache exclusion', 'offline shell and reconnect', 'logout revocation'] }, null, 2));
   console.log('Mobile Chromium QA passed: ' + work);
 }).catch(error => { console.error(error); exitCode = 1; }).finally(() => { clearTimeout(guard); win?.destroy(); backend?.kill(); app.exit(exitCode); });

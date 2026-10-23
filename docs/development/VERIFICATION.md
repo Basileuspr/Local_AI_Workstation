@@ -6,6 +6,19 @@ of every feature, provider, installation or device.
 
 ## October 23 companion workflow fixes
 
+The subsequent character intake adds explicit profile saves and visible Saved
+Image references through More tools. Revision checks preserve phone drafts when
+the desktop profile changes, and unrelated manual fields/references are retained.
+Hidden/locked/missing references are unavailable; unlinking keeps original bytes.
+No LoRA or raw-upload workflow is exposed.
+
+The combined source passed 2,221 backend tests with 2 existing skips and 1,568
+frontend tests with 3 existing skips. The synthetic HTTPS flow also passed
+character persistence, stale-draft handling and reference zoom/reload checks.
+Final companion backend/publication checks passed all 81 tests. Isolated desktop
+and phone builds passed, with a matching desktop source record. No live assets,
+installed dependencies or running application were replaced.
+
 Phone conversations support explicit names and metadata-only renaming. Image
 batches are accepted atomically with individual progress/cancellation, and queued
 chat/image work runs in order within a conversation. Waiting prompts do not enter

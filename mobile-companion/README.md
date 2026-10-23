@@ -6,6 +6,11 @@ of the workstation repository and uses its dependencies, services and runtime.
 This folder is the source boundary for a later extraction into its own project.
 The folder move's checks and acceptance limits are in [validation](docs/VALIDATION.md).
 
+Chat/Create supports named conversations, image batches and ordered jobs in the
+same conversation. **More tools → Character profiles** adds explicit profile
+intake and links to visible Saved Images, using the desktop character store.
+See [phone usage](docs/SETUP.md) for controls and limits.
+
 | Folder | Owner |
 |---|---|
 | `web/` | Phone React PWA, public icons, manifest and Vite configuration |
