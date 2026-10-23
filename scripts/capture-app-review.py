@@ -23,7 +23,7 @@ DOCS = ROOT / "docs" / "application-review"
 EXTENSIONS = {".py", ".js", ".jsx", ".cjs", ".mjs", ".css", ".html", ".json", ".ps1", ".txt", ".md", ".ini", ".toml", ".svg"}
 ROOT_FILES = {"package.json", "package-lock.json", "vite.config.mjs", "vitest.config.mjs", "pytest.ini", "README.md", "ARCHITECTURE.md", "docs/application-review/README.md", "docs/application-review/review.json", "docs/application-review/reader-template.html", "docs/development/document-moves.json"}
 ROOT_FILES.update({"docs/application-review/benchmarks/session-metadata.json", ".gitignore"})
-ROOT_FILES.update({"mobile/public/manifest.webmanifest", "mobile/public/icon-192.png", "mobile/public/icon-512.png"})
+ROOT_FILES.update({"mobile-companion/web/public/manifest.webmanifest", "mobile-companion/web/public/icon-192.png", "mobile-companion/web/public/icon-512.png"})
 PY_PACKAGES = ["fastapi", "uvicorn", "torch", "torchvision", "diffusers", "transformers", "accelerate", "compel", "onnxruntime", "onnxruntime-gpu", "chromadb", "faster-whisper", "ctranslate2", "sherpa-onnx", "numpy", "huggingface-hub", "peft", "pillow", "cryptography"]
 
 
@@ -46,7 +46,7 @@ ANDROID_FILES = {
 
 
 def android_source(name):
-    relative = name.removeprefix('mobile/android/')
+    relative = name.removeprefix('mobile-companion/android/')
     parts = relative.split('/')
     if '..' in parts or ':' in name or '\\' in name or any(part.startswith('.env') for part in parts) or any(part.lower() in {'build', '.gradle', '.git', '.idea', 'output', 'data', 'models', 'node_modules', 'venv', 'dist', 'artifacts', 'logs', 'reports'} for part in parts):
         return False
@@ -54,9 +54,21 @@ def android_source(name):
 
 
 def included(name):
+    # Keep pre-move commits visible in historical source inventories. This only
+    # selects metadata; the recorded path/hash remains the original Git value.
     if name.startswith('mobile/android/'):
+        name = 'mobile-companion/android/' + name.removeprefix('mobile/android/')
+    elif name.startswith('mobile/'):
+        name = 'mobile-companion/web/' + name.removeprefix('mobile/')
+    if name.startswith('mobile-companion/android/'):
         return android_source(name)
     path = Path(name)
+    if name.startswith("mobile-companion/") and (
+        any(part.lower() in {"logs", "reports", "exports", "backups", "artifacts", "output", ".gradle", ".idea", ".codex", ".claude", "runs", "test-work"} for part in path.parts)
+        or any(part.startswith(".env") for part in path.parts)
+        or any(marker in path.name.upper() for marker in ("HANDOFF", "ARCHITECTURE_CURRENT", "ROADMAP_ORIGINAL"))
+    ):
+        return False
     if any(part in {"data", "models", "venv", ".venv", "node_modules", "dist", "__pycache__", ".pytest_cache", "captures", ".git"} for part in path.parts):
         return False
     if path.suffix.lower() not in EXTENSIONS and name not in ROOT_FILES:
@@ -70,7 +82,7 @@ def included(name):
             marker in path.name.upper() for marker in ("HANDOFF", "ARCHITECTURE_CURRENT", "ROADMAP_ORIGINAL")
         )
     return (name in ROOT_FILES or (len(path.parts) == 1 and (name.startswith("requirements") or path.suffix == ".md"))
-            or name.startswith(("src/", "mobile/", "backend/", "electron/", "tests/", "scripts/", "media-manager/frontend/", "media-manager/tests/", "media-manager/media_organizer/"))
+            or name.startswith(("src/", "mobile-companion/", "backend/", "electron/", "tests/", "scripts/", "media-manager/frontend/", "media-manager/tests/", "media-manager/media_organizer/"))
             or name in {"media-manager/package.json", "media-manager/README.md"})
 
 

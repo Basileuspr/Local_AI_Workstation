@@ -3,6 +3,10 @@
 Read [ARCHITECTURE.md](ARCHITECTURE.md) and the relevant existing source and
 [development guidance](docs/development/DEVELOPMENT.md) before implementation.
 
+For phone companion work, start in [mobile-companion](mobile-companion/README.md)
+and read its [scoped instructions](mobile-companion/AGENTS.md). It shares this
+repository, dependencies and runtime; the one-writer rule below still applies.
+
 ## Shared main branch: desktop and laptop
 
 - Use one computer/Codex session at a time to change this project. Use each

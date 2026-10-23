@@ -7,7 +7,7 @@ import { chatModelChoice } from "../chatModelChoices";
 import { reconcileChatModel } from "../modelCatalog";
 import * as api from "../api";
 import { recentTurnStart } from '../contextMemory';
-import { useMobileSync } from '../useMobileSync';
+import { useMobileSync } from '../../mobile-companion/desktop/useMobileSync';
 import Header from "./Header";
 import SettingsPanel from "./SettingsPanel";
 import MessageList from "./MessageList";

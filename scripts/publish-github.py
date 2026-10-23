@@ -23,8 +23,8 @@ GENERATED_DOCS = {'docs/application-review/index.html', 'docs/application-review
 BUNDLED_ASSETS = {'src/assets/piano-model/basic-pitch.bin': (742392, 'b142a95737a52e1e412d5f92e73d8bb80dfe8d04941acc0702f11f4524fb377c')}
 # Reproducible application icons; do not allow arbitrary generated media.
 BUNDLED_ASSETS.update({
-    'mobile/public/icon-192.png': (1075, 'e3ea611f29e5f8aa8d7461a7f723d360b64909a00c01580c023981130a69d85e'),
-    'mobile/public/icon-512.png': (3197, '3a5508dc51f8fd7742c172328bf268442488febf3c3e3379a1b7537ca1d71372'),
+    'mobile-companion/web/public/icon-192.png': (1075, 'e3ea611f29e5f8aa8d7461a7f723d360b64909a00c01580c023981130a69d85e'),
+    'mobile-companion/web/public/icon-512.png': (3197, '3a5508dc51f8fd7742c172328bf268442488febf3c3e3379a1b7537ca1d71372'),
 })
 TOKEN = re.compile(r'-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,}|hf_[A-Za-z0-9]{25,}|sk-(?:proj-)?[A-Za-z0-9_-]{30,}|AKIA[A-Z0-9]{16}|eyJ[A-Za-z0-9_-]{15,}\.[A-Za-z0-9_-]{15,}\.[A-Za-z0-9_-]{15,}')
 HOME = re.compile(r'(?i)[a-z]:[\\/]+Users[\\/]+(?!Public\b|Default\b)[^\\/\s"\'<>]+|/(?:home|Users)/[^/\s"\'<>]+')
@@ -46,7 +46,7 @@ ANDROID_FILES = {
 
 
 def android_source(name):
-    relative = name.removeprefix('mobile/android/')
+    relative = name.removeprefix('mobile-companion/android/')
     parts = relative.split('/')
     if '..' in parts or ':' in name or '\\' in name or any(part.startswith('.env') for part in parts) or any(part.lower() in {'build', '.gradle', '.git', '.idea', 'output', 'data', 'models', 'node_modules', 'venv', 'dist', 'artifacts', 'logs', 'reports'} for part in parts):
         return False
@@ -61,17 +61,17 @@ def allowed(name):
         return False
     if name in GENERATED_DOCS or name.startswith('docs/application-review/snapshots/'):
         return False
-    if name.startswith('mobile/android/'):
+    if name.startswith('mobile-companion/android/'):
         return android_source(name)
     if name in BUNDLED_ASSETS:
         return True
     if name in ROOT_FILES:
         return True
-    if name == 'mobile/public/manifest.webmanifest':
+    if name == 'mobile-companion/web/public/manifest.webmanifest':
         return True
     if len(path.parts) == 1:
         return path.suffix == '.md' or (name.startswith('requirements') and path.suffix == '.txt')
-    return (path.suffix.lower() in EXTENSIONS or path.name in {'LICENSE', 'NOTICE'}) and (path.parts[0] in {'src', 'mobile', 'backend', 'electron', 'scripts', 'tests', 'docs'} or name.startswith(('media-manager/frontend/', 'media-manager/tests/', 'media-manager/media_organizer/')) or name in {'media-manager/package.json', 'media-manager/README.md'})
+    return (path.suffix.lower() in EXTENSIONS or path.name in {'LICENSE', 'NOTICE'}) and (path.parts[0] in {'src', 'mobile-companion', 'backend', 'electron', 'scripts', 'tests', 'docs'} or name.startswith(('media-manager/frontend/', 'media-manager/tests/', 'media-manager/media_organizer/')) or name in {'media-manager/package.json', 'media-manager/README.md'})
 
 
 def privacy_problem(name, raw):
@@ -88,7 +88,7 @@ def privacy_problem(name, raw):
         return 'Binary file'
     if TOKEN.search(text):
         return 'Possible credential or private key'
-    if not name.startswith(('tests/', 'mobile/android/app/src/test/')) and (HOME.search(text) or SECRET.search(text) or EMAIL.search(text)):
+    if not name.startswith(('tests/', 'mobile-companion/tests/', 'mobile-companion/android/app/src/test/')) and (HOME.search(text) or SECRET.search(text) or EMAIL.search(text)):
         return 'Possible personal path or embedded credential'
     return None
 
@@ -261,13 +261,13 @@ def validate(root, folder, paths):
                 ('Testing backend', [sys.executable, '-B', '-m', 'pytest', '--basetemp', str(folder / ('pytest-' + uuid.uuid4().hex[:8]))]),
                 ('Testing Media Manager', [node, str(npm_cli), 'run', 'test:media']),
                 ('Building application', [node, str(npm_cli), 'run', 'build'])]
-    if any(item['path'].startswith('mobile/android/') for item in selected):
+    if any(item['path'].startswith('mobile-companion/android/') for item in selected):
         if os.name != 'nt':
             raise ValueError('Android validation needs the documented local Windows toolchain.')
         commands.append(('Testing Android release', ['powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
-                        str(workspace / 'mobile/android/tools/build-apk.ps1'), '-ChecksOnly']))
+                        str(workspace / 'mobile-companion/android/tools/build-apk.ps1'), '-ChecksOnly']))
         commands.append(('Testing Android viewer adapter', [str(workspace / 'node_modules/electron/dist/electron.exe'),
-                        str(workspace / 'mobile/android/tools/qa-native-adapter.cjs')]))
+                        str(workspace / 'mobile-companion/android/tools/qa-native-adapter.cjs')]))
     for label, command in commands:
         emit('progress', phase=label)
         with log.open('ab') as output:

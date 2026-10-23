@@ -35,7 +35,7 @@ ignored local handoffs. Private files themselves are not deleted.
 | `docs/development/GITHUB_PUBLICATION.md` | [docs/development/DEVELOPMENT.md#dashboard-snapshot-publisher](DEVELOPMENT.md#dashboard-snapshot-publisher) |
 | `docs/development/INTERNET_ACCESS_PROPOSAL.md` | [docs/development/WEB_SYSTEM.md](WEB_SYSTEM.md) |
 | `docs/development/LOCAL_TOOL_EXECUTION.md` | [docs/development/TOOL_REGISTRY.md#opt-in-chat-execution](TOOL_REGISTRY.md#opt-in-chat-execution) |
-| `docs/development/MOBILE_COMPANION_ROADMAP.md` | [docs/setup/MOBILE_COMPANION.md](../setup/MOBILE_COMPANION.md) |
+| `docs/development/MOBILE_COMPANION_ROADMAP.md` | [mobile-companion/docs/SETUP.md](../../mobile-companion/docs/SETUP.md) |
 | `docs/development/ROADMAP_SEGMENTS_4_6.md` | [docs/development/ARCHITECTURE_REFERENCE.md](ARCHITECTURE_REFERENCE.md) |
 | `docs/images/CHARACTER_PARTS.md` | [docs/images/CHARACTERS.md#character-parts](../images/CHARACTERS.md#character-parts) |
 | `docs/images/CPU_ASSISTANCE.md` | [docs/images/GENERATION.md#cpu-assistance-and-timing](../images/GENERATION.md#cpu-assistance-and-timing) |
@@ -50,3 +50,10 @@ ignored local handoffs. Private files themselves are not deleted.
 | `docs/workspace/LOCAL_FILES.md` | [docs/workspace/FILE_TOOLS.md](../workspace/FILE_TOOLS.md) |
 | `docs/workspace/SHORTCUT_REGISTRY.md` | [docs/workspace/WORKSPACE_GUIDE.md#shortcut-registry](../workspace/WORKSPACE_GUIDE.md#shortcut-registry) |
 | `docs/workspace/WORKSPACE_IMPROVEMENTS.md` | [docs/workspace/WORKSPACE_GUIDE.md#viewers-canvas-and-paint](../workspace/WORKSPACE_GUIDE.md#viewers-canvas-and-paint) |
+
+The companion source consolidation also moved these active guides:
+
+| Previous path | Current owner |
+|---|---|
+| `docs/setup/MOBILE_COMPANION.md` | [Companion setup](../../mobile-companion/docs/SETUP.md) |
+| `mobile/android/README.md` | [Native source/build](../../mobile-companion/android/README.md) |

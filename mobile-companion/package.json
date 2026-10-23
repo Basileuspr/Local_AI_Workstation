@@ -1,0 +1,16 @@
+{
+  "name": "workstation-mobile-companion",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Integrated companion source; dependencies and runtime are provided by the parent workstation.",
+  "scripts": {
+    "dev": "npm --prefix .. run vite:mobile",
+    "build": "npm --prefix .. run build:mobile",
+    "test": "npm --prefix .. run test:mobile",
+    "test:backend": "npm --prefix .. run test:mobile:backend",
+    "qa": "npm --prefix .. run qa:mobile",
+    "build:android": "npm --prefix .. run build:android",
+    "test:android": "npm --prefix .. run test:android",
+    "qa:android": "npm --prefix .. run qa:android"
+  }
+}

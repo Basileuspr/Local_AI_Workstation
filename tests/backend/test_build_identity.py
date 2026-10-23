@@ -92,10 +92,18 @@ def test_capture_does_not_hash_its_generated_identity_or_invent_creation_dates()
     assert not capture.included("build-info.json")
     assert not capture.included("dist/build-info.json")
     assert capture.included("RELEASES.md")
-    for name in ("mobile/src/Companion.jsx", "mobile/public/manifest.webmanifest", "mobile/public/icon-192.png", "mobile/public/icon-512.png"):
+    for name in ("mobile-companion/web/src/Companion.jsx", "mobile-companion/web/public/manifest.webmanifest", "mobile-companion/web/public/icon-192.png", "mobile-companion/web/public/icon-512.png",
+                 "mobile-companion/backend/mobile_companion/routes.py", "mobile-companion/desktop/useMobileSync.js", "mobile-companion/docs/SETUP.md", "mobile-companion/CLAUDE.md"):
         assert capture.included(name)
     assert not capture.included("dist/mobile/index.html")
-    assert not capture.included("mobile/data/session.json")
+    assert not capture.included("mobile-companion/data/session.json")
+    for name in ("mobile-companion/reports/local.json", "mobile-companion/docs/PRIVATE_HANDOFF.md", "mobile-companion/.env.json"):
+        assert not capture.included(name)
+    # Source history still includes the same public files at their old paths.
+    for name in ("mobile/src/Companion.jsx", "mobile/public/icon-192.png", "mobile/android/app/src/main/AndroidManifest.xml"):
+        assert capture.included(name)
+    for name in ("mobile/data/session.json", "mobile/android/output/SHA256SUMS.txt", "mobile/android/app/build/AndroidManifest.xml"):
+        assert not capture.included(name)
 
 
 @pytest.mark.parametrize("name", [

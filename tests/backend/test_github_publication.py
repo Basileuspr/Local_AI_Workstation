@@ -64,14 +64,17 @@ def test_private_and_escaping_paths_excluded(path):
 
 
 def test_mobile_sources_and_exact_icons_are_publishable_but_runtime_is_not():
-    for name in ('mobile/src/Companion.jsx', 'mobile/vite.config.mjs', 'mobile/public/manifest.webmanifest'):
+    for name in ('mobile-companion/web/src/Companion.jsx', 'mobile-companion/web/vite.config.mjs', 'mobile-companion/web/public/manifest.webmanifest',
+                 'mobile-companion/backend/mobile_companion/routes.py', 'mobile-companion/desktop/useMobileSync.js',
+                 'mobile-companion/README.md', 'mobile-companion/AGENTS.md', 'mobile-companion/CLAUDE.md',
+                 'mobile-companion/package.json', 'mobile-companion/tests/backend/test_integration_paths.py'):
         assert publisher.allowed(name)
-    for name in ('mobile/public/icon-192.png', 'mobile/public/icon-512.png'):
+    for name in ('mobile-companion/web/public/icon-192.png', 'mobile-companion/web/public/icon-512.png'):
         raw = (ROOT / name).read_bytes()
         assert publisher.allowed(name)
         assert publisher.privacy_problem(name, raw) is None
         assert publisher.privacy_problem(name, raw + b'changed')
-    for name in ('mobile/data/session.json', 'mobile/.env', 'mobile/dist/index.html', 'mobile/public/private-photo.png', 'mobile/identity.key'):
+    for name in ('mobile-companion/data/session.json', 'mobile-companion/.env', 'mobile-companion/dist/index.html', 'mobile-companion/web/public/private-photo.png', 'mobile-companion/identity.key'):
         assert not publisher.allowed(name)
 
 
@@ -377,11 +380,11 @@ def test_selected_android_update_runs_native_checks_without_signing(repositories
     if os.name != 'nt':
         pytest.skip('Android publication uses the documented Windows toolchain')
     source, _, _, storage, checks = repositories
-    native = source / 'mobile/android/app/src/main/java/Example.java'
+    native = source / 'mobile-companion/android/app/src/main/java/Example.java'
     native.parent.mkdir(parents=True)
     native.write_text('class Example {}\n')
     review = publisher.prepare(source, storage)
-    publisher.validate(source, Path(review['folder']), ['mobile/android/app/src/main/java/Example.java'])
+    publisher.validate(source, Path(review['folder']), ['mobile-companion/android/app/src/main/java/Example.java'])
     native_commands = [command for command, _ in checks if any('mobile' in str(arg) and 'android' in str(arg) for arg in command)]
     assert len(native_commands) == 2
     assert any('-ChecksOnly' in command for command in native_commands)

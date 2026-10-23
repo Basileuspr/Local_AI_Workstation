@@ -78,7 +78,7 @@ catalogs/data owners. Review the owning tool before deleting a file or record.
 [Web Research & Sources](../development/WEB_SYSTEM.md),
 [Browser](../development/BROWSER.md),
 [PC bridge](../setup/PC_BRIDGE.md) and
-[Mobile companion](../setup/MOBILE_COMPANION.md) each have separate connection
+[Mobile companion](../../mobile-companion/docs/SETUP.md) each have separate connection
 and persistence boundaries.
 
 ## Review and publication

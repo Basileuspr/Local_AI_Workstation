@@ -73,7 +73,7 @@ Do not put private data, credentials, models or compiled artifacts into commits.
 
 Follow [development](../development/DEVELOPMENT.md) to synchronize/rebuild source.
 A full build replaces dist, including phone releases; finish active work first.
-[Mobile setup](MOBILE_COMPANION.md) distinguishes hosted interface updates from
+[Mobile setup](../../mobile-companion/docs/SETUP.md) distinguishes hosted interface updates from
 native APK upgrades. [PC bridge](PC_BRIDGE.md) is separate manual delegation.
 
 [Storage and backup](../workspace/STORAGE_AND_BACKUP.md) ·

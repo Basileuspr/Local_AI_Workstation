@@ -6,7 +6,7 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   plugins: [react()],
   test: {
-    include: ["tests/frontend/**/*.test.{js,jsx}"],
+    include: ["tests/frontend/**/*.test.{js,jsx}", "mobile-companion/tests/frontend/**/*.test.{js,jsx}"],
     // Pure logic plus react-dom/server rendering — no DOM implementation needed.
     environment: "node",
   },

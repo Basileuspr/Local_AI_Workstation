@@ -68,7 +68,7 @@ async def lock(request: Request):
         from routes.bridge import _instance as bridge
         if bridge and bridge.running:
             raise HTTPException(409, "Stop the PC bridge in Dashboard before reset or backup.")
-        from routes.mobile import _instance as mobile
+        from mobile_companion.routes import _instance as mobile
         if mobile and (mobile.running or mobile.status()["active_jobs"]):
             raise HTTPException(409, "Stop Mobile companion in Dashboard before reset or backup.")
         from services.web_background import busy as web_monitor_busy

@@ -73,7 +73,7 @@
   "docs/development/ROADMAP_SEGMENTS_4_6.md": "docs/development/ARCHITECTURE_REFERENCE.md",
   "docs/development/INTERNET_ACCESS_PROPOSAL.md": "docs/development/WEB_SYSTEM.md",
   "docs/development/LOCAL_TOOL_EXECUTION.md": "docs/development/TOOL_REGISTRY.md#opt-in-chat-execution",
-  "docs/development/MOBILE_COMPANION_ROADMAP.md": "docs/setup/MOBILE_COMPANION.md",
+  "docs/development/MOBILE_COMPANION_ROADMAP.md": "mobile-companion/docs/SETUP.md",
   "docs/development/GITHUB_PUBLICATION.md": "docs/development/DEVELOPMENT.md#dashboard-snapshot-publisher",
   "docs/development/BROWSER_FOUNDATION.md": "docs/development/BROWSER.md",
   "docs/development/BROWSER_TABS.md": "docs/development/BROWSER.md#tabs-and-playback",
@@ -88,5 +88,7 @@
   "docs/application-review/changes/R01-build-identity.md": "docs/development/VERIFICATION.md#historical-implementation-records",
   "docs/application-review/changes/R02-session-metadata.md": "docs/development/VERIFICATION.md#historical-implementation-records",
   "docs/application-review/changes/R03-session-revisions.md": "docs/development/VERIFICATION.md#historical-implementation-records",
-  "docs/application-review/changes/R11-lora-restart-recovery.md": "docs/development/VERIFICATION.md#historical-implementation-records"
+  "docs/application-review/changes/R11-lora-restart-recovery.md": "docs/development/VERIFICATION.md#historical-implementation-records",
+  "docs/setup/MOBILE_COMPANION.md": "mobile-companion/docs/SETUP.md",
+  "mobile/android/README.md": "mobile-companion/android/README.md"
 }

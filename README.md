@@ -17,7 +17,7 @@ quitting or using File → Exit & Restart.
 
 - [All guides](docs/README.md) — one current guide per workflow.
 - [Workspace](docs/workspace/WORKSPACE_GUIDE.md) and [Chat](docs/chat/CHAT_GUIDE.md).
-- [Phone companion](docs/setup/MOBILE_COMPANION.md) and [Android source/build](mobile/android/README.md).
+- [Phone companion usage](mobile-companion/docs/SETUP.md), [companion development folder](mobile-companion/README.md) and [Android source/build](mobile-companion/android/README.md).
 - [Storage, backup and reset](docs/workspace/STORAGE_AND_BACKUP.md).
 - [Architecture](ARCHITECTURE.md) and [development/publication](docs/development/DEVELOPMENT.md).
 - [Verification and open findings](docs/development/VERIFICATION.md).

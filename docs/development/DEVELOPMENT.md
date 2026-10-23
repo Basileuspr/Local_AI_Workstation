@@ -33,6 +33,8 @@ Keep environments, models and runtime data local to each computer.
 | `npm run vite` | Start the renderer development server |
 | `npm run vite:mobile` | Start the separate phone-interface development server |
 | `npm test` | Run frontend tests |
+| `npm run test:mobile` | Run companion frontend tests |
+| `npm run test:mobile:backend` | Run companion backend/publication tests |
 | `npm run test:backend` | Run backend pytest tests using the repository venv |
 | `npm run test:media` | Run bundled Media Manager checks |
 | `npm run test:android` | Run native JVM tests and release lint with the local Windows Android toolchain |
@@ -68,12 +70,16 @@ Fully restart Electron to load changed desktop or backend code when deployment
 is intended. A documentation review need not restart the app.
 
 Android builds are separate from `npm run build` / `verify`; see the
-[native source and installation guide](../../mobile/android/README.md). APKs,
+[native source and installation guide](../../mobile-companion/android/README.md). APKs,
 keys, SDKs and Gradle caches stay local. GitHub validation runs native checks when
 the selected update includes Android source; it does not sign or install an APK.
 `npm run verify` does not include npm's advisory audit, `pip check`, native Android
 checks, Chromium walkthroughs, fresh installation or physical-device/GPU acceptance.
 Record those results separately, including skips and pre-existing failures.
+
+Companion source, agent instructions and folder-local commands live in
+[mobile-companion](../../mobile-companion/README.md). Open that folder to scope
+Codex or Claude Code work while retaining the parent's shared-main workflow.
 
 ## Updating JavaScript dependencies
 

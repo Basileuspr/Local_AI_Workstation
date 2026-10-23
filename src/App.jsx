@@ -14,7 +14,7 @@ import ChatActivityNotice from "./components/ChatActivityNotice";
 import { DualChatProvider, ChatPaneProvider, useDualChat } from "./ChatPane";
 import { chatModelChoice } from "./chatModelChoices";
 import { recentTurnStart } from './contextMemory';
-import { useMobileSync } from './useMobileSync';
+import { useMobileSync } from '../mobile-companion/desktop/useMobileSync';
 
 import { ImageGenerationProvider } from "./ImageGenerationContext";
 import { AnalyzeIterateProvider } from "./AnalyzeIterateContext";

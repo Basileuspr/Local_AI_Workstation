@@ -63,12 +63,12 @@ not additional versioned releases or Windows installers:
 
 | Commit | Published scope | Guide |
 |---|---|---|
-| `2171125` | Mobile companion and image workflow hardening | [Mobile companion](docs/setup/MOBILE_COMPANION.md) |
-| `ce3aca8` | Desktop publishing of hosted phone-interface updates | [Phone updates](docs/setup/MOBILE_COMPANION.md) |
-| `45fada6` | QR pairing and refreshed phone connection state | [Pairing](docs/setup/MOBILE_COMPANION.md#pair-and-disconnect) |
+| `2171125` | Mobile companion and image workflow hardening | [Mobile companion](mobile-companion/docs/SETUP.md) |
+| `ce3aca8` | Desktop publishing of hosted phone-interface updates | [Phone updates](mobile-companion/docs/SETUP.md) |
+| `45fada6` | QR pairing and refreshed phone connection state | [Pairing](mobile-companion/docs/SETUP.md#pair-and-disconnect) |
 | `0649f1d` | Code copying and exact desktop/phone response limits | [Chat controls](docs/chat/CHAT_GUIDE.md#compose-and-control-a-response) |
 | `947c358` | Guarded search and selected-page previews | [Web Research & Sources](docs/development/WEB_SYSTEM.md) |
-| `1ad69d9` | Android source and APK validation integrated into this repository | [Android source](mobile/android/README.md) |
+| `1ad69d9` | Android source and APK validation integrated into this repository | [Android source](mobile-companion/android/README.md) |
 | `0b89f65` | Centered chat transcript and composer layout | [Two chats in one tab](docs/chat/CHAT_GUIDE.md#second-chat) |
 
 The [application/Android review](docs/development/VERIFICATION.md#october-22-android-and-controls-evidence)

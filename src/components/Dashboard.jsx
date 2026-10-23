@@ -7,7 +7,7 @@ import DriveFolderSizes from "./DriveFolderSizes";
 import StorageLibraries from "./StorageLibraries";
 import { CapabilityReadings } from "./Compatibility";
 import PCBridge from "./PCBridge";
-import MobileCompanion from "./MobileCompanion";
+import MobileCompanion from "../../mobile-companion/desktop/MobileCompanion";
 import { apiUrl } from "../api";
 import { createPollingObserver, readPollingJson } from "../polling";
 import { formatBytes, formatNumber, formatSystemSpecs } from "../systemSpecs";
