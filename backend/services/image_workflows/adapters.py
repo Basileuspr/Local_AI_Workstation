@@ -68,11 +68,13 @@ def capability_catalog(operations):
         {"id": "local-sdxl", "name": "Local SDXL", "operations": ["txt2img", "img2img", "inpaint"],
          "models": [{"id": m["id"], "name": m["name"]} for m in sdxl_models()],
          "resolution_limits": runtime.get("resolution_limits") or current_resolution_limits(),
-         "available": bool(runtime.get("cuda_available")), "help": f"Installed SDXL base; hardware-aware size controls, up to {MAX_IMAGE_STEPS} steps and guidance {MAX_IMAGE_GUIDANCE}. Larger images can use slower CPU offload. Source and mask resize to the chosen dimensions."},
+         "available": bool(runtime.get("ready")),
+         "unavailable_reason": None if runtime.get("ready") else runtime.get("error") or "The local SDXL runtime is not ready.",
+         "help": f"Installed SDXL base; hardware-aware size controls, up to {MAX_IMAGE_STEPS} steps and guidance {MAX_IMAGE_GUIDANCE}. Larger images can use slower CPU offload. Source and mask resize to the chosen dimensions."},
         {"id": "ollama-vision", "name": "Ollama vision", "operations": ["describe"],
          "models": vision_models(), "available": True, "help": "Description and OCR; results stay separate from prompts until you choose to use them."},
         {"id": "pillow-lanczos", "name": "Lanczos resize (CPU)", "operations": ["upscale"],
-         "models": [], "available": True, "help": "Conventional resampling, not AI detail reconstruction; maximum 24 megapixels."},
+         "models": [], "available": True, "help": "Conventional resampling with PNG transparency preserved, not AI detail reconstruction; maximum 24 megapixels."},
     ]
     supported = {op for p in providers for op in p["operations"]}
     return {"schema_version": 1, "execution_enabled": True, "providers": providers,
@@ -104,7 +106,10 @@ class PillowProvider:
         context.check_cancelled()
         context.progress(phase="Resizing image on CPU", step=0, total_steps=1)
         with Image.open(request.source) as original:
-            source = ImageOps.exif_transpose(original).convert("RGB")
+            source = ImageOps.exif_transpose(original)
+            # PNG can carry transparency in an alpha band, palette or color key.
+            mode = "RGBA" if "A" in source.getbands() or "transparency" in source.info else "RGB"
+            source = source.convert(mode)
             size = tuple(d * request.stage.upscale_factor for d in source.size)
             if math.prod(size) > 24_000_000:
                 raise ValueError("Upscale output exceeds 24 megapixels")

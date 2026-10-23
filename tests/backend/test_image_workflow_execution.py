@@ -73,6 +73,35 @@ def test_chain_snapshot_review_and_lineage(runtime):
     asyncio.run(scenario())
 
 
+def test_transparent_resize_chain_keeps_alpha_through_reference_acceptance(runtime):
+    manager, fifo, gpu = runtime
+    workflow = store.create("Transparent resize")
+    data = io.BytesIO()
+    Image.new("RGBA", (4, 3), (32, 64, 128, 64)).save(data, "PNG")
+    workflow = store.add_asset(workflow.id, workflow.revision, "source.png", data.getvalue())
+    asset = workflow.assets[0]
+    stages = [
+        {"id": "a" * 32, "operation": "upscale", "provider_slot": "test", "source": {"kind": "asset", "id": asset.id}},
+        {"id": "b" * 32, "operation": "upscale", "provider_slot": "test", "source": {"kind": "stage", "id": "a" * 32}},
+    ]
+    workflow = store.update(workflow.id, UpdateRequest(revision=workflow.revision, name=workflow.name, stages=stages))
+    async def scenario():
+        record = await manager.start(workflow.id, workflow.revision)
+        completed = await finish(manager, workflow, record)
+        assert completed["status"] == "completed", completed["error"]
+        for output, size in zip(completed["outputs"], [(8, 6), (16, 12)], strict=True):
+            path, _ = runner.output_path(workflow.id, record["id"], output["id"])
+            with Image.open(path) as image:
+                assert image.size == size and image.mode == "RGBA"
+                assert image.getchannel("A").getextrema() == (64, 64)
+        kept = runner.accept_output(workflow.id, record["id"], completed["outputs"][-1]["id"], workflow.revision)
+        with Image.open(runner._asset(kept, kept.assets[-1].id)) as image:
+            assert image.getchannel("A").getextrema() == (64, 64)
+        assert runner._asset(kept, asset.id).read_bytes() == data.getvalue()
+        assert fifo.active is None and gpu.current_owner() is None
+    asyncio.run(scenario())
+
+
 def test_queued_cancel_never_enters_provider(runtime, monkeypatch):
     manager, fifo, gpu = runtime
     fifo.paused = True
@@ -154,6 +183,27 @@ def test_missing_provider_or_model_blocks_admission(runtime, change, code):
     with pytest.raises(ValueError, match="Cannot run"):
         asyncio.run(manager.start(workflow.id, workflow.revision))
     assert not fifo.jobs and not manager.active
+
+
+def test_unready_sdxl_blocks_admission_without_loading_tokenizer(runtime, monkeypatch):
+    from services import image_generation
+    from services.image_workflows import adapters, providers
+    manager, fifo, gpu = runtime
+    reason = "Image runtime packages missing: diffusers"
+    monkeypatch.setattr(image_generation.manager, "runtime_status", lambda: {
+        "ready": False, "cuda_available": True, "error": reason,
+        "resolution_limits": {"max_width": 1024, "max_height": 1024}})
+    monkeypatch.setattr(adapters, "sdxl_models", lambda: [{"id": "test-model", "name": "Installed"}])
+    monkeypatch.setattr(adapters, "vision_models", lambda: [])
+    monkeypatch.setattr(runner, "provider_catalog", providers.catalog)
+    monkeypatch.setattr(image_generation, "prompt_token_status", lambda *args: pytest.fail("Loaded unavailable runtime"))
+    workflow = project(("img2img",), provider_slot="local-sdxl")
+    report = runner.preflight(workflow)
+    assert not report["ready"]
+    assert any(i["code"] == "provider_unavailable" and reason in i["message"] for i in report["issues"])
+    with pytest.raises(ValueError, match="Cannot run"):
+        asyncio.run(manager.start(workflow.id, workflow.revision))
+    assert not manager.active and not fifo.jobs and fifo.active is None and gpu.current_owner() is None
 
 
 def test_tampered_input_and_kept_output_rejected(runtime):

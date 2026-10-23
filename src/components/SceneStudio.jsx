@@ -208,7 +208,7 @@ export default function SceneStudio({ active, sceneToOpen, onSceneOpened }) {
           <Field label="Negative prompt"><textarea maxLength={12000} rows={2} value={draft.prompt_settings.negative_prompt} onChange={e => change({prompt_settings:{...draft.prompt_settings,negative_prompt:e.target.value}})} /></Field>
           <details><summary>Complete prompt for the next frame</summary><p className="workflow-result-text">{scenePrompt(state) || "Enter visible scene details above."}</p></details>
 
-          {models && !models.available && <p className="workflow-muted">CUDA is unavailable. You can edit and save scenes; generation requires the local SDXL runtime.</p>}
+          {models && !models.available && <p className="workflow-muted" role="status">{models.unavailable_reason || 'The local SDXL runtime is not ready.'} You can still edit and save scenes.</p>}
         </fieldset>
         {execution && <section className="workflow-card"><h2>Run · {execution.status}</h2><p role="status">{execution.phase}</p>{execution.total_steps > 0 && <progress value={execution.step} max={execution.total_steps} aria-label="Scene generation progress" />}{execution.error && <p className="workflow-error">{execution.error}</p>}{runIsActive(execution) && <button disabled={execution.status === "cancelling"} onClick={() => { void api.stop(execution.workflow_id, execution.id).then(setExecution).catch(err => setError(err.message)); }}>{execution.status === "cancelling" ? "Stopping safely…" : "Stop generation"}</button>}</section>}
         <section className="workflow-card"><h2>Frame history</h2><button disabled={busy} onClick={() => run(() => history(draft.id))}>Refresh history</button>

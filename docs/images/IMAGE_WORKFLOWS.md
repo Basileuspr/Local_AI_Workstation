@@ -15,8 +15,19 @@ Ollama vision description/OCR; and Pillow resizing. Choose a previous image stag
 as an input when needed. It resolves after reordering and skips intervening
 text-only stages.
 
+Local SDXL is available only when the runtime reports both CUDA and all required
+image-generation packages ready. An installed model alone is not sufficient.
+Unavailable stages show the runtime's reason, and validation blocks admission
+before loading a tokenizer or model. After correcting setup or restarting the
+backend, use **Workflow options → Refresh providers** to recheck. Refreshing keeps
+the draft and its selections; it does not install anything or submit a job.
+
 Inpainting masks use black to preserve and white to edit, with source-matched
 dimensions. Pillow scaling is CPU interpolation and does not invent detail.
+It applies image orientation before resizing and writes a new PNG, preserving
+alpha-channel, palette and color-key transparency. Opaque sources remain RGB;
+source bytes stay unchanged. Each 2×, 3× or 4× output must fit within 24 megapixels.
+This transparency guarantee applies to the Lanczos stage; SDXL processing uses RGB.
 ControlNet and multiple-reference conditioning are not implemented here. The
 workflow SDXL provider does not apply Generate’s LoRA selection.
 
@@ -29,6 +40,20 @@ All stages use the workflow’s FIFO job coordination, including CPU stages. GPU
 providers also acquire shared runtime admission. Cancel stops at supported
 checkpoints. A backend restart interrupts a run without automatically replaying
 completed stages; completed artifacts remain inspectable.
+
+## Proposed extensions
+
+Direct reference conditioning (such as IP-Adapter), ControlNet execution and
+preprocessing, explicit workflow/Magic Edit LoRA selection, improved masks,
+durable editing projects, per-stage recipes and outpainting remain proposals.
+Saved references and reviewed vision descriptions do not enable those adapters.
+
+Qwen editing, ComfyUI, OneTrainer, Real-ESRGAN and IC-Light are evaluation
+candidates, not installed workflow providers. Any integration needs compatibility,
+memory, shared-queue, cancellation and original-preservation checks first.
+Trained enhancement/relighting is distinct from Lanczos resizing or generative
+refinement. Full training-state resume also remains separate from the existing
+interrupted-job handling described in [generation and training](GENERATION.md#lora-dataset-and-training).
 
 ## Iterative scenes
 

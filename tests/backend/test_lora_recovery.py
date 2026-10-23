@@ -216,16 +216,46 @@ def test_reused_pid_does_not_identify_or_terminate_unrelated_process(lora_paths,
 
 
 @pytest.mark.parametrize("name,blocked", [("python.exe", True), ("System", False)])
-def test_legacy_lock_fails_closed_for_inaccessible_python_commands(lora_paths, monkeypatch, name, blocked):
+@pytest.mark.parametrize("error_type", [psutil.AccessDenied, OSError])
+def test_legacy_lock_fails_closed_for_inaccessible_python_commands(lora_paths, monkeypatch, name, blocked, error_type):
     interrupted_project()
     class InaccessibleProcess:
         pid = os.getpid() + 1
         def cmdline(self):
-            raise psutil.AccessDenied(self.pid)
+            raise error_type(self.pid)
         def name(self):
             return name
     monkeypatch.setattr(psutil, "process_iter", lambda: iter([InaccessibleProcess()]))
     assert lora_recovery.find_workers() == ([], blocked)
+
+
+def test_unrelated_command_read_error_without_lock_does_not_claim_gpu(lora_paths, monkeypatch):
+    class UnrelatedProcess:
+        pid = os.getpid() + 1
+        def cmdline(self):
+            raise OSError(87, "The parameter is incorrect: ReadProcessMemory")
+        def name(self):
+            return "unrelated.exe"
+    monkeypatch.setattr(psutil, "process_iter", lambda: iter([UnrelatedProcess()]))
+    coordinator = GpuCoordinator()
+    monkeypatch.setattr(lora_training, "gpu_coordinator", coordinator)
+    manager = lora_training.LoRATrainingManager()
+    assert manager.reconcile_restarted_runs() == {"recovered": [], "recovery_required": False}
+    assert coordinator.current_owner() is None
+
+
+def test_recorded_worker_command_read_error_retains_lock(lora_paths, monkeypatch):
+    project = interrupted_project()
+    record = {"project_id": project["id"], "run_id": "old-run", "worker_pid": 123, "worker_created_at": 123.5}
+    lora_store._atomic_write(lora_store.TRAINING_LOCK_PATH, record)
+    original = lora_store.TRAINING_LOCK_PATH.read_bytes()
+    class RecordedProcess:
+        def create_time(self): return record["worker_created_at"]
+        def cmdline(self): raise OSError(87, "ReadProcessMemory failed")
+    monkeypatch.setattr(psutil, "Process", lambda pid: RecordedProcess())
+    monkeypatch.setattr(psutil, "process_iter", lambda: iter([]))
+    assert lora_recovery.find_workers() == ([], True)
+    assert lora_store.TRAINING_LOCK_PATH.read_bytes() == original
 
 
 def test_damaged_lock_is_reconciled_by_command_discovery(lora_paths, monkeypatch):

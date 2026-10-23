@@ -4,6 +4,56 @@ This is the consolidated evidence record, reviewed October 23, 2026.
 Current guides describe inspected source; dated tests below are not a certification
 of every feature, provider, installation or device.
 
+## October 23 image workflow integration review
+
+Reviewed the integrated `147b3d4` baseline, including the published scrolling/focus,
+Web, companion relocation/features and Image Manager/Media Manager changes.
+The remaining workflow corrections require full SDXL runtime readiness and
+preserve transparency in CPU Lanczos PNG outputs. Workflows, iterative scenes and
+Magic Edit display the unavailable runtime's reason while retaining editable drafts.
+
+Validation also exposed a Windows process-inspection error that made LoRA restart
+recovery reserve the GPU without a training lock. A per-process `OSError` now uses
+the existing inaccessible-process rules. Recorded-worker identity and unreadable
+Python-worker guards remain intact; unrelated processes are neither stopped nor
+modified.
+
+- Backend: **2,259 passed, 2 existing skips** in the complete clean run. The skips
+  require Windows directory-symlink privileges unavailable to this test account.
+  An initial complete run had one default-log-folder failure caused by the test
+  runner's custom `LAW_LOG_DIR`; all 20 logging tests and the full rerun passed
+  after removing that override. An earlier diagnostic run encountered a native
+  Windows access violation during a timed stack dump; the large-folder test and
+  subsequent normal runs completed without that crash. The 26 dependency/lifespan
+  deprecation warnings remain.
+- Frontend on the reviewed Vitest 4.1.12 environment: **1,576 passed, 3 existing
+  skips**, across 198 files, using `--maxWorkers=4`. The first unconstrained run
+  timed out in five unrelated filesystem/startup tests during concurrent checks;
+  the complete bounded rerun passed without increasing test timeouts. The final
+  readiness/help check passed another 61 overlapping tests after the scene-help edit.
+- Workflow provider/storage/export checks passed **111 tests**. Subsequent
+  recovery, HTTP admission and workflow execution checks passed **92 tests**,
+  including a transparent multi-stage run and reference acceptance. These focused
+  suites overlap and must not be summed.
+- Media Manager: **124 Python and 23 Node tests passed**. The lockfile advisory
+  audit reported zero vulnerabilities, and `pip check` found no broken requirements.
+  The reused validation dependency tree had no missing/invalid requirements;
+  npm listed three extraneous optional WASM packages. Project dependencies were
+  not installed or replaced.
+- Isolated desktop and phone production builds passed with Vite 6.4.4, with
+  `recorded_files_match` for the captured desktop source. Existing chunk-size and
+  browser-externalization warnings remain. Documentation checks passed for
+  55 Markdown files, 266 local links and 92 relocation entries.
+- Synthetic regressions cover missing SDXL packages with CUDA present, absent
+  CUDA, ready-runtime refresh, RGBA/LA/palette/color-key transparency, opaque inputs,
+  EXIF orientation, original bytes, cancellation and the 24-megapixel bound.
+  Recovery checks include recorded PID identity and a real synthetic orphan.
+
+The in-app browser inspection timed out before a usable DOM/screenshot was returned;
+it is not a visual pass. Live assets and installed dependencies remain untouched.
+The controlled installation/build/restart and live scrolling/focus acceptance remain
+separate from this source review. No real model, training or GPU job was started.
+
 ## October 23 Image Manager browsing/stitcher and Media Manager fullscreen
 
 Image Manager previews follow the active filtered/sorted catalog across pages,
@@ -238,9 +288,9 @@ signing, installation and hosted-interface updates are distinct steps.
   were not rerun. Source/fixture success is not live acceptance.
 - General Brave/SearXNG provider search needs configured credentials/endpoints and
   a live check; direct page preview can work without them.
-- Gallery stitcher download acceptance and Windows playback loopback behavior
-  retain their previously unresolved live checks. Do not infer universal success
-  from mocked or synthetic paths.
+- Gallery stitcher downloads passed the October 23 synthetic Electron checks
+  above. Acceptance against the live catalog and Windows playback loopback
+  behavior remain separate; fixture results do not prove every live media path.
 - A passing application suite does not validate every statement in a guide.
   Documentation checks also compare controls/contracts with source, resolve
   links/anchors and check publication scope.

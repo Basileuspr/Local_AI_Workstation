@@ -47,6 +47,9 @@ Magic Edit copies the current edited result, including locked passes, into the
 existing workflow system. Describe the change, choose Whole image or Paint an
 area, select an installed SDXL model and strength, then generate a candidate.
 Compare, accept it explicitly as a new editor source, or discard it.
+Generation requires a ready SDXL runtime, including CUDA and its image packages.
+If it is unavailable, Magic Edit shows the reported reason and keeps editing
+available; installing requirements and restarting are separate setup steps.
 
 The working copy has a 1,024-pixel longest side and at least 768 pixels on the
 other side. Proportional scaling and extended-edge padding avoid stretching narrow

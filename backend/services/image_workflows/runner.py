@@ -63,7 +63,8 @@ def preflight(workflow):
     for number, stage in enumerate(workflow.stages, 1):
         provider = catalog.get(stage.provider_slot)
         if not provider or stage.operation not in provider["operations"] or not provider.get("available", True):
-            issue("provider_unavailable", f"Stage {number}: choose an available provider supporting this operation.", stage.id)
+            reason = provider.get("unavailable_reason") if provider and stage.operation in provider["operations"] else None
+            issue("provider_unavailable", f"Stage {number}: {reason or 'choose an available provider supporting this operation.'}", stage.id)
         elif stage.operation != "upscale" and stage.model_id not in {m["id"] for m in provider["models"]}:
             issue("model_unavailable", f"Stage {number}: choose an installed compatible model.", stage.id)
         source_size = None
@@ -78,7 +79,7 @@ def preflight(workflow):
                 issue("steps_unsupported", f"Stage {number}: use at most {MAX_IMAGE_STEPS} steps and steps \u00d7 strength \u2265 1 (or strength 0 to preserve the source).", stage.id)
             if prompts.guidance <= 1 and prompts.negative_prompt.strip():
                 issue("negative_prompt_unsupported", f"Stage {number}: set guidance above 1 to use a negative prompt with SDXL.", stage.id)
-            if provider and stage.provider_slot == "local-sdxl" and stage.model_id in {m["id"] for m in provider["models"]}:
+            if provider and provider.get("available", True) and stage.provider_slot == "local-sdxl" and stage.model_id in {m["id"] for m in provider["models"]}:
                 try:
                     from services.image_generation import prompt_token_status
                     tokens = prompt_token_status(stage.model_id, prompts.prompt, prompts.negative_prompt)

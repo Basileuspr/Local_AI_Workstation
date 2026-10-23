@@ -76,7 +76,9 @@ def find_workers() -> tuple[list[tuple[psutil.Process, str, str]], bool]:
                     workers[process.pid] = (process, *identity)
             except psutil.NoSuchProcess:
                 continue
-            except psutil.AccessDenied:
+            except (psutil.AccessDenied, OSError):
+                # Windows can report ReadProcessMemory failures as OSError
+                # instead of AccessDenied for an unrelated protected process.
                 # Old locks have no PID. An inaccessible Python command line
                 # could belong to that worker, so retain ownership. Protected
                 # system processes with other names are not worker candidates.

@@ -128,7 +128,7 @@ export default function ImageMagic({session,imageSize,preview,getSource,onAccept
       <ImageGenerationSizing width={workingSize.width} height={workingSize.height} allowLongWait={workingSize.allow_long_wait} waitKey="allow_long_wait" limits={imageProvider?.resolution_limits} prefix="Magic Edit " sourceSize={session} onChange={patch=>setWorkingSize(size=>({...size,...patch}))}/>
 
       <button disabled={!model||!imageProvider?.available||!prompt.trim()} onClick={()=>run('edit')}>Generate edited candidate</button>
-      {catalog&&(!imageProvider?.available||!model)&&<p>Magic Edit needs an installed compatible SDXL model and a working CUDA runtime. No models or dependencies are downloaded here.</p>}
+      {catalog&&(!imageProvider?.available||!model)&&<p role="status">{imageProvider?.unavailable_reason || 'Magic Edit needs an installed compatible SDXL model and a ready image runtime.'} No models or dependencies are downloaded here.</p>}
     </fieldset>
     <button disabled={busy} onClick={discover}>Refresh installed models</button>
     {busy&&<button onClick={stop}>Stop Magic Edit</button>}

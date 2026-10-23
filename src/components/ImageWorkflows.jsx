@@ -363,6 +363,8 @@ function StageWorkflows({ active }) {
                   {stage.provider_slot && !catalog.providers.some(p => p.id === stage.provider_slot && p.operations.includes(stage.operation)) && <option value={stage.provider_slot}>Unavailable provider: {stage.provider_slot}</option>}
                   {catalog.providers.filter(p => p.operations.includes(stage.operation)).map(p => <option key={p.id} value={p.id} disabled={!p.available}>{p.name}{!p.available ? " (unavailable)" : ""}</option>)}
                 </select></Field>
+                {catalog.providers.filter(p => p.operations.includes(stage.operation) && !p.available && p.unavailable_reason).map(p =>
+                  <p className="workflow-error" role="status" key={p.id}>{p.name}: {p.unavailable_reason}</p>)}
                 {stage.operation !== "upscale" && <Field label={`Stage ${index + 1} model`}><select value={stage.model_id || ""} onChange={event => changeStage(stage.id, { model_id: event.target.value })}>
                   <option value="">Choose an installed model</option>
                   {(catalog.providers.find(p => p.id === stage.provider_slot)?.models || []).map(model => <option key={model.id} value={model.id}>{model.name}</option>)}

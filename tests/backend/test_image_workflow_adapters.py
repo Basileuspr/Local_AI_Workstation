@@ -13,6 +13,114 @@ from services.image_workflows.contracts import Stage, PromptSettings
 from services.image_workflows.providers import PreparedStage, ExecutionContext, WorkflowCancelled
 
 
+@pytest.mark.parametrize("runtime,available,reason", [
+    ({"ready": False, "cuda_available": True, "missing_packages": ["diffusers"],
+      "error": "Image runtime packages missing: diffusers"}, False, "Image runtime packages missing: diffusers"),
+    ({"ready": False, "cuda_available": False, "error": "CUDA-enabled PyTorch is required"},
+     False, "CUDA-enabled PyTorch is required"),
+    ({"ready": True, "cuda_available": True, "error": None}, True, None),
+    ({"cuda_available": True}, False, "The local SDXL runtime is not ready."),
+])
+def test_catalog_requires_full_sdxl_runtime_readiness(monkeypatch, runtime, available, reason):
+    from services.image_generation import manager
+    limits = {"max_width": 1024, "max_height": 1024}
+    monkeypatch.setattr(manager, "runtime_status", lambda: {**runtime, "resolution_limits": limits})
+    monkeypatch.setattr(adapters, "sdxl_models", lambda: [{"id": "installed", "name": "Installed SDXL"}])
+    monkeypatch.setattr(adapters, "vision_models", lambda: [])
+    catalog = adapters.capability_catalog([])
+    provider = next(p for p in catalog["providers"] if p["id"] == "local-sdxl")
+    assert provider["available"] is available
+    assert provider.get("unavailable_reason") == reason
+    assert provider["models"] == [{"id": "installed", "name": "Installed SDXL"}]
+    assert provider["resolution_limits"] == limits
+    assert next(p for p in catalog["providers"] if p["id"] == "pillow-lanczos")["available"]
+
+
+@pytest.mark.parametrize("mode,color,transparency,alpha", [
+    ("RGBA", (32, 64, 128, 0), None, 0),
+    ("RGBA", (32, 64, 128, 128), None, 128),
+    ("RGBA", (32, 64, 128, 255), None, 255),
+    ("LA", (96, 128), None, 128),
+    ("P", 0, 0, 0),
+    ("P", 0, bytes([64]), 64),
+    ("RGB", (32, 64, 128), (32, 64, 128), 0),
+    ("L", 96, 96, 0),
+    ("RGB", (32, 64, 128), None, None),
+    ("L", 96, None, None),
+    ("P", 0, None, None),
+])
+def test_resize_preserves_png_transparency_and_source_bytes(tmp_path, mode, color, transparency, alpha):
+    source = tmp_path / "source.png"
+    image = Image.new(mode, (4, 3), color)
+    if mode == "P":
+        image.putpalette([32, 64, 128] * 256)
+    image.save(source, **({"transparency": transparency} if transparency is not None else {}))
+    original = source.read_bytes()
+    outputs = tmp_path / "outputs"
+    outputs.mkdir()
+    request = PreparedStage(Stage(id="a" * 32, operation="upscale", upscale_factor=2),
+                            PromptSettings(), source, None, None, ())
+    context = ExecutionContext("resize", outputs, threading.Event())
+    result = adapters.PillowProvider().resize(request, context)
+    with Image.open(result.image_paths[0]) as output:
+        assert output.format == "PNG" and output.size == (8, 6)
+        assert output.mode == ("RGBA" if alpha is not None else "RGB")
+        if alpha is not None:
+            assert output.getchannel("A").getextrema() == (alpha, alpha)
+        else:
+            assert output.getpixel((0, 0)) == image.convert("RGB").getpixel((0, 0))
+    assert source.read_bytes() == original
+    assert tuple(outputs.iterdir()) == result.image_paths
+    assert result.metadata["size"] == (8, 6)
+
+
+@pytest.mark.parametrize("mode", ["RGB", "RGBA"])
+def test_resize_applies_orientation_before_scaling(tmp_path, mode):
+    source = tmp_path / ("source.jpg" if mode == "RGB" else "source.png")
+    image = Image.new(mode, (2, 3), "blue")
+    exif = image.getexif()
+    exif[274] = 6
+    image.save(source, exif=exif)
+    original = source.read_bytes()
+    request = PreparedStage(Stage(id="a" * 32, operation="upscale"), PromptSettings(), source, None, None, ())
+    result = adapters.PillowProvider().resize(request, ExecutionContext("resize", tmp_path, threading.Event()))
+    with Image.open(result.image_paths[0]) as output:
+        assert output.size == (6, 4)
+        assert output.getexif().get(274, 1) == 1
+    assert source.read_bytes() == original
+
+
+def test_resize_rejects_oversized_output_before_resampling(tmp_path, monkeypatch):
+    source = tmp_path / "source.png"
+    Image.new("RGB", (2500, 2401)).save(source)
+    outputs = tmp_path / "outputs"
+    outputs.mkdir()
+    request = PreparedStage(Stage(id="a" * 32, operation="upscale"), PromptSettings(), source, None, None, ())
+    monkeypatch.setattr(Image.Image, "resize", lambda *args, **kwargs: pytest.fail("Resampled oversized image"))
+    with pytest.raises(ValueError, match="24 megapixels"):
+        adapters.PillowProvider().resize(request, ExecutionContext("resize", outputs, threading.Event()))
+    assert not list(outputs.iterdir())
+
+
+@pytest.mark.parametrize("cancel_after_resize", [False, True])
+def test_resize_cancellation_never_saves_an_output(request_context, monkeypatch, cancel_after_resize):
+    request, context = request_context
+    original = request.source.read_bytes()
+    if cancel_after_resize:
+        resize = Image.Image.resize
+        def cancelled_resize(image, *args, **kwargs):
+            output = resize(image, *args, **kwargs)
+            context.cancel_event.set()
+            return output
+        monkeypatch.setattr(Image.Image, "resize", cancelled_resize)
+    else:
+        context.cancel_event.set()
+    with pytest.raises(WorkflowCancelled):
+        adapters.PillowProvider().resize(request, context)
+    assert not list(context.output_dir.iterdir())
+    assert request.source.read_bytes() == original
+
+
 @pytest.fixture
 def request_context(tmp_path):
     source, mask = tmp_path / "source.png", tmp_path / "mask.png"
