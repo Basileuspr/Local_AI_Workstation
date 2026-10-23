@@ -17,7 +17,7 @@ No application behavior or dependencies were changed by the documentation work.
 | Backend, isolated pytest | 2,196 passed; 2 skipped; 26 deprecation warnings |
 | Media Manager | 124 Python and 21 Node tests passed |
 | pip check | No broken requirements |
-| npm advisory audit | Failed: four affected packages, one high and three moderate |
+| npm advisory audit | Before remediation: four affected packages, one high and three moderate; resolved below |
 
 Backend tests used disposable data/model/log/image-catalog directories.
 The review inspected navigation/help, session startup/attachments, shared response
@@ -72,22 +72,50 @@ They do not establish live-provider search, signed-in social-site compatibility,
 real model/GPU quality, physical-phone acceptance or a running user's app reload.
 No Electron/backend security policy, dependencies or phone assets changed.
 
-## Open dependency findings
+## October 23 dependency remediation
 
-The audit recorded these installed versions; counts refer to affected packages,
-not distinct exploits:
+The four affected packages are resolved in the updated lockfile. In the freshly
+installed validation copy, `npm audit --json` and
+`npm audit --package-lock-only --json` report zero
+vulnerabilities. This is a dated registry result, not a guarantee against future
+advisories. Counts refer to affected packages, not distinct exploits.
 
-| Package | Version | Highest severity | Advisory |
+| Package | Before | Patched | Advisory addressed |
 |---|---|---|---|
-| vite | 6.4.3 | High | [Windows editor launch](https://github.com/advisories/GHSA-587h-7wmj-h5pm), plus other Vite/editor findings |
-| electron | 44.4.5 | Moderate | [Pointer-lock attribution](https://github.com/advisories/GHSA-x562-297c-g43g) |
-| @vitest/mocker | 4.1.11 | Moderate | [Mock registration](https://github.com/advisories/GHSA-qxg6-89mg-rqv8), [redirect traversal](https://github.com/advisories/GHSA-xp26-3454-mjgp) |
-| vitest | 4.1.11 | Moderate | Through @vitest/mocker |
+| vite | 6.4.3 | 6.4.4 | [Windows editor launch](https://github.com/advisories/GHSA-587h-7wmj-h5pm), plus the remaining Vite/editor findings |
+| electron | 44.4.5 | 44.5.0 | [Pointer-lock attribution](https://github.com/advisories/GHSA-x562-297c-g43g) |
+| @vitest/mocker | 4.1.11 | 4.1.12 | [Mock registration](https://github.com/advisories/GHSA-qxg6-89mg-rqv8), [redirect traversal](https://github.com/advisories/GHSA-xp26-3454-mjgp) |
+| vitest | 4.1.11 | 4.1.12 | Updated together with @vitest/mocker |
 
-npm reported fixes available. Remediation remains a separate code/dependency task
-requiring Electron boundary, desktop/mobile build and Vitest validation.
-The Dashboard publisher’s audit gate is not green merely because tests pass.
-pip check is compatibility checking, not a vulnerability audit.
+The existing major versions and React plugin 4.7.0 are retained. The lockfile
+also refreshes Vitest's Chai and tinyrainbow dependencies. Validation used Node
+22.18.0. Final frontend/build checks used an isolated copy of `12172b0` plus
+the dependency patch. Backend, Media Manager and Electron boundary checks used
+`b7de8d9` plus that patch; their source and backend tests are unchanged through
+`12172b0`. No Python dependencies were changed.
+
+| Check | Result |
+|---|---|
+| Clean install with npm 10.9.3 | Passed; lockfile generated using temporary npm 11.21.1 after npm 10's resolver error |
+| Frontend, npm test | 1,538 passed; 3 skipped across 192 files |
+| Backend, isolated pytest | 2,198 passed; 2 skipped; 26 deprecation warnings |
+| Media Manager | 124 Python and 21 Node tests passed |
+| pip check | No broken requirements; compatibility check, not a vulnerability audit |
+| Desktop and mobile production builds | Passed; existing desktop chunk-size warning |
+| Electron browser foundation fixture | Passed on 44.5.0 in two hidden processes, including profile/restart isolation, sandbox/bridge boundaries, authenticated media and private-destination rejection |
+| npm audit and lockfile-only audit | Zero vulnerabilities |
+
+The first backend run used temporary paths containing `..`; storage guards
+rejected them. The successful rerun used normalized absolute paths. The initial
+path-setup failure is not an application regression or a passing test run.
+
+Builds, profiles, captures and test stores remained disposable. These checks do
+not restart or redeploy the normal desktop or phone interface. Existing running
+installations retain their old Electron executable until shutdown and `npm ci`;
+publishing the lockfile does not update them automatically. The separate full
+desktop startup smoke launch was unavailable and is not counted as passing.
+Native Android build/lint, physical-phone acceptance and live provider/GPU work
+were not rerun for this JavaScript dependency update.
 
 ## October 22 Android and controls evidence
 

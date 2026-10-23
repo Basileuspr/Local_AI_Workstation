@@ -5,7 +5,8 @@ claim of a fresh installation on every Windows/GPU combination.
 
 ## Windows
 
-Install Node.js 22 with npm, 64-bit Python 3.13 and Ollama on Windows 10/11:
+Install Node.js 22.12 or newer in the Node 22 series with npm, 64-bit Python 3.13
+and Ollama on Windows 10/11:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup-windows.ps1

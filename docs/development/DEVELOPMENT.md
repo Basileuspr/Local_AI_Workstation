@@ -75,6 +75,22 @@ the selected update includes Android source; it does not sign or install an APK.
 checks, Chromium walkthroughs, fresh installation or physical-device/GPU acceptance.
 Record those results separately, including skips and pre-existing failures.
 
+## Updating JavaScript dependencies
+
+Fully quit Electron before replacing local dependencies. Use `npm ci` to install
+the reviewed lockfile, then launch again with `npm start`. A running desktop
+retains its previous Electron executable until this installation and restart.
+For a dependency change, select
+patched versions compatible with the existing major versions, then check the
+lockfile diff, run `npm audit`, and validate the affected suites/builds.
+
+If npm 10 fails while updating Vitest with `Cannot read properties of null
+(reading 'edgesOut')`, the October 23 update was resolved with a temporary
+`npx --yes npm@11.21.1 install --save-dev electron@44.5.0 vite@6.4.4 vitest@4.1.12`
+invocation. This does not replace global npm. A subsequent `npm ci` with npm
+10.9.3 installed the resulting lockfile successfully. Do not bypass peer checks
+with `--force` or `--legacy-peer-deps` to hide a resolver failure.
+
 ## Documentation ownership
 
 - Keep the root README short: startup, documentation and storage entry points.

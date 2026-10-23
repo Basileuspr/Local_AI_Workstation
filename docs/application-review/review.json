@@ -3,30 +3,30 @@
   "reviewed_on": "2026-10-23",
   "timezone": "America/Denver",
   "metrics": {
-    "frontend_tests": 1525,
-    "backend_tests": 2196,
+    "frontend_tests": 1538,
+    "backend_tests": 2198,
     "media_tests": 145,
-    "advisory_packages": 4
+    "advisory_packages": 0
   },
-  "scope": "October 22–23 source/documentation review with isolated application tests. Narrative evidence and retained source snapshots have separate dates. No fresh deployment, physical-phone acceptance or real GPU quality claim.",
-  "summary": "Current workflow guides are consolidated. Earlier implementation proposals are superseded by current source and the verification record. Automated suites pass with recorded skips; the npm advisory audit remains open.",
+  "scope": "October 22–23 source/documentation review and October 23 dependency remediation with isolated tests/builds. Narrative evidence and retained source snapshots have separate dates. No deployment, physical-phone acceptance or real GPU quality claim.",
+  "summary": "Current workflow guides are consolidated. The four previously affected npm packages are patched; the dated advisory audit reports zero vulnerabilities. Automated suites pass with recorded skips. Earlier proposals are superseded by current source and the verification record.",
   "validation": [
     {
       "check": "Frontend",
-      "result": "1,525 passed; 3 skipped across 188 files",
-      "kind": "Automated, October 22–23",
+      "result": "1,538 passed; 3 skipped across 192 files",
+      "kind": "Isolated lockfile installation, October 23",
       "command": "npm test"
     },
     {
       "check": "Backend",
-      "result": "2,196 passed; 2 skipped; 26 deprecation warnings",
-      "kind": "Isolated automated suite, October 22–23",
+      "result": "2,198 passed; 2 skipped; 26 deprecation warnings",
+      "kind": "Normalized isolated paths, October 23",
       "command": "venv\\Scripts\\python.exe -m pytest (temporary LAW_DATA_DIR, LAW_MODELS_DIR, LAW_LOG_DIR, LAW_IMAGE_MANAGER_DIR)"
     },
     {
       "check": "Media Manager",
       "result": "124 Python and 21 Node passed",
-      "kind": "Automated, October 22–23",
+      "kind": "Isolated automated checks, October 23",
       "command": "npm run test:media"
     },
     {
@@ -37,32 +37,48 @@
     },
     {
       "check": "JavaScript advisories",
-      "result": "Failed: four affected packages; one high, three moderate",
-      "kind": "Dated registry advisory result",
-      "command": "npm audit --json"
+      "result": "Passed: zero vulnerabilities",
+      "kind": "Default and lockfile-only audits in the fresh validation install, October 23",
+      "command": "npm audit --json; npm audit --package-lock-only --json"
+    },
+    {
+      "check": "Production builds",
+      "result": "Desktop and mobile passed; existing desktop chunk-size warning",
+      "kind": "Disposable build output, October 23",
+      "command": "npm run build"
+    },
+    {
+      "check": "Electron browser boundaries",
+      "result": "Passed on Electron 44.5.0, including separate-process profile/restart and authenticated-media checks",
+      "kind": "Isolated fixture with hidden Electron windows, October 23",
+      "command": "node scripts/qa-browser-foundation.cjs"
     }
   ],
   "not_validated": [
     "Physical-phone installation/VPN behavior, fresh Windows setup, live search-provider credentials, real GPU/training/voice quality and controlled performance were not rerun.",
-    "Direct Electron QA attempts produced no result artifact and are not counted as passing.",
+    "The separate full desktop startup smoke launch was unavailable. Successful Electron checks used isolated browser fixtures; the normal app was not restarted or redeployed.",
     "Older Android and control fixtures retain their original date and limitations in VERIFICATION.md."
   ],
   "findings": [
     {
       "id": "D01",
       "priority": "P1",
-      "title": "Dependency advisory remediation remains open",
-      "evidence": "October 22–23 npm audit of installed lockfile dependencies",
-      "observation": "Vite 6.4.3, Electron 44.4.5, @vitest/mocker 4.1.11 and Vitest 4.1.11 are affected. Passing suites do not make the advisory gate pass.",
-      "recommendation": "Review available fixes in a separate dependency change and validate desktop/browser boundaries, desktop/mobile builds and Vitest.",
-      "verify": "Rerun npm audit and the affected regression checks; report residual findings rather than treating pip check as a vulnerability audit.",
+      "title": "Dependency advisory remediation",
+      "evidence": "October 23 default and lockfile-only npm audits in a fresh validation install and isolated regression checks",
+      "observation": "The initial audit affected Vite 6.4.3, Electron 44.4.5, @vitest/mocker 4.1.11 and Vitest 4.1.11. The patched lockfile reports zero vulnerabilities.",
+      "recommendation": "Keep advisory checks separate from test results and rerun both when updating dependencies.",
+      "verify": "Run npm audit, a clean lockfile installation, affected suites, desktop/mobile builds and Electron boundary fixtures.",
       "risk": "Preserve application behavior, data and platform/security boundaries.",
       "files": [
         "package.json",
         "package-lock.json",
         "docs/development/VERIFICATION.md"
       ],
-      "category": "Dependencies"
+      "category": "Dependencies",
+      "status": "Implemented",
+      "implemented_at": "2026-10-23",
+      "implementation": "Updated Electron to 44.5.0, Vite to 6.4.4, and Vitest/@vitest/mocker to 4.1.12 without changing major versions.",
+      "verification_result": "Zero npm vulnerabilities; 1,538 frontend and 2,198 backend tests passed with recorded skips, 145 media checks passed, builds and Electron browser fixtures passed. Full desktop startup and live device/provider/GPU acceptance remain separate."
     },
     {
       "id": "D02",
@@ -91,7 +107,7 @@
     "Opt-in reviewed local model tools; separate desktop, Browser, mobile and public-web boundaries."
   ],
   "next_sequence": [
-    "Remediate the recorded dependency advisories.",
+    "Repeat advisory checks for subsequent dependency changes.",
     "Complete required live-provider, device and GPU acceptance separately from source/fixture checks."
   ],
   "benchmark_metrics": [

@@ -74,7 +74,7 @@ not additional versioned releases or Windows installers:
 The [application/Android review](docs/development/VERIFICATION.md#october-22-android-and-controls-evidence)
 records its dated runtime and artifact evidence. The subsequent
 [documentation review](docs/development/VERIFICATION.md) records
-fresh automated checks and open dependency findings. Neither certifies the
+fresh automated checks and dated dependency findings. Neither certifies the
 other computer, a fresh installation or physical-phone acceptance.
 
 ## Producing the next reviewed release
