@@ -1,15 +1,13 @@
 """Explicit mobile listener lifecycle; never starts on import or application boot."""
-import ipaddress
 import socket
 import ssl
 import threading
 import time
 from pathlib import Path
-from urllib.parse import urlsplit
 
 import uvicorn
 from uvicorn.protocols.http.h11_impl import H11Protocol
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from mobile_companion.connection_setup import MobileListen
 
 from services.bridge_store import TERMINAL
 from mobile_companion.mobile_access import MobileAccess
@@ -22,37 +20,6 @@ class QuietMobileProtocol(H11Protocol):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.access_log = False
-
-
-class MobileListen(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    address: str = "127.0.0.1"
-    port: int = Field(default=8766, ge=1024, le=65535)
-    origin: str = Field(min_length=1, max_length=250)
-    certificate: str = Field(default="", max_length=32767)
-    private_key: str = Field(default="", max_length=32767)
-
-    @model_validator(mode="after")
-    def validate_listener(self):
-        try:
-            address = ipaddress.IPv4Address(self.address)
-        except ValueError:
-            raise ValueError("Use an explicit private IPv4 or 127.0.0.1 listener address.") from None
-        private_ranges = ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10")
-        if self.address != "127.0.0.1" and not any(address in ipaddress.ip_network(network) for network in private_ranges):
-            raise ValueError("Only loopback, private LAN and private VPN addresses are supported.")
-        parsed = urlsplit(self.origin)
-        if (parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password
-                or parsed.path or parsed.query or parsed.fragment):
-            raise ValueError("Enter an HTTPS origin with no path, credentials or query.")
-        if bool(self.certificate) != bool(self.private_key):
-            raise ValueError("Provide both the trusted certificate and private-key paths.")
-        if not self.certificate:
-            if self.address != "127.0.0.1" or not parsed.hostname.endswith(".ts.net") or parsed.port not in {None, 443, 8443, 10000}:
-                raise ValueError("Without certificate files, use 127.0.0.1 behind a private Tailscale Serve HTTPS origin ending in .ts.net.")
-        elif parsed.hostname != self.address or (parsed.port or 443) != self.port:
-            raise ValueError("Direct HTTPS origin must match the private listener address and port.")
-        return self
 
 
 class MobileCompanion:

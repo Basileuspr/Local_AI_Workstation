@@ -15,11 +15,15 @@ For private Tailscale access:
 2. Configure private Serve to proxy HTTPS to `http://127.0.0.1:8766`, typically
    `tailscale serve --bg http://127.0.0.1:8766`. Inspect `tailscale serve status`;
    do not enable Funnel.
-3. In Dashboard → Mobile companion, enter the exact HTTPS origin reported by
-   Serve, leave listen address 127.0.0.1 / port 8766 and certificate paths blank.
+3. In Dashboard → Mobile companion, choose **Find Tailscale address** to read an
+   existing private Serve proxy for the listen port, or enter its exact HTTPS
+   origin. Leave listen address 127.0.0.1 / port 8766 and certificate paths blank.
 4. Start mobile connection and open that address from the phone on the VPN.
 
 The app does not install/configure Tailscale or change firewall rules.
+Address discovery runs only when requested and reads `tailscale serve status --json`.
+It excludes public Funnel routes and proxies to unrelated ports/services. Review
+the address before starting; finding it does not start a listener or pair a phone.
 [Tailscale Serve](https://tailscale.com/docs/features/tailscale-serve) and its
 [HTTPS guidance](https://tailscale.com/docs/how-to/set-up-https-certificates)
 cover host setup and public certificate-name disclosure. Use your actual origin.
@@ -28,6 +32,21 @@ Direct private LAN HTTPS instead requires a specific private IPv4 address and
 certificate/key trusted by the phone. Broad 0.0.0.0/public binds are rejected.
 Do not expose Ollama/the ordinary API or bypass certificate errors. IPv6 and
 arbitrary proxy hostnames are outside this gateway’s supported configuration.
+
+## Reconnect after sanitizing
+
+Dashboard → App data options → Reset offers **Clear app data, keep phone setup**.
+This retains only the desktop connection settings (including certificate file
+paths), clears phone job/access records and leaves mobile access off. Start the
+connection and create a fresh invitation; the Android app can keep its saved URL.
+**Clear all app data, including phone setup** also forgets those settings. Use
+**Find Tailscale address** to recover an existing private proxy, or re-enter your
+direct LAN HTTPS settings. Discovery does not recreate missing network setup.
+
+**Choose specific sections** lets you clear other app data while leaving phone
+pairing and jobs untouched, or select phone access/jobs separately with optional
+setup retention. Related copies may remain in unselected sections. See
+[reset scope](../../docs/workspace/STORAGE_AND_BACKUP.md#reset-and-maintenance).
 
 ## Pair and disconnect
 

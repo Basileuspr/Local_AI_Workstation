@@ -10,6 +10,8 @@ from starlette.concurrency import run_in_threadpool
 
 from config import PROJECT_ROOT, settings
 from mobile_companion.mobile_companion import MobileCompanion, MobileListen
+from mobile_companion.connection_discovery import discover_connection
+from pydantic import BaseModel, ConfigDict, Field
 from services.session_guard import expected_token
 from services.conditional_status import conditional_status
 
@@ -92,6 +94,16 @@ async def status():
 @router.post("/start")
 async def start(body: MobileListen):
     return await call(lambda: companion().start(body))
+
+
+class DiscoverConnection(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    port: int = Field(default=8766, ge=1024, le=65535)
+
+
+@router.post('/discover-connection')
+async def discover(body: DiscoverConnection):
+    return await call(discover_connection, body.port)
 
 
 @router.post("/stop")

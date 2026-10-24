@@ -162,7 +162,7 @@ contextBridge.exposeInMainWorld("workstationDesktop", {
     importAppBackup: (ticket, confirmation) => ipcRenderer.invoke("maintenance:import", { ticket, confirmation }),
     backupImportStatus: () => ipcRenderer.invoke("maintenance:import-status"),
     recoverBackupImport: () => ipcRenderer.invoke("maintenance:recover-import"),
-    resetAppData: (ticket, confirmation, keepImageManager = false) => ipcRenderer.invoke("maintenance:reset", { ticket, confirmation, keepImageManager }),
+    resetAppData: (ticket, confirmation, keepImageManager = false, options) => ipcRenderer.invoke("maintenance:reset", { ticket, confirmation, keepImageManager, ...(options ? {options} : {}) }),
     onResetResult: (callback) => {
         const listener = (_event, result) => callback(result);
         ipcRenderer.on("maintenance:result", listener);

@@ -43,6 +43,7 @@ export default function MobileCompanion({ active = true }) {
   const [origin, setOrigin] = useState(""), [address, setAddress] = useState("127.0.0.1"), [port, setPort] = useState(8766);
   const [certificate, setCertificate] = useState(""), [key, setKey] = useState("");
   const [invitation, setInvitation] = useState(null), [busy, setBusy] = useState(false);
+  const [connections, setConnections] = useState([]), [connectionNotice, setConnectionNotice] = useState('');
   const initialized = useRef(false), revision = useRef(0), acting = useRef(false);
   const update = status?.client_update, updating = update?.phase === 'building';
   useEffect(() => {
@@ -72,11 +73,29 @@ export default function MobileCompanion({ active = true }) {
     catch (failure) { setStatus(null); setInvitation(null); setError(failure.message); }
     finally { acting.current = false; setBusy(false); }
   }
+  function useConnection(value) {
+    setOrigin(value.origin); setAddress(value.address); setPort(value.port);
+    setCertificate(''); setKey(''); setConnections([]);
+    setConnectionNotice('Existing private HTTPS setup found. Review the address, start Mobile connection, then create a fresh invitation if the phone needs pairing.');
+  }
+  async function findConnection() {
+    revision.current++; acting.current = true; setBusy(true); setError(''); setConnectionNotice(''); setConnections([]);
+    try {
+      const result = await mobileControl('/discover-connection', {port});
+      if (result.connections.length === 1) useConnection(result.connections[0]);
+      else setConnections(result.connections);
+    } catch (failure) { setError(failure.message); }
+    finally { acting.current = false; setBusy(false); }
+  }
   return <section className="dashboard-card mobile-control"><h2>Mobile companion</h2><p className="dashboard-note">Use a paired phone for chat, image batches, Gallery and character profiles.</p><button type="button" aria-expanded={expanded} onClick={() => setExpanded(value => !value)}>{expanded ? "Hide mobile controls" : "Show mobile controls"}</button>{expanded && <>
     <p role="status">{!status ? "Checking desktop connection…" : status.running ? `Listening for paired phones at ${status.origin}` : "Mobile access is off. It stays off after each desktop restart."}</p>
     {error && <p role="alert">{error}</p>}{status && !status.build_ready && <p>Build the mobile app with <code>npm run build:mobile</code> before starting.</p>}
     <details><summary>Connection and privacy information</summary><p>Use a trusted HTTPS connection on your private network or VPN. Paired phones can read all conversations, visible unlocked gallery images and character profiles. They can name chats, queue chat/image jobs and batches, edit character profiles, link visible Saved Images and download originals. Vault unlock and filesystem administration stay on the desktop. Scan the locally generated QR code or paste the code to pair. Invitations are single-use and expire after five minutes; phone access expires after 30 days and can be revoked below.</p><p>For private remote access, configure Tailscale Serve separately to forward your HTTPS device address to this loopback port. This panel does not install a VPN, configure certificates or change your firewall. Direct LAN HTTPS requires trusted certificate and key files matching the chosen private IP.</p><p>Keep the desktop awake for jobs. Browser closure does not cancel them; a desktop restart marks unfinished jobs interrupted. Revoke blocks further phone access but does not cancel accepted jobs or erase files already downloaded. Backups of desktop app data include mobile job content and credential hashes.</p></details>
     <div className="bridge-fields"><label>HTTPS address<input value={origin} placeholder="https://desktop.your-tailnet.ts.net" onChange={event => setOrigin(event.target.value)} disabled={status?.running} /></label><label>Listen address<input value={address} onChange={event => setAddress(event.target.value)} disabled={status?.running} /></label><label>Listen port<input type="number" min="1024" max="65535" value={port} onChange={event => setPort(Number(event.target.value))} disabled={status?.running} /></label></div>
+    <button type="button" disabled={busy || !status || status.running} onClick={findConnection}>Find Tailscale address</button>
+    <p className="dashboard-note">Recover a forgotten address from an existing private Tailscale Serve connection for this listen port. This only reads local setup. After sanitizing phone access, start the connection and create a new invitation; the phone can keep its saved address.</p>
+    {connectionNotice && <p role="status">{connectionNotice}</p>}
+    {connections.length > 1 && <section aria-label="Existing private connections"><p>Choose your existing address:</p>{connections.map(value => <button type="button" key={value.origin} onClick={() => useConnection(value)}>Use {value.origin}</button>)}</section>}
     <details><summary>Direct LAN certificate files</summary><div className="bridge-fields"><label>Certificate path<input value={certificate} onChange={event => setCertificate(event.target.value)} disabled={status?.running} /></label><label>Private-key path<input value={key} onChange={event => setKey(event.target.value)} disabled={status?.running} /></label></div></details>
     <div className="bridge-actions"><button disabled={busy || !status || status.running || !status.build_ready || !origin.trim()} onClick={() => action("/start", { origin: origin.trim(), address: address.trim(), port, certificate: certificate.trim(), private_key: key.trim() })}>Start mobile connection</button><button disabled={busy || !status?.running || !!status?.active_jobs} onClick={() => action("/stop")}>Stop mobile connection</button><button disabled={busy || !status?.running} onClick={() => action("/invitation")}>Create phone invitation</button></div>
     {!!status?.active_jobs && <p>{status.active_jobs} active mobile job(s). Finish or cancel them on the phone before stopping.</p>}

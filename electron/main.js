@@ -27,7 +27,7 @@ const { randomUUID } = require("crypto");
 const { pickFiles } = require("./filePicker");
 const { createFaceImports, saveFaceFolder } = require("./faceFiles");
 const { createMaintenance } = require("./maintenance");
-const { clearDesktopStorage } = require("./maintenanceStorage");
+const { clearDesktopStorage, resetDesktopStorage } = require("./maintenanceStorage");
 const { trustedUrl, externalUrl, appAsset, APP_HEADERS } = require("./security");
 const { registerLibraryDownloadIpc } = require('./libraryDownloads');
 const { migratePreferences } = require("./preferenceMigration");
@@ -694,7 +694,7 @@ const maintenance = createMaintenance({
     freezeRenderer: () => mainWindow.webContents.executeJavaScript(`document.getElementById('root').inert = true`),
     thawRenderer: () => mainWindow.webContents.executeJavaScript(`document.getElementById('root').inert = false`),
     readStorage: () => mainWindow.webContents.executeJavaScript(`Object.fromEntries(Object.keys(localStorage).map(key => [key, localStorage.getItem(key)]))`),
-    clearRenderer: () => clearDesktopStorage(mainWindow.webContents, {}, "App data and personal settings were reset. Image Manager and Media Manager catalogs were retained."),
+    clearRenderer: (_keepImageManager, options) => resetDesktopStorage(mainWindow.webContents, options),
     restoreRenderer: (values, notice) => clearDesktopStorage(mainWindow.webContents, values, notice),
     clearCache: async () => { await mainWindow.webContents.session.clearCache(); },
     startBackend: async () => { startPythonBackend(); await waitForBackend(); },

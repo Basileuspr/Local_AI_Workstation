@@ -41,6 +41,10 @@
 .reset-confirmation { width: min(640px, 100%); max-height: 90vh; overflow: auto; }
 .reset-confirmation label { display: block; color: var(--text); font-size: 13px; }
 .reset-confirmation input { display: block; width: 100%; margin-top: 10px; padding: 10px; background: var(--bg-input); color: var(--text); border: 1px solid var(--border); }
+.reset-confirmation .reset-scope { margin: 16px 0; padding: 12px; border: 1px solid var(--border); border-radius: 6px; }
+.reset-confirmation .reset-scope label { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; min-height: 44px; }
+.reset-confirmation .reset-scope input { flex: 0 0 auto; width: 18px; height: 18px; margin: 2px 0 0; padding: 0; }
+.reset-confirmation .reset-section small { display: block; margin-top: 4px; line-height: 1.5; }
 .reset-actions { display: flex; gap: 12px; flex-wrap: wrap; }
 .dashboard-drive-card { display: flex; flex-direction: column; }
 .dashboard-drive-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; margin-top: auto; padding-top: 18px; text-align: right; }

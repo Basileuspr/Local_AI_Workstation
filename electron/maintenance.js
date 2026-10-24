@@ -23,7 +23,7 @@ function createMaintenance(deps) {
             busy = true;
             try {
                 const report = await deps.run({ action: "inventory" });
-                pending = { ticket: randomUUID() };
+                pending = { ticket: randomUUID(), report };
                 return { ticket: pending.ticket, report };
             } catch (error) { return { error: error.message }; }
             finally { busy = false; }
@@ -143,13 +143,26 @@ function createMaintenance(deps) {
             }
             return result;
         },
-        async reset({ ticket, confirmation, keepImageManager = false } = {}) {
+        async reset({ ticket, confirmation, keepImageManager = false, options } = {}) {
             if (busy) return { error: "Maintenance is already running." };
             if (!pending || pending.ticket !== ticket || confirmation !== "RESET") return { error: "Review the reset, then confirm permanent reset." };
             if (typeof keepImageManager !== 'boolean') return { error: 'Choose whether to keep the external Image Manager catalog.' };
+            if (options !== undefined) {
+                const allowed = pending.report.reset_sections?.map(section => section.id) || [];
+                if (!options || typeof options !== 'object' || Object.keys(options).sort().join(',') !== 'keep_mobile_setup,sections'
+                    || !Array.isArray(options.sections) || !options.sections.length || options.sections.length > allowed.length
+                    || options.sections.some(key => !allowed.includes(key)) || new Set(options.sections).size !== options.sections.length
+                    || typeof options.keep_mobile_setup !== 'boolean' || (options.keep_mobile_setup && !options.sections.includes('mobile')))
+                    return { error: 'Choose at least one valid section to sanitize.' };
+                options = { sections: allowed.filter(key => options.sections.includes(key)), keep_mobile_setup: options.keep_mobile_setup };
+            }
+            const original = pending.lockedOptions || (pending.report.reset_pending ? {options: pending.report.reset_options ?? undefined, keepImageManager: Boolean(pending.report.keep_image_manager)} : null);
+            if (original && JSON.stringify(original) !== JSON.stringify({options, keepImageManager}))
+                return { error: 'Retry the interrupted reset with its original section and phone setup choices.' };
             busy = true;
             let stopped = false;
             let completed = false;
+            let frozen = false;
             try {
                 await deps.checkRenderer();
                 if (!deps.ownsBackend()) {
@@ -157,16 +170,19 @@ function createMaintenance(deps) {
                     if (await deps.backendHealthy() || (!recovery && !previous.pending)) throw new Error("Reset needs a backend started by this desktop app. Close the separately running backend, then fully quit and reopen the desktop app.");
                     stopped = true;
                 }
+                await deps.freezeRenderer(); frozen = true;
                 if (!stopped) {
                     await deps.lockBackend();
                     await deps.stopBackend();
                     stopped = true;
                 }
-                const result = await deps.run({ action: "reset", confirmation, ...(keepImageManager ? { keep_image_manager: true } : {}) });
+                pending.lockedOptions = {options, keepImageManager};
+                const result = await deps.run({ action: "reset", confirmation, ...(keepImageManager ? { keep_image_manager: true } : {}), ...(options ? {options} : {}) });
                 completed = true;
                 // Clear rendered content while offline, before releasing the new backend.
-                await deps.clearRenderer(keepImageManager);
-                await deps.clearCache();
+                if (options) await deps.clearRenderer(keepImageManager, options);
+                else await deps.clearRenderer(keepImageManager);
+                if (!options || options.sections.includes('desktop')) await deps.clearCache();
                 await deps.run({ action: "finish-reset" });
                 await deps.startBackend();
                 pending = null;
@@ -174,11 +190,28 @@ function createMaintenance(deps) {
                 deps.notifyComplete();
                 return { ok: true, ...(result.image_manager_retained ? { image_manager_retained: result.image_manager_retained } : {}) };
             } catch (error) {
+                // A scoped preflight failure has not deleted data. Bring the
+                // backend back so the user can change the selection (for
+                // example, forget corrupt phone setup). A durable marker
+                // always keeps partial deletion stopped and scope-locked.
+                if (options && stopped && !completed) {
+                    try {
+                        const state = await deps.run({action: 'recovery'});
+                        if (state.pending === false) {
+                            await deps.startBackend();
+                            stopped = false;
+                            pending.lockedOptions = null;
+                        }
+                    } catch { /* Retain the stopped state if recovery cannot be verified. */ }
+                }
                 recovery = stopped;
                 if (!stopped) await deps.unlockBackend().catch(() => {});
                 deps.notifyFailure(error.message);
                 return { error: error.message, backendStopped: stopped, dataCleared: completed };
-            } finally { busy = false; }
+            } finally {
+                if (frozen) await deps.thawRenderer().catch(() => {});
+                busy = false;
+            }
         },
     };
 }

@@ -29,7 +29,7 @@ backup. Metadata-only inventory describes the original app-data folder.
 | SAVE METADATA | Aggregate counts/bytes and basic numeric configuration; no content, filenames or paths; cannot restore data |
 | EXPORT BACK-UP | Private app-data content plus desktop localStorage and managed-library files |
 | IMPORT BACK-UP | Validates a supported backup, then replaces current data/preferences after typed IMPORT confirmation |
-| RESET APP DATA & SANITIZE APPLICATION | Clears app data and desktop/browser storage after typed RESET confirmation |
+| RESET APP DATA & SANITIZE APPLICATION | Choose all app data, retain phone setup, or select individual sections; review and type RESET |
 
 Backup includes managed media, locked images, databases/sidecars, LoRA artifacts
 and personal settings/buttons. It excludes installed application/dependencies,
@@ -65,15 +65,41 @@ blocks new requests, waits for in-flight activity, refuses active jobs and stops
 the owned backend. A separately launched/reused backend must be stopped and the
 desktop reopened before these actions.
 
-Reset removes chats, media/collections/vault copies, workflows, datasets, LoRA
-projects/adapters, memory, Index, Knowledge, app-data logs/web data/Trash and
-desktop preferences/browser cache. Code and base models remain. No automatic
-export is created. An interrupted reset leaves a marker and blocks normal startup;
-retry the supported reset to finish.
+The reset dialog offers three modes:
+
+- **Clear app data, keep phone setup** (default): clear all app-data sections and
+  desktop storage, including phone credentials, invitations and job history.
+  Retain only the validated HTTPS origin, listener address/port and certificate
+  file paths. Certificate contents are not copied; access stays off.
+- **Clear all app data, including phone setup**: also forget the connection setup.
+- **Choose specific sections**: select chats, memory, Knowledge/Index, app media
+  and documents, workflows, characters/faces/LoRAs, web research, audit records,
+  logs/Trash/recovery copies, phone access/jobs, PC bridge, library registrations,
+  desktop settings/storage, or remaining app data. Nothing is selected initially.
+  Phone setup retention is optional when phone access is selected.
+
+Counts describe app-data files at review time; desktop storage is additional.
+Unselected app-data files and unrelated desktop preferences remain. Selecting
+Desktop settings and browser storage clears all renderer storage, including saved
+canvas and drafts, even when backend media is retained. Temporary desktop
+session state is cleared and the renderer reloads, so save edits first. Related
+copies can exist in other sections: clearing Chats alone does not clear memory,
+backups or phone jobs. Deleting media can leave missing attachments in retained
+chats. Library registrations and external file bytes have separate ownership.
+
+An interrupted reset keeps its original scope and phone setup choice in a private
+recovery marker, blocking normal startup until retry completes. A retry cannot
+broaden the deletion scope. No automatic export is created.
+
+After clearing phone access, start **Mobile companion** and create a fresh phone
+invitation. The phone may keep its saved address. If desktop setup was forgotten,
+**Find Tailscale address** reads an already configured private HTTPS Serve proxy
+for the selected listen port. It does not change VPN, firewall, certificates or
+proxy configuration. Enter direct LAN HTTPS settings manually.
 
 Reset rejects unsafe roots and links/junctions. External originals, exports,
 backups, external logs, source/Git history, independent manager storage and retained
-import recovery folders are outside scope. This is application cleanup, not
+import recovery folders and separate browser profiles are outside scope. This is application cleanup, not
 forensic disk erasure.
 
 ## Drive folder sizes

@@ -12,10 +12,19 @@ export default function DashboardReset() {
   const [notice, setNotice] = useState(() => typeof window !== "undefined" ? localStorage.getItem("app-reset-notice") || "" : "");
   const [importReview, setImportReview] = useState(null);
   const [importPending, setImportPending] = useState(false);
+  const [resetMode, setResetMode] = useState('reconnect');
+  const [sections, setSections] = useState([]);
+  const [keepPhoneSetup, setKeepPhoneSetup] = useState(true);
+  const [confirmation, setConfirmation] = useState('');
   const desktop = typeof window !== "undefined" && window.workstationDesktop;
   const dialog = useRef(null);
   const importDialog = useRef(null);
-  useEffect(() => { if (saved && !dialog.current?.open) dialog.current?.showModal(); }, [saved]);
+  useEffect(() => {
+    if (saved && !dialog.current?.open) {
+      dialog.current?.showModal();
+      dialog.current?.querySelector('#reset-title')?.focus();
+    }
+  }, [saved]);
   useEffect(() => { if (importReview && !importDialog.current?.open) importDialog.current?.showModal(); }, [importReview]);
   useEffect(() => {
     let canceled = false;
@@ -74,6 +83,12 @@ export default function DashboardReset() {
     try {
       const result = await desktop.prepareAppReset();
       if (result.error) throw new Error(result.error);
+      const recovery = result.report.reset_options;
+      setResetMode(recovery ? 'selected' : 'reconnect');
+      setSections(recovery?.sections || []);
+      setKeepPhoneSetup(recovery?.keep_mobile_setup ?? true);
+      setConfirmation('');
+      setStopped(Boolean(result.report.reset_pending));
       setSaved(result);
     } catch (failure) { setError(failure.message); }
     finally { setBusy(false); setOperation(""); }
@@ -82,13 +97,18 @@ export default function DashboardReset() {
     if (!saved || busy) return;
     setBusy(true); setResetting(true); setError("");
     try {
-      const result = await desktop.resetAppData(saved.ticket, "RESET", Boolean(saved.report.keep_image_manager));
+      const result = await desktop.resetAppData(saved.ticket, confirmation, Boolean(saved.report.keep_image_manager), resetOptions);
       if (result.error) { setStopped(Boolean(result.backendStopped)); throw new Error(result.error); }
       // The desktop also sends a completion event for the outer reset screen.
       window.location.reload();
     } catch (failure) { setError(failure.message); }
     finally { setBusy(false); setResetting(false); }
   }
+  const availableSections = saved?.report.reset_sections || [];
+  const selectedSections = resetMode === 'selected' ? sections : availableSections.map(section => section.id);
+  const legacyRecovery = saved?.report.reset_pending && !saved.report.reset_options;
+  const resetOptions = legacyRecovery ? undefined : {sections: selectedSections, keep_mobile_setup: resetMode === 'reconnect' || (resetMode === 'selected' && sections.includes('mobile') && keepPhoneSetup)};
+  const selectedFiles = availableSections.filter(section => selectedSections.includes(section.id)).reduce((total, section) => total + section.files, 0);
   return <section className="dashboard-card dashboard-reset" aria-label="App data reset">
     <h2>App data</h2>
     {notice && <p className="dashboard-notice" role="status">{notice} <button type="button" onClick={() => { localStorage.removeItem("app-reset-notice"); setNotice(""); }}>Dismiss</button></p>}
@@ -120,13 +140,27 @@ export default function DashboardReset() {
     </dialog>}
     {saved && <dialog ref={dialog} className="reset-native-dialog" onCancel={event => { if (busy || stopped) event.preventDefault(); else { setSaved(null); setError(""); } }}>
       <section className="dashboard-card reset-confirmation" role="dialog" aria-modal="true" aria-labelledby="reset-title">
-        <h2 id="reset-title">{stopped ? "Complete interrupted reset" : "Reset app data & sanitize application"}</h2>
-        <p className="dashboard-note">{Object.values(saved.report.inventory).reduce((total, group) => total + group.files, 0)} files currently inventoried.</p>
-        <ul><li>Deletes chats, original app-data media (including Hidden and Locked), faces, parts, workflows, LoRAs, training data, memory, Index, Knowledge, app-data logs, Trash and recovery copies stored there.</li><li>Removes settings, custom profiles, buttons, app-data tags and storage library registrations.</li><li>Keeps installed base models and files outside app data, including external libraries, exports and backups. This does not securely erase disks or Windows/Git history.</li></ul>
-        <p className="dashboard-note">Image Manager keeps its folders, catalog, tags, favorites, hidden state and recoverable external Trash automatically, like Media Manager. Exporting or importing a backup is not required. App-data reset and backup import do not replace these catalogs. Images stored inside app data are still deleted by reset.</p>
+        <h2 id="reset-title" tabIndex={-1}>{stopped ? "Complete interrupted reset" : "Reset app data & sanitize application"}</h2>
+        {!legacyRecovery && <>
+          <fieldset disabled={busy || stopped} className="reset-scope"><legend>What would you like to clear?</legend>
+            <label><input type="radio" name="reset-scope" checked={resetMode === 'reconnect'} onChange={() => {setResetMode('reconnect'); setConfirmation('');}} />Clear app data, keep phone setup</label>
+            <p className="dashboard-note">Clears all sections below and revokes phone access. Keeps only the HTTPS address, listener port and certificate paths so you can start the connection and create a fresh invitation.</p>
+            <label><input type="radio" name="reset-scope" checked={resetMode === 'full'} onChange={() => {setResetMode('full'); setConfirmation('');}} />Clear all app data, including phone setup</label>
+            <label><input type="radio" name="reset-scope" checked={resetMode === 'selected'} onChange={() => {setResetMode('selected'); setConfirmation('');}} />Choose specific sections</label>
+          </fieldset>
+          <fieldset disabled={busy || stopped} className="reset-scope"><legend>{resetMode === 'selected' ? 'Select sections to sanitize' : 'Sections that will be sanitized'}</legend>
+            {availableSections.map(section => <label key={section.id} className="reset-section"><input type="checkbox" checked={selectedSections.includes(section.id)} disabled={resetMode !== 'selected'} onChange={event => {setSections(current => event.target.checked ? [...current, section.id] : current.filter(id => id !== section.id)); setConfirmation('');}} /><span><strong>{section.label}</strong> · {section.files.toLocaleString()} app-data files<small>{section.description}</small></span></label>)}
+            {resetMode === 'selected' && sections.includes('mobile') && <label><input type="checkbox" checked={keepPhoneSetup} onChange={event => {setKeepPhoneSetup(event.target.checked); setConfirmation('');}} />Keep phone connection setup; revoke paired phones</label>}
+          </fieldset>
+          <p className="dashboard-note">{selectedFiles.toLocaleString()} app-data files in the selected sections at review time. Desktop storage is additional and includes saved canvas and drafts. Unselected app-data files stay in place. Related copies can remain in other sections; deleting media can leave missing attachments in retained chats.</p>
+        </>}
+        {legacyRecovery && <p className="dashboard-notice">Finish the original full reset with its original retention choices.</p>}
+        <p className="dashboard-note">Installed base models and files outside app data remain, including external libraries, exports, backups, separate browser profiles and import recovery folders. This does not securely erase disks or Windows/Git history.</p>
+        <p className="dashboard-note">Image Manager keeps its folders, catalog, tags, favorites, hidden state and recoverable external Trash automatically, like Media Manager. App-data reset and backup import do not replace these catalogs. Images stored inside app data are deleted when App media and documents is selected.</p>
         <p className="dashboard-notice">Permanent deletion cannot be undone. No backup is created automatically. Choose Keep app data and use EXPORT BACK-UP first if you want a recovery copy. SAVE METADATA cannot restore deleted content.</p>
+        <label>Type RESET to confirm the scope shown above<input value={confirmation} autoComplete="off" spellCheck={false} disabled={busy} onChange={event => setConfirmation(event.target.value)} /></label>
         {error && <p role="alert" className="dashboard-notice">{error}</p>}
-        <div className="reset-actions"><button type="button" disabled={busy} onClick={reset}>{resetting ? "Resetting…" : stopped ? "Retry reset" : "Permanently reset app data"}</button><button type="button" disabled={busy || stopped} autoFocus onClick={() => { setSaved(null); setError(""); }}>Keep app data</button></div>
+        <div className="reset-actions"><button type="button" disabled={busy || confirmation !== 'RESET' || (!legacyRecovery && !selectedSections.length)} onClick={reset}>{resetting ? "Resetting…" : stopped ? "Retry reset" : "Permanently sanitize selected data"}</button><button type="button" disabled={busy || stopped} autoFocus onClick={() => { setSaved(null); setError(""); }}>Keep app data</button></div>
         {resetting && <p role="status" className="dashboard-note">Closing the backend, clearing app data, and reopening a fresh session…</p>}
       </section>
     </dialog>}

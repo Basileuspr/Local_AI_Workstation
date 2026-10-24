@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 const require = createRequire(import.meta.url);
 const { pickFiles } = require("../../electron/filePicker");
 const { createMaintenance } = require("../../electron/maintenance");
-const { clearDesktopStorage } = require("../../electron/maintenanceStorage");
+const { clearDesktopStorage, resetDesktopStorage } = require("../../electron/maintenanceStorage");
 
 describe("fresh upload chooser", () => {
   it("uses the home folder on every selection, preserving multi-select without returning paths", async () => {
@@ -71,6 +71,58 @@ function fixture() {
 }
 
 describe("desktop reset lifecycle", () => {
+  it('validates sections before stopping and keeps unrelated desktop preferences and cache', async () => {
+    const {controller, deps} = fixture();
+    deps.run.mockResolvedValue({reset_sections: [{id: 'chats'}, {id: 'mobile'}, {id: 'desktop'}]});
+    const saved = await controller.prepareReset();
+    const options = {sections: ['chats'], keep_mobile_setup: false};
+    for (const invalid of [{...options, sections: []}, {...options, sections: ['../data']}, {...options, keep_mobile_setup: true}]) {
+      expect((await controller.reset({ticket: saved.ticket, confirmation: 'RESET', options: invalid})).error).toBeTruthy();
+    }
+    expect(deps.stopBackend).not.toHaveBeenCalled();
+    expect(await controller.reset({ticket: saved.ticket, confirmation: 'RESET', options})).toEqual({ok: true});
+    expect(deps.run).toHaveBeenCalledWith({action: 'reset', confirmation: 'RESET', options});
+    expect(deps.clearRenderer).toHaveBeenCalledWith(false, options);
+    expect(deps.clearCache).not.toHaveBeenCalled();
+  });
+  it('locks the original selection after an interruption, including across desktop launches', async () => {
+    const {controller, deps} = fixture();
+    const options = {sections: ['mobile'], keep_mobile_setup: true};
+    deps.run.mockResolvedValue({reset_sections: [{id: 'chats'}, {id: 'mobile'}], reset_pending: true, reset_options: options});
+    const saved = await controller.prepareReset();
+    expect((await controller.reset({ticket: saved.ticket, confirmation: 'RESET', options: {sections: ['chats'], keep_mobile_setup: false}})).error).toContain('original');
+    expect(deps.stopBackend).not.toHaveBeenCalled();
+    deps.run.mockRejectedValueOnce(new Error('interrupted'));
+    expect((await controller.reset({ticket: saved.ticket, confirmation: 'RESET', options})).backendStopped).toBe(true);
+    expect((await controller.reset({ticket: saved.ticket, confirmation: 'RESET'})).error).toContain('original');
+  });
+  it('allows correcting a scoped preflight failure only when no reset marker exists', async () => {
+    const {controller, deps} = fixture();
+    deps.run.mockResolvedValueOnce({reset_sections: [{id: 'chats'}, {id: 'mobile'}]});
+    const saved = await controller.prepareReset();
+    deps.run.mockImplementation(async request => {
+      if (request.action === 'reset' && request.options.keep_mobile_setup) throw Error('Phone setup could not be read safely');
+      return request.action === 'recovery' ? {pending: false} : {ok: true};
+    });
+    expect((await controller.reset({ticket: saved.ticket, confirmation: 'RESET', options: {sections: ['mobile'], keep_mobile_setup: true}})).backendStopped).toBe(false);
+    expect(deps.startBackend).toHaveBeenCalledOnce();
+    expect((await controller.reset({ticket: saved.ticket, confirmation: 'RESET', options: {sections: ['mobile'], keep_mobile_setup: false}})).ok).toBe(true);
+  });
+  it('prunes only selected renderer records after unmount and keeps unrelated preferences', async () => {
+    const local = {'local-ai-workstation-chat-pins-v1': 'private chat', 'local-ai-workstation-preferences-v1': 'keep preferences', 'custom-buttons': 'keep buttons'};
+    Object.defineProperties(local, {setItem: {value: (key, value) => {local[key] = value;}}, removeItem: {value: key => {delete local[key];}}});
+    const session = {clear: vi.fn()};
+    const events = [];
+    const context = {localStorage: local, sessionStorage: session, Event: class {constructor(type) {this.type = type;}}, window: {dispatchEvent: event => events.push(event.type)}};
+    const contents = {executeJavaScript: async script => runInNewContext(script, context), session: {clearStorageData: vi.fn()}};
+    await resetDesktopStorage(contents, {sections: ['chats'], keep_mobile_setup: false});
+    expect(events).toEqual(['app-data-reset']);
+    expect(local['local-ai-workstation-chat-pins-v1']).toBeUndefined();
+    expect(local['local-ai-workstation-preferences-v1']).toBe('keep preferences');
+    expect(local['custom-buttons']).toBe('keep buttons');
+    expect(contents.session.clearStorageData).not.toHaveBeenCalled();
+    expect(session.clear).toHaveBeenCalledOnce();
+  });
   it("restores preferences as string data, including Unicode and script-like values, after clearing old state", async () => {
     const local = new Map([["old", "remove"]]);
     const temporary = new Map([["draft", "remove"]]);

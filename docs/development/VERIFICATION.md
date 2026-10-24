@@ -4,6 +4,44 @@ This is the consolidated evidence record, reviewed October 23, 2026.
 Current guides describe inspected source; dated tests below are not a certification
 of every feature, provider, installation or device.
 
+## October 23 selective sanitizing and phone reconnect
+
+Dashboard reset now supports all app data with phone setup retained, all app data
+including setup, or fixed individual storage sections. Independent Image Manager
+and Media Manager catalogs and external originals remain outside reset scope.
+Phone setup retention copies only validated listener configuration; paired access,
+invitations and phone jobs are cleared. A private recovery marker fixes the scope
+through retries. A preflight failure with no marker restarts the untouched backend
+so the selection can be corrected. Metadata exports never include retained URLs.
+
+**Find Tailscale address** reads existing Serve configuration for the selected
+loopback port and excludes public Funnel/other-service routes. It never changes
+network settings or starts a listener. The read-only lookup found one configured
+private HTTPS proxy on this computer; no private hostnames were captured in source.
+
+- Complete backend suite: **2,285 passed, 2 existing skips**, 26 existing
+  deprecation warnings. All tests used temporary app/model/catalog storage.
+- Complete frontend suite: **1,579 passed, 3 existing skips**; a subsequent focused
+  maintenance/Dashboard run passed **32 tests**, including the added preflight
+  recovery case. These overlapping checks must not be summed.
+- Media Manager: **124 Python and 23 Node tests passed**. `pip check` passed.
+- Isolated desktop and hosted-phone production builds passed with fresh dependencies;
+  existing chunk-size and manifold browser-externalization warnings remain.
+- `scripts/qa-reset-controls.cjs` passed synthetic Chromium interaction checks for
+  all reset modes, empty-selection blocking, typed confirmation invalidation,
+  retry scope locking, initial focus, narrow layout and address discovery.
+- Workspace information QA passed all **45** registered workspaces, including
+  updated Dashboard reset and reconnect explanations, focus and narrow layouts.
+- Documentation link checks and the outgoing source/privacy scan passed.
+- `npm audit` reported **two pre-existing high-severity dependency entries** in
+  unchanged Electron and Undici versions. This is a failed advisory check, not a
+  clean dependency audit; the separate Dashboard publisher will require resolving
+  it. Dependencies were not changed or replaced in the running application.
+
+No real app data was sanitized. Live deployed assets and the running desktop were
+preserved; coordinated build/restart and physical-phone re-pairing remain acceptance
+steps. No Android source or APK change is required for these desktop controls.
+
 ## October 23 image workflow integration review
 
 Reviewed the integrated `147b3d4` baseline, including the published scrolling/focus,

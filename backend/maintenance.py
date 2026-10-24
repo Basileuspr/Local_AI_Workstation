@@ -19,6 +19,9 @@ from datetime import datetime, timezone
 
 from config import PROJECT_ROOT, settings
 from services.maintenance_paths import import_journal
+from services.reset_scope import reset_options, section_for, section_inventory
+
+sys.path.insert(0, str(PROJECT_ROOT / 'mobile-companion' / 'backend'))
 
 MARKER = ".reset-in-progress.json"
 CATEGORIES = {
@@ -74,7 +77,8 @@ def scan(root):
 def inventory(root=None):
     root = checked_root(root)
     groups = {label: {"files": 0, "bytes": 0} for label in [*CATEGORIES.values(), "Other app data"]}
-    for relative, size in scan(root):
+    entries = scan(root)
+    for relative, size in entries:
         if relative.name == MARKER: continue
         group = groups[CATEGORIES.get(relative.parts[0], "Other app data")]
         group["files"] += 1
@@ -86,11 +90,13 @@ def inventory(root=None):
         "settings": {"backend_port": settings.port, "chunk_size": settings.chunk_size,
                      "chunk_overlap": settings.chunk_overlap, "ocr_timeout_seconds": settings.ocr_timeout_seconds},
         "excludes": ["chat text", "prompts", "file names and paths", "images", "model and training artifacts", "user-created buttons"],
+        "reset_sections": section_inventory(entries),
     }
     if (root / MARKER).exists():
         pending = reset_state(root)
         report['reset_pending'] = True
         report['keep_image_manager'] = pending.get('keep_image_manager', False)
+        report['reset_options'] = pending.get('reset_options')
     return report
 
 
@@ -98,12 +104,14 @@ def reset_state(root):
     marker = root / MARKER
     if not marker.exists():
         return {}
-    if is_link(marker) or marker.stat().st_size > 4096:
+    if is_link(marker) or marker.stat().st_size > 512 * 1024:
         raise ValueError('Reset recovery marker is unsafe.')
     try:
         value = json.loads(marker.read_bytes())
         if not isinstance(value, dict) or type(value.get('keep_image_manager', False)) is not bool:
             raise ValueError()
+        if value.get('version') == 4:
+            reset_options(value.get('reset_options'))
         return value
     except (ValueError, TypeError):
         raise ValueError('Reset recovery marker is invalid.') from None
@@ -262,23 +270,36 @@ def export_backup(destination, desktop_storage, root=None):
         raise
 
 
-def reset_data(archive=None, sha256=None, confirmation=None, root=None, keep_marker=False, keep_image_manager=False):
+def reset_data(archive=None, sha256=None, confirmation=None, root=None, keep_marker=False, keep_image_manager=False, options=None):
     if confirmation != "RESET": raise ValueError("Confirm permanent deletion from the reviewed reset dialog.")
     root = checked_root(root)
     if import_journal(root).exists(): raise ValueError("Recover the interrupted import before resetting.")
     if archive is not None: verify_archive(archive, sha256, root)
+    options = reset_options(options) if options is not None else None
     scan(root)  # Validate every target before the first mutation.
-    from services.image_manager_storage import ensure_catalog
-    ensure_catalog(root)
     if type(keep_image_manager) is not bool:
         raise ValueError('Choose whether to keep the external Image Manager catalog.')
     previous = reset_state(root)
+    if previous and previous.get('reset_options') != options:
+        raise ValueError('Retry the interrupted reset with its original section and phone setup choices.')
     if previous and previous.get('keep_image_manager', False) != keep_image_manager:
         raise ValueError('Retry the interrupted reset with its original Image Manager retention choice.')
+    if options and keep_image_manager:
+        raise ValueError('Complete the legacy reset before choosing sections.')
+    from services.image_manager_storage import ensure_catalog
+    if options is None or 'other' in options['sections']:
+        ensure_catalog(root)
     root.mkdir(parents=True, exist_ok=True)
     marker = root / MARKER
     retained, retained_counts = None, None
     marker_value = {"version": 2, "sanitize": True}
+    if options is not None:
+        from mobile_companion.connection_setup import MobileListen, read_setup, restore_setup
+        setup = (previous.get('mobile_setup') if previous else read_setup(root)) if options['keep_mobile_setup'] else None
+        if setup is not None:
+            try: setup = MobileListen.model_validate(setup).model_dump()
+            except ValueError: raise ValueError('The retained phone setup is invalid; reset recovery needs repair.') from None
+        marker_value = {'version': 4, 'sanitize': True, 'reset_options': options, 'mobile_setup': setup}
     if keep_image_manager:
         from services.image_manager_maintenance import STAGE, stage_catalog
         if not previous:
@@ -295,10 +316,13 @@ def reset_data(archive=None, sha256=None, confirmation=None, root=None, keep_mar
     try:
         for target in list(root.iterdir()):
             if target.name == MARKER or (retained is not None and target == retained.parent): continue
+            if options is not None and (target.name == '.backend.lock' or section_for(target.name) not in options['sections']): continue
             if is_link(target) or target.resolve().parent != root:
                 raise ValueError("A reset target changed; cleanup stopped.")
             if target.is_dir(): shutil.rmtree(target)
             else: target.unlink()
+        if options is not None:
+            restore_setup(root, setup)
         if retained is not None:
             from services.image_manager_maintenance import CATALOG, checksum
             if is_link(retained) or checksum(retained) != marker_value['image_manager_sha256']:
@@ -337,7 +361,7 @@ def main():
             with acquire(root):
                 result = export_backup(request["destination"], request["desktop_storage"], root)
         elif request.get("action") == "reset": result = reset_data(request.get("archive"), request.get("sha256"), request.get("confirmation"), keep_marker=True,
-                                                                  keep_image_manager=request.get('keep_image_manager', False))
+                                                                  keep_image_manager=request.get('keep_image_manager', False), options=request.get('options'))
         elif request.get("action") == "finish-reset":
             root = checked_root()
             scan(root)
