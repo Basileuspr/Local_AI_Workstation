@@ -46,10 +46,21 @@ app.whenReady().then(async()=>{
   assert.deepEqual(await js('window.fixture.calls[3][3]'),{sections:['mobile'],keep_mobile_setup:true});
   // Reload the synthetic page, keeping the fixture's real local profile isolated.
   await win.loadURL('app://local/tests/fixtures/resetControls.html');await until("document.querySelector('.mobile-control')",'phone fixture');
-  await click('Show mobile controls');await until("![...document.querySelectorAll('button')].find(b=>b.textContent==='Find Tailscale address').disabled",'mobile status');
-  await click('Find Tailscale address');
+  await click('Show mobile controls');await until("![...document.querySelectorAll('button')].find(b=>b.textContent==='Use Tailscale HTTPS address').disabled",'mobile status');
+  assert.equal(await js("document.querySelector('.bridge-fields input').value"),'');
+  await click('Use Tailscale HTTPS address');
   assert.equal(await js("document.querySelector('.bridge-fields input').value"),'https://desktop.example.ts.net:443');
-  assert.deepEqual(await js('window.fixture.discovery'),[{port:8766}]);
-  assert(await js("document.body.textContent.includes('Existing private HTTPS setup found')"));
-  console.log(JSON.stringify({ok:true,checks:['default retains setup','full forgets setup','empty selection blocked','scope change clears confirmation','selected sections sent exactly','recovery choices locked','narrow dialog fits','read-only discovery fills connection'],artifacts:work}));
+  assert((await js('window.fixture.discovery')).length>=2);
+  assert(await js("window.fixture.discovery.every(call=>call.port===8766 && call.method==='GET')"));
+  assert(await js("document.body.textContent.includes('Current Tailscale address filled')"));
+  await js("window.fixture.tailscale={state:'disconnected',connections:[],message:'Tailscale is disconnected.'};window.dispatchEvent(new Event('online'))");
+  await until("[...document.querySelectorAll('button')].find(b=>b.textContent==='Use Tailscale HTTPS address').disabled",'Tailscale disconnection');
+  assert.equal(await js("document.querySelector('.bridge-fields input').value"),'https://desktop.example.ts.net:443');
+  await js("window.fixture.tailscale={state:'connected',connections:[],suggested_origin:'https://renamed.example.ts.net',message:'Private HTTPS Serve still needs setup.'};window.dispatchEvent(new Event('online'))");
+  await until("![...document.querySelectorAll('button')].find(b=>b.textContent==='Use Tailscale HTTPS address').disabled",'Tailscale reconnection');
+  await click('Use Tailscale HTTPS address');
+  assert.equal(await js("document.querySelector('.bridge-fields input').value"),'https://renamed.example.ts.net');
+  assert(await js("document.querySelector('.mobile-control').scrollWidth<=document.querySelector('.mobile-control').clientWidth+1"));
+  fs.writeFileSync(path.join(work,'tailscale-controls.png'),(await win.webContents.capturePage()).toPNG());
+  console.log(JSON.stringify({ok:true,checks:['default retains setup','full forgets setup','empty selection blocked','scope change clears confirmation','selected sections sent exactly','recovery choices locked','narrow dialog fits','Tailscale status watches disconnection and reconnection','read-only address fill','saved address preserved until clicked','narrow mobile controls fit'],artifacts:work}));
 }).catch(error=>{console.error(error);process.exitCode=1;}).finally(()=>{clearTimeout(timeout);win?.destroy();app.exit(process.exitCode||0);});

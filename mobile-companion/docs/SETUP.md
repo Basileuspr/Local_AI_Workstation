@@ -15,15 +15,28 @@ For private Tailscale access:
 2. Configure private Serve to proxy HTTPS to `http://127.0.0.1:8766`, typically
    `tailscale serve --bg http://127.0.0.1:8766`. Inspect `tailscale serve status`;
    do not enable Funnel.
-3. In Dashboard → Mobile companion, choose **Find Tailscale address** to read an
-   existing private Serve proxy for the listen port, or enter its exact HTTPS
-   origin. Leave listen address 127.0.0.1 / port 8766 and certificate paths blank.
+3. In Dashboard → Mobile companion, open the mobile controls to watch Tailscale
+   connection status. Choose **Use Tailscale HTTPS address** to fill the current
+   device address, or select a detected private Serve route for the listen port.
+   Leave listen address 127.0.0.1 / port 8766 and certificate paths blank.
 4. Start mobile connection and open that address from the phone on the VPN.
 
 The app does not install/configure Tailscale or change firewall rules.
-Address discovery runs only when requested and reads `tailscale serve status --json`.
-It excludes public Funnel routes and proxies to unrelated ports/services. Review
-the address before starting; finding it does not start a listener or pair a phone.
+While these controls are open and visible, detection reads local Tailscale status
+and Serve configuration about every five seconds, and on window focus/reconnect.
+It stops when the controls are closed, the Dashboard is inactive or the window is
+hidden. It does not send peer/account details to the renderer. The fill button
+rechecks the current address before applying it; polling never replaces your form
+or changes a running connection. Sign-in, disconnection and unavailable status
+disable address filling until detection succeeds again.
+
+The device's `.ts.net` hostname normally survives reconnects. Renaming the device
+or changing the tailnet can change it. When no Serve route exists, the button can
+fill the device hostname, but the panel explains that HTTPS forwarding still needs
+setup. A detected name alone does not provision a certificate or prove the phone
+can connect. Existing public Funnel routes and proxies to unrelated services are
+excluded. Review the status before starting; detection never starts a network
+listener or pairs a phone.
 [Tailscale Serve](https://tailscale.com/docs/features/tailscale-serve) and its
 [HTTPS guidance](https://tailscale.com/docs/how-to/set-up-https-certificates)
 cover host setup and public certificate-name disclosure. Use your actual origin.
@@ -40,7 +53,7 @@ This retains only the desktop connection settings (including certificate file
 paths), clears phone job/access records and leaves mobile access off. Start the
 connection and create a fresh invitation; the Android app can keep its saved URL.
 **Clear all app data, including phone setup** also forgets those settings. Use
-**Find Tailscale address** to recover an existing private proxy, or re-enter your
+**Use Tailscale HTTPS address** to recover the current address, or re-enter your
 direct LAN HTTPS settings. Discovery does not recreate missing network setup.
 
 **Choose specific sections** lets you clear other app data while leaving phone

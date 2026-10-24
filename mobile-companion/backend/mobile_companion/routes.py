@@ -5,12 +5,12 @@ import sqlite3
 import uuid
 import httpx
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from starlette.concurrency import run_in_threadpool
 
 from config import PROJECT_ROOT, settings
 from mobile_companion.mobile_companion import MobileCompanion, MobileListen
-from mobile_companion.connection_discovery import discover_connection
+from mobile_companion.connection_discovery import discover_connection, tailscale_status
 from pydantic import BaseModel, ConfigDict, Field
 from services.session_guard import expected_token
 from services.conditional_status import conditional_status
@@ -104,6 +104,11 @@ class DiscoverConnection(BaseModel):
 @router.post('/discover-connection')
 async def discover(body: DiscoverConnection):
     return await call(discover_connection, body.port)
+
+
+@router.get('/tailscale-status')
+async def tailscale(port: int = Query(default=8766, ge=1024, le=65535)):
+    return await call(tailscale_status, port)
 
 
 @router.post("/stop")

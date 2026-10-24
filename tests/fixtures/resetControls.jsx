@@ -14,7 +14,7 @@ const sections = [
   ['desktop', 'Desktop settings and browser storage', 'Preferences, buttons and desktop browser storage.'],
   ['other', 'Other app data', 'Other managed records. Independent catalogs remain.'],
 ].map(([id,label,description]) => ({id,label,description,files:12,bytes:1200}));
-window.fixture = {calls: [], discovery: []};
+window.fixture = {calls: [], discovery: [], tailscale: {state:'connected',serve_ready:true,message:'Tailscale is connected. Private HTTPS forwarding is configured.',connections:[{origin:'https://desktop.example.ts.net:443',address:'127.0.0.1',port:8766}]}};
 window.workstationDesktop = {
   exportAppBackup: async () => ({canceled:true}),
   exportResetInventory: async () => ({canceled:true}),
@@ -24,9 +24,9 @@ window.workstationDesktop = {
   resetAppData: async (...args) => {window.fixture.calls.push(args);return {error:'Fixture captured the request; no files were deleted.',backendStopped:Boolean(window.fixture.failStopped)};},
 };
 window.fetch = async (url,options={}) => {
-  if (String(url).endsWith('/mobile/discover-connection')) {
-    window.fixture.discovery.push(JSON.parse(options.body));
-    return {ok:true,json:async()=>({connections:[{origin:'https://desktop.example.ts.net:443',address:'127.0.0.1',port:8766}]})};
+  if (String(url).includes('/mobile/tailscale-status?')) {
+    window.fixture.discovery.push({port:Number(new URL(url).searchParams.get('port')),method:options.method});
+    return {ok:true,json:async()=>window.fixture.tailscale};
   }
   if (String(url).endsWith('/mobile')) return {ok:true,json:async()=>({running:false,build_ready:true,devices:[],client_update:{}})};
   throw Error('Unexpected fixture request');

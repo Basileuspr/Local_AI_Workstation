@@ -4,6 +4,38 @@ This is the consolidated evidence record, reviewed October 23, 2026.
 Current guides describe inspected source; dated tests below are not a certification
 of every feature, provider, installation or device.
 
+## October 24 Tailscale address detection
+
+The open, visible mobile controls observe local Tailscale status approximately
+every five seconds and on focus/network return. **Use Tailscale HTTPS address**
+rechecks before filling the form. Detection preserves saved/manual addresses and
+running connections, handles login/disconnection/renaming, and distinguishes an
+unconfigured device hostname from a private Serve route to the selected port.
+Public Funnel routes, other services and old device names are excluded. The
+desktop-authenticated route returns no peer, account or login-link details and
+does not initialize the phone gateway or change network settings.
+
+- Full frontend suite with two workers: **1,587 passed, 3 existing skips**,
+  including 10 mobile setup tests.
+- Companion backend/publication plus session-guard tests: **132 passed**, with
+  four existing FastAPI deprecation warnings. All storage was temporary.
+- Initial concurrent runs exhausted test timing budgets; the unrestricted
+  frontend run was stopped. The bounded frontend and backend reruns above passed
+  without increasing any test timeout.
+- Isolated desktop and phone production builds passed using installed local
+  dependencies. Existing large-chunk and manifold externalization warnings remain.
+- Synthetic Chromium checks passed address fill, disconnect/reconnect, saved-form
+  preservation and narrow layout alongside the existing reset controls. The
+  narrow mobile controls screenshot was inspected.
+- Read-only detection against this PC found a connected device and an HTTPS
+  hostname, and correctly reported missing Serve forwarding. No private hostname
+  was added to source. Documentation links and whitespace checks passed.
+
+Live assets, the running desktop, Tailscale Serve and certificates were not
+changed for validation. Physical-phone connectivity, certificate issuance,
+native Android installation and real provider/GPU inference were not tested.
+The full unrelated backend/media suites were not rerun for this change.
+
 ## October 23 selective sanitizing and phone reconnect
 
 Dashboard reset now supports all app data with phone setup retained, all app data

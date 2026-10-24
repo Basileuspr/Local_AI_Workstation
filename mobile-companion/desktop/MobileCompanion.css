@@ -1,0 +1,12 @@
+.mobile-control p { margin-block: .65rem; line-height: 1.6; overflow-wrap: anywhere; }
+.mobile-control h3 { margin-block: 1.2rem .6rem; }
+.mobile-control button { border: 1px solid var(--border, #555); border-radius: 6px; background: var(--bg-card, #20242b); color: var(--accent, #5dc9ff); padding: .6rem .85rem; font: inherit; cursor: pointer; }
+.mobile-control button:hover:not(:disabled) { border-color: var(--accent, #5dc9ff); }
+.mobile-control button:disabled { opacity: .5; cursor: not-allowed; }
+.mobile-control :is(button, input, summary):focus-visible { outline: 2px solid var(--accent, #5dc9ff); outline-offset: 2px; }
+.mobile-control label { display: grid; gap: .35rem; margin-block: .65rem; min-width: 0; }
+.mobile-control input { box-sizing: border-box; width: 100%; min-width: 0; padding: .55rem; color: inherit; background: var(--bg-input, #20242b); border: 1px solid var(--border, #555); border-radius: .3rem; }
+.mobile-control .bridge-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr)); gap: .8rem; align-items: end; }
+.mobile-control .bridge-actions { display: flex; gap: .6rem; flex-wrap: wrap; margin-block: .7rem; }
+.mobile-control summary { cursor: pointer; padding-block: .4rem; }
+.mobile-control [aria-label="Existing private connections"] button { margin: .25rem; overflow-wrap: anywhere; max-width: 100%; }
