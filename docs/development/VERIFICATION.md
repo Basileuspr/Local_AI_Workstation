@@ -4,6 +4,39 @@ This is the consolidated evidence record, updated October 30, 2026.
 Current guides describe inspected source; dated tests below are not a certification
 of every feature, provider, installation or device.
 
+## October 30 Coding Coordinator Verification Manager
+
+The manual command box is now an advanced option under a project-aware
+[Verification Manager](../workspace/CODING_COORDINATOR.md#verification-manager).
+Configuration discovery is read-only; profiles, execution grants and command
+history are separate. Final check selection considers changed languages/packages.
+
+- Frontend: **1,629 passed, 3 existing skips across 203 files**. Coordinator,
+  verification, tool execution, queue, model runtime, registry, session and
+  maintenance backend suites: **120 passed**, with four existing FastAPI
+  deprecation warnings. Backend runtime paths were disposable.
+- New backend checks cover read-only discovery, malformed manifests/settings,
+  nested package directories, fixed Rust/Go recipes, missing runners, profile/grant
+  separation, fingerprint invalidation, stale native approval requests, denial,
+  remembered approvals, manual execution and pause while waiting. A model's
+  request cannot bypass manual mode. Editing a previously approved custom check
+  requires fresh approval. Actual Python and npm child processes exercise success,
+  failure, working-directory and output receipts; Rust/Go recipe detection is not
+  a live compiler acceptance test.
+- The isolated Electron coordinator walkthrough passed detection, profile
+  save/load, approval/revocation, execution prompts, manual decline, distinct
+  passed/not-run history, preserved-file display and narrow layout. Desktop and
+  narrow screenshots were inspected. The full-app Design & Programming fixture
+  also passed; Chromium emitted widget diagnostics without failing its assertions.
+- Provider/model integration remains interchangeable and unchanged. The earlier
+  GPT-OSS 20B/Qwen workflow acceptance below was not rerun for this UI and execution
+  policy change; these new policy tests use a deterministic model fixture.
+- Checks still use the account's OS permissions. Process limits, credential
+  filtering, isolated Workstation runtime paths and explicit grants are not an OS
+  sandbox. Selection is a language/package heuristic, not dependency-graph coverage.
+  Java/Gradle/Maven are detected without a direct runner recipe. No dependency
+  installation, live app restart or physical-phone acceptance was performed.
+
 ## October 30 Coding Coordinator milestone 1
 
 The desktop Coding Coordinator was prepared and validated in isolated checkouts,

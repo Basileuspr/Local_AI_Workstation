@@ -5,8 +5,14 @@ export const codingTerminal = status => ['completed', 'needs_review', 'failed', 
 // Quotes group arguments; backslashes remain literal Windows path characters.
 export function parseCheckCommand(command) {
   const argv = []; let token = '', quote = null, present = false;
-  for (const character of command.trim()) {
-    if (quote) { if (character === quote) quote = null; else token += character; present = true; }
+  const text = command.trim();
+  for (let index = 0; index < text.length; index++) {
+    const character = text[index];
+    if (quote) {
+      if (character === '\\' && [quote, '\\'].includes(text[index + 1])) token += text[++index];
+      else if (character === quote) quote = null; else token += character;
+      present = true;
+    }
     else if (character === '"' || character === "'") { quote = character; present = true; }
     else if (/\s/.test(character)) { if (present) { argv.push(token); token = ''; present = false; } }
     else { token += character; present = true; }
@@ -17,10 +23,17 @@ export function parseCheckCommand(command) {
   return argv;
 }
 
-export function codingChecks(text) {
+export function codingChecks(text, optional = false) {
   const commands = text.split(/\r?\n/).filter(line => line.trim());
-  if (!commands.length || commands.length > 6) throw Error('Enter one to six check commands, one per line.');
+  if (!commands.length && optional) return [];
+  if (!commands.length || commands.length > 12) throw Error('Enter one to twelve custom checks, one per line.');
   return commands.map((command, index) => ({ name: `Check ${index + 1}`, argv: parseCheckCommand(command), timeout_seconds: 120 }));
+}
+
+export const displayCommand = argv => (argv || []).map(arg => /[\s"'\\]/.test(arg) ? JSON.stringify(arg) : arg).join(' ');
+
+export function checkStatus(check) {
+  return check.status || (check.running ? 'running' : check.cancelled ? 'cancelled' : check.timed_out ? 'timed_out' : check.passed ? 'passed' : 'failed');
 }
 
 export async function codingRequest(path, signal) {

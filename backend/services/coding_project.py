@@ -13,6 +13,7 @@ import signal
 import stat
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 
@@ -220,7 +221,11 @@ def check_arguments(check):
     if not executable:
         raise ValueError('Check executable is not installed: ' + argv[0])
     name = Path(executable).name.lower().removesuffix('.exe')
-    if not re.fullmatch(r'node|python(?:\d+(?:\.\d+)*)?', name):
+    recipe = ((check.get('runner') == name == 'cargo' and argv[1:] in
+               [['test', '--offline'], ['check', '--offline'], ['build', '--offline']]) or
+              (check.get('runner') == name == 'go' and argv[1:] in
+               [['test', './...'], ['vet', './...'], ['build', './...']]))
+    if not recipe and not re.fullmatch(r'node|python(?:\d+(?:\.\d+)*)?', name):
         raise ValueError('This milestone runs Python or Node checks directly, e.g. node node_modules/vitest/vitest.mjs run.')
     argv[0] = executable
     return argv
@@ -233,6 +238,15 @@ def run_check(root, check, cancel, emit):
                'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'LANG', 'LC_ALL', 'NUMBER_OF_PROCESSORS'}
     env = {key: value for key, value in os.environ.items() if key.upper() in allowed}
     env.update(PYTHONIOENCODING='utf-8', PYTHONDONTWRITEBYTECODE='1', PYTHONNOUSERSITE='1', CI='1', NO_COLOR='1')
+    runtime = Path(tempfile.mkdtemp(prefix='law-verification-'))
+    # Workstation tests must not inherit the live application's storage defaults.
+    env.update({key: str(runtime / folder) for key, folder in {
+        'LAW_DATA_DIR': 'data', 'LAW_LOG_DIR': 'logs', 'LAW_MODELS_DIR': 'models',
+        'LAW_IMAGE_MANAGER_DIR': 'image-catalog'}.items()})
+    env.update(npm_config_cache=str(runtime / 'npm-cache'), npm_config_update_notifier='false',
+               npm_config_userconfig=str(runtime / 'empty-user.npmrc'), npm_config_globalconfig=str(runtime / 'empty-global.npmrc'))
+    if check.get('runner') == 'go':
+        env.update(GOPROXY='off', GOSUMDB='off', GOTOOLCHAIN='local')
     if cancel.is_set():
         raise RuntimeError('Check cancelled before launch.')
     # On Windows a trusted wrapper waits until it belongs to a private job before
@@ -271,6 +285,7 @@ def run_check(root, check, cancel, emit):
     thread = threading.Thread(target=reader, daemon=True)
     thread.start()
     started = time.monotonic()
+    started_at = time.time()
     tail = ''
     timed_out = False
     try:
@@ -295,5 +310,7 @@ def run_check(root, check, cancel, emit):
                 os.killpg(process.pid, signal.SIGKILL)
         thread.join(timeout=2)
     return {'name': check['name'], 'argv': check['argv'], 'exit_code': process.returncode, 'output': tail,
+            'cwd': str(root), 'started_at': started_at, 'runtime_directory': str(runtime),
+            'status': 'cancelled' if cancel.is_set() else 'timed_out' if timed_out else 'passed' if process.returncode == 0 else 'failed',
             'timed_out': timed_out, 'cancelled': cancel.is_set(), 'seconds': round(time.monotonic() - started, 2),
             'passed': process.returncode == 0 and not timed_out and not cancel.is_set()}
