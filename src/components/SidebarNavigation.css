@@ -19,6 +19,7 @@
 .sidebar-nav-item { display: block; width: 100%; min-width: 0; min-height: 30px; padding: 5px 8px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: var(--text-dim); text-align: left; font-size: 13px; line-height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sidebar-utilities .sidebar-nav-item { padding: 5px 4px; text-align: center; font-size: 12px; }
 .sidebar-utilities .sidebar-nav-item:last-child:nth-child(odd) { grid-column: 1 / -1; }
+.sidebar-utilities .sidebar-nav-item[data-sidebar-route="design-programming"] { grid-column: 1 / -1; white-space: normal; }
 .sidebar-group-list .sidebar-nav-item { height: 100%; padding: 6px 8px; border-color: var(--border); background: var(--bg-input); font-size: 12px; line-height: 16px; white-space: normal; overflow-wrap: anywhere; text-overflow: clip; }
 .sidebar-nav-item:hover { background: var(--bg-card); color: var(--text); }
 .sidebar-nav-item[aria-current="page"] { background: var(--accent-dim); color: var(--accent); border-color: var(--border-active); font-weight: 600; box-shadow: inset 3px 0 var(--accent); }

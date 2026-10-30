@@ -4,6 +4,34 @@ This is the consolidated evidence record, reviewed October 23, 2026.
 Current guides describe inspected source; dated tests below are not a certification
 of every feature, provider, installation or device.
 
+## October 30 Design & Programming
+
+The main Design & Programming workspace groups the UI Playground, Styling
+Library, HTML, CSS, JavaScript, and Markdown viewers. Existing source routes,
+Functions, captures, search, and pins retain their destinations. Older saved
+viewer priorities migrate into the workspace's internal tool order.
+
+- Full frontend suite passed with **3 existing skips**. Focused tests cover
+  navigation migration, preset/import normalization, draft persistence, generated
+  offline source, appearance isolation, all palettes and accents, readable text
+  at the contrast extremes, and application preference persistence/reset.
+- Tool-registry and application-awareness backend checks: **24 passed**, using
+  temporary data, logs, models, and catalog locations. Existing FastAPI lifecycle
+  deprecation warnings remain. Design controls are interactive UI tools, without
+  a fabricated callable backend endpoint.
+- `node scripts/qa-design-programming.cjs` compiled the actual renderer to a
+  temporary production bundle with synthetic API responses and an isolated
+  Electron profile. It verified Apply/Undo, real navigation geometry, independent
+  code drafts, preset save/load, library handoff, all 20 comparison components,
+  ordering/removal, generated source, reduced motion, and reload persistence.
+  Desktop and 420-pixel dark/light screenshots were inspected; there were no
+  renderer errors or horizontal overflow. Headless Electron emitted benign Mojo
+  widget messages during iframe teardown. The HTML/CSS sandbox continued to
+  block scripts and network resources.
+- Documentation links and `git diff --check` passed. This change does not certify
+  model/GPU execution, embedded app restyling, phone/Android behavior, or a live
+  desktop restart. Those are outside this renderer customization check.
+
 ## October 30 large-image transfers and zoom
 
 Gallery/stitcher saves now use a native destination dialog, chunked transfers,

@@ -35,9 +35,45 @@ controls, storage and account boundaries; Info Center has the same Web category.
 Existing tool routes and side-pane selections remain available. Arrange remembers
 Web's position and its tool order; Find a tab searches all three destinations.
 
+## Design & Programming
+
+**Design & Programming** is a main tab beside Dashboard, Functions, and Info
+Center. It contains **UI Playground**, **Styling Library**, **HTML Viewer**,
+**CSS / Styling**, **JavaScript Viewer**, and **Markdown Viewer**. Find a tab,
+Browser source inspection, Functions, and existing pins still reach the individual
+viewers. Arrange tabs also controls their order inside this workspace.
+
+Start with one of six templates, then independently choose any existing palette,
+interface font, code font, and contrast setting. Mix accents, corner treatments,
+information density, card surfaces, button styles, and reduced motion. Compare
+generation-studio, dashboard, or chat samples at fluid, tablet, and phone widths;
+fixed preview widths shrink to fit the pane. Sample controls make no model calls.
+
+The comparison board accepts all 20 Styling Library examples. Add or remove
+components, reorder them, and compare them with the current palette and type.
+Each preview is isolated. **Add to playground** in the library transfers an
+example to this board. **Open preview CSS / HTML** and **Edit component CSS**
+send the corresponding generated source to the existing viewers.
+
+Changes stay in the preview until **Apply to app**. Applying saves the palette,
+fonts, contrast, and supported shared-control treatments for this desktop.
+Corners affect shared buttons and fields; density adjusts shared tool/navigation
+spacing; surface/button choices affect common cards and tool actions. Embedded
+apps and native surfaces retain their own styling. Sample layouts and components
+remain in the playground. **Undo application** restores the preceding appearance
+unless another appearance change has happened since; **Use app appearance**
+copies current settings into the draft. **Original** keeps each control's existing
+treatment. Appearance settings still provide a full appearance reset.
+
+The draft and up to 30 named presets save locally. Saving an existing name replaces
+that preset. Export/import a versioned design JSON to move it between computers;
+imports and preset loads only change the draft. **Save preview HTML** exports the
+selected sample, while design JSON includes the comparison-board selection.
+These local designs are removed when their browser storage is cleared.
+
 ## Viewers, canvas and Paint
 
-Markdown offers source and formatted views. HTML/CSS preview runs in an opaque
+Markdown in Design & Programming offers source and formatted views. HTML/CSS preview runs in an opaque
 sandbox with scripts, forms and external resources disabled.
 
 Spreadsheets opens UTF-8 CSV/TSV with search, sorting and row/column selection.

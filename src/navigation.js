@@ -8,6 +8,8 @@ Object.assign(appTabLabels, { university: 'University', 'agent-university': 'Age
 appTabs.push('slicer', 'integrations', 'styling-library', 'sound-mixer', 'info-center');
 appTabs.push('reels-analyzer');
 appTabs.push('web-system');
+appTabs.push('design-programming');
+appTabLabels['design-programming'] = 'Design & Programming';
 appTabLabels['web-system'] = 'Web Research & Sources';
 appTabLabels['reels-analyzer'] = 'Reels Analyzer';
 appTabLabels['info-center'] = 'Info Center';

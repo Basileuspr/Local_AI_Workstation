@@ -5,7 +5,7 @@ import { appearanceColors, appearanceThemes, codeFonts, defaultAppearance, inter
 import "./AppearanceSettings.css";
 import WindowRenderingSettings from './WindowRenderingSettings';
 
-export default function AppearanceSettings() {
+export default function AppearanceSettings({ onOpenDesign }) {
   const contrastId = useChatPane().domId("ui-contrast");
   const { appearance = defaultAppearance } = useStore();
   const dispatch = useDispatch();
@@ -43,6 +43,7 @@ export default function AppearanceSettings() {
     </div>
     <WindowRenderingSettings />
     <div className="appearance-footer">
+      <button type="button" onClick={() => { dispatch({ type: 'SET_SIDEBAR_TAB', payload: 'design-programming' }); onOpenDesign?.(); }}>Open UI Playground</button>
       <button type="button" onClick={() => dispatch({ type: "RESET_APPEARANCE" })}>Reset appearance</button>
     </div>
   </section>;
@@ -57,6 +58,6 @@ export function AppearanceDialog({ onClose }) {
   return <dialog ref={dialog} className="appearance-dialog" aria-label="Application appearance" onClose={onClose}
     onClick={event => { if (event.target === event.currentTarget) dialog.current.close(); }}>
     <header><strong>Application settings</strong><button type="button" aria-label="Close appearance settings" onClick={() => dialog.current.close()}>Close</button></header>
-    <AppearanceSettings />
+    <AppearanceSettings onOpenDesign={() => dialog.current.close()} />
   </dialog>;
 }

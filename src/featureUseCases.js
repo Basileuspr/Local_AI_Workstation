@@ -5,6 +5,7 @@ import { workspaceHelp } from './workspaceHelp';
 // Task-oriented examples complement the shared control guides. Keep one entry
 // per workspace so the directory cannot silently omit a newly added feature.
 export const featureUseCases = {
+  'design-programming': ['Mix palettes, fonts, corners, spacing, surfaces, and buttons in a live preview before applying them to the app.', 'Save a design preset, compare library components, and inspect its HTML or CSS alongside the code viewers.'],
   chats: ['Summarize an attached report or ask questions about its contents.', 'Draft, rewrite, brainstorm, or compare ideas with a local model.'],
   library: ['Find a saved prompt to reuse for a recurring task.', 'Look up reference material before starting a new conversation.'],
   knowledge: ['Keep project documents and notes connected in one local vault.', 'Choose relevant source material to ground a chat answer.'],

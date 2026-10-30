@@ -1,6 +1,7 @@
 import ScrollToolbar from './ScrollToolbar';
 import { useEffect, useRef, useState } from 'react';
 import { downloadBlob } from '../downloadBlob';
+import { useStore } from '../useStore';
 import { filterStylingExamples, stylingCategories, stylingExamples, stylingExampleCSS, stylingExampleDocument } from '../stylingLibrary';
 import './StylingLibrary.css';
 
@@ -58,7 +59,8 @@ function ExampleCode({ example, theme, motion, onClose, onEdit }) {
   </dialog>;
 }
 
-export default function StylingLibrary({ active = true, onEdit }) {
+export default function StylingLibrary({ active = true, onEdit, onAddToPlayground }) {
+  const appMotionReduced = useStore()?.appearance?.motion === 'reduced';
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('All');
   const [theme, setTheme] = useState('dark');
@@ -66,6 +68,7 @@ export default function StylingLibrary({ active = true, onEdit }) {
   const [selected, setSelected] = useState(null);
   const [reducedMotion, setReducedMotion] = useState(() => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   const examples = filterStylingExamples({ query, category });
+  const motionReduced = reducedMotion || appMotionReduced;
 
   useEffect(() => {
     const media = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -82,8 +85,8 @@ export default function StylingLibrary({ active = true, onEdit }) {
 <div className="sl-toolbar">
       <label className="sl-search"><span>Find an example</span><input type="search" placeholder="Buttons, gradients, loading…" value={query} onChange={event => setQuery(event.target.value)} /></label>
       <label><span>Preview theme</span><select value={theme} onChange={event => setTheme(event.target.value)}><option value="dark">Dark</option><option value="light">Light</option></select></label>
-      <button type="button" disabled={reducedMotion} title={reducedMotion ? 'Your device prefers reduced motion.' : 'Pause or play animations in the previews.'}
-        onClick={() => setMotion(value => !value)}>{reducedMotion ? 'Motion reduced' : motion ? 'Pause animations' : 'Play animations'}</button>
+      <button type="button" disabled={motionReduced} title={motionReduced ? 'Your device or application prefers reduced motion.' : 'Pause or play animations in the previews.'}
+        onClick={() => setMotion(value => !value)}>{motionReduced ? 'Motion reduced' : motion ? 'Pause animations' : 'Play animations'}</button>
     </div>
     <nav className="sl-categories" aria-label="Example categories">{['All', ...stylingCategories].map(name => <button key={name} type="button" aria-label={`${name} examples`} aria-pressed={category === name}
       onClick={() => setCategory(name)}>{name}<span>{name === 'All' ? stylingExamples.length : stylingExamples.filter(example => example.category === name).length}</span></button>)}</nav>
@@ -91,10 +94,11 @@ export default function StylingLibrary({ active = true, onEdit }) {
     <div className="sl-result-count" role="status">{examples.length} {examples.length === 1 ? 'example' : 'examples'}{category !== 'All' ? ` · ${category}` : ''}</div>
     {examples.length ? <div className="sl-gallery">{examples.map(example => <article className="sl-example" key={example.id}>
       <div className="sl-preview">{active && <iframe title={`${example.title} preview`} sandbox="" referrerPolicy="no-referrer" loading="lazy"
-        srcDoc={stylingExampleDocument(example, { theme, motion: motion && !reducedMotion })} />}</div>
+        srcDoc={stylingExampleDocument(example, { theme, motion: motion && !motionReduced })} />}</div>
       <div className="sl-example-content"><span className="sl-category-label">{example.category}</span><h2>{example.title}</h2><p>{example.description}</p>
-        <button type="button" aria-label={`View ${example.title} code`} onClick={() => setSelected(example)}>View code <span aria-hidden="true">↗</span></button></div>
+        <button type="button" aria-label={`View ${example.title} code`} onClick={() => setSelected(example)}>View code <span aria-hidden="true">↗</span></button>
+        {onAddToPlayground && <button type="button" aria-label={`Add ${example.title} to playground`} onClick={() => onAddToPlayground(example.id)}>Add to playground +</button>}</div>
     </article>)}</div> : <div className="sl-empty"><h2>No matching examples</h2><p>Try another word or browse a different category.</p><button type="button" onClick={() => { setQuery(''); setCategory('All'); }}>Clear filters</button></div>}
-    {selected && active && <ExampleCode key={selected.id} example={selected} theme={theme} motion={motion && !reducedMotion} onClose={() => setSelected(null)} onEdit={onEdit} />}
+    {selected && active && <ExampleCode key={selected.id} example={selected} theme={theme} motion={motion && !motionReduced} onClose={() => setSelected(null)} onEdit={onEdit} />}
   </section>;
 }

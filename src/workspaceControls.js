@@ -10,6 +10,16 @@ import {linkedToolHelp} from './help/linkedTools';
 import {webHelp} from './help/web';
 
 export const workspaceControls = {
+  'design-programming': [['Design & Programming', [
+    ['UI Playground / code viewers', 'Use the tabs inside this main workspace to open the playground, Styling Library, HTML, CSS, JavaScript, or Markdown. Viewer drafts stay mounted when you switch. Browser source actions and existing Functions or pin destinations still open the same viewers here.'],
+    ['Starting templates', 'Load one of six combinations of the existing themes and fonts. Templates replace the preview appearance; component choices, sample layout, and preview width remain independent.'],
+    ['Color & type / Shape & rhythm', 'Mix every app palette, accent, interface font, code font, and contrast setting with corner, density, surface, button, and motion treatments. Original preserves each existing app control’s treatment. Changes stay in the preview until Apply to app.'],
+    ['Live preview', 'Compare generation, dashboard, or chat samples at fluid, tablet, or phone widths. Fixed widths shrink to fit the available pane. Sample buttons and fields never submit model requests.'],
+    ['Apply to app / Undo application', 'Apply the palette, fonts, contrast, and supported shared control treatments to this desktop. Shared buttons, fields, navigation spacing, and cards adopt the selected treatments; embedded apps, native surfaces, and preview-only layouts retain their own design. Undo restores the previous app appearance unless it has since changed elsewhere.'],
+    ['Save, load & export designs', 'Drafts save on this device. Keep up to 30 named presets, replace one by name, export/import a versioned JSON design, or save the sample preview as HTML. Import and Load only update the draft.'],
+    ['Comparison board', 'Add any of the 20 offline library examples, reorder or remove them, and compare them with your current colors and fonts. Each component has an isolated preview. Motion respects the device preference and the Reduced choice.'],
+    ['Open preview CSS / HTML', 'Send the generated sample source to its viewer. Edit component CSS sends that component and its HTML. HTML/CSS previews block scripts and network access; JavaScript remains a text viewer.'],
+  ]]],
   'info-center': [['Explore features', [
     ['Search features and use cases', 'Search by a task, feature name, example, or control. Multiple words narrow the results together. Escape clears the search text.'],
     ['Category / Clear filters', 'Limit the directory to one navigation category or clear the filters to see every feature again.'],

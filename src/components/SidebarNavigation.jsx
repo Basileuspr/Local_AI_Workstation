@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import "./SidebarNavigation.css";
 import { filterNavigationSections, loadNavigationOrder, orderedSections, NAVIGATION_ORDER_KEY } from "../navigationOrder";
 import TabOrderEditor from "./TabOrderEditor";
+import { DESIGN_TAB, isDesignTab } from '../designWorkspace';
 import ResizableDivider from "./ResizableDivider";
 import { loadSidebarNavigationSize, saveSidebarNavigationSize, SIDEBAR_NAVIGATION_SIZE_KEY, SIDEBAR_NAVIGATION_MIN } from "../sidebarNavigationSizing";
 
@@ -97,7 +98,7 @@ export default function SidebarNavigation({ activeTab, onSelect }) {
   function itemButton(item) {
     return <button key={item.id} type="button" className="sidebar-nav-item"
       data-sidebar-route={item.id} data-media-manager-tab={item.id === "media-manager" ? "" : undefined}
-      aria-current={activeTab === item.id ? "page" : undefined} title={item.title || item.label}
+      aria-current={activeTab === item.id || !searching && item.id === DESIGN_TAB && isDesignTab(activeTab) ? "page" : undefined} title={item.title || item.label}
       onClick={() => selectItem(item.id)}>{item.label}</button>;
   }
 

@@ -1,5 +1,6 @@
 import { createContext, useContext, useReducer, useRef, useCallback, useLayoutEffect } from "react";
 import { applyAppearance, defaultAppearance, normalizeAppearance } from "./appearance";
+import './appearance.css';
 import { defaultRoleplayConfig, mergeRoleplayConfig,roleplayFromCharacter } from "./roleplayPrompt";
 import { defaultImageSettings, defaultVoiceOutput, normalizeVoiceOutput, defaultSoundOutput, normalizeSoundOutput, loadPreferences } from "./preferences";
 import {audioOutput} from './audioOutput';

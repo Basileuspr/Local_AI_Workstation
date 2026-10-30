@@ -10,6 +10,7 @@ import AppUpdateCheck from './AppUpdateCheck';
 import WorkspaceInfo from "./WorkspaceInfo";
 import { WorkspaceInfoContext } from "../workspaceInfoContext";
 import { appTabLabels } from "../navigation";
+import { designTools } from '../designWorkspace';
 import { ThumbnailRetryButton } from "./ImageThumbnail";
 import { clampLayoutValue, DIVIDER_SIZE, loadWorkspaceLayout, saveWorkspaceLayout, SIDEBAR_DEFAULT, SIDEBAR_MIN, SIDEBAR_MAX, SPLIT_DEFAULTS, splitLimits } from "../workspaceLayout";
 import "./ChatWorkspace.css";
@@ -24,6 +25,7 @@ import { useWorkspaceModalOpen } from '../useWorkspaceModalOpen';
 const compactLayout = "(max-width: 900px)";
 export const NavigationOpenContext = createContext(false);
 const titles = { ...appTabLabels, chats: "Chats", generate: "Generate Images" };
+for (const tool of designTools) titles[tool.id] = `Design & Programming · ${tool.label}`;
 
 export default function AppLayout({ activeTab, sidebar, children, onRefresh, refreshing = false, pinnedTab = null, pinnedTitle, onUnpin, pinNotice }) {
   const sessionId = useStore()?.currentSessionId || "draft";

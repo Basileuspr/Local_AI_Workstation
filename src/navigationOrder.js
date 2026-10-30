@@ -1,3 +1,5 @@
+import { designTools } from './designWorkspace';
+
 const groups = [
   { id: "workspace", label: "Workspace", icon: "chat", items: [
     { id: "chats", label: "Chats" },
@@ -44,19 +46,16 @@ const groups = [
   ] },
   { id: "viewers", label: "Viewers", icon: "chat", items: [
     { id: "3d-viewer", label: "3D Viewer & Editor" },
-    { id: "markdown", label: "Markdown Viewer" },
-    { id: "html-viewer", label: "HTML Viewer" },
-    { id: "css-viewer", label: "CSS / Styling" },
-    { id: "styling-library", label: "Styling Library", title: "Styling Library · CSS, HTML, buttons, layouts and animations" },
-    { id: "js-viewer", label: "JavaScript Viewer" },
     { id: "spreadsheets", label: "Spreadsheets" },
     { id: "shortcuts", label: "Shortcut Registry" },
   ] },
 ];
 
 export const navigationSections = [
-  { id: 'utilities', label: 'Utilities', items: [{ id: 'dashboard', label: 'Dashboard' }, { id: 'queue', label: 'Prompt Queue' }, { id: 'tools', label: 'Functions' }, { id: 'info-center', label: 'Info Center', title: 'Info Center · feature use cases, examples and help' }] },
+  { id: 'utilities', label: 'Utilities', items: [{ id: 'dashboard', label: 'Dashboard' }, { id: 'queue', label: 'Prompt Queue' }, { id: 'tools', label: 'Functions' }, { id: 'info-center', label: 'Info Center', title: 'Info Center · feature use cases, examples and help' }, { id: 'design-programming', label: 'Design & Programming', title: 'Design & Programming · UI customization playground, templates and code' }] },
   ...groups,
+  // Children live in the main workspace. Keep them indexed for search and ordering.
+  { id: 'design-code', label: 'Design & Programming', items: designTools },
 ];
 export const NAVIGATION_ORDER_KEY = 'local-ai-workstation-tab-order-v1';
 const complete = (saved, defaults) => [...new Set([...(Array.isArray(saved) ? saved.filter(id => defaults.includes(id)) : []), ...defaults])];
@@ -68,8 +67,8 @@ export function normalizeNavigationOrder(value) {
     sections.splice(sections.indexOf('web'), 1);
     sections.splice(sections.indexOf('workspace') + 1, 0, 'web');
   }
-  return { sections: ['utilities', ...sections],
-    tabs: Object.fromEntries(navigationSections.map(section => [section.id, complete(value?.tabs?.[section.id], section.items.map(item => item.id))])) };
+  return { sections: ['utilities', ...sections, 'design-code'],
+    tabs: Object.fromEntries(navigationSections.map(section => [section.id, complete(value?.tabs?.[section.id] ?? (section.id === 'design-code' ? value?.tabs?.viewers : undefined), section.items.map(item => item.id))])) };
 }
 export function loadNavigationOrder(storage = globalThis.localStorage) {
   try { return normalizeNavigationOrder(JSON.parse(storage?.getItem(NAVIGATION_ORDER_KEY) || 'null')); }

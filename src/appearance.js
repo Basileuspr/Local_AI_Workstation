@@ -38,7 +38,21 @@ export const appearanceThemes = {
   } },
 };
 export const uiContrastRange = { min: 75, max: 150, step: 5, default: 100 };
-export const defaultAppearance = { theme: "midnight", font: "segoe", codeFont: "consolas", contrast: uiContrastRange.default };
+export const accentColors = {
+  theme: { label: 'Theme accent' },
+  violet: { label: 'Violet', dark: '#b599ff', light: '#6537b5' },
+  cyan: { label: 'Cyan', dark: '#42d5ed', light: '#006879' },
+  amber: { label: 'Amber', dark: '#f9c74f', light: '#805600' },
+  green: { label: 'Green', dark: '#65dc93', light: '#176b3b' },
+  rose: { label: 'Rose', dark: '#ff9db7', light: '#a72750' },
+};
+export const cornerOptions = { default: 'Original', sharp: 'Sharp', rounded: 'Rounded', soft: 'Soft' };
+export const densityOptions = { default: 'Original', compact: 'Compact', comfortable: 'Comfortable' };
+export const surfaceOptions = { default: 'Original', flat: 'Flat', outlined: 'Outlined', elevated: 'Elevated' };
+export const buttonOptions = { default: 'Original', solid: 'Solid', outline: 'Outline', soft: 'Soft' };
+export const motionOptions = { default: 'Follow device', reduced: 'Reduced' };
+export const defaultAppearance = { theme: "midnight", font: "segoe", codeFont: "consolas", contrast: uiContrastRange.default,
+  accent: 'theme', corners: 'default', density: 'default', surface: 'default', buttons: 'default', motion: 'default' };
 const validKey = (catalog, value, fallback) => typeof value === "string" && Object.hasOwn(catalog, value) ? value : fallback;
 export function normalizeAppearance(value) {
   value = value && typeof value === "object" ? value : {};
@@ -46,6 +60,12 @@ export function normalizeAppearance(value) {
     theme: validKey(appearanceThemes, value.theme, defaultAppearance.theme),
     font: validKey(interfaceFonts, value.font, defaultAppearance.font),
     codeFont: validKey(codeFonts, value.codeFont, defaultAppearance.codeFont),
+    accent: validKey(accentColors, value.accent, defaultAppearance.accent),
+    corners: validKey(cornerOptions, value.corners, defaultAppearance.corners),
+    density: validKey(densityOptions, value.density, defaultAppearance.density),
+    surface: validKey(surfaceOptions, value.surface, defaultAppearance.surface),
+    buttons: validKey(buttonOptions, value.buttons, defaultAppearance.buttons),
+    motion: validKey(motionOptions, value.motion, defaultAppearance.motion),
     contrast: typeof value.contrast === "number" && Number.isFinite(value.contrast)
       ? Math.max(uiContrastRange.min, Math.min(uiContrastRange.max, Math.round(value.contrast / uiContrastRange.step) * uiContrastRange.step))
       : defaultAppearance.contrast,
@@ -79,6 +99,10 @@ function readableText(candidate, original, surfaces) {
 export function appearanceColors(value) {
   const appearance = normalizeAppearance(value), theme = appearanceThemes[appearance.theme];
   const colors = { ...theme.colors };
+  if (appearance.accent !== 'theme') {
+    colors.accent = accentColors[appearance.accent][theme.scheme];
+    colors['accent-dim'] = mixColor(colors['bg-primary'], colors.accent, .16);
+  }
   if (appearance.contrast === uiContrastRange.default) return colors;
   const stronger = appearance.contrast > uiContrastRange.default;
   const amount = stronger ? (appearance.contrast - 100) / 50 : (100 - appearance.contrast) / 25;
@@ -92,16 +116,30 @@ export function appearanceColors(value) {
     colors[key] = mixColor(colors[key], target, amount * (stronger ? .6 : .3));
   for (const key of ["accent", "green", "red", "yellow", "orange"])
     colors[key] = mixColor(colors[key], target, amount * (stronger ? .2 : .12));
+  colors.accent = readableText(colors.accent, theme.scheme === 'dark' ? '#ffffff' : '#000000', [...surfaces, colors['accent-dim']]);
   return colors;
+}
+
+export function appearanceVariables(value) {
+  const appearance = normalizeAppearance(value), colors = appearanceColors(appearance);
+  return {
+    ...Object.fromEntries(Object.entries(colors).map(([key, color]) => [`--${key}`, color])),
+    '--font-body': interfaceFonts[appearance.font].family,
+    '--font-mono': codeFonts[appearance.codeFont].family,
+    '--on-accent': luminance(colors.accent) > .179 ? '#080c14' : '#ffffff',
+    '--ui-radius': { default: '8px', sharp: '0px', rounded: '8px', soft: '18px' }[appearance.corners],
+    '--ui-space': { default: '16px', compact: '10px', comfortable: '22px' }[appearance.density],
+    '--ui-control-y': { default: '8px', compact: '5px', comfortable: '11px' }[appearance.density],
+    '--ui-card-shadow': appearance.surface === 'elevated' ? '0 10px 28px #00000026' : 'none',
+  };
 }
 
 export function applyAppearance(value, root = document.documentElement) {
   const appearance = normalizeAppearance(value), theme = appearanceThemes[appearance.theme];
   root.dataset.theme = appearance.theme;
   root.dataset.uiContrast = String(appearance.contrast);
+  for (const key of ['corners', 'density', 'surface', 'buttons', 'motion']) root.dataset[`ui${key[0].toUpperCase()}${key.slice(1)}`] = appearance[key];
   root.style.colorScheme = theme.scheme;
   // Change UI palette tokens rather than filtering the window or its media.
-  for (const [key, color] of Object.entries(appearanceColors(appearance))) root.style.setProperty(`--${key}`, color);
-  root.style.setProperty("--font-body", interfaceFonts[appearance.font].family);
-  root.style.setProperty("--font-mono", codeFonts[appearance.codeFont].family);
+  for (const [key, value] of Object.entries(appearanceVariables(appearance))) root.style.setProperty(key, value);
 }

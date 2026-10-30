@@ -19,6 +19,14 @@ Recorded during the September 30, 2026 application-review follow-up. This is a
 local development version. It identifies captured source and is not a published
 stable release or a certification of all preexisting features.
 
+- October 30: **Design & Programming** is a main workspace with a live UI
+  customization playground, six starting templates, independent appearance
+  controls, local presets, design import/export, and a board for all 20 styling
+  examples. HTML, CSS, JavaScript, Markdown, and the Styling Library now sit
+  inside it. Existing viewer routes and drafts remain available. See the
+  [workspace guide](docs/workspace/WORKSPACE_GUIDE.md#design--programming) and
+  [verification record](docs/development/VERIFICATION.md#october-30-design--programming).
+
 - R01 coordinates the manifest/lockfile version, desktop software specs,
   renderer identity and backend API metadata. Production builds save a shared
   `build-info.json`, emit that metadata beside the renderer, and add an immutable

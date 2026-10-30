@@ -57,7 +57,7 @@ describe('Info Center', () => {
   it('is discoverable and appends safely to saved navigation arrangements', () => {
     expect(resolveActiveTab('info-center')).toBe('info-center');
     expect(filterNavigationSections(orderedSections(), 'use cases').flatMap(group => group.items.map(item => item.id))).toEqual(['info-center']);
-    expect(normalizeNavigationOrder({ tabs: { utilities: ['queue', 'dashboard'] } }).tabs.utilities).toEqual(['queue', 'dashboard', 'tools', 'info-center']);
+    expect(normalizeNavigationOrder({ tabs: { utilities: ['queue', 'dashboard'] } }).tabs.utilities).toEqual(['queue', 'dashboard', 'tools', 'info-center', 'design-programming']);
     expect(functionTargets.some(item => item.id === 'info-center')).toBe(true);
     expect(functionTargets.some(item => item.id === 'capture:info-center')).toBe(true);
   });

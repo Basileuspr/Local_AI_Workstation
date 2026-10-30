@@ -100,12 +100,13 @@ export const universityAppLessons = [
   },
   {
     id: 'browser-source-inspection', title: 'Understand a page and its source', module: 'Sources and documents', minutes: 10,
-    workspaces: ['browser', 'html-viewer', 'css-viewer', 'styling-library', 'js-viewer'], sample: sampleHtml,
+    workspaces: ['design-programming', 'browser', 'html-viewer', 'css-viewer', 'styling-library', 'js-viewer'], sample: sampleHtml,
     concepts: [
       'HTML describes a page’s structure, CSS describes its appearance, and JavaScript describes behavior. The local source viewers let you inspect, edit, copy or save source text. HTML and CSS previews isolate the content and block scripts and remote resources; JavaScript Viewer displays text.',
       'Browser shows a public page in the app’s separate browsing profile. Inspect page can expose rendered HTML and loaded source resources, after its confirmation. It cannot show private server-side project code. A page is a source to study, and its text does not authorize actions on your files.',
     ],
     steps: [
+      'Open Design & Programming → UI Playground. Choose Studio, change only the corner treatment, and compare the preview. Save a named design, then open its preview CSS to see which values changed. Apply to app is a separate action.',
       'Copy the practice HTML into HTML Viewer and open its Preview. Match the heading and deadline to the source.',
       'In CSS / Styling, use the practice HTML as HTML to style and try “.deadline { color: teal; }”. Compare source and preview.',
       'In Styling Library, choose Buttons and open Button essentials with View code. Compare HTML and CSS, choose Edit in CSS / Styling, change the primary button color, and click Preview to check your variation.',

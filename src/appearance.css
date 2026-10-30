@@ -1,0 +1,17 @@
+/* Opt-in treatments for shared application controls. Original keeps each tool's layout. */
+:root:not([data-ui-corners="default"])[data-ui-corners] :is(button:not([role="switch"]), input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not([type="color"]), select, textarea, .tools-preview, .dashboard-card, .info-center-card, .sl-example, .function-launcher) {
+  border-radius: var(--ui-radius);
+}
+:root:not([data-ui-density="default"])[data-ui-density] :is(.tools-toolbar button, .sidebar-nav-item, .sidebar-group-toggle, .session-item, .appearance-fields select) {
+  padding-block: var(--ui-control-y);
+}
+:root:not([data-ui-density="default"])[data-ui-density] :is(.tools-workspace, .styling-library, .info-center, .dashboard) { padding: var(--ui-space); }
+:root:not([data-ui-surface="default"])[data-ui-surface] :is(.dashboard-card, .info-center-card, .sl-example, .function-launcher, .functions-editor, .appearance-preview) {
+  background: var(--bg-card); border: 1px solid var(--border); box-shadow: var(--ui-card-shadow);
+}
+:root[data-ui-surface="outlined"] :is(.dashboard-card, .info-center-card, .sl-example, .function-launcher, .functions-editor, .appearance-preview) { background: var(--bg-primary); border-color: var(--border-active); }
+:root[data-ui-surface="flat"] :is(.dashboard-card, .info-center-card, .sl-example, .function-launcher, .functions-editor, .appearance-preview) { border-color: transparent; }
+:root[data-ui-buttons="solid"] :is(.tools-toolbar button, .sl-code-actions button, .appearance-footer button, .dp-apply) { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+:root[data-ui-buttons="outline"] :is(.tools-toolbar button, .sl-code-actions button, .appearance-footer button, .dp-apply) { background: transparent; color: var(--accent); border-color: var(--accent); }
+:root[data-ui-buttons="soft"] :is(.tools-toolbar button, .sl-code-actions button, .appearance-footer button, .dp-apply) { background: var(--accent-dim); color: var(--accent); border-color: transparent; }
+:root[data-ui-motion="reduced"] *, :root[data-ui-motion="reduced"] *::before, :root[data-ui-motion="reduced"] *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }

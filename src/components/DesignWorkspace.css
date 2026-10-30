@@ -1,0 +1,12 @@
+.design-workspace { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; color: var(--text); }
+.design-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 22px 24px 18px; flex: 0 0 auto; }
+.design-eyebrow { display: block; font: 10px var(--font-mono); letter-spacing: .13em; color: var(--accent); margin-bottom: 8px; }
+.design-heading h1 { font-size: clamp(21px, 2vw, 28px); font-weight: 650; letter-spacing: -.025em; }
+.design-local { font-size: 11px; color: var(--text-muted); border: 1px solid var(--border); padding: 6px 10px; border-radius: 20px; }
+.design-tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 24px 12px; border-bottom: 1px solid var(--border); flex: 0 0 auto; }
+.design-tabs button { padding: 9px 12px; border: 1px solid transparent; border-radius: 7px; color: var(--text-dim); background: transparent; font: 12px var(--font-body); cursor: pointer; }
+.design-tabs button[aria-current] { color: var(--accent); background: var(--accent-dim); border-color: var(--border-active); }
+.design-tabs button:hover { color: var(--text); background: var(--bg-card); }
+.design-tabs button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.design-content { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+@media (max-width: 650px) { .design-heading { padding: 14px 12px; }.design-tabs { padding: 0 12px 10px; }.design-tabs button { padding: 7px 8px; }.design-local { display: none; } }

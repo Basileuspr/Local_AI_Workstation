@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { appearanceColors, appearanceThemes, applyAppearance, defaultAppearance, normalizeAppearance } from "../../src/appearance";
+import { accentColors, appearanceColors, appearanceThemes, appearanceVariables, applyAppearance, defaultAppearance, normalizeAppearance } from "../../src/appearance";
 import { clearPreferences, loadPreferences, pickPreferences, savePreferences } from "../../src/preferences";
 import { reducer } from "../../src/useStore";
 
@@ -12,6 +12,16 @@ function luminance(hex) {
 function contrast(a, b) { const values = [luminance(a), luminance(b)].sort((x, y) => y - x); return (values[0] + .05) / (values[1] + .05); }
 
 describe("application appearance", () => {
+  it('keeps mixed accents and their button labels readable on every palette', () => {
+    for (const theme of Object.keys(appearanceThemes)) for (const accent of Object.keys(accentColors)) {
+      for (const level of [75, 100, 150]) {
+        const colors = appearanceColors({ theme, accent, contrast: level });
+        const variables = appearanceVariables({ theme, accent, contrast: level });
+        expect(contrast(colors.accent, colors['accent-dim']), `${theme}/${accent}/${level}`).toBeGreaterThanOrEqual(4.5);
+        expect(contrast(colors.accent, variables['--on-accent']), `${theme}/${accent}/${level} button`).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  });
   it.each([null, "invalid", { theme: "removed", font: "url(remote-font)", codeFont: "__proto__" }])("falls back safely for obsolete or invalid preferences: %j", value => {
     expect(normalizeAppearance(value)).toEqual(defaultAppearance);
   });
@@ -22,9 +32,9 @@ describe("application appearance", () => {
     const state = { appearance: defaultAppearance, selectedModel: "existing-model", conversationHistory: [{ content: "Keep this" }] };
     const updated = reducer(state, { type: "SET_APPEARANCE", payload: { theme: "paper", font: "georgia", codeFont: "courier", contrast: 125 } });
     savePreferences(pickPreferences(updated));
-    expect(loadPreferences().appearance).toEqual({ theme: "paper", font: "georgia", codeFont: "courier", contrast: 125 });
+    expect(loadPreferences().appearance).toEqual({ ...defaultAppearance, theme: "paper", font: "georgia", codeFont: "courier", contrast: 125 });
     const contrastReset = reducer(updated, { type: "SET_APPEARANCE", payload: { contrast: 100 } });
-    expect(contrastReset.appearance).toEqual({ theme: "paper", font: "georgia", codeFont: "courier", contrast: 100 });
+    expect(contrastReset.appearance).toEqual({ ...defaultAppearance, theme: "paper", font: "georgia", codeFont: "courier", contrast: 100 });
     const reset = reducer(updated, { type: "RESET_APPEARANCE" });
     expect(reset.appearance).toEqual(defaultAppearance);
     expect(reset.selectedModel).toBe("existing-model");
@@ -57,7 +67,7 @@ describe("application appearance", () => {
   it("applies palette tokens without filtering the UI or changing fonts", () => {
     const values = new Map(), root = { dataset: {}, style: { setProperty: (key, value) => values.set(key, value) } };
     applyAppearance({ theme: "paper", font: "georgia", codeFont: "courier", contrast: 140 }, root);
-    expect(root.dataset).toEqual({ theme: "paper", uiContrast: "140" });
+    expect(root.dataset).toEqual({ theme: "paper", uiContrast: "140", uiCorners: 'default', uiDensity: 'default', uiSurface: 'default', uiButtons: 'default', uiMotion: 'default' });
     expect(root.style.colorScheme).toBe("light");
     expect(root.style.filter).toBeUndefined();
     expect(values.get("--bg-primary")).toBe(appearanceThemes.paper.colors["bg-primary"]);

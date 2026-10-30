@@ -45,6 +45,8 @@ import KnowledgeVault from "./components/KnowledgeVault";
 import Tools, { MarkdownViewer } from "./components/Tools";
 import ShortcutRegistry from "./components/ShortcutRegistry";
 import CodeViewer from "./components/CodeViewer";
+import DesignWorkspace from './components/DesignWorkspace';
+const DesignPlayground = lazy(() => import('./components/DesignPlayground'));
 import ViewerBrowser from './components/ViewerBrowser';
 const ReelsAnalyzer = lazy(() => import('./components/ReelsAnalyzer'));
 const WebWorkspace = lazy(() => import('./components/WebWorkspace'));
@@ -93,6 +95,11 @@ function AppInner() {
   const [imageLibraryTarget, setImageLibraryTarget] = useState(null);
   const [queueDataset, setQueueDataset] = useState(null);
   const [viewerInputs,setViewerInputs] = useState({});
+  const [designExample, setDesignExample] = useState(null);
+  function addDesignExample(id) {
+    setDesignExample({ id });
+    dispatch({ type: 'SET_SIDEBAR_TAB', payload: 'design-programming' });
+  }
   function openBrowserSource(source) {
     if(!['html','css','js'].includes(source.kind))return;
     setViewerInputs(current=>({...current,[source.kind]:source}));
@@ -405,6 +412,12 @@ function AppInner() {
   const [modelViewerUsed, setModelViewerUsed] = useState(false);
   const modelViewerVisible = visible("3d-viewer");
   useEffect(() => { if (modelViewerVisible) setModelViewerUsed(true); }, [modelViewerVisible]);
+  const [designUsed, setDesignUsed] = useState(false);
+  const designVisible = visible('design-programming');
+  useEffect(() => { if (designVisible) setDesignUsed(true); }, [designVisible]);
+  const designPane = (tab, content) => <div className="pane" data-capture-tab={tab} hidden={!visible(tab)}>
+    <DesignWorkspace tab={tab} onNavigate={target => dispatch({ type: 'SET_SIDEBAR_TAB', payload: target })}>{content}</DesignWorkspace>
+  </div>;
 
   return (
     <ImageGenerationProvider onSessionSaved={handleSessionSaved}>
@@ -434,18 +447,19 @@ function AppInner() {
           <div className="pane" data-capture-tab="knowledge" hidden={!visible("knowledge")}><KnowledgeVault active={visible("knowledge")} /></div>
           <div className="pane" data-capture-tab="tools" hidden={!visible("tools")}><Tools /></div>
           <div className="pane" data-capture-tab="shortcuts" hidden={!visible("shortcuts")}><ShortcutRegistry /></div>
-          <div className="pane" data-capture-tab="markdown" hidden={!visible("markdown")}><MarkdownViewer /></div>
+          {designPane('design-programming', (designVisible || designUsed) && <Suspense fallback={<p>Opening UI Playground…</p>}><DesignPlayground active={designVisible} incomingExample={designExample} onEdit={openBrowserSource} /></Suspense>)}
+          {designPane('markdown', <MarkdownViewer />)}
           <div className="pane" data-capture-tab="browser" hidden={!visible("browser")}><ViewerBrowser active={visible("browser")} onOpenSource={openBrowserSource}/></div>
           <div className="pane" data-capture-tab="reels-analyzer" hidden={!visible("reels-analyzer")}><Suspense fallback={<p>Opening Reels Analyzer…</p>}><ReelsAnalyzer active={visible("reels-analyzer")} models={state.models} defaultModel={state.summaryModel||state.selectedModel}/></Suspense></div>
           <div className="pane" data-capture-tab="web-system" hidden={!visible("web-system")}><Suspense fallback={<p>Opening web workspace…</p>}><WebWorkspace active={visible("web-system")} models={state.models} defaultModel={state.summaryModel||state.selectedModel} chatModel={state.selectedModel} onOpenSession={async id => {const loaded=await handleLoadSession(id);if(loaded)dispatch({type:'SET_SIDEBAR_TAB',payload:'chats'});return loaded;}} isGenerating={state.isGenerating}/></Suspense></div>
           <div className="pane" data-capture-tab="3d-viewer" hidden={!modelViewerVisible}>{(modelViewerVisible || modelViewerUsed) && <Suspense fallback={<p>Opening 3D Viewer & Editor…</p>}><ModelViewer /></Suspense>}</div>
           <div className="pane" data-capture-tab="local-files" hidden={!visible("local-files")}><Suspense fallback={<p>Opening Local Files…</p>}><LocalFiles active={visible("local-files")}/></Suspense></div>
           <div className="pane" data-capture-tab="document-editor" hidden={!visible("document-editor")}><Suspense fallback={<p>Opening Document Editor…</p>}><DocumentEditor active={visible("document-editor")}/></Suspense></div>
-          <div className="pane" data-capture-tab="html-viewer" hidden={!visible("html-viewer")}><CodeViewer kind="html" incoming={viewerInputs.html}/></div>
-          <div className="pane" data-capture-tab="css-viewer" hidden={!visible("css-viewer")}><CodeViewer kind="css" incoming={viewerInputs.css}/></div>
-          <div className="pane" data-capture-tab="styling-library" hidden={!visible("styling-library")}><Suspense fallback={<p>Opening Styling Library…</p>}><StylingLibrary active={visible("styling-library")} onEdit={openBrowserSource}/></Suspense></div>
+          {designPane('html-viewer', <CodeViewer kind="html" incoming={viewerInputs.html} />)}
+          {designPane('css-viewer', <CodeViewer kind="css" incoming={viewerInputs.css} />)}
+          {designPane('styling-library', <Suspense fallback={<p>Opening Styling Library…</p>}><StylingLibrary active={visible('styling-library')} onEdit={openBrowserSource} onAddToPlayground={addDesignExample} /></Suspense>)}
           <div className="pane" data-capture-tab="sound-mixer" hidden={!visible("sound-mixer")}><Suspense fallback={<p>Opening Sound Mixer…</p>}><SoundMixer active={visible("sound-mixer")}/></Suspense></div>
-          <div className="pane" data-capture-tab="js-viewer" hidden={!visible("js-viewer")}><CodeViewer kind="js" incoming={viewerInputs.js}/></div>
+          {designPane('js-viewer', <CodeViewer kind="js" incoming={viewerInputs.js} />)}
           <div className="pane" data-capture-tab="spreadsheets" hidden={!visible("spreadsheets")}><SpreadsheetViewer /></div>
           <div className="pane" data-capture-tab="canvas" hidden={!visible("canvas")}><CanvasWorkspace /></div>
           <div className="pane" data-capture-tab="converter" hidden={!visible("converter")}><FileConverter /></div>

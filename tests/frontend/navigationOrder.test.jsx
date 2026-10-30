@@ -43,7 +43,7 @@ describe('app-wide navigation priority', () => {
     const legacy = { sections: ['images', 'workspace', 'viewers', 'characters', 'learning'],
       tabs: { workspace: ['reels-analyzer', 'audio', 'web-system', 'chats'], viewers: ['browser', 'spreadsheets'] } };
     const order = normalizeNavigationOrder(legacy);
-    expect(order.sections).toEqual(['utilities', 'images', 'workspace', 'web', 'viewers', 'characters', 'learning']);
+    expect(order.sections).toEqual(['utilities', 'images', 'workspace', 'web', 'viewers', 'characters', 'learning', 'design-code']);
     expect(order.tabs.web).toEqual(['browser', 'web-system', 'reels-analyzer']);
     expect(order.tabs.workspace.slice(0, 2)).toEqual(['audio', 'chats']);
     expect(order.tabs.viewers[0]).toBe('spreadsheets');
@@ -62,7 +62,7 @@ describe('app-wide navigation priority', () => {
     const order = normalizeNavigationOrder({ sections: ['viewers', 'functions', 'utilities'], tabs: { utilities: ['queue', 'dashboard', 'info-center'], functions: ['tools'] } });
     const sections = orderedSections(order);
     expect(sections[0].id).toBe('utilities');
-    expect(sections[0].items.map(item => item.id)).toEqual(['queue', 'dashboard', 'info-center', 'tools']);
+    expect(sections[0].items.map(item => item.id)).toEqual(['queue', 'dashboard', 'info-center', 'tools', 'design-programming']);
     expect(order.sections).not.toContain('functions');
     expect(sections.flatMap(section => section.items).filter(item => item.id === 'tools')).toHaveLength(1);
     vi.stubGlobal('localStorage', { getItem: key => key === NAVIGATION_ORDER_KEY ? JSON.stringify(order) : null });

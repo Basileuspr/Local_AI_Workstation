@@ -1,6 +1,7 @@
 import {webNavigationHelp} from './web';
 
 const sourceControls = kind => [
+  ['Design & Programming', 'The source viewers and Styling Library live inside this main workspace. Use its tool tabs to switch views while retaining your drafts, or UI Playground to mix a design and open its generated source here.'],
   ['File actions / drop file', `Open reads a local ${kind} file up to 2 MB into this viewer. Copy source is also in File actions; Save source stays on the toolbar. Source remains available while switching tabs.`],
   ['Preview / Edit source', 'HTML and CSS toggle between a sandboxed preview and editable source. Copy and Save use the current source text; the source file is not overwritten automatically. JavaScript remains a text editor.'],
   ['Draft lifetime', 'Source remains while switching tabs. Refreshing or closing the app clears unsaved viewer content.'],
@@ -97,9 +98,10 @@ export const fileToolHelp = {
   'styling-library': [['Browse examples', [
     ['Find an example / Categories', 'Search names, descriptions and keywords, or choose Buttons, Forms, Layouts, Effects, Typography or Animations. These built-in examples work offline.'],
     ['Preview theme', 'Switch every preview between dark and light palettes. The application theme stays as selected in Workspace options.'],
-    ['Pause / Play animations', 'Pause keyframe animations in the previews. Device reduced-motion preferences are respected, and previews are unloaded while this tab is hidden.'],
+    ['Pause / Play animations', 'Pause keyframe animations in the previews. Device and app reduced-motion preferences are respected, and previews are unloaded while this tab is hidden.'],
     ['View code', 'Open a larger live preview with its HTML and CSS source. Preview buttons demonstrate their appearance; form controls and hover states are interactive.'],
   ]], ['Use an example', [
+    ['Add to playground', 'Add this example to the comparison board in Design & Programming → UI Playground. Mix the current colors and type with other examples, reorder components, or open their CSS for editing.'],
     ['HTML / CSS', 'HTML defines the structure; CSS defines its appearance. Choose either source tab. CSS includes the palette and base styles used by the standalone example.'],
     ['Copy source / Copy full example', 'Copy the selected language or a complete HTML document with embedded CSS. Copying leaves your current chat and files in place.'],
     ['Save HTML example', 'Download one self-contained HTML file to open in your browser or HTML Viewer. Examples include a reduced-motion rule and require no external fonts or libraries.'],

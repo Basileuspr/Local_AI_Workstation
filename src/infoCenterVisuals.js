@@ -1,6 +1,7 @@
 // Small, local illustrations: no external images, user files, or model calls.
 // [input picture, result picture, input label, action, result label, motion]
 export const featureVisuals = {
+  'design-programming': ['sliders', 'code', 'Design choices', 'Mix', 'Your interface'],
   dashboard: ['status', 'check', 'Services', 'Check', 'Ready to work', 'pulse'],
   queue: ['stack', 'check', 'Waiting requests', 'Run', 'Completed result', 'flow'],
   tools: ['nodes', 'chat', 'Function steps', 'Review', 'Send to chat', 'flow'],
@@ -47,4 +48,4 @@ export const featureVisuals = {
   shortcuts: ['keys', 'book', 'Keyboard commands', 'Save', 'Personal reference'],
 };
 
-export const categorySymbols = { utilities: 'sliders', workspace: 'chat', web: 'browser', images: 'landscape', characters: 'portrait', learning: 'book', viewers: 'browser' };
+export const categorySymbols = { utilities: 'sliders', workspace: 'chat', web: 'browser', images: 'landscape', characters: 'portrait', learning: 'book', viewers: 'browser', 'design-code': 'code' };

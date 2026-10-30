@@ -2,6 +2,10 @@ import {workspaceControls} from './workspaceControls';
 // Every workspace has an explicit guide. New routes must add one here too.
 // Keep instructions out of the work surface; WorkspaceInfo owns their presentation.
 const overview = {
+  'design-programming': {
+    purpose: 'Build and test interface designs, save combinations, apply shared app appearance settings, and work with HTML, CSS, JavaScript, and Markdown in one workspace.',
+    example: 'Choose Studio, switch to the Paper palette, keep the violet accent, add a glass panel to the comparison board, then save the design or apply its appearance to the app.',
+  },
   'info-center': {
     purpose: 'Find practical use cases, examples, and detailed control guides for every workspace in one central directory.',
     example: 'Search for duplicates to compare Image Manager and Hash Auditor, read their use cases, then choose Open on the feature that fits your task.',
