@@ -4,6 +4,42 @@ This is the consolidated evidence record, updated October 30, 2026.
 Current guides describe inspected source; dated tests below are not a certification
 of every feature, provider, installation or device.
 
+## October 30 UI Design Mirror Apply and Undo
+
+The mirror now has an explicit **Apply to app** action after side-by-side review.
+It stores per-element display overrides locally and replays them after view
+remounts and app restarts. **Undo last application** restores the previous batch,
+including after restart. Draft edits, comparison and optional JSON export remain
+separate from application. Existing version-one drafts remain usable.
+
+- Validation used an isolated checkout of `db58b6e` plus only this task's files;
+  the six unrelated Knowledge Vault draft files were excluded. The full frontend
+  suite passed **1,617 tests across 202 files**, with **3 existing skips**.
+- Unit coverage includes target identity and ambiguity, request-only edits,
+  unsafe style rejection (including image-set URLs), review tickets, conflicts,
+  duplicate requests, persistence, Undo, renderer/save failure rollback and preservation
+  of corrupt saved-design files. The main app and foreign frames cannot invoke
+  the mirror's Apply or Undo IPC handlers.
+- `node scripts/qa-ui-design-mirror.cjs --app` passed using disposable profiles,
+  synthetic app responses and the actual React fixture. Six ready edits applied
+  without changing neighboring headings, typed input, focus or button actions.
+  Native menu and UX-note requests stayed unapplied. Original comparisons stayed
+  frozen. Remount replay, fresh-host persistence, Undo after restart, stale-batch
+  rejection and ambiguous targets passed. The actual app exposed **6,516**
+  editable elements across **48** workspace slots; Apply, route-aware replay and
+  Undo passed with no renderer errors. Desktop and narrow screenshots were
+  visually inspected; no horizontal overflow remained.
+- The isolated desktop production build passed with the existing large-chunk
+  and manifold externalization warnings. Documentation links and whitespace
+  checks passed.
+
+Native Windows menu styling, written UX requests and embedded placeholders remain
+request-only. Targets that cannot be uniquely matched need a new capture or a
+more distinct target. Applied overrides are local display settings, not source
+code changes or cross-computer synchronization. Validation did not restart the
+user's live app or replace deployed assets; backend, GPU, physical-phone and
+Android acceptance were not rerun for this desktop feature.
+
 ## October 30 workspace information audit
 
 All 46 workspace guides were reviewed against current source. Corrections cover

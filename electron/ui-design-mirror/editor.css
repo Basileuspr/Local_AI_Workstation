@@ -386,6 +386,12 @@ main {
 .reviewing {
     grid-template-columns:minmax(0,1fr)}
 }
+.application-summary {
+    margin:0 0 20px;padding:16px;border:1px solid var(--line);border-radius:10px}
+.application-summary p {margin:0 0 12px;color:var(--muted)}
+.change-card td small {display:block;margin-top:6px;color:var(--muted);overflow-wrap:anywhere}
+.change-card .application-ready,.change-card .application-applied {color:#91e1b0}
+.change-card .application-blocked {color:#ffd183}
 @media(prefers-reduced-motion:reduce) {
     * {
     transition:none!important}

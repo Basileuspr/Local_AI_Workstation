@@ -4,6 +4,7 @@ const $ = id => document.getElementById(id);
 const bridge = window.designMirror;
 let state = { captures: [], requests: {} }, currentId, selectedId, workspace = '', reviewing = false;
 let generation = 0, savedGeneration = 0, saveTask = null, saveError = false;
+let applicationPlan = null, checkingApplication = 0, applying = false;
 const history = [], originals = new WeakMap(), elementMaps = new WeakMap();
 const frames = [$('before'), $('after')];
 const capture = () => state.captures.find(item => item.id === currentId);
@@ -23,12 +24,14 @@ function save() {
             await call('save', { captureIds: state.captures.map(item => item.id), requests: state.requests });
             savedGeneration = version;
         }
-        status('Draft saved on this device. Your application has not been changed.');
+        status('Draft saved on this device. Preview edits take effect only when you choose Apply to app.');
     })().catch(error => { saveError = true; $('retry-save').hidden = false; status(`Draft not saved: ${error.message} Keep this window open and retry.`, true); })
         .finally(() => { saveTask = null; });
     return saveTask;
 }
 function changed(previous = state.requests) {
+    checkingApplication++;
+    applicationPlan = null; $('apply').disabled = true;
     history.push(previous); if (history.length > 60) history.shift();
     generation++; updateCount(); void save();
 }
@@ -211,7 +214,8 @@ function setChange(key, value) {
     const node = selected(); if (!node) return;
     const previous = state.requests;
     if (value !== null && fields.some(field => field.key === key)) {
-        if (!CSS.supports(key, value) || /[{};<>\\]|url\s*\(|@|expression\s*\(/i.test(value)) { status('Choose a valid color or style value.', true); return; }
+        if (!CSS.supports(key, value) || /[{};<>\\]|url\s*\(|@|expression\s*\(/i.test(value)
+            || key === 'background-image' && /["']|(?:image-set|image|paint|element|var|env)\s*\(/i.test(value)) { status('Choose a valid color or style value. Backgrounds support colors and gradients without external images.', true); return; }
         // Canonicalize colors/lengths before comparing with the captured value.
         const probe = document.createElement('span'); probe.style.setProperty(key, value);
         value = probe.style.getPropertyValue(key);
@@ -286,12 +290,16 @@ function renderReview() {
         };
         heading.append(title, compare); card.append(heading);
         const table = document.createElement('table'), row = document.createElement('tr');
-        for (const label of ['PROPERTY', 'ORIGINAL', 'REQUESTED']) row.append(text('th', label));
+        for (const label of ['PROPERTY', 'ORIGINAL', 'REQUESTED', 'APPLICATION CHECK']) row.append(text('th', label));
         const head = document.createElement('thead'); head.append(row); table.append(head);
         const body = document.createElement('tbody');
         for (const [key, value] of Object.entries(changes)) {
             const row = document.createElement('tr');
             for (const cell of [fieldLabel(key), key === 'note' ? '—' : node[key] ?? node.styles[key] ?? '', value || '(empty)']) row.append(text('td', cell));
+            const check = applicationPlan?.rows.find(entry => entry.captureId === item.id && entry.nodeId === node.id && entry.property === key);
+            const detail = text('td', check ? check.reason : 'Checking…', `application-${check?.status || 'pending'}`);
+            if (check?.current !== undefined) detail.append(text('small', `App now: ${check.current || '(empty)'}`));
+            row.append(detail);
             body.append(row);
         }
         table.append(body); card.append(table); container.append(card);
@@ -303,10 +311,51 @@ function setReview(value) {
     $('inspector').hidden = value; $('before-panel').hidden = !value; $('back').hidden = !value; $('review-list').hidden = !value;
     $('canvas-title').textContent = value ? 'Your original. Your proposed design.' : 'Select a detail. Try a new look.';
     $('canvas-kicker').textContent = value ? 'COMPARE YOUR REQUESTS' : 'YOUR APPLICATION, AS A PLAYGROUND';
-    $('canvas-help').textContent = value ? 'Identical viewport sizes · Linked scrolling · All captures are recorded below · No changes are applied' : 'Click to edit · Double-click menus and disclosures to open them · Scroll to reach more controls';
-    if (value) { restoreAndApply($('before')); renderReview(); }
+    $('canvas-help').textContent = value ? 'Identical viewport sizes · Linked scrolling · Frozen originals stay available after Apply' : 'Click to edit · Double-click menus and disclosures to open them · Scroll to reach more controls';
+    if (value) { restoreAndApply($('before')); renderReview(); void checkApplication(); }
     scaleFrames(); window.scrollTo(0, 0);
 }
+async function checkApplication() {
+    const check = ++checkingApplication;
+    applicationPlan = null; $('apply').disabled = true;
+    $('application-status').textContent = 'Checking the current app against your requests…';
+    try {
+        await save(); if (saveError) throw Error('Save the draft before applying.');
+        const plan = await call('prepareApplication');
+        if (check !== checkingApplication) return;
+        applicationPlan = plan;
+        $('undo-application').disabled = !plan.canUndo || applying;
+        const blocked = plan.rows.filter(row => row.status === 'blocked').length;
+        const done = plan.rows.filter(row => row.status === 'applied').length;
+        $('application-status').textContent = `${plan.ready} ready to apply · ${done} already applied · ${blocked} request-only or unavailable. Only ready changes will be applied.`;
+        $('apply').textContent = plan.ready ? `Apply ${plan.ready} ${plan.ready === 1 ? 'change' : 'changes'} to app` : 'Apply to app';
+        $('apply').disabled = !plan.ready || applying;
+        if (reviewing) renderReview();
+        return true;
+    } catch (error) {
+        if (check === checkingApplication) { $('application-status').textContent = error.message; status(error.message, true); }
+        return false;
+    }
+}
+async function changeApplication(undo = false) {
+    if (applying || !undo && !applicationPlan?.ready) return;
+    const ticket = applicationPlan?.ticket;
+    applying = true; $('apply').disabled = true; $('undo-application').disabled = true;
+    document.querySelector('main').inert = true; $('capture').disabled = true;
+    status(undo ? 'Restoring the previous applied design…' : 'Applying your reviewed changes…');
+    let message, failed = false;
+    try {
+        const result = await call(undo ? 'undoApplication' : 'applyToApp', { ticket });
+        message = undo ? 'Last application undone. The previous design is restored and saved.' : `${result.count} ${result.count === 1 ? 'change applied' : 'changes applied'} and saved for future restarts. Undo last application can restore the previous design.`;
+    } catch (error) { message = error.message; failed = true; }
+    finally {
+        applying = false; document.querySelector('main').inert = false; $('capture').disabled = false;
+        await checkApplication(); status(message, failed);
+    }
+}
+$('apply').onclick = () => { void changeApplication(); };
+$('undo-application').onclick = () => { void changeApplication(true); };
+$('refresh-application').onclick = () => { void checkApplication(); };
 $('captures').onchange = () => { currentId = $('captures').value; workspace = ''; selectedId = null; renderCaptures(); renderInspector(); mountFrames(); };
 $('workspace').onchange = () => { workspace = $('workspace').value; selectedId = null; mountFrames(); renderElements(); renderInspector(); };
 $('elements').onchange = () => choose($('elements').value, true);
@@ -327,7 +376,7 @@ $('capture').onclick = async () => {
         await save(); if (saveError) return;
         status('Copying the rendered app…');
         const item = await call('capture'); state.captures.push(item); currentId = item.id; selectedId = null; workspace = '';
-        renderCaptures(); renderInspector(); mountFrames(); if (reviewing) renderReview();
+        renderCaptures(); renderInspector(); mountFrames(); if (reviewing) { renderReview(); void checkApplication(); }
         status('New copy captured and saved. Earlier requests are still in your draft.');
     } catch (error) { status(error.message, true); } finally { $('capture').disabled = false; document.querySelector('main').inert = false; }
 };
@@ -337,14 +386,15 @@ $('confirm-remove').onclick = () => {
     const previous = state.requests; state.requests = structuredClone(previous); delete state.requests[currentId];
     state.captures = state.captures.filter(item => item.id !== currentId); history.length = 0;
     currentId = state.captures.at(-1)?.id; selectedId = null; workspace = ''; generation++; void save();
-    $('remove-dialog').close(); renderCaptures(); renderInspector(); mountFrames(); updateCount(); if (reviewing) renderReview();
+    $('remove-dialog').close(); renderCaptures(); renderInspector(); mountFrames(); updateCount(); if (reviewing) { renderReview(); void checkApplication(); }
 };
 $('export').onclick = async () => {
     $('export').disabled = true;
-    try { await save(); if (saveError) return; const result = await call('exportReview'); if (result.exported) status('Requested edits exported. Nothing has been applied.'); }
+    try { await save(); if (saveError) return; const result = await call('exportReview'); if (result.exported) status('Requested edits exported as JSON. Export does not change the app.'); }
     catch (error) { status(error.message, true); } finally { updateCount(); }
 };
 window.addEventListener('beforeunload', event => {
+    if (applying) { event.preventDefault(); event.returnValue = ''; return; }
     if (savedGeneration < generation) { event.preventDefault(); event.returnValue = ''; status(saveError ? 'Retry saving before closing to keep the latest edits.' : 'Finishing the draft save. Close this window again in a moment.', true); void save(); }
 });
 let resizeFrame;
@@ -353,5 +403,5 @@ try {
     if (!bridge) throw Error('Open UI Design Mirror from the application’s Design menu.');
     state = await call('load'); currentId = state.captures.at(-1)?.id;
     renderCaptures(); mountFrames(); updateCount();
-    status(state.warning || 'Choose an element in the copy to start. Changes stay in this design draft.', !!state.warning);
+    if (await checkApplication()) status(state.warning || 'Choose an element in the copy to start. Changes stay in this design draft.', !!state.warning);
 } catch (error) { status(error.message, true); }

@@ -56,8 +56,24 @@ The bright **Review requested edits** button activates on the first change. It
 opens original/proposed views at identical viewport sizes with linked scrolling,
 plus a per-element table of original and requested values. **Compare target**
 opens the relevant capture and workspace. **Continue editing** returns to the
-playground. **Export requests** saves a versioned JSON request record containing
-targets and before/requested values; it is not an executable theme or an apply action.
+playground. The application check identifies ready changes and shows the target's
+current value in the live app. **Apply to app** applies only those ready changes
+and saves them on this device across restarts. **Undo last application** restores
+the design before the most recent Apply, even after a restart. Original captures
+remain frozen for comparison. Resetting draft edits or removing a capture does
+not undo an application.
+
+Targets must still match their captured identity uniquely. Missing or changed
+targets, duplicate controls without a distinct identity, conflicting requests,
+native menu proposals and written UX notes remain unapplied and are marked in
+the review. Open a missing view in the app and capture it again; resolve conflicting
+requests before applying. A target that changes after review cancels the batch,
+so refresh the application check before retrying. Applied overrides follow their
+identified elements when views remount without changing field values or actions.
+
+**Export requests (JSON)** is an optional versioned request record containing
+targets and before/requested values. It does not apply anything or include the
+full captured copy.
 
 **Workspace in copy** previews workspaces whose DOM was mounted at capture time.
 Double-click a copied menu/disclosure, or use **Open / close section**, to inspect
@@ -76,6 +92,11 @@ Export includes requested values and target descriptions, without the full copy.
 **Remove capture** asks before removing its requests. Save failures remain visible
 with a retry action, and ordinary window closing waits for outstanding edits to
 save. Mirror drafts do not change the application appearance preferences.
+Applied overrides and one prior design for Undo are stored separately in
+`ui-design-mirror/applied.json`. These are local display overrides; they do not
+rewrite application source or synchronize to the other computer. If saving an
+application fails, the previous design is restored. An unreadable applied-design
+file is preserved and reported rather than replaced with defaults.
 
 ### Shared appearance playground
 

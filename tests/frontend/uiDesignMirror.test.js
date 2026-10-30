@@ -59,7 +59,7 @@ describe('UI Design Mirror requests', () => {
             script: 'bad', text: '<img src=x onerror=bad()>', note: 'Keep this heading prominent.', height: '1px;display:none', width: 'x'.repeat(501) }, n999: { color: 'red' } }, unknown: { n0: { color: 'red' } } };
         expect(mirror.normalizeRequests(dirty, captures)).toEqual({ 'capture-1': { n0: { color: 'red', text: '<img src=x onerror=bad()>', note: 'Keep this heading prominent.' } } });
         const report = mirror.reviewDocument({ captures, requests: dirty });
-        expect(report.applied).toBe(false);
+        expect(report.exportAppliesChanges).toBe(false);
         expect(report.captures[0].edits[0].changes[0]).toEqual({ property: 'color', before: 'rgb(0, 0, 0)', requested: 'red' });
         expect(report.captures[0]).not.toHaveProperty('html');
     });
@@ -91,7 +91,7 @@ describe('UI Design Mirror host boundary', () => {
         expect(h.window.options.webPreferences.partition).not.toMatch(/^persist:/);
         expect(h.window.permissions()).toBe(false); expect(h.window.popups()).toEqual({ action: 'deny' });
         for (const sender of [{ ...h.event, sender: {} }, { ...h.event, senderFrame: { url: h.event.senderFrame.url } }])
-            expect(await h.invoke('load', null, sender)).toHaveProperty('error');
+            for (const action of ['load', 'prepare', 'apply', 'undo']) expect(await h.invoke(action, null, sender)).toHaveProperty('error');
         const allowed = url => new Promise(resolve => h.window.filter({ url }, resolve));
         expect(await allowed(h.window.webContents.mainFrame.url)).toEqual({ cancel: false });
         for (const url of ['http://127.0.0.1:8000/health', 'https://example.com/', 'file:///C:/Users/private.txt', 'ws://localhost:8000', 'app://local/index.html'])

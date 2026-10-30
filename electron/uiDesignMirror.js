@@ -3,10 +3,10 @@ const fs = require('node:fs/promises');
 const { pathToFileURL } = require('node:url');
 const { randomUUID } = require('node:crypto');
 const { captureDesignSnapshot } = require('./uiDesignSnapshot');
+const { createDesignApplication } = require('./uiDesignApplication');
+const { STYLE_KEYS, safeStyle } = require('./uiDesignTargets');
 
 const MAX_BYTES = 48 * 1024 * 1024;
-const STYLE_KEYS = new Set(['font-family', 'font-size', 'font-weight', 'font-style', 'color', 'background-color', 'background-image',
-    'border-color', 'border-width', 'border-style', 'border-radius', 'padding', 'gap', 'letter-spacing', 'line-height', 'text-align', 'width', 'height']);
 
 function normalizeRequests(value, captures) {
     const result = {};
@@ -23,7 +23,7 @@ function normalizeRequests(value, captures) {
                 if (key === 'note') { if (next.trim()) clean.note = next; }
                 else if (key === 'text' || key === 'placeholder') {
                     if (typeof node[key] === 'string' && next !== node[key]) clean[key] = next;
-                } else if (STYLE_KEYS.has(key) && next !== node.styles[key] && next && !/[{};<>\\]|url\s*\(|@|expression\s*\(/i.test(next)) clean[key] = next;
+                } else if (next !== node.styles[key] && safeStyle(key, next)) clean[key] = next;
             }
             if (Object.keys(clean).length) changes[node.id] = clean;
         }
@@ -34,7 +34,7 @@ function normalizeRequests(value, captures) {
 
 function reviewDocument(state) {
     const requests = normalizeRequests(state.requests, state.captures);
-    return { format: 'local-ai-workstation-ui-design-requests', version: 1, applied: false, exportedAt: new Date().toISOString(),
+    return { format: 'local-ai-workstation-ui-design-requests', version: 2, exportAppliesChanges: false, exportedAt: new Date().toISOString(),
         captures: state.captures.filter(capture => requests[capture.id]).map(capture => ({ title: capture.snapshot.title,
             capturedAt: capture.snapshot.capturedAt, viewport: { width: capture.snapshot.width, height: capture.snapshot.height },
             edits: capture.snapshot.nodes.filter(node => requests[capture.id][node.id]).map(node => ({
@@ -56,6 +56,7 @@ function createUIDesignMirror({ BrowserWindow, ipcMain, dialog, getWindow, getMe
     const entry = pathToFileURL(path.join(folder, 'index.html')).href;
     const assets = new Set(['index.html', 'editor.js', 'editor.css', 'model.mjs'].map(name => pathToFileURL(path.join(folder, name)).href));
     const file = path.join(directory, 'ui-design-mirror', 'draft.json');
+    const application = createDesignApplication({ directory, getWindow });
     let win = null, state, opening, saving = Promise.resolve(), commands = Promise.resolve(), disposed = false;
     const trusted = event => win && !win.isDestroyed() && event.sender === win.webContents
         && event.senderFrame === win.webContents.mainFrame && event.senderFrame.url === entry;
@@ -104,6 +105,9 @@ function createUIDesignMirror({ BrowserWindow, ipcMain, dialog, getWindow, getMe
     }
     for (const [action, handler] of Object.entries({
         load,
+        prepare: async () => application.prepare(await load()),
+        apply: async value => application.apply(value?.ticket, await load()),
+        undo: () => application.undo(),
         capture: async () => { const item = await capture(); await persist(); return item; },
         save: async value => {
             await load();
@@ -160,6 +164,6 @@ function createUIDesignMirror({ BrowserWindow, ipcMain, dialog, getWindow, getMe
         })().finally(() => { opening = null; });
         return opening;
     }
-    return { open, async dispose() { disposed = true; await commands.catch(() => {}); await saving.catch(() => {}); win?.destroy(); } };
+    return { open, attach: application.attach, async dispose() { disposed = true; await commands.catch(() => {}); await saving.catch(() => {}); await application.dispose(); win?.destroy(); } };
 }
 module.exports = { createUIDesignMirror, normalizeRequests, reviewDocument, menuSnapshot, STYLE_KEYS };

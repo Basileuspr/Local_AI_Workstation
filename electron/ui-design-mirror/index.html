@@ -9,8 +9,8 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand"><span class="logo" aria-hidden="true">◈</span><div><h1>UI Design Mirror</h1><p>Design requests · never applied to your app</p></div></div>
-    <div class="top-actions"><span class="offline">● Offline copy</span><button id="capture">Add current app view</button><button id="review" class="review-button" disabled>Review requested edits <span id="count">0</span></button></div>
+    <div class="brand"><span class="logo" aria-hidden="true">◈</span><div><h1>UI Design Mirror</h1><p>Experiment · Compare · Apply when ready</p></div></div>
+    <div class="top-actions"><span class="offline">● Offline copy</span><button id="capture">Add current app view</button><button id="review" class="review-button" disabled>Review requested edits <span id="count">0</span></button><button id="undo-application" disabled>Undo last application</button></div>
   </header>
   <div class="notice-row"><p id="status" role="status" aria-live="polite">Opening your design draft…</p><button id="retry-save" hidden>Retry saving</button></div>
   <main>
@@ -37,17 +37,18 @@
         </div>
       </aside>
       <section class="canvas-area" aria-label="Design canvas">
-        <div class="canvas-heading"><div><span class="eyebrow" id="canvas-kicker">YOUR APPLICATION, AS A PLAYGROUND</span><h2 id="canvas-title">Select a detail. Try a new look.</h2></div><span class="draft-badge">Draft only</span></div>
+        <div class="canvas-heading"><div><span class="eyebrow" id="canvas-kicker">YOUR APPLICATION, AS A PLAYGROUND</span><h2 id="canvas-title">Select a detail. Try a new look.</h2></div><span class="draft-badge">Preview copy</span></div>
         <p class="canvas-help" id="canvas-help">Click to edit · Double-click menus and disclosures to open them · Scroll to reach more controls</p>
         <div class="comparison" id="comparison">
           <section id="before-panel" class="preview-panel" hidden><header>Original <span>Frozen at capture</span></header><div class="viewport"><div class="frame-size"><iframe id="before" title="Original application appearance" sandbox="allow-same-origin"></iframe></div></div></section>
           <section class="preview-panel"><header>Proposed <span id="capture-time"></span></header><div class="viewport"><div class="frame-size"><iframe id="after" title="Proposed application appearance" sandbox="allow-same-origin"></iframe></div></div></section>
         </div>
         <section id="review-list" hidden aria-label="Requested edits">
-          <div class="review-heading"><div><span class="eyebrow">YOUR REQUEST RECORD</span><h2>Before → Requested</h2><p>Nothing here applies changes. Select a request to compare its target in both views.</p></div><button id="export" class="export-button">Export requests</button></div>
+          <div class="review-heading"><div><span class="eyebrow">REVIEW, THEN APPLY</span><h2>Before → Requested</h2><p>Compare each target in both views. Apply saves ready changes to this app on this device, including after restarts.</p></div><button id="apply" class="export-button" disabled>Apply to app</button></div>
+          <div class="application-summary"><p id="application-status" role="status">Checking which requests can be applied…</p><div class="small-actions"><button id="refresh-application">Refresh application check</button><button id="export">Export requests (JSON)</button></div></div>
           <div id="changes"></div>
         </section>
-        <details class="capture-notes"><summary>About this copy</summary><p>Copies use the rendered app and mounted workspaces from the time of capture. To include a newly opened dialog or a lazy-loaded view, open it in the main app, then choose Add current app view. The mirror cannot run app actions. Menu bar styling is a visual proposal; the operating system draws the real native menus.</p><p>Drafts, including copied on-screen text, stay in this device’s separate mirror draft. Export contains only requested changes and their targets.</p><ul id="warnings"></ul></details>
+        <details class="capture-notes"><summary>About this copy</summary><p>Copies use the rendered app and mounted workspaces from the time of capture. To include a newly opened dialog or a lazy-loaded view, open it in the main app, then choose Add current app view. Previewing and reviewing leave the live app unchanged. Only Apply to app changes its appearance. Menu bar styling is a visual proposal; the operating system draws the real native menus. Written UX requests and embedded placeholders are also request-only.</p><p>Drafts and applied designs stay on this device. Undo last application restores the design before your most recent Apply, even after a restart. Removing a capture or resetting a draft does not undo an applied design. Export is an optional JSON record; it does not apply anything.</p><ul id="warnings"></ul></details>
       </section>
     </div>
   </main>

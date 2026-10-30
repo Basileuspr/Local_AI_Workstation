@@ -1000,6 +1000,7 @@ async function createWindow() {
         webPreferences: { nodeIntegration: false, contextIsolation: true, spellcheck: true, preload: path.join(__dirname, "preload.js") },
     });
     mainWindow.on("close", shutdown.closeWindow);
+    uiDesignMirror.attach(mainWindow);
     workspaceFind.watchHost(mainWindow.webContents);
     mainWindow.on("closed", () => { mainWindow = null; windowRendering = null; });
 

@@ -17,7 +17,7 @@ if (!process.versions.electron) {
     const checks = [], errors = [], handlers = new Map();
     let main, mirror, manager;
     const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-    const js = code => mirror.webContents.executeJavaScript(code);
+    const js = code => mirror.webContents.executeJavaScript(code).catch(error => { error.message += `\nMirror check: ${code}`; throw error; });
     const until = async (code, label) => { for (let i = 0; i < 180; i++) { if (await js(code)) return; await sleep(50); } throw Error(`Timed out: ${label}`); };
     const click = id => js(`document.getElementById(${JSON.stringify(id)}).click()`);
     const set = (id, value, event = 'input') => js(`(()=>{const e=document.getElementById(${JSON.stringify(id)});e.value=${JSON.stringify(value)};e.dispatchEvent(new Event(${JSON.stringify(event)},{bubbles:true}));})()`);
@@ -35,6 +35,7 @@ if (!process.versions.electron) {
             ipcMain: { handle(name, handler) { handlers.set(name, handler); ipcMain.handle(name, handler); } },
             dialog: { showSaveDialog: async () => ({ filePath: path.join(work, 'requests.json'), canceled: false }) },
             directory: path.join(work, 'profile'), getWindow: () => main, getMenu: () => Menu.getApplicationMenu() });
+        manager.attach(main);
         Menu.setApplicationMenu(Menu.buildFromTemplate(applicationMenu(() => { throw Error('Must not exit'); }, () => manager.open())));
     }
     app.whenReady().then(async () => {
@@ -53,7 +54,7 @@ if (!process.versions.electron) {
         create(); await manager.open();
         await until("!!document.getElementById('after').contentDocument?.querySelector('#target')", 'captured mirror');
         assert.equal(await js('typeof window.workstationDesktop'), 'undefined');
-        assert.deepEqual(await js('Object.keys(window.designMirror).sort()'), ['capture', 'exportReview', 'load', 'save']);
+        assert.deepEqual(await js('Object.keys(window.designMirror).sort()'), ['applyToApp', 'capture', 'exportReview', 'load', 'prepareApplication', 'save', 'undoApplication']);
         assert.equal(await js("document.getElementById('review').disabled"), true);
         assert.equal(await js("document.getElementById('after').contentDocument.querySelector('input[type=password]').value"), '');
         assert.equal(await js("document.getElementById('after').contentDocument.querySelector('#action').getAttribute('onclick')"), null);
@@ -79,7 +80,7 @@ if (!process.versions.electron) {
         await screenshot('mirror-comparison.png');
         await click('export'); await until("document.getElementById('status').textContent.includes('exported')", 'export');
         const report = JSON.parse(fs.readFileSync(path.join(work, 'requests.json'), 'utf8'));
-        assert.equal(report.applied, false); assert.equal(report.captures[0].edits.length, 1);
+        assert.equal(report.exportAppliesChanges, false); assert.equal(report.captures[0].edits.length, 1);
         assert.equal(report.captures[0].edits[0].changes.find(c => c.property === 'font-size').before, '24px');
         assert(!JSON.stringify(report).includes('Private draft text'));
         checks.push('Exact heading-only font/size/color changes, unchanged source and neighbor, bright review button, paired views, request-only JSON');
@@ -113,6 +114,49 @@ if (!process.versions.electron) {
         assert.equal(await js("document.getElementById('captures').options.length"), 2);
         checks.push('New captures retain earlier requests, top-layer portal dialogs are editable, drafts survive a fresh manager/window');
 
+        await choose('[data-mirror-menu]'); await set('edit-text', 'Files'); await set('note', 'Rearrange the native menu'); await saved();
+        await main.webContents.executeJavaScript("document.querySelector('#field').value='Keep my typed prompt';document.querySelector('#field').focus()");
+        await click('review'); await until("!document.getElementById('apply').disabled", 'application plan');
+        assert.equal(await js("document.querySelectorAll('.application-blocked').length"), 2);
+        assert.match(await js("document.getElementById('apply').textContent"), /Apply 6 changes/);
+        assert.match((await js("window.designMirror.applyToApp({ticket:'invented'})")).error, /out of date/);
+        await click('apply'); await until("document.getElementById('status').textContent.startsWith('6 changes applied')", 'apply live');
+        assert.equal(await main.webContents.executeJavaScript("getComputedStyle(document.querySelector('#target')).fontSize"), '36px');
+        assert.equal(await main.webContents.executeJavaScript("getComputedStyle(document.querySelector('#neighbor')).fontSize"), '24px');
+        assert.equal(await main.webContents.executeJavaScript("document.querySelector('#field').placeholder"), 'Try this prompt');
+        assert.equal(await main.webContents.executeJavaScript("document.querySelector('#field').value"), 'Keep my typed prompt');
+        assert.equal(await main.webContents.executeJavaScript("document.activeElement.id"), 'field');
+        assert.equal(await main.webContents.executeJavaScript("document.querySelector('#other-heading').textContent"), 'Create an image');
+        assert.equal(await main.webContents.executeJavaScript("document.querySelector('#portal h2').textContent"), 'New dialog title');
+        assert.equal(await value('before', '#target', 'font-size'), '24px');
+        assert.equal(await js("document.getElementById('apply').disabled"), true);
+        await main.webContents.executeJavaScript("document.querySelector('#action').click()");
+        assert.equal(await main.webContents.executeJavaScript('window.actions'), 1);
+        await main.webContents.executeJavaScript("(()=>{const h=document.createElement('h2');h.id='target';h.textContent='Your creative workspace';document.querySelector('#target').replaceWith(h)})()");
+        await sleep(150);
+        assert.equal(await main.webContents.executeJavaScript("getComputedStyle(document.querySelector('#target')).fontSize"), '36px');
+        await screenshot('mirror-applied.png');
+        checks.push('Explicit Apply updates exactly six ready changes; native menus/UX notes remain request-only; input, focus, actions, original comparison and remount replay are retained');
+
+        await manager.dispose(); for (const name of handlers.keys()) ipcMain.removeHandler(name); handlers.clear();
+        create(); await main.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(source));
+        await manager.open(); await until("!document.getElementById('undo-application').disabled", 'persistent undo');
+        assert.equal(await main.webContents.executeJavaScript("getComputedStyle(document.querySelector('#target')).fontSize"), '36px');
+        assert.equal(await main.webContents.executeJavaScript("document.querySelector('#other-heading').textContent"), 'Create an image');
+        await click('undo-application'); await until("document.getElementById('status').textContent.startsWith('Last application undone')", 'undo applied design');
+        assert.equal(await main.webContents.executeJavaScript("getComputedStyle(document.querySelector('#target')).fontSize"), '24px');
+        assert.equal(await main.webContents.executeJavaScript("document.querySelector('#other-heading').textContent"), 'Generate images');
+        assert.equal(await main.webContents.executeJavaScript("document.querySelector('#field').placeholder"), 'Describe an idea');
+        await click('review'); await until("!document.getElementById('apply').disabled", 'review before stale check');
+        await main.webContents.executeJavaScript("document.querySelector('#target').firstChild.nodeValue='A different heading'");
+        await click('apply'); await until("document.getElementById('status').textContent.includes('changed since review')", 'stale review rejected');
+        assert.equal(await main.webContents.executeJavaScript("getComputedStyle(document.querySelector('#target')).fontSize"), '24px');
+        assert.equal(await main.webContents.executeJavaScript("document.querySelector('#field').placeholder"), 'Describe an idea');
+        await main.webContents.executeJavaScript("document.querySelector('#target').firstChild.nodeValue='Your creative workspace';document.querySelector('#target').after(document.querySelector('#target').cloneNode(true))");
+        await click('refresh-application'); await until("document.querySelectorAll('.application-blocked').length===5", 'ambiguous targets blocked');
+        await main.webContents.executeJavaScript("document.querySelectorAll('#target')[1].remove()");
+        checks.push('Applied design and Undo survive a fresh host and renderer; stale review aborts the entire batch and ambiguous targets are rejected');
+
         assert.equal(await js("fetch('http://127.0.0.1:9/no-backend').then(()=>false,()=>true)"), true);
         assert.equal(await js("window.open('https://example.com')===null"), true);
         await js("(()=>{const d=document.getElementById('after').contentDocument;const s=d.createElement('script');s.textContent='window.parent.injectionRan=true';d.body.append(s);})()");
@@ -133,15 +177,29 @@ if (!process.versions.electron) {
             for (let i = 0; i < 180; i++) { if (await main.webContents.executeJavaScript("!!document.querySelector('.workspace-navigation')")) break; await sleep(50); }
             await main.webContents.executeJavaScript("document.querySelector('[data-sidebar-route=dashboard]').click()");
             await sleep(300); await click('capture'); await until("document.getElementById('captures').options.length===3", 'real app capture');
-            await until("!!document.getElementById('after').contentDocument.querySelector('.workspace-navigation')", 'real app copy');
+            await until("document.getElementById('after').contentDocument.readyState==='complete' && !!document.getElementById('after').contentDocument.querySelector('[data-capture-tab=design-programming]')", 'real app copy');
+            await click('back');
             assert((await js("document.getElementById('workspace').options.length")) > 30);
-            await choose('.workspace-navigation > span'); await set('edit-font-size', '25'); await saved();
+            await choose('.workspace-navigation > span'); await set('edit-font-size', '25'); await set('edit-text', 'My dashboard'); await saved();
             await click('review'); mirror.setSize(1480, 980); await sleep(100); await screenshot('mirror-actual-app.png');
             assert.equal(await value('after', '.workspace-navigation > span', 'font-size'), '25px');
             assert.notEqual(await main.webContents.executeJavaScript("getComputedStyle(document.querySelector('.workspace-navigation > span')).fontSize"), '25px');
+            await until("!document.getElementById('apply').disabled", 'real app ready');
+            await click('apply'); await until("document.getElementById('status').textContent.includes('applied and saved')", 'real app apply');
+            assert.equal(await main.webContents.executeJavaScript("getComputedStyle(document.querySelector('.workspace-navigation > span')).fontSize"), '25px');
+            assert.equal(await main.webContents.executeJavaScript("document.querySelector('.workspace-navigation > span').textContent"), 'My dashboard');
+            await main.webContents.executeJavaScript("document.querySelector('[data-sidebar-route=chats]').click()"); await sleep(150);
+            assert.notEqual(await main.webContents.executeJavaScript("document.querySelector('.workspace-navigation > span').textContent"), 'Dashboard');
+            assert.notEqual(await main.webContents.executeJavaScript("getComputedStyle(document.querySelector('.workspace-navigation > span')).fontSize"), '25px');
+            await main.webContents.executeJavaScript("document.querySelector('[data-sidebar-route=dashboard]').click()"); await sleep(150);
+            assert.equal(await main.webContents.executeJavaScript("getComputedStyle(document.querySelector('.workspace-navigation > span')).fontSize"), '25px');
+            assert.equal(await main.webContents.executeJavaScript("document.querySelector('.workspace-navigation > span').textContent"), 'My dashboard');
+            await click('undo-application'); await until("document.getElementById('status').textContent.startsWith('Last application undone')", 'real app undo');
+            assert.notEqual(await main.webContents.executeJavaScript("getComputedStyle(document.querySelector('.workspace-navigation > span')).fontSize"), '25px');
+            assert.equal(await main.webContents.executeJavaScript("document.querySelector('.workspace-navigation > span').textContent"), 'Dashboard');
             assert.deepEqual(await main.webContents.executeJavaScript('window.workspaceControlsQA.errors'), []);
             const snap = await main.webContents.executeJavaScript(`(${captureDesignSnapshot.toString()})()`);
-            checks.push(`Actual React build captured ${snap.nodes.length} editable elements across ${snap.workspaces.length} mounted workspace slots without changing live appearance`);
+            checks.push(`Actual React build captured ${snap.nodes.length} editable elements across ${snap.workspaces.length} workspace slots; preview isolation, Apply, route-aware replay and Undo passed`);
         }
         assert.deepEqual(errors, []);
         fs.writeFileSync(path.join(work, 'report.json'), JSON.stringify({ ok: true, checks }, null, 2));
