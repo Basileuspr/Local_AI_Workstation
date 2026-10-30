@@ -10,6 +10,18 @@ Liked/Disliked and custom folders. Review-only imports are excluded from General
 Use search and filters to narrow the view. The viewer can move across pages;
 Escape closes it without discarding a draft edit.
 
+The enlarged viewer has **+ / −**, **Fit**, **100%**, mouse-wheel zoom and drag
+pan. At higher zoom it loads the original, including stitched grids; it does not
+enlarge the small preview. Keyboard **+ / −**, **0** (Fit) and **1** (100%) also
+work. Arrow keys pan when the zoomed image surface has focus; the browse buttons
+continue to select adjacent images.
+
+Saved images have **Save image as…** and **Show original in folder**. The desktop
+save dialog streams the original bytes directly to your chosen file, verifies
+the size and hash, and reports the completed destination. **Open saved copy** and
+**Show saved copy in folder** work after saving. Canceled/failed saves preserve
+an existing destination. These controls also appear immediately after stitching.
+
 Multi-selection can span pages. Select-all follows the current filtered result;
 review the count and any selected items outside the visible page before a bulk
 action. Failed items remain selected so they can be retried.
@@ -18,6 +30,11 @@ Saving into a collection creates an independently owned copy. Removing folder
 membership does not delete the saved image, and deleting its source chat does not
 remove that copy. Rotation in the viewer is a viewing preference; export through
 [Image Editor](IMAGE_EDITOR.md) to change pixel orientation.
+
+Adding an existing saved image to a folder changes membership without uploading,
+decoding or duplicating its bytes. Gallery uploads and catalog/workflow copies
+stream through local disk without a generic megabyte or megapixel cutoff. Actual
+format support, available disk and decoder memory still determine what can open.
 
 ## Stitch still images
 
@@ -49,8 +66,10 @@ Accept suggested labels after inspection. Person/group/scene labels are not
 identity verification. CPU face detection is a separate operation. Restarted
 analysis batches are reported interrupted.
 
-Exports preserve original image bytes with caption sidecars and a manifest.
-They are bounded to 500 items / 512 MiB and recheck hashes and vault access.
+Exports preserve original image bytes with caption sidecars. They support up to
+500 items per selection, use ZIP64 and streamed transfers, and recheck hashes and
+vault access. There is no aggregate 512 MiB cutoff. Desktop exports report the
+saved file; browser exports use the browser download manager.
 
 ## Reviewed file plans
 

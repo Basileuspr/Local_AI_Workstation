@@ -426,6 +426,7 @@ ipcMain.handle("hash-auditor:export", async (event, scope, mode) => {
 });
 registerLibraryDownloadIpc({ ipcMain, trustedDesktop,
     getConnection: () => ({ base: `http://127.0.0.1:${CONFIG.backendPort}`, token: sessionToken }),
+    showDialog: options => dialog.showSaveDialog(mainWindow, options), downloads: () => app.getPath('pictures'), shell,
 });
 ipcMain.handle("dashboard:drive-scan-status", (event, id) => trustedDesktop(event) ? driveSpace.status(id) : { error: "Desktop access required." });
 ipcMain.handle("dashboard:cancel-drive-scan", (event, id) => trustedDesktop(event) ? driveSpace.cancel(id) : { error: "Desktop access required." });

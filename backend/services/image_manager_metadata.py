@@ -1,6 +1,6 @@
 """Still-image header metadata shared by scanning and verified backup restore."""
 from datetime import datetime, timezone
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 import struct
 from PIL import Image, ImageFile, TiffImagePlugin, UnidentifiedImageError
 
@@ -16,7 +16,7 @@ class _LocalTiffImageFile(TiffImagePlugin.TiffImageFile):
 
 
 @contextmanager
-def open_local_image(path):
+def open_local_image(path, *, formats=FORMATS):
     """Open an explicitly selected local still image without a pixel-count veto.
 
     Use Pillow's registered, signature-checked format readers directly. This
@@ -25,18 +25,19 @@ def open_local_image(path):
     stays lazy; corrupt files and decoder errors still fail normally.
     """
     Image.init()
-    with open(path, 'rb') as stream:
+    with (nullcontext(path) if hasattr(path, 'read') else open(path, 'rb')) as stream:
+        stream.seek(0)
         prefix = stream.read(16)
         image = None
         for name in Image.ID:
-            if name not in FORMATS or name not in Image.OPEN: continue
+            if name not in formats or name not in Image.OPEN: continue
             factory, accept = Image.OPEN[name]
             accepted = accept(prefix) if accept else True
             if not accepted or isinstance(accepted, str): continue
             if name == 'TIFF': factory = _LocalTiffImageFile
             stream.seek(0)
             try:
-                image = factory(stream, str(path))
+                image = factory(stream, str(getattr(path, 'name', path)))
             except (SyntaxError, IndexError, TypeError, struct.error):
                 continue
             break

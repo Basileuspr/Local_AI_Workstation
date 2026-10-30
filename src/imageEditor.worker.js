@@ -1,4 +1,4 @@
-import { adjustPixels, MAX_EDITOR_PIXELS } from "./imageEditor";
+import { adjustPixels } from "./imageEditor";
 import { colorRegion } from "./imageEditorColors";
 import { cropPixelRect } from "./imageEditorCrop";
 
@@ -7,7 +7,6 @@ self.onmessage = async ({ data: { id, action, bitmap, settings } }) => {
   try {
     if (action === "load") {
       const { width, height } = bitmap;
-      if (width * height > MAX_EDITOR_PIXELS) { bitmap.close(); throw new Error("Choose an image up to 24 megapixels."); }
       original = new OffscreenCanvas(width, height);
       original.getContext("2d", { willReadFrequently: true }).drawImage(bitmap, 0, 0);
       bitmap.close();

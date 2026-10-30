@@ -51,7 +51,7 @@ class Tag(BaseModel):
 
 
 class Source(BaseModel):
-    kind: Literal["session", "workflow", "library"]
+    kind: Literal["session", "workflow", "library", "managed"]
     id: str | None = Field(default=None, max_length=100)
     session_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]+$", max_length=100)
     message_id: str | None = Field(default=None, max_length=200)
@@ -128,8 +128,7 @@ def delete_folder(folder_id: str):
 
 @router.post("/import")
 def import_source(request: Source):
-    data, item = call(library.source_bytes, request.model_dump(exclude_none=True))
-    return call(library.import_image, data, item["name"], item.get("origin"), request.folder_id)
+    return call(library.import_source, request.model_dump(exclude_none=True), request.folder_id)
 
 
 @router.post("/upload")
@@ -139,8 +138,7 @@ async def upload(files: list[UploadFile] = File(...)):
         if len(files) > 100: raise HTTPException(422, "Select up to 100 images per upload")
         for file in files:
             try:
-                data = await file.read(library.MAX_BYTES + 1)
-                images.append(await run_in_threadpool(call, library.import_image, data, file.filename, {"kind": "review"}))
+                images.append(await run_in_threadpool(call, library.import_stream, file.file, file.filename, {"kind": "review"}))
             except HTTPException as error: errors.append({"name": file.filename, "error": error.detail})
         return {"images": images, "errors": errors}
     finally:
@@ -151,7 +149,7 @@ async def upload(files: list[UploadFile] = File(...)):
 @router.head("/images/{image_id}/content")
 def content(image_id: str, request: Request = None, thumbnail: bool = False, preview: bool = False, download: bool = False):
     stream, item = call(library.image_stream, image_id)
-    headers = {'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Content-Length': str(item['size'])}
+    headers = {'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Content-Length': str(item['size']), 'X-LAW-SHA256': item['sha256']}
     if download:
         from urllib.parse import quote
         headers['Content-Disposition'] = "attachment; filename*=UTF-8''" + quote(item['name'], safe='')
@@ -168,7 +166,9 @@ def content(image_id: str, request: Request = None, thumbnail: bool = False, pre
                 call(vault.require_public, item['sha256'])
                 call(vault.require_public, item['stitch_preview_sha256'])
                 return image_response(data, 'image/png', thumbnail)
-            return image_response(stream.read(), item['type'], thumbnail)
+            if thumbnail or preview:
+                from services.image_thumbnails import file_preview
+                return call(file_preview, stream, item['sha256'], 320 if thumbnail else 1600)
         finally:
             stream.close()
     def chunks():
@@ -179,6 +179,13 @@ def content(image_id: str, request: Request = None, thumbnail: bool = False, pre
             stream.close()
     return StreamingResponse(chunks(), media_type=item['type'], background=BackgroundTask(stream.close),
         headers=headers)
+
+
+@router.get('/images/{image_id}/location')
+def location(image_id: str):
+    stream, item = call(library.image_stream, image_id)
+    stream.close()
+    return {'path': str(call(library.image_path, item))}
 
 
 @router.patch("/images/{image_id}")
@@ -264,8 +271,19 @@ class ExportImages(BaseModel):
 @router.post("/export")
 async def export_images(request: ExportImages):
     archive = await run_in_threadpool(call, library.export_images, request.ids)
+    import hashlib
+    digest = await run_in_threadpool(lambda: hashlib.file_digest(archive, 'sha256').hexdigest())
+    size = archive.tell()
+    archive.seek(0)
     def chunks():
         while data := archive.read(1024 * 1024):
             yield data
     return StreamingResponse(chunks(), media_type="application/zip", background=BackgroundTask(archive.close),
-        headers={"Content-Disposition": 'attachment; filename="review-images.zip"', "Cache-Control": "no-store"})
+        headers={"Content-Disposition": 'attachment; filename="review-images.zip"', "Cache-Control": "no-store", 'Content-Length': str(size), 'X-LAW-SHA256': digest})
+
+
+@router.get('/export')
+async def download_export(ids: str):
+    try: request = ExportImages(ids=ids.split(','))
+    except ValueError as error: raise HTTPException(422, 'Choose 1–500 saved images.') from error
+    return await export_images(request)

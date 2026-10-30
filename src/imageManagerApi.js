@@ -29,7 +29,7 @@ export async function request(path = '/state', method = 'GET', body, signal) {
   return value;
 }
 export const imageUrl = (image, large = false) => apiUrl(`/image-manager/images/${image.id}/thumbnail?${new URLSearchParams({ large, v: (image.signature || []).join('-') })}`);
-export const originalImage = image => ({ ...image, name: image.relative.split(/[\\/]/).pop(), url: apiUrl(`/image-manager/images/${image.id}/file`) });
+export const originalImage = image => ({ ...image, managed: true, name: image.relative.split(/[\\/]/).pop(), url: apiUrl(`/image-manager/images/${image.id}/file`) });
 export const stitchImage = image => ({ id: image.id, managed: true, name: image.relative.split(/[\\/]/).pop(), url: imageUrl(image) });
 export const task = (kind, body = {}) => request('/tasks', 'POST', { kind, ...body });
 export const confirmationFor = plan => plan ? `${plan.mode.toUpperCase()} ${plan.entries.length}` : '';

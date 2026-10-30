@@ -4,6 +4,40 @@ This is the consolidated evidence record, reviewed October 23, 2026.
 Current guides describe inspected source; dated tests below are not a certification
 of every feature, provider, installation or device.
 
+## October 30 large-image transfers and zoom
+
+Gallery/stitcher saves now use a native destination dialog, chunked transfers,
+hash/length verification and atomic replacement. Saved copies can be opened or
+revealed. Gallery filing updates membership without uploading the original;
+Gallery/workflow uploads, catalog handoffs and ZIP64 exports no longer impose
+generic megabyte gates. Image viewers support original-resolution zoom and pan.
+
+- Full frontend suite: **1,593 passed, 3 existing skips**. A simultaneous build
+  and unrestricted run caused a face-file fixture timeout; the full rerun with
+  two workers passed without changing timeouts.
+- Full backend run: **2,196 passed, 2 skipped**, with one ICO-preview regression
+  found and repaired. The final affected backend suites then passed **228 tests**,
+  with one directory-symlink test skipped because host permissions prohibit it.
+  These checks used temporary storage, including a 25-megapixel original over
+  64 MiB, streamed imports, folder membership, workflow copies, thumbnails, ZIP
+  integrity, vault protection and preserving originals.
+  The character-parts upload suite also passed **22 tests**, retaining its
+  explicit processing limit so an oversized upload cannot be silently truncated.
+- Native save tests cover a 70 MiB streamed file, cancellation, incomplete-copy
+  cleanup and preserving an existing destination. Private vault inspection stays
+  in memory; inspecting decrypted bytes does not create temporary plaintext files.
+- Isolated Chromium verified a synthetic 60-frame, 6144 × 6144 grid, full-resolution
+  100% and wheel zoom, keyboard/drag pan, native save/open/reveal, a byte-identical
+  108 MiB PNG export, ZIP export and narrow layout. A GPU capture failure during
+  concurrent live work was resolved by running this 2D fixture with software
+  rendering. Screenshots were inspected; no renderer errors remained.
+- Desktop production build passed with the existing large-chunk and manifold
+  externalization warnings. Documentation check: **55 files, 267 links, 0 errors**.
+  Mobile/Android and GPU generation acceptance were outside this change.
+
+Decoder/canvas support, memory, disk space and operation-specific processing
+budgets still apply. This does not certify every image size or hardware setup.
+
 ## October 24 Tailscale address detection
 
 The open, visible mobile controls observe local Tailscale status approximately

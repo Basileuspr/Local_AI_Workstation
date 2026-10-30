@@ -94,6 +94,47 @@ def response(data, media_type, thumbnail=False):
 
 
 def path_response(path):
-    if path.stat().st_size > MAX_BYTES:
-        raise HTTPException(422, "Image exceeds the preview byte limit")
-    return response(path.read_bytes(), "application/octet-stream", True)
+    from services.image_vault import LockedImageError
+    try:
+        with path.open('rb') as stream:
+            digest = hashlib.file_digest(stream, 'sha256').hexdigest()
+            stream.seek(0)
+            return file_preview(stream, digest)
+    except LockedImageError as error:
+        raise HTTPException(403, 'Image unavailable or locked') from error
+    except (OSError, ValueError) as error:
+        raise HTTPException(422, 'Could not decode an image preview') from error
+
+
+def file_preview(stream, digest, size=320):
+    """Authorized local originals use bounded previews, without byte-count gates."""
+    from services.image_vault import require_public
+    from services.image_manager_metadata import open_local_image, FORMATS
+    key = (digest, size)
+    with _slots:
+        require_public(digest)
+        with _lock:
+            cached = _cache.get(key)
+            if cached:
+                _cache.move_to_end(key)
+                return response(*cached)
+        with open_local_image(stream, formats=FORMATS | {'ICO'}) as original:
+            original.draft('RGB', (size, size))
+            # Downsample before EXIF transpose/conversion to avoid full-size copies.
+            original.thumbnail((size, size), Image.Resampling.LANCZOS)
+            with ImageOps.exif_transpose(original) as image:
+                output = BytesIO()
+                with image.convert('RGBA') as rgba: rgba.save(output, 'PNG')
+                result = (output.getvalue(), 'image/png')
+        require_public(digest)
+        global _cache_bytes
+        with _lock:
+            while _cache and (len(_cache) >= CACHE_ITEMS or _cache_bytes + len(result[0]) > CACHE_BYTES):
+                _, old = _cache.popitem(last=False)
+                _cache_bytes -= len(old[0])
+            if len(result[0]) <= CACHE_BYTES:
+                previous = _cache.pop(key, None)
+                if previous: _cache_bytes -= len(previous[0])
+                _cache[key] = result
+                _cache_bytes += len(result[0])
+        return response(*result)

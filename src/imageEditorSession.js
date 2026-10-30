@@ -1,10 +1,7 @@
-import { MAX_EDITOR_PIXELS } from "./imageEditor";
 
 export async function openEditorImage(file) {
   if (!file || !["image/png", "image/jpeg", "image/webp"].includes(file.type)) throw new Error("Choose a PNG, JPEG, or WebP image.");
-  if (file.size > 40 * 1024 ** 2) throw new Error("Choose an image smaller than 40 MiB.");
   const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
-  if (bitmap.width * bitmap.height > MAX_EDITOR_PIXELS) { bitmap.close(); throw new Error("Choose an image up to 24 megapixels."); }
   let worker;
   try { worker = new Worker(new URL("./imageEditor.worker.js", import.meta.url), { type: "module" }); }
   catch (error) { bitmap.close(); throw error; }

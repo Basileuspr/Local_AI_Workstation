@@ -41,7 +41,7 @@ export default function FileImagesDialog({ images, folders, onClose, createNew =
       if (!id) throw new Error("Choose a folder or enter a new folder name");
       setDestination(id); setNewName("");
       const result = await processBatch(remaining.current, async image => {
-        if (image.file && !image.session_id && !image.library && !image.run) {
+        if (image.file && !image.session_id && !image.library && !image.run && !image.managed) {
           const uploaded = await api.upload([image.file]);
           const saved = uploaded.images[0];
           if (!saved) throw new Error(uploaded.errors?.[0]?.error || "Could not save this image.");

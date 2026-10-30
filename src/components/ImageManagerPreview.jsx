@@ -3,6 +3,7 @@ import { useImageDestinations } from '../ImageDestinations';
 import * as images from '../imageManagerApi';
 import { ImageBrowseButton, imageBrowseDirection } from './ImageBrowseControls';
 import { StitchFrameButton } from './ImageStitcher';
+import ImageZoom from './ImageZoom';
 
 export default function ImageManagerPreview({ image: initial, page, filters, view, pageSize, onPage, onClose, onStage, Dialog, stitcher }) {
   const [image, setImage] = useState(initial);
@@ -41,7 +42,7 @@ export default function ImageManagerPreview({ image: initial, page, filters, vie
     <div className="im-preview-stage" aria-busy={loading}>
       <ImageBrowseButton direction={-1} disabled={disabled || position.total < 2} onStep={step} />
       {failed ? <div role="alert"><p>This image could not be loaded. You can still browse the other images.</p><button onClick={() => { setFailed(false); setRetry(value => value + 1); }}>Reload image</button></div>
-        : <img key={`${image.id}:${retry}`} className="im-preview" src={`${images.imageUrl(image, true)}&retry=${retry}`} alt={image.relative} onError={() => setFailed(true)} />}
+        : <ImageZoom key={`${image.id}:${retry}`} imageClassName="im-preview" src={images.originalImage(image).url} previewSrc={`${images.imageUrl(image, true)}&retry=${retry}`} width={image.width} height={image.height} alt={image.relative} onError={() => setFailed(true)} />}
       <ImageBrowseButton direction={1} disabled={disabled || position.total < 2} onStep={step} />
     </div>
     <p>{image.width} × {image.height} · {image.format} · {images.bytesLabel(image.bytes)} · {image.date_source}: {image.date.slice(0, 10)}</p>

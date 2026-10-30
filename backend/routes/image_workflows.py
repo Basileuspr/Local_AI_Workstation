@@ -152,10 +152,7 @@ def apply_scene_plan(workflow_id: str, plan_id: str, request: scene_planner.Appl
 @router.post("/{workflow_id}/assets", status_code=201)
 async def upload(workflow_id: str, revision: int = Form(..., ge=1), file: UploadFile = File(...)):
     try:
-        content = await file.read(store.MAX_UPLOAD_BYTES + 1)
-        if len(content) > store.MAX_UPLOAD_BYTES:
-            raise HTTPException(413, "Image exceeds the 20 MiB upload limit.")
-        return await run_in_threadpool(call, store.add_asset, workflow_id, revision, file.filename or "image", content)
+        return await run_in_threadpool(call, store.add_asset_stream, workflow_id, revision, file.filename or "image", file.file)
     finally:
         await file.close()
 

@@ -30,7 +30,13 @@ export function ImageDestinationsProvider({ children }) {
       const response = await fetch(url);
       if (!response.ok) throw new Error("This image is unavailable or locked.");
       const blob = await response.blob();
-      if (!blob.type.startsWith("image/") || blob.size > 40 * 1024 ** 2) throw new Error("Choose an image smaller than 40 MiB.");
+      if (!blob.type.startsWith("image/")) throw new Error("Choose a supported image.");
+      // Registered API routes have already checked vault access on the server.
+      // Inline images still need a content hash before crossing workspaces.
+      if (/^https?:/.test(url)) {
+        if (!currentPrivacy.current.ready) throw new Error('Checking image access. Try again shortly.');
+        return new File([blob], image.name || 'Image.png', { type: blob.type });
+      }
       const digest = [...new Uint8Array(await crypto.subtle.digest("SHA-256", await blob.arrayBuffer()))].map(v => v.toString(16).padStart(2, "0")).join("");
       if (!currentPrivacy.current.ready || currentPrivacy.current.hashes.includes(digest)) throw new Error("Unlock this image before using it elsewhere.");
       return new File([blob], image.name || "Chat image.png", { type: blob.type });
@@ -39,6 +45,17 @@ export function ImageDestinationsProvider({ children }) {
     if (lock.current) throw new Error("Wait for the current image to open.");
     lock.current = true;
     try {
+      if (destination === "folder" || destination === "new-folder") {
+        const data = await library.list();
+        const owned = image.managed || image.library || image.session_id || image.run;
+        setFiling({ images: [owned ? image : { ...image, file: await readImage(image) }], folders: data.folders, createNew: destination === "new-folder" });
+        return;
+      }
+      if (destination === 'workflow' && (image.session_id || image.library || image.run)) {
+        const workflow = await workflows.importSource(await workflows.create(), sourceFor(image));
+        dispatch({ type: "OPEN_IMAGE_WORKFLOW", payload: workflow.id });
+        return;
+      }
       const file = await readImage(image);
       if (destination === "generate") {
         if (!generation) throw new Error('Generate is not available in this view.');
@@ -52,9 +69,6 @@ export function ImageDestinationsProvider({ children }) {
       } else if (destination === "chat-edit") {
         setChatEdit({ image, file, sessionId: image.chat_session_id || image.session_id });
         window.dispatchEvent(new Event("focus-chat-edit"));
-      } else if (destination === "folder" || destination === "new-folder") {
-        const data = await library.list();
-        setFiling({ images: [{ ...image, file }], folders: data.folders, createNew: destination === "new-folder" });
       } else {
         let workflow = await workflows.create();
         if (image.session_id || image.library || image.run) workflow = await workflows.importSource(workflow, sourceFor(image));

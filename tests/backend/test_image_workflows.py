@@ -225,10 +225,10 @@ def test_limits_and_filename_paths(client, monkeypatch):
     assert response.status_code == 201
     assert response.json()["assets"][0]["name"] == "reference.png"
     monkeypatch.setattr(store, "MAX_UPLOAD_BYTES", 1)
-    assert client.post(f"/image-workflows/{project['id']}/assets", data={"revision": 2}, files={"file": ("too-large.png", picture())}).status_code == 413
+    assert client.post(f"/image-workflows/{project['id']}/assets", data={"revision": 2}, files={"file": ("large.png", picture())}).status_code == 201
     monkeypatch.setattr(store, "MAX_UPLOAD_BYTES", 20 * 1024 * 1024)
     monkeypatch.setattr(store, "MAX_IMAGE_PIXELS", 1)
-    assert client.post(f"/image-workflows/{project['id']}/assets", data={"revision": 2}, files={"file": ("too-many-pixels.png", picture())}).status_code == 422
+    assert client.post(f"/image-workflows/{project['id']}/assets", data={"revision": 2}, files={"file": ("many-pixels.png", picture())}).status_code == 201
 
 
 @pytest.mark.parametrize("changes", [{"name": "   "}, {"stages": [stage(), stage()]}, {"stages": [stage("unknown")]}, {"prompt_settings": {"guidance": 100}}, {"assets": []}])

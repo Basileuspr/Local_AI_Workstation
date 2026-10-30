@@ -1,4 +1,3 @@
-export const MAX_EDITOR_PIXELS = 24_000_000;
 const slider = (key, label, group, min = -100, max = 100, step = 1, unit = "%") => ({ key, label, group, min, max, step, unit });
 export const ADJUSTMENT_CONTROLS = [
   slider("temperature", "Temperature", "White balance"), slider("tint", "Tint", "White balance"),

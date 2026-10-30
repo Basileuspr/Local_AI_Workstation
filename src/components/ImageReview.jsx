@@ -6,7 +6,6 @@ import ReviewWorkflow from './ReviewWorkflow';
 import {useImageDestinations} from '../ImageDestinations';
 import {useDispatch} from '../useStore';
 import * as workflowApi from '../imageWorkflowApi';
-import {downloadBlob} from '../downloadBlob';
 import FreshFileInput from "./FreshFileInput";
 import { useEffect, useRef, useState } from "react";
 import useImageLibrary from "../useImageLibrary";
@@ -101,7 +100,7 @@ export default function ImageReview({ active }) {
   }
   function take(image,destination){return perform(async()=>{await saveCaption();await destinations.take(image,destination);setSlides([]);});}
   function fileReviewed(images) { return perform(async () => { await saveCaption(); setSlides([]); setFiling(images); }); }
-  function exportSet(images,label='selected'){return perform(async()=>{await saveCaption();downloadBlob(await api.exportImages(images.map(image=>image.id)),`review-${label}.zip`);setNotice(`Exported ${images.length} images with captions, ratings and tags.`);});}
+  function exportSet(images){return perform(async()=>{await saveCaption();const result=await api.exportImages(images.map(image=>image.id));if(!result.canceled)setNotice(result.saved?`Exported ${images.length} original images and captions to ${result.path}`:'Export sent to your browser download manager.');});}
   function startWorkflow(images){return perform(async()=>{
     if(images.length>100)throw new Error('A workflow supports up to 100 reference images. Select fewer images.');
     await saveCaption();

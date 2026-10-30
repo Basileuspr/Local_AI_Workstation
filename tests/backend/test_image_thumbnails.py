@@ -100,7 +100,7 @@ def test_actual_image_routes_return_small_authenticated_previews_and_originals(r
     from routes import image_library, sessions, web, faces, lora, image_workflows, workspaces
     data = picture(); path = tmp_path / "source.png"; path.write_bytes(data)
     monkeypatch.setattr(image_library.library, "image_bytes", lambda identifier: (data, {"type": "image/png"}))
-    monkeypatch.setattr(image_library.library, "image_stream", lambda identifier: (BytesIO(data), {"type": "image/png", "size": len(data)}))
+    monkeypatch.setattr(image_library.library, "image_stream", lambda identifier: (BytesIO(data), {"type": "image/png", "size": len(data), "sha256": hashlib.sha256(data).hexdigest()}))
     monkeypatch.setattr(sessions, "get_session_image_by_id", lambda *args: (data, "image/png"))
     monkeypatch.setattr(sessions, "get_session_image", lambda *args: (data, "image/png"))
     monkeypatch.setattr(web.image_store, "get_bytes", lambda *args: (data, "image/png"))

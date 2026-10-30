@@ -31,15 +31,15 @@ export const previewStitch = (body, signal) => request('/stitch/preview', 'POST'
 export const saveStitch = body => request('/stitch', 'POST', body);
 
 export async function downloadImage(image) {
+  if (globalThis.window?.workstationDesktop?.downloadLibraryImage) {
+    const result = await window.workstationDesktop.downloadLibraryImage(image.id);
+    if (!result?.saved && !result?.canceled) throw new Error(result?.error || 'Image could not be saved. Restart the desktop app and retry.');
+    return result;
+  }
   const url = new URL(imageSourceUrl(image.url));
   url.searchParams.set('download', 'true');
   const response = await fetch(url.href, { method: 'HEAD', cache: 'no-store' });
   if (!response.ok) throw new Error('This image is unavailable or locked.');
-  if (globalThis.window?.workstationDesktop?.downloadLibraryImage) {
-    const result = await window.workstationDesktop.downloadLibraryImage(image.id);
-    if (!result?.started) throw new Error(result?.error || 'Image download could not start.');
-    return;
-  }
   const link = document.createElement('a');
   // The attachment response streams to the browser download manager, avoiding
   // a second whole-image Blob allocation for very large stitches.
@@ -47,6 +47,7 @@ export async function downloadImage(image) {
   document.body.appendChild(link);
   try { link.click(); }
   finally { link.remove(); }
+  return { started: true };
 }
 export function upload(files) {
   const body = new FormData();
@@ -65,7 +66,14 @@ export function sourceFor(image) {
 
 
 export async function exportImages(ids) {
-  const response=await fetch(apiUrl('/image-library/export'),{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids})});
-  if(!response.ok){const value=await response.json().catch(()=>({}));throw new Error(typeof value.detail==='string'?value.detail:'Could not export these images.');}
-  return response.blob();
+  if (globalThis.window?.workstationDesktop?.exportLibraryImages) {
+    const result = await window.workstationDesktop.exportLibraryImages(ids);
+    if (!result?.saved && !result?.canceled) throw Error(result?.error || 'Export failed.');
+    return result;
+  }
+  const link = document.createElement('a');
+  link.href = apiUrl('/image-library/export?' + new URLSearchParams({ ids: ids.join(',') }));
+  link.download = 'review-images.zip'; document.body.appendChild(link);
+  try { link.click(); } finally { link.remove(); }
+  return { started: true };
 }

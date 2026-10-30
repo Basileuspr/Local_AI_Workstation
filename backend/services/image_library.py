@@ -20,6 +20,8 @@ from services import visual_review_names
 
 ROOT = settings.data_dir / "image_library"
 LOCK = threading.RLock()
+# Compatibility for separate face/character processing APIs; Gallery storage
+# and transfers do not use these processing budgets.
 MAX_BYTES = 20 * 1024 * 1024
 MAX_PIXELS = 24_000_000
 
@@ -67,15 +69,24 @@ def save_index(index):
     atomic(ROOT / "index.json", json.dumps(index, ensure_ascii=False).encode())
 
 
-def inspect(data, name):
-    if not data or len(data) > MAX_BYTES: raise ValueError("Images must be at most 20 MiB each")
-    try:
-        image = Image.open(io.BytesIO(data))
-    except (UnidentifiedImageError, OSError, Image.DecompressionBombError) as error:
-        raise ValueError("This file is not a supported, readable image") from error
-    with image:
-        if image.width * image.height > MAX_PIXELS or getattr(image, "n_frames", 1) != 1:
-            raise ValueError("Use single-frame images up to 24 megapixels")
+def inspect_file(path, name):
+    with path.open('rb') as stream:
+        digest = hashlib.file_digest(stream, 'sha256').hexdigest()
+        stream.seek(0)
+        return _inspect_stream(stream, name, digest, path.stat().st_size)
+
+
+def _inspect_stream(stream, name, digest, size):
+    try: return _read_metadata(stream, name, digest, size)
+    except (UnidentifiedImageError, OSError, SyntaxError) as error:
+        raise ValueError('This file is not a supported, readable image') from error
+
+
+def _read_metadata(stream, name, digest, size):
+    from services.image_manager_metadata import open_local_image
+    with open_local_image(stream) as image:
+        if getattr(image, "n_frames", 1) != 1:
+            raise ValueError("Use single-frame images")
         formats = {"PNG": "image/png", "JPEG": "image/jpeg", "WEBP": "image/webp", "GIF": "image/gif"}
         if image.format not in formats: raise ValueError("Use PNG, JPEG, WebP, or single-frame GIF")
         result = {"width": image.width, "height": image.height, "type": formats[image.format]}
@@ -86,8 +97,13 @@ def inspect(data, name):
             image.verify()
         except (OSError, SyntaxError) as error:
             raise ValueError("This image is incomplete or damaged") from error
-    return {**result, "name": Path(name or "Image").name[:240], "sha256": hashlib.sha256(data).hexdigest(),
-            "size": len(data), "created_at": datetime.now(timezone.utc).isoformat()}
+    return {**result, "name": Path(name or "Image").name[:240], "sha256": digest,
+            "size": size, "created_at": datetime.now(timezone.utc).isoformat()}
+
+
+def inspect(data, name):
+    # Vault inspection must never spill decrypted private bytes to temporary disk.
+    return _inspect_stream(io.BytesIO(data), name, hashlib.sha256(data).hexdigest(), len(data))
 
 
 def public_index():
@@ -128,8 +144,20 @@ def media_record(item):
 
 
 def import_image(data, name, origin=None, folder_id=None):
+    return import_stream(io.BytesIO(data), name, origin, folder_id)
+
+
+def import_stream(stream, name, origin=None, folder_id=None):
+    """Spool selected uploads/copies to disk; never materialize the entire file."""
+    with tempfile.TemporaryDirectory(prefix='law-image-import-') as temporary:
+        path = Path(temporary) / 'source'
+        with path.open('xb') as output:
+            shutil.copyfileobj(stream, output, 1024 * 1024)
+        return _import_file(path, inspect_file(path, name), origin, folder_id)
+
+
+def _import_file(path, metadata, origin=None, folder_id=None):
     from services import image_vault
-    metadata = inspect(data, name)
     image_vault.require_public(metadata["sha256"])
     with LOCK:
         index = read_index()
@@ -151,11 +179,61 @@ def import_image(data, name, origin=None, folder_id=None):
                 "origin": origin or {"kind": "upload"}, "annotations": {},
                 "schema_version": 1, "category": "", "project": "", "favorite": False, "review_status": "unreviewed"}
         destination = storage.resolve(ROOT / "images" / (item["id"] + ".image"), create=True)
-        atomic(destination, data)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        created = False
+        try:
+            with path.open('rb') as source, destination.open('xb') as output:
+                created = True
+                shutil.copyfileobj(source, output, 1024 * 1024)
+                output.flush()
+                os.fsync(output.fileno())
+        except BaseException:
+            if created: destination.unlink(missing_ok=True)
+            raise
         item.update(media_id='library:'+item['id'],media_type='image',path=str(destination.absolute()),file_state='present')
         index["images"].append(item)
-        save_index(index)
+        try: save_index(index)
+        except BaseException:
+            destination.unlink(missing_ok=True)
+            raise
         return decorate(item)
+
+
+def import_source(source, folder_id=None):
+    # Filing an owned image is a metadata change, not another upload/decoding.
+    if source.get('kind') == 'library':
+        with LOCK:
+            stream, item = image_stream(source.get('id'))
+            stream.close()
+            index = read_index()
+            existing = next(value for value in index['images'] if value['id'] == item['id'])
+            if folder_id:
+                if not any(folder['id'] == folder_id for folder in index['folders']): raise ValueError('Folder no longer exists')
+                if folder_id not in existing['folder_ids']:
+                    existing['folder_ids'].append(folder_id)
+                    save_index(index)
+            return decorate(existing)
+    if source.get('kind') == 'managed':
+        from services.image_manager import manager
+        from services.image_manager_metadata import signature
+        from services.image_vault import require_public
+        record, path = manager.image_path(source.get('id'))
+        with path.open('rb') as stream, tempfile.TemporaryDirectory(prefix='law-catalog-import-') as temporary:
+            snapshot = Path(temporary) / 'source'
+            with snapshot.open('xb') as output: shutil.copyfileobj(stream, output, 1024 * 1024)
+            if signature(os.fstat(stream.fileno())) != record['signature']: raise ValueError('Source changed. Scan again.')
+            metadata = inspect_file(snapshot, path.name)
+            if record.get('sha256') and metadata['sha256'] != record['sha256']: raise ValueError('Source changed. Scan again.')
+            require_public(metadata['sha256'])
+            manager.image_path(source.get('id'))
+            return _import_file(snapshot, metadata, source, folder_id)
+    if source.get('kind') == 'workflow':
+        from services.image_workflows import runner, exports
+        path, item = (exports.stitched_path(source.get('workflow_id'), source.get('job_id'), source['layout']) if source.get('layout') else
+                      runner.output_path(source.get('workflow_id'), source.get('job_id'), source.get('output_id')))
+        with path.open('rb') as stream: return import_stream(stream, source.get('name') or item.get('name') or 'Workflow image', source, folder_id)
+    data, item = source_bytes(source)
+    return import_image(data, item['name'], item.get('origin'), folder_id)
 
 
 def image_bytes(item_id):
@@ -397,14 +475,15 @@ def export_images(ids):
             index = read_index()
             items = {item["id"]: item for item in index["images"]}
             if any(item_id not in items for item_id in ids): raise ValueError("A selected image is no longer available. Refresh the review list.")
-            if sum(items[item_id]["size"] for item_id in ids) > 512 * 1024 * 1024:
-                raise ValueError("Export up to 512 MiB at a time. Select fewer images.")
             for number, item_id in enumerate(ids, 1):
-                data, item = image_bytes(item_id)  # Enforces vault privacy and verifies SHA-256.
+                stream, item = image_stream(item_id)  # Enforces privacy and verifies SHA-256 in chunks.
                 stem = re.sub(r"[^A-Za-z0-9._-]", "_", Path(item["name"]).stem).strip(".")[:100] or "image"
                 suffix = {"image/png":".png", "image/jpeg":".jpg", "image/webp":".webp", "image/gif":".gif"}[item["type"]]
                 name = f"images/{number:04d}-{stem}{suffix}"
-                output.writestr(name, data)
+                try:
+                    with output.open(name, 'w', force_zip64=True) as entry:
+                        shutil.copyfileobj(stream, entry, 1024 * 1024)
+                finally: stream.close()
                 caption = item.get("annotations", {}).get("caption", "")
                 output.writestr(str(Path(name).with_suffix(".txt")).replace("\\", "/"), caption.encode("utf-8"))
         archive.seek(0)

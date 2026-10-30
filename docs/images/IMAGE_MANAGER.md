@@ -24,8 +24,9 @@ external bytes. It is blocked for a folder with relevant Trash/active work.
 
 Scans skip links and excluded locations, including NVIDIA data. They use a
 100,000-entry bound and preserve unvisited entries after partial scans. File
-previews and handoffs have their own byte/pixel limits; a file appearing in a scan
-does not guarantee every editor can open it.
+previews retain only small cached images and decode one source per worker slot.
+Original-file handoffs have no 64 MiB gate; available memory, disk and decoder
+support still determine whether a particular processing tool can open a file.
 
 ## Preview navigation and stitcher
 
@@ -36,12 +37,17 @@ the preview. Existing edit, reveal, chat-draft and Gallery-copy actions use the
 currently displayed image. Refresh retains the browsing view during a scan;
 preview and selection state are temporary.
 
+Use **+ / −**, **Fit**, **100%**, mouse-wheel zoom and drag pan to inspect detail.
+Zoom loads original pixels instead of enlarging the preview. When the zoomed
+surface has focus, arrow keys pan; the browse buttons still move between images.
+
 Enable **Image stitcher** to pick frames on cards, add a frame from Preview, or
 use **Selection options → Add selected to stitcher**. Picks retain their order
 across pages and filters. The numbered tray supports reordering, reversing and
 removal. **Preview stitch** uses Gallery's existing strip/grid controls, frame
 size, spacing and background options. **Save stitched image** creates an independent
-PNG in Saved Images; **Download PNG** exports its full resolution.
+PNG in Saved Images; **Save image as…** exports its full resolution and confirms
+the saved location, with buttons to open or reveal the saved copy.
 
 Stitching reads revalidated catalog originals without importing or changing them
 or their manual metadata. Missing, changed or locked frames stop the operation.

@@ -98,6 +98,8 @@ async def upload(dataset_id: str, files: list[UploadFile] = File(...)):
     for item in files:
         try:
             payload = await item.read(image_library.MAX_BYTES + 1)
+            if len(payload) > image_library.MAX_BYTES:
+                raise ValueError('Images must be at most 20 MiB each')
             name = item.filename or "Upload"
             added += await run_in_threadpool(store.import_image, dataset_id, payload, name, {"kind": "upload", "name": name})
         except (ValueError, OSError) as exc:

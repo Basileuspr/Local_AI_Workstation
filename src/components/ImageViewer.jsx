@@ -1,4 +1,5 @@
-import ProtectedImage from "../ImagePrivacy";
+import ImageZoom from './ImageZoom';
+import ImageFileActions from './ImageFileActions';
 import { useEffect, useRef, useState } from "react";
 import { useRefs } from "../useStore";
 import { useImageDestinations } from "../ImageDestinations";
@@ -70,7 +71,7 @@ export default function ImageViewer({ images, selectedId, onSelect, onClose, onO
       <div className="image-viewer-stage">
         {!previewOnly && <ImageBrowseButton direction={-1} disabled={images.length < 2} onStep={step} />}
         {renderImage ? renderImage(image) : failedSource === source ? <div role="alert"><p>This image could not be loaded. You can still browse the other images.</p><button type="button" onClick={() => { setFailedSource(null); setRetry(value => value + 1); }}>Reload image</button></div>
-          : <ProtectedImage key={`${source}:${retry}`} src={imagePreviewUrl(image.preview_url || image.url, {retry})} alt={image.name} rotateView={!previewOnly} onError={() => setFailedSource(source)} />}
+          : <ImageZoom key={`${source}:${retry}`} src={imagePreviewUrl(image.url, {retry})} previewSrc={image.preview_url && imagePreviewUrl(image.preview_url, {retry})} width={image.width} height={image.height} alt={image.name} rotateView={!previewOnly} onError={() => setFailedSource(source)} />}
         {!previewOnly && <ImageBrowseButton direction={1} disabled={images.length < 2} onStep={step} />}
       </div>
       {!previewOnly && <>
@@ -86,6 +87,7 @@ export default function ImageViewer({ images, selectedId, onSelect, onClose, onO
       </>}
       {actionError && <p className="image-destination-error" role="alert">{actionError}</p>}
       <footer className="image-viewer-footer">
+        {!renderImage && <ImageFileActions key={source} image={image} />}
         {onRemove && <div>{removal.toolbar}{removal.controls(image, image.name)}</div>}
         <span>{previewOnly ? "Esc to close" : "← → Browse images · Esc to close"}</span>
         {onAnalyze && <button type="button" className="analyze-iterate-button" onClick={() => { onClose(); onAnalyze(image); }}>Analyze &amp; Iterate</button>}

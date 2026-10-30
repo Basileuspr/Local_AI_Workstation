@@ -13,11 +13,9 @@ import re
 import tempfile
 import threading
 import uuid
-import warnings
 from datetime import datetime, timezone
 from pathlib import Path
 
-from PIL import Image, UnidentifiedImageError
 from pydantic import ValidationError
 
 from config import settings
@@ -26,6 +24,7 @@ from .contracts import Asset, Draft, Snapshot, UpdateRequest, Workflow
 from .planning import preflight
 
 ROOT = settings.image_workflows_dir
+# Stage/export processing budgets; these do not restrict stored input files.
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 MAX_IMAGE_PIXELS = 24_000_000
 _lock = threading.RLock()
@@ -137,49 +136,65 @@ def update(workflow_id: str, request: UpdateRequest) -> Workflow:
         return workflow
 
 
+def _inspect_file(name, path):
+    from services.image_library import inspect_file
+    from services.image_manager_metadata import open_local_image
+    metadata = inspect_file(path, name)
+    formats = {'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp'}
+    if metadata['type'] not in formats:
+        raise ValueError('Use a single-frame PNG, JPEG, or WebP image.')
+    width, height = metadata['width'], metadata['height']
+    with open_local_image(path) as image:
+        if image.getexif().get(274) in {5, 6, 7, 8}: width, height = height, width
+    name = name.replace(chr(92), '/').rsplit('/', 1)[-1][:160] or 'image'
+    return Asset(id=metadata['sha256'], name=name, suffix=formats[metadata['type']], media_type=metadata['type'],
+                 width=width, height=height, size_bytes=metadata['size'], created_at=_now())
+
+
 def _inspect_image(name: str, content: bytes) -> Asset:
-    if not content or len(content) > MAX_UPLOAD_BYTES:
-        raise ValueError("Upload a non-empty PNG, JPEG, or WebP image up to 20 MiB.")
-    try:
-        with warnings.catch_warnings():
-            warnings.simplefilter("error", Image.DecompressionBombWarning)
-            with Image.open(io.BytesIO(content)) as image:
-                formats = {"PNG": (".png", "image/png"), "JPEG": (".jpg", "image/jpeg"), "WEBP": (".webp", "image/webp")}
-                if image.format not in formats or getattr(image, "n_frames", 1) != 1:
-                    raise ValueError("Use a single-frame PNG, JPEG, or WebP image.")
-                width, height = image.size
-                if width * height > MAX_IMAGE_PIXELS:
-                    raise ValueError("Image exceeds the 24 megapixel limit.")
-                suffix, media_type = formats[image.format]
-                image.verify()
-            with Image.open(io.BytesIO(content)) as image:
-                image.load()
-                if image.getexif().get(274) in {5, 6, 7, 8}:
-                    width, height = height, width
-    except (UnidentifiedImageError, OSError, SyntaxError, Image.DecompressionBombError, Image.DecompressionBombWarning) as exc:
-        raise ValueError("Could not decode this image. Use a valid PNG, JPEG, or WebP file.") from exc
-    # Name is display-only; the hash and detected format define the actual path.
-    name = name.replace("\\", "/").rsplit("/", 1)[-1][:160] or "image"
-    return Asset(id=hashlib.sha256(content).hexdigest(), name=name, suffix=suffix, media_type=media_type, width=width, height=height, size_bytes=len(content), created_at=_now())
+    with tempfile.TemporaryDirectory(prefix='law-workflow-image-') as temporary:
+        path = Path(temporary) / 'source'
+        path.write_bytes(content)
+        return _inspect_file(name, path)
 
 
 def add_asset(workflow_id: str, revision: int, name: str, content: bytes) -> Workflow:
-    # Check existence before image decoding; repeat the revision check under the write lock.
+    return add_asset_stream(workflow_id, revision, name, io.BytesIO(content))
+
+
+def add_asset_stream(workflow_id, revision, name, stream, origin=None):
+    import shutil
+    from services.image_vault import require_public
     _check_revision(get(workflow_id), revision)
-    asset = _inspect_image(name, content)
-    with _lock:
-        workflow = get(workflow_id)
-        _check_revision(workflow, revision)
-        if any(item.id == asset.id for item in workflow.assets):
+    directory = confined(_directory(workflow_id) / 'assets')
+    directory.mkdir(exist_ok=True)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=directory, prefix='.pending-', delete=False) as output:
+            temporary = Path(output.name)
+            shutil.copyfileobj(stream, output, 1024 * 1024)
+            output.flush()
+            os.fsync(output.fileno())
+        asset = _inspect_file(name, temporary)
+        require_public(asset.id)
+        asset.origin = origin or {}
+        with _lock:
+            workflow = get(workflow_id)
+            _check_revision(workflow, revision)
+            if any(item.id == asset.id for item in workflow.assets): return workflow
+            if len(workflow.assets) >= 100: raise ValueError('A workflow can hold at most 100 images.')
+            target = confined(directory / f'{asset.id}{asset.suffix}')
+            temporary.replace(target)
+            workflow.assets.append(asset)
+            workflow.revision += 1
+            workflow.updated_at = _now()
+            try: _write(_directory(workflow_id) / 'workflow.json', workflow.model_dump())
+            except BaseException:
+                target.unlink(missing_ok=True)
+                raise
             return workflow
-        if len(workflow.assets) >= 100:
-            raise ValueError("A workflow can hold at most 100 images.")
-        _atomic_bytes(_directory(workflow_id) / "assets" / f"{asset.id}{asset.suffix}", content)
-        workflow.assets.append(asset)
-        workflow.revision += 1
-        workflow.updated_at = _now()
-        _write(_directory(workflow_id) / "workflow.json", workflow.model_dump())
-        return workflow
+    finally:
+        if temporary is not None: temporary.unlink(missing_ok=True)
 
 
 def asset_path(workflow_id: str, asset_id: str):

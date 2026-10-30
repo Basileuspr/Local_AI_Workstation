@@ -72,6 +72,11 @@ def import_source(workflow_id, request):
     # Resolve only registered local sources; no client URLs or arbitrary paths.
     store._check_revision(store.get(workflow_id), request.revision)
     source = request.source.model_dump(exclude_none=True)
+    if source['kind'] == 'library':
+        stream, metadata = image_library.image_stream(source['id'])
+        try:
+            return store.add_asset_stream(workflow_id, request.revision, metadata['name'], stream, source)
+        finally: stream.close()
     content, metadata = image_library.source_bytes(source)
     # Validate before publishing or copying anything. _add_copy also enforces
     # vault privacy by content hash, including stale gallery previews.

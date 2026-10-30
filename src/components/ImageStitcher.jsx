@@ -4,6 +4,9 @@ import ImageThumbnail from './ImageThumbnail';
 import * as api from '../imageLibraryApi';
 import { stitchKey } from '../imageStitcher';
 import './ImageStitcher.css';
+import ImageZoom from './ImageZoom';
+import ImageFileActions from './ImageFileActions';
+import { imageSourceUrl } from '../imageSources';
 
 export function StitchFrameButton({ stitcher, image, always = false }) {
   if (!stitcher || (!always && !stitcher.enabled)) return null;
@@ -34,16 +37,16 @@ export default function ImageStitcher({ stitcher, active }) {
   const body = JSON.stringify({ ...options, sources: stitcher.frames.map(api.sourceFor) });
   const key = `${body}:${privacy.ready}:${privacy.revision}:${retry}`;
   const preview = result?.key === key ? result.value : null;
-  const locked = preview && privacy.hashes.includes(preview.sha256);
-  const error = locked ? 'This stitched image is locked. Restore it in Locked Images before using it.' : failure?.key === key ? failure.message : '';
   const savedImage = saved?.body === body ? saved.image : null;
+  const locked = (preview && privacy.hashes.includes(preview.sha256)) || (savedImage && privacy.hashes.includes(savedImage.sha256));
+  const error = locked ? 'This stitched image is locked. Restore it in Locked Images before using it.' : failure?.key === key ? failure.message : '';
   const open = active && stitcher.open;
   const enough = stitcher.frames.length >= 2;
   useEffect(() => {
     if (open) dialog.current?.showModal(); else dialog.current?.close();
   }, [open]);
   useEffect(() => {
-    if (!open || !enough || !privacy.ready) return;
+    if (!open || !enough || !privacy.ready || savedImage) return;
     const controller = new AbortController();
     let ignore = false;
     setResult(null);
@@ -60,7 +63,7 @@ export default function ImageStitcher({ stitcher, active }) {
       } catch (error) { if (!ignore) setFailure({ key, message: error.message }); }
     }, 350);
     return () => { ignore = true; clearTimeout(timer); controller.abort(); };
-  }, [body, key, open, enough, privacy.ready]);
+  }, [body, key, open, enough, privacy.ready, savedImage]);
 
   async function save() {
     if (lock.current || !preview || !enough || error) return;
@@ -69,13 +72,6 @@ export default function ImageStitcher({ stitcher, active }) {
       const image = await api.saveStitch(JSON.parse(body));
       setSaved({ body, image }); api.changed();
     } catch (error) { setFailure({ key, message: error.message }); }
-    finally { lock.current = false; stitcher.setBusy(false); }
-  }
-  async function download() {
-    if (lock.current || !savedImage) return;
-    lock.current = true; stitcher.setBusy(true); setFailure(null);
-    try { await api.downloadImage(savedImage); }
-    catch (error) { setFailure({ key, message: error.message }); }
     finally { lock.current = false; stitcher.setBusy(false); }
   }
   function option(name, value) { setOptions(current => ({ ...current, [name]: value })); }
@@ -104,13 +100,14 @@ export default function ImageStitcher({ stitcher, active }) {
             <option value="dark">Dark</option><option value="white">White</option><option value="transparent">Transparent</option></select></label>
         </fieldset>
         <p>Frames fit inside equal cells without cropping or stretching. Grid order reads left to right, then down. Larger selections take longer and use temporary disk space; the saved image keeps your chosen size. Originals are preserved.</p>
-        {!enough ? <p role="status">Choose at least two frames to stitch.</p> : !privacy.ready ? <p role="status">Checking image access…</p> : !preview && !error && <p role="status">Preparing preview…</p>}
+        {!enough ? <p role="status">Choose at least two frames to stitch.</p> : !privacy.ready ? <p role="status">Checking image access…</p> : !savedImage && !preview && !error && <p role="status">Preparing preview…</p>}
         {error && <p role="alert">{error} <button type="button" disabled={stitcher.busy} onClick={() => setRetry(value => value + 1)}>Retry preview</button></p>}
-        {enough && preview && !locked && <figure className="stitch-preview"><img src={preview.preview} alt="Stitched image preview"
-          onError={() => setFailure({ key, message: 'Could not display the preview. Try again before saving.' })} />
-          <figcaption>{preview.width} × {preview.height} px · {stitcher.frames.length} frames · Preview scaled for display</figcaption></figure>}
+        {enough && (preview || savedImage) && !locked && privacy.ready && <figure className="stitch-preview">{savedImage
+          ? <ImageZoom key={savedImage.id} src={imageSourceUrl(savedImage.url)} previewSrc={imageSourceUrl(savedImage.preview_url)} width={savedImage.width} height={savedImage.height} alt="Saved stitched image" />
+          : <img src={preview.preview} alt="Stitched image preview" onError={() => setFailure({ key, message: 'Could not display the preview. Try again before saving.' })} />}
+          <figcaption>{(savedImage || preview).width} × {(savedImage || preview).height} px · {stitcher.frames.length} frames · {savedImage ? 'Zoom loads the full-resolution original' : 'Preview scaled for display'}</figcaption></figure>}
         <footer><button type="button" disabled={stitcher.busy || !enough || !preview || !!error} onClick={save}>{stitcher.busy ? 'Working…' : 'Save stitched image'}</button>
-          {savedImage && <><span role="status">Saved in Saved Images: {savedImage.name}</span><button type="button" disabled={stitcher.busy} onClick={download}>Download PNG</button></>}
+          {savedImage && <><span role="status">Saved in Saved Images: {savedImage.name}</span><ImageFileActions key={savedImage.id} image={savedImage} disabled={stitcher.busy} /></>}
         </footer>
       </>}
     </dialog>}

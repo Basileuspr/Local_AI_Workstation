@@ -2,12 +2,10 @@
 from collections import OrderedDict
 from io import BytesIO
 import threading
-import warnings
 
 from PIL import Image, ImageOps
+from services.image_manager_metadata import open_local_image
 
-MAX_PIXELS = 40_000_000
-MAX_SOURCE_BYTES = 256 * 1024 * 1024
 CACHE_BYTES = 24 * 1024 * 1024
 CACHE_ITEMS = 128
 
@@ -27,8 +25,6 @@ class PreviewCache:
         # must not stay accessible through cached pixels.
         record, source = manager.image_path(identifier)
         key = (identifier, tuple(record['signature']), size)
-        if record['width'] * record['height'] > MAX_PIXELS or record['bytes'] > MAX_SOURCE_BYTES:
-            raise ValueError('This image exceeds the preview limit (40 megapixels / 256 MiB).')
         def revalidate():
             current, path = manager.image_path(identifier)
             if path != source or current['signature'] != record['signature']:
@@ -40,23 +36,20 @@ class PreviewCache:
                 if cached is not None:
                     self.entries.move_to_end(key)
                     return cached
-            with warnings.catch_warnings():
-                warnings.simplefilter('error', Image.DecompressionBombWarning)
-                with Image.open(source) as original:
-                    if original.width * original.height > MAX_PIXELS:
-                        raise ValueError('This image exceeds the preview pixel limit.')
-                    original.draft('RGB', (size, size))
-                    with ImageOps.exif_transpose(original) as image:
-                        image.thumbnail((size, size))
-                        output = BytesIO()
-                        with Image.new('RGB', image.size, '#161e29') as canvas:
-                            if image.mode in ('RGBA', 'LA') or 'transparency' in image.info:
-                                with image.convert('RGBA') as rgba, rgba.getchannel('A') as mask:
-                                    canvas.paste(rgba, mask=mask)
-                            else:
-                                canvas.paste(image)
-                            canvas.save(output, 'JPEG', quality=84)
-                        result = output.getvalue()
+            with open_local_image(source) as original:
+                original.draft('RGB', (size, size))
+                original.thumbnail((size, size))
+                with ImageOps.exif_transpose(original) as image:
+                    image.thumbnail((size, size))
+                    output = BytesIO()
+                    with Image.new('RGB', image.size, '#161e29') as canvas:
+                        if image.mode in ('RGBA', 'LA') or 'transparency' in image.info:
+                            with image.convert('RGBA') as rgba, rgba.getchannel('A') as mask:
+                                canvas.paste(rgba, mask=mask)
+                        else:
+                            canvas.paste(image)
+                        canvas.save(output, 'JPEG', quality=84)
+                    result = output.getvalue()
             revalidate()
             with self.lock:
                 previous = self.entries.pop(key, None)

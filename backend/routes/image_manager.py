@@ -163,8 +163,8 @@ async def thumbnail(identifier: str, large: bool = False):
 @router.get("/images/{identifier}/file")
 def image_file(identifier: str):
     record, path = call(manager.image_path, identifier)
-    if record["bytes"] > 64 * 1024 * 1024:
-        raise HTTPException(422, "Use Show in folder for images larger than 64 MiB.")
+    from services.image_vault import guard_path
+    call(guard_path, path)
     mime = {"JPEG": "image/jpeg", "PNG": "image/png", "WEBP": "image/webp", "AVIF": "image/avif", "TIFF": "image/tiff", "GIF": "image/gif", "BMP": "image/bmp"}[record["format"]]
     return FileResponse(path, media_type=mime, filename=path.name, headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
 

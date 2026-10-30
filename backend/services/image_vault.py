@@ -63,7 +63,8 @@ def require_public(digest):
 @lru_cache(maxsize=2048)
 def _file_hash(path, size, modified):
     from pathlib import Path
-    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    with Path(path).open('rb') as stream:
+        return hashlib.file_digest(stream, 'sha256').hexdigest()
 
 
 def guard_path(path):

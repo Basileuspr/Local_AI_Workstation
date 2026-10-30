@@ -31,3 +31,18 @@ def check():
     unchanged = all(library.image_bytes(item_id) == value for item_id, value in originals.items())
     stitches = [item for item in library.public_index()['images'] if item['origin']['kind'] == 'stitch']
     return {'originals_unchanged': unchanged, 'stitches': stitches}
+
+
+@app.post('/fixture/large')
+def large():
+    path = root / 'large-fixture.png'
+    with Image.new('RGB', (6144, 6144), '#273548') as image:
+        draw = ImageDraw.Draw(image)
+        for number in range(60):
+            x, y = number % 8 * 768, number // 8 * 768
+            draw.rectangle((x + 20, y + 20, x + 748, y + 748), fill=(30 + number * 3, 80, 200 - number * 2))
+            draw.text((x + 100, y + 100), f'FRAME {number + 1:02}', fill='white', font_size=90)
+        image.save(path, 'PNG', compress_level=0)
+        image.thumbnail((1600, 1600))
+        preview = io.BytesIO(); image.save(preview, 'PNG')
+    return library.import_composite(path, preview.getvalue(), 6144, 6144, {'kind': 'fixture-large', 'options': {'layout': 'grid'}})

@@ -31,8 +31,10 @@ This transparency guarantee applies to the Lanczos stage; SDXL processing uses R
 ControlNet and multiple-reference conditioning are not implemented here. The
 workflow SDXL provider does not apply Generate’s LoRA selection.
 
-Workflow image dimensions are restricted separately from Generate. Uploads accept
-single-frame PNG/JPEG/WebP within 20 MiB and 24 megapixels. A workflow is bounded
+Workflow processing dimensions are restricted separately from Generate. Uploads
+accept single-frame PNG/JPEG/WebP and stream to local storage without a 20 MiB /
+24-megapixel import gate. Saved Gallery sources copy directly on the backend.
+Processing stages still validate their supported output sizes. A workflow is bounded
 to 100 assets, 24 stages and eight reference slots. Review validation messages
 before running rather than assuming another workspace’s limits apply.
 

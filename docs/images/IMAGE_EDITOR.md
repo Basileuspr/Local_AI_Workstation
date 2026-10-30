@@ -8,6 +8,11 @@ scroll through adjustments. In an inline chat edit, the export action is **Send
 edited image to chat**. Controls scroll within their own bounded group when the
 pane is short; Tab also reaches each control. Apply or cancel a crop before exporting.
 
+Opening images no longer has a 40 MiB / 24-megapixel gate. The browser decoder,
+canvas dimensions and available memory remain practical limits; large adjustments
+can take longer. Gallery's **Save image as…** exports unchanged bytes without
+running an editor or allocating a canvas.
+
 ## Adjust and compare
 
 White balance, light, color, texture and effects controls provide editable numeric
