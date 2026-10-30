@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { codingChecks, codingControl, codingRequest, codingTerminal, displayCommand } from '../codingCoordinator';
 import CodingVerification, { VerificationApproval, VerificationHistory } from './CodingVerification';
 import './CodingCoordinator.css';
+import { loadCoordinatorDraft, saveCoordinatorDraft } from '../coordinator';
 
 export function CodingResult({ run }) {
   if (!run) return null;
@@ -20,18 +21,21 @@ export function CodingResult({ run }) {
   </div>;
 }
 
-export default function CodingCoordinator({ active = true }) {
-  const [project, setProject] = useState(null), [goal, setGoal] = useState('');
-  const [model, setModel] = useState('gpt-oss:20b'), [models, setModels] = useState([]);
+export default function CodingCoordinator({ active = true, requestedRun }) {
+  const [draft] = useState(() => loadCoordinatorDraft('coding', { goal: '', model: 'gpt-oss:20b', context: 8192, rounds: 24 }));
+  const [project, setProject] = useState(null), [goal, setGoal] = useState(draft.goal);
+  const [model, setModel] = useState(draft.model), [models, setModels] = useState([]);
   const [commands, setCommands] = useState(''), [trusted, setTrusted] = useState(false);
   const [catalog, setCatalog] = useState(null), [selectedChecks, setSelectedChecks] = useState([]);
   const [mode, setMode] = useState('ask'), [profileName, setProfileName] = useState('');
-  const [context, setContext] = useState(8192), [rounds, setRounds] = useState(24);
+  const [context, setContext] = useState(draft.context), [rounds, setRounds] = useState(draft.rounds);
   const [listing, setListing] = useState({ runs: [], active: null }), [selected, setSelected] = useState(''), [run, setRun] = useState(null);
   const [error, setError] = useState(''), [connectionError, setConnectionError] = useState(''), [busy, setBusy] = useState(false);
   const [refresh, setRefresh] = useState(0), actionLock = useRef(false);
   const outputRef = useRef(null);
   const selectedRef = useRef(selected); selectedRef.current = selected;
+  useEffect(() => { if (requestedRun) { setSelected(requestedRun.id); setRun(null); } }, [requestedRun]);
+  useEffect(() => { saveCoordinatorDraft('coding', { goal, model, context, rounds }); }, [goal, model, context, rounds]);
   useEffect(() => { if (active && run?.pending_approval) outputRef.current?.scrollIntoView({ block: 'start' }); }, [active, run?.pending_approval?.id]);
   useEffect(() => {
     if (!active) return;

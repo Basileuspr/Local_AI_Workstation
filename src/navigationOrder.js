@@ -52,7 +52,7 @@ const groups = [
 ];
 
 export const navigationSections = [
-  { id: 'utilities', label: 'Utilities', items: [{ id: 'dashboard', label: 'Dashboard' }, { id: 'queue', label: 'Prompt Queue' }, { id: 'tools', label: 'Functions' }, { id: 'info-center', label: 'Info Center', title: 'Info Center · feature use cases, examples and help' }, { id: 'design-programming', label: 'Design & Programming', title: 'Design & Programming · UI customization playground, templates and code' }] },
+  { id: 'utilities', label: 'Utilities', items: [{ id: 'dashboard', label: 'Dashboard' }, { id: 'coordinator', label: 'Coordinator', title: 'Coordinator · Coding, Research & Knowledge, Media Librarian harnesses' }, { id: 'queue', label: 'Prompt Queue' }, { id: 'tools', label: 'Functions' }, { id: 'info-center', label: 'Info Center', title: 'Info Center · feature use cases, examples and help' }, { id: 'design-programming', label: 'Design & Programming', title: 'Design & Programming · UI customization playground, templates and code' }] },
   ...groups,
   // Children live in the main workspace. Keep them indexed for search and ordering.
   { id: 'design-code', label: 'Design & Programming', items: designTools },

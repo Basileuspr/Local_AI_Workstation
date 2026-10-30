@@ -14,6 +14,7 @@ export const captureActions = appTabs.map(tab => ({ id: `capture:${tab}`, name: 
 
 export const FUNCTION_BUTTONS_STORAGE_KEY = "local-ai-workstation-function-buttons-v1";
 export const functionTargets = [
+  { id: 'coordinator', name: 'Coordinator' },
   { id: 'design-programming', name: 'Design & Programming' },
   { id: "info-center", name: "Info Center" },
   { id: "shortcuts", name: "Shortcut Registry" },
@@ -66,7 +67,7 @@ function validateButtons(buttons) {
   for (const button of buttons) {
     if (!button || typeof button.id !== "string" || !button.id || ids.has(button.id)
       || typeof button.name !== "string" || !button.name.trim()
-      || !(functionTargets.some(target => target.id === button.target) || /^program:[a-f0-9-]{36}$/.test(button.target))) {
+      || !(functionTargets.some(target => target.id === button.target) || ['coding-coordinator', 'capture:coding-coordinator'].includes(button.target) || /^program:[a-f0-9-]{36}$/.test(button.target))) {
       throw new Error("Invalid function button");
     }
     ids.add(button.id);

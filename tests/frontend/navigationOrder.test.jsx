@@ -62,7 +62,7 @@ describe('app-wide navigation priority', () => {
     const order = normalizeNavigationOrder({ sections: ['viewers', 'functions', 'utilities'], tabs: { utilities: ['queue', 'dashboard', 'info-center'], functions: ['tools'] } });
     const sections = orderedSections(order);
     expect(sections[0].id).toBe('utilities');
-    expect(sections[0].items.map(item => item.id)).toEqual(['queue', 'dashboard', 'info-center', 'tools', 'design-programming']);
+    expect(sections[0].items.map(item => item.id)).toEqual(['queue', 'dashboard', 'info-center', 'coordinator', 'tools', 'design-programming']);
     expect(order.sections).not.toContain('functions');
     expect(sections.flatMap(section => section.items).filter(item => item.id === 'tools')).toHaveLength(1);
     vi.stubGlobal('localStorage', { getItem: key => key === NAVIGATION_ORDER_KEY ? JSON.stringify(order) : null });

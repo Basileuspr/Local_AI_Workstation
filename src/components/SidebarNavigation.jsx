@@ -98,7 +98,7 @@ export default function SidebarNavigation({ activeTab, onSelect }) {
   function itemButton(item) {
     return <button key={item.id} type="button" className="sidebar-nav-item"
       data-sidebar-route={item.id} data-media-manager-tab={item.id === "media-manager" ? "" : undefined}
-      aria-current={activeTab === item.id || !searching && item.id === DESIGN_TAB && isDesignTab(activeTab) ? "page" : undefined} title={item.title || item.label}
+      aria-current={activeTab === item.id || item.id === 'coordinator' && activeTab === 'coding-coordinator' || !searching && item.id === DESIGN_TAB && isDesignTab(activeTab) ? "page" : undefined} title={item.title || item.label}
       onClick={() => selectItem(item.id)}>{item.label}</button>;
   }
 

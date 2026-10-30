@@ -33,7 +33,12 @@ if (!process.versions.electron) {
     await until("!!document.querySelector('[data-sidebar-route=\"design-programming\"]')", 'main design tab'); await route('design-programming');
     await until("!!document.querySelector('.dp-template')", 'playground');
     assert.equal(await js("document.querySelectorAll('#sidebar-group-viewers [data-sidebar-route]').length"), 3);
-    assert.equal(await js("document.querySelectorAll('[data-capture-tab=\"design-programming\"] [data-design-route]').length"), 7);
+    assert.equal(await js("document.querySelectorAll('[data-capture-tab=\"design-programming\"] [data-design-route]').length"), 6);
+    assert(await js("!!document.querySelector('.sidebar-utilities [data-sidebar-route=\"coordinator\"]')"));
+    await route('coordinator');
+    await until("!!document.querySelector('[aria-label=\"Coordinator harness\"]')", 'standalone Coordinator');
+    assert.equal(await js("document.querySelector('[aria-label=\"Coordinator harness\"]').options.length"), 3);
+    await route('design-programming');
     assert.equal(await js("document.querySelectorAll('.dp-template').length"), 6);
     checks.push('Main Design & Programming tab owns the playground and all five existing source/library destinations');
 

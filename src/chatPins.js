@@ -1,4 +1,5 @@
 import { appTabs, appTabLabels } from "./navigation";
+const canonical = tab => tab === 'coding-coordinator' ? 'coordinator' : tab;
 
 export const CHAT_PINS_KEY = "local-ai-workstation-chat-pins-v1";
 export const WORKSPACE_PINS_KEY = "local-ai-workstation-workspace-pins-v1";
@@ -8,6 +9,7 @@ export const pinnableTabs = appTabs.filter(tab => tab !== "chats")
   .sort((a, b) => appTabLabels[a].localeCompare(appTabLabels[b]));
 
 export function validChatPin(value) {
+  if (value?.kind === 'tool') value = { ...value, tab: canonical(value.tab) };
   if (value?.kind === "chat" && (value.sessionId == null || /^[A-Za-z0-9_-]{1,200}$/.test(value.sessionId)))
     return { kind: "chat", sessionId: value.sessionId || null };
   if (value?.kind === "tool" && pinnableTabs.includes(value.tab)) return { kind: "tool", tab: value.tab };
@@ -26,6 +28,8 @@ export function loadChatPins() {
 }
 
 export function validWorkspacePin(activeTab, value) {
+  activeTab = canonical(activeTab);
+  if (value?.kind === 'tool') value = { ...value, tab: canonical(value.tab) };
   if (appTabs.includes(activeTab) && activeTab !== "chats" && value?.kind === "tool"
     && appTabs.includes(value.tab) && value.tab !== activeTab) return { kind: "tool", tab: value.tab };
   return null;
@@ -37,12 +41,13 @@ export function loadWorkspacePins() {
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
     return Object.fromEntries(Object.entries(raw).flatMap(([tab, value]) => {
       const pin = validWorkspacePin(tab, value);
-      return pin ? [[tab, pin]] : [];
+      return pin ? [[canonical(tab), pin]] : [];
     }));
   } catch { return {}; }
 }
 
 export function workspaceVisible(activeTab, pin, tab, workspacePin = null) {
+  activeTab = canonical(activeTab); tab = canonical(tab);
   const selected = activeTab === "chats" ? pin : validWorkspacePin(activeTab, workspacePin);
   return activeTab === tab || selected?.kind === "tool" && selected.tab === tab;
 }

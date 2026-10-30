@@ -9,7 +9,8 @@ appTabs.push('slicer', 'integrations', 'styling-library', 'sound-mixer', 'info-c
 appTabs.push('reels-analyzer');
 appTabs.push('web-system');
 appTabs.push('design-programming');
-appTabs.push('coding-coordinator');
+appTabs.push('coordinator');
+appTabLabels.coordinator = 'Coordinator';
 appTabLabels['coding-coordinator'] = 'Coding Coordinator';
 appTabLabels['design-programming'] = 'Design & Programming';
 appTabLabels['web-system'] = 'Web Research & Sources';
@@ -18,6 +19,7 @@ appTabLabels['info-center'] = 'Info Center';
 Object.assign(appTabLabels, {slicer: '3D Slicer', integrations: 'Linked applications', 'styling-library': 'Styling Library', 'sound-mixer':'Sound Mixer'});
 
 export function resolveActiveTab(tab) {
+  if (tab === 'coding-coordinator') return 'coordinator';
   return appTabs.includes(tab) ? tab : "chats";
 }
 
@@ -51,7 +53,7 @@ export function loadNavigation() {
   try {
     const saved = JSON.parse(localStorage.getItem(NAVIGATION_STORAGE_KEY));
     return {
-      tab: appTabs.includes(saved?.tab) ? saved.tab : "chats",
+      tab: resolveActiveTab(saved?.tab),
       sessionId: typeof saved?.sessionId === "string" ? saved.sessionId : null,
     };
   } catch { return { tab: "chats", sessionId: null }; }
@@ -62,7 +64,7 @@ export function saveNavigation(tab, sessionId) {
     let previous;
     try { previous = JSON.parse(localStorage.getItem(NAVIGATION_STORAGE_KEY)); } catch { /* Replace damaged state. */ }
     localStorage.setItem(NAVIGATION_STORAGE_KEY, JSON.stringify({
-      tab: appTabs.includes(tab) ? tab : "chats",
+      tab: resolveActiveTab(tab),
       sessionId: typeof sessionId === "string" ? sessionId : null,
       lastSessionId: typeof sessionId === "string" ? sessionId : previous?.lastSessionId || previous?.sessionId || null,
     }));

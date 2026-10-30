@@ -169,6 +169,13 @@ app.add_event_handler('startup', lambda: coding_manager())
 async def close_coding_coordinator():
     await coding_manager().close()
 app.add_event_handler('shutdown', close_coding_coordinator)
+from routes.coordinator import router as coordinator_router
+from services.coordinator import manager as coordinator_manager
+app.include_router(coordinator_router)
+app.add_event_handler('startup', lambda: coordinator_manager())
+async def close_coordinator():
+    await coordinator_manager().close()
+app.add_event_handler('shutdown', close_coordinator)
 app.include_router(memory_router)
 app.include_router(prompt_index_router)
 app.include_router(image_generation_router)

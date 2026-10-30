@@ -4,6 +4,38 @@ This is the consolidated evidence record, updated October 30, 2026.
 Current guides describe inspected source; dated tests below are not a certification
 of every feature, provider, installation or device.
 
+## October 30 Coordinator harness workspace
+
+[Coordinator](../workspace/COORDINATOR.md) is a main tab with Coding,
+Research & Knowledge and Media Librarian. Existing coding controls and storage
+are retained; research and media have versioned durable runs and explicit actions.
+
+- Frontend: **1,633 passed, 3 existing skips across 204 files**. Selected backend
+  coordinator, coding verification, research, media, registry and maintenance
+  suites: **113 passed**, with four existing FastAPI deprecation warnings.
+  A final focused run passed **10 Coordinator tests**, including one additional
+  test for disconnected HTTP actions retaining their maintenance lease until
+  file workers finish. Backend runtime directories were disposable.
+- Tests cover retained research evidence and explicit Knowledge receipts,
+  interrupted-state recovery without replay, strict request contracts, foreign
+  model IDs, metadata staleness, retained tags, single-use transfer plans and
+  partial completion. An actual fixture applies metadata and copies a registered
+  image, verifies byte equality and source preservation, then rejects replay.
+- The isolated Coordinator Electron walkthrough passed harness switching, draft
+  retention, combined Coding history, explicit Knowledge saves, reviewed metadata,
+  transfer preview, cancellation/confirmation, and narrow layout. Screenshots were
+  inspected. The full-app Design & Programming walkthrough also passed with the
+  new main tab and six remaining design destinations; non-failing Chromium widget
+  diagnostics remain present.
+- Model responses and web evidence were deterministic fixtures for these checks.
+  Live GPU/model quality, public-provider availability, real Knowledge embeddings
+  and physical-phone behavior were not retested. Media planning is metadata-only;
+  duplicate candidates use recorded hashes in the selected set. Research/media
+  tasks support Stop and explicit restart as a new task, not pause/resume.
+- Desktop compilation and installation use a separate build output and retain
+  existing hashed assets. The phone build is left intact; the live application is
+  not restarted. Captured source identity records the pre-commit worktree.
+
 ## October 30 Coding Coordinator Verification Manager
 
 The manual command box is now an advanced option under a project-aware

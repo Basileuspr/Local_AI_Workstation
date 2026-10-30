@@ -1,7 +1,7 @@
 // Small, local illustrations: no external images, user files, or model calls.
 // [input picture, result picture, input label, action, result label, motion]
 export const featureVisuals = {
-  'coding-coordinator': ['code', 'check', 'Project task', 'Edit and check', 'Reviewed diff'],
+  coordinator: ['code', 'check', 'Task and harness', 'Plan and verify', 'Reviewed result'],
   'design-programming': ['sliders', 'code', 'Design choices', 'Mix', 'Your interface'],
   dashboard: ['status', 'check', 'Services', 'Check', 'Ready to work', 'pulse'],
   queue: ['stack', 'check', 'Waiting requests', 'Run', 'Completed result', 'flow'],

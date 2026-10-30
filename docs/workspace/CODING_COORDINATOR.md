@@ -1,6 +1,8 @@
 # Coding Coordinator
 
-Open **Design & Programming → Coding Coordinator** in the desktop app. Choose a
+Open **Coordinator → Coding** in the desktop app. The shared
+[Coordinator workspace](COORDINATOR.md) also hosts Research & Knowledge and Media
+Librarian. Choose a
 local Git repository root, describe a focused change, select an installed Ollama
 model, and select checks in **Verification Manager**. Start authorizes source edits;
 the separate verification policy controls when checks can execute. The feature

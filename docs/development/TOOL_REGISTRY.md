@@ -15,6 +15,11 @@ Registered means the route exists, not that its runtime/models are ready.
 UI-only tools require their workspace. Missing routes are unavailable.
 The catalog is curated; OpenAPI is the broader route inventory.
 
+Coordinator is a main workspace with Coding, Research & Knowledge and Media
+Librarian harnesses. Its catalog entries open the interactive UI; action approval,
+Knowledge saves and transfer confirmation remain explicit workspace controls.
+See [Coordinator](../workspace/COORDINATOR.md) for saved runs and recovery.
+
 HTTP schemas derive from the actual route models. Arguments are grouped into
 path/query/body and other documented locations. Binary/upload contracts do not
 grant arbitrary filesystem access. Outputs can be asynchronous task snapshots or

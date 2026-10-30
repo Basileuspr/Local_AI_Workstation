@@ -6,7 +6,7 @@ const TAB_LABELS = { shortcuts: "Shortcut Registry", audio: "Audio", spreadsheet
 Object.assign(TAB_LABELS, { university: 'University', 'agent-university': 'Agent University', 'neural-network': 'Neural Network', 'break-room': 'Break Room' });
 TAB_LABELS['info-center'] = 'Info Center';
 TAB_LABELS['design-programming'] = 'Design & Programming';
-TAB_LABELS['coding-coordinator'] = 'Coding Coordinator';
+TAB_LABELS.coordinator = 'Coordinator';
 Object.assign(TAB_LABELS, {'reels-analyzer': 'Reels Analyzer', 'web-system': 'Web Research & Sources'});
 
 Object.assign(TAB_LABELS, {slicer: '3D Slicer', integrations: 'Linked applications', 'styling-library': 'Styling Library', 'sound-mixer':'Sound Mixer'});
@@ -59,6 +59,7 @@ function createTabCapture({ BrowserWindow, screen, clipboard, ClipboardItem, get
   return {
     dispose() { captureWindow?.destroy(); captureWindow = null; },
     async capture(tab) {
+      if (tab === 'coding-coordinator') tab = 'coordinator';
       if (!Object.hasOwn(TAB_LABELS, tab)) throw new Error("Unknown capture tab.");
       if (busy) throw new Error("Another screenshot is being prepared. Try again shortly.");
       const source = getWindow();

@@ -3,7 +3,7 @@ import { projectBrief, inventoryCsv, workshopMarkdown, recordingScript } from '.
 export const agentAppLessons = [
   {
     id: 'coding-project-review', title: 'Supervise a local coding task', module: 'Planning and evidence', minutes: 12,
-    workspaces: ['coding-coordinator', 'queue'],
+    workspaces: ['coordinator', 'queue'],
     concepts: ['The coding coordinator gives a tool-capable local model scoped source tools and user-configured checks. It protects existing changes and keeps a durable plan, diff and output record.',
       'Passing checks and a model review are evidence with limits. A check executes project code on your PC; use a trusted practice repository and inspect its commands first.'],
     steps: ['Create or choose a disposable Git project with one small bug and a check that exposes it. Keep a separate pre-existing note edit.',
