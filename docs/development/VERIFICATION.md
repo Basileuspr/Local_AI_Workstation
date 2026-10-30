@@ -4,6 +4,36 @@ This is the consolidated evidence record, updated October 30, 2026.
 Current guides describe inspected source; dated tests below are not a certification
 of every feature, provider, installation or device.
 
+## October 30 Knowledge graph contrast and spatial guides
+
+The Knowledge graph now has a padded enclosing frame, a visible floor grid and
+node-to-floor markers. Connections have stronger contrast, distant nodes retain
+their brightness, and labels use backplates with collision-aware placement and
+leader lines. Camera controls are outside the scene; a fixed-size compass,
+visible-node count, **Show all nodes**, and selected XYZ coordinates aid navigation.
+These changes preserve document positions, custom appearance and graph data.
+
+- The full frontend suite passed **1,620 tests across 202 files**, with **3 existing
+  skips**. The focused Knowledge suites passed **25 tests**, including fitting
+  empty/flat/extreme volumes, clipping camera-plane crossings, separating labels
+  and preserving world coordinates.
+- The isolated production-frontend/real-endpoint Electron fixture passed all
+  **17 checkpoints** with disposable data and no renderer errors. Coverage includes
+  guides, readable clustered labels, offscreen recovery, orbit/pan/zoom/fit/focus,
+  persisted node dragging and depth, locking, search, customization, reload and
+  authored-node editing. Lost pointer capture cancels an unfinished move and the
+  next drag still saves. Injected drags now carry pressed-button state and remain
+  inside the test window so Chromium receives their release.
+- Wide, rotated, selected and 390px screenshots were inspected. Narrow layout
+  has no horizontal overflow. Screenshots wait for rendering before capture.
+- The desktop production build passed with the existing large-chunk and manifold
+  externalization warnings. Documentation and whitespace checks passed.
+
+The desktop build is prepared for the next app restart; the live app was not
+restarted during validation. Backend unit suites, GPU generation, physical-phone
+and Android acceptance were outside this renderer change. Very dense graphs may
+still need zoom or Focus node; label placement does not rearrange documents.
+
 ## October 30 UI Design Mirror Apply and Undo
 
 The mirror now has an explicit **Apply to app** action after side-by-side review.

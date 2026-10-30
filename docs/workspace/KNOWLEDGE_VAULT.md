@@ -42,6 +42,20 @@ participate in retrieval when selected.
 
 ## Navigate the graph
 
+The 3D view encloses the documents in a visible frame with a floor grid. Dotted
+guides join each node to a floor marker so its height and depth are easier to
+judge. **Space guides** toggles these aids without moving any documents. Bright
+solid lines are manual links; dashed violet lines are document links. Selecting
+a node emphasizes its connections while keeping the rest of the graph visible.
+Labels use dark backplates and spread around crowded nodes, with small leader
+lines connecting each label to its document. Label placement never changes saved
+document positions.
+
+The counter shows how many node centers are in view. If you pan or zoom past
+documents, **Show all nodes** brings the whole space back while keeping your
+viewing angle. The orientation compass stays in the corner, and selecting a
+node shows its saved-space X/Y/Z coordinates below the graph.
+
 Drag the background to rotate; Shift/right-drag pans; scroll or +/- zooms.
 Drag an unlocked node in the camera plane, or Alt-drag / Deeper / Closer to change
 depth. Fit graph preserves viewing angle; Reset view restores it; Focus node

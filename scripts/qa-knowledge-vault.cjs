@@ -17,7 +17,7 @@ async function until(predicate, label) { const end = Date.now() + 20000; while (
 app.whenReady().then(async () => {
   child = spawn(path.join(root, "venv", "Scripts", "python.exe"), [path.join(__dirname, "qa_knowledge_vault.py")], { windowsHide: true, stdio: ["pipe", "pipe", "inherit"] });
   const fixture = await new Promise((resolve, reject) => { createInterface({ input: child.stdout }).once("line", line => resolve(JSON.parse(line))); child.once("exit", code => reject(new Error(`Fixture exited ${code}`))); });
-  protocol.handle("app", async request => { const result = await net.fetch(pathToFileURL(appAsset(path.join(root, "dist"), request.url)).toString()); return new Response(result.body, { headers: { ...Object.fromEntries(result.headers), ...APP_HEADERS } }); });
+  protocol.handle("app", async request => { const result = await net.fetch(pathToFileURL(appAsset(process.env.LAW_QA_DIST || path.join(root, "dist"), request.url)).toString()); return new Response(result.body, { headers: { ...Object.fromEntries(result.headers), ...APP_HEADERS } }); });
   ipcMain.on("app:connection", event => { event.returnValue = { base: fixture.url, token: "" }; });
   ipcMain.handle("maintenance:import-status", () => ({ pending: false }));
   ipcMain.handle("media-manager:place", () => {});
@@ -31,13 +31,26 @@ app.whenReady().then(async () => {
   win = new BrowserWindow({ show: false, width: 1600, height: 1050, webPreferences: { offscreen: true, backgroundThrottling: false, preload: path.join(root, "electron", "preload.js"), sandbox: true, contextIsolation: true, nodeIntegration: false } });
   win.webContents.on("console-message", (_event, level, message) => { if (level === 3 && !message.includes("Failed to load resource")) errors.push(message); });
   const run = code => win.webContents.executeJavaScript(`{ ${code} }`);
-  const snapshot = async name => { const painted = new Promise(resolve => win.webContents.once("paint", (_event, _dirty, image) => resolve(image))); win.webContents.invalidate(); fs.writeFileSync(path.join(output, name), (await painted).toPNG()); };
+  const snapshot = async name => { await run("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))"); const painted = new Promise(resolve => win.webContents.once("paint", (_event, _dirty, image) => resolve(image))); win.webContents.invalidate(); fs.writeFileSync(path.join(output, name), (await painted).toPNG()); };
   await win.loadURL("app://local/index.html");
   await until(() => run("!!document.querySelector('[data-sidebar-route=knowledge]')"), "navigation");
   await run("document.querySelector('[data-sidebar-route=knowledge]').click()");
   await until(() => run("document.querySelectorAll('[data-node-id]').length===8"), "graph nodes");
   assert.equal(await run("document.querySelector('.chat-pane').hidden"), true);
   assert.ok(await run("document.querySelectorAll('.vault-graph line').length>5"));
+  assert.equal(await run("document.querySelector('.vault-visibility-count').textContent"), '8 of 8 nodes in view');
+  assert.equal(await run("document.querySelectorAll('.vault-space-frame').length"), 12);
+  assert.equal(await run("document.querySelectorAll('.vault-space-anchor').length"), 8);
+  assert.equal(await run("const labels=Array.from(document.querySelectorAll('.vault-node-label rect')).map(node=>node.getBoundingClientRect());labels.every((a,i)=>labels.every((b,j)=>i===j||a.right<=b.left||b.right<=a.left||a.bottom<=b.top||b.bottom<=a.top))"), true, 'clustered labels remain readable without overlaps');
+  await snapshot('vault-space-overview.png');
+  const originalWorld = await run("Array.from(document.querySelectorAll('[data-node-id]')).map(node=>[node.dataset.nodeId,node.dataset.worldX,node.dataset.worldY,node.dataset.worldZ]).sort()");
+  await run("Array.from(document.querySelectorAll('.vault-graph-tools button')).find(button=>button.textContent==='Space guides').click()");
+  await until(() => run("!document.querySelector('.vault-space-guides')"), 'hide space guides');
+  assert.equal(await run("document.querySelectorAll('[data-node-id]').length"), 8);
+  await run("Array.from(document.querySelectorAll('.vault-graph-tools button')).find(button=>button.textContent==='Space guides').click()");
+  await until(() => run("!!document.querySelector('.vault-space-guides')"), 'restore space guides');
+  assert.deepEqual(await run("Array.from(document.querySelectorAll('[data-node-id]')).map(node=>[node.dataset.nodeId,node.dataset.worldX,node.dataset.worldY,node.dataset.worldZ]).sort()"), originalWorld);
+  checks.push('All nodes fit inside the bounded room; depth markers and optional guides preserve document positions');
   await run("document.querySelector('[data-node-id=a]').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}))");
   await until(() => run("document.querySelector('.vault-chunk')?.textContent.includes('synthetic QA')"), "indexed text");
   checks.push("Knowledge opens its own graph pane; actual wiki links and indexed text come from Chroma");
@@ -49,9 +62,13 @@ app.whenReady().then(async () => {
   const beforeOrbit = await run("const svg=document.querySelector('.vault-graph svg');({yaw:svg.dataset.yaw,pitch:svg.dataset.pitch,transform:document.querySelector('[data-node-id=b]').getAttribute('transform'),world:Array.from(document.querySelectorAll('[data-node-id]')).map(node=>[node.dataset.nodeId,node.dataset.worldX,node.dataset.worldY,node.dataset.worldZ]).sort()})");
   const background = await run("const r=document.querySelector('.vault-graph svg').getBoundingClientRect();({x:Math.round(r.x+r.width*.8),y:Math.round(r.y+r.height*.25)})");
   const pointerDrag = async (start, dx, dy, button = 'left', modifiers = []) => {
+    win.webContents.sendInputEvent({ type: 'mouseMove', ...start });
     win.webContents.sendInputEvent({ type: 'mouseDown', ...start, button, modifiers, clickCount: 1 });
-    win.webContents.sendInputEvent({ type: 'mouseMove', x: start.x + dx, y: start.y + dy, movementX: dx, movementY: dy, modifiers });
+    await pause(30);
+    win.webContents.sendInputEvent({ type: 'mouseMove', x: start.x + dx, y: start.y + dy, movementX: dx, movementY: dy, button, modifiers: [...modifiers, `${button}buttondown`] });
+    await pause(30);
     win.webContents.sendInputEvent({ type: 'mouseUp', x: start.x + dx, y: start.y + dy, button, modifiers, clickCount: 1 });
+    await pause(30);
   };
   await pointerDrag(background, 100, 60);
   await until(() => run(`document.querySelector('.vault-graph svg').dataset.yaw!==${JSON.stringify(beforeOrbit.yaw)}`), "3D pointer orbit");
@@ -66,6 +83,14 @@ app.whenReady().then(async () => {
   await pointerDrag(background, 45, 25, 'right');
   await until(() => run(`document.querySelector('[data-node-id=b]').getAttribute('transform')!==${JSON.stringify(beforePan)}`), "3D camera pan");
   assert.equal(await run("document.querySelector('.vault-graph svg').dataset.yaw"), orbitYaw);
+  // Keep injected input inside the test window so Chromium receives release.
+  for (let step = 0; step < 4; step++) await pointerDrag(background, -250, 180, 'right');
+  await until(() => run("!!document.querySelector('.vault-graph-overview button')"), 'offscreen recovery control');
+  assert.notEqual(await run("document.querySelector('.vault-visibility-count').textContent"), '8 of 8 nodes in view');
+  await run("document.querySelector('.vault-graph-overview button').click()");
+  await until(() => run("document.querySelector('.vault-visibility-count').textContent==='8 of 8 nodes in view'"), 'recover all offscreen nodes');
+  assert.equal(await run("document.querySelector('.vault-graph svg').dataset.yaw"), orbitYaw);
+  checks.push('Panning out of view reports missing nodes; Show all nodes recovers the scene and preserves orbit');
   const distance = await run("Number(document.querySelector('.vault-graph svg').dataset.distance)");
   await run("document.querySelector('.vault-graph svg').dispatchEvent(new WheelEvent('wheel',{deltaY:-120,bubbles:true,cancelable:true}))");
   await until(() => run(`Number(document.querySelector('.vault-graph svg').dataset.distance)<${distance}`), "perspective zoom");
@@ -84,9 +109,20 @@ app.whenReady().then(async () => {
   // Real pointer events exercise camera-relative node movement and persisted xyz.
   const center = await run("const r=document.querySelector('[data-node-id=a] circle').getBoundingClientRect();const x=r.x+r.width/2,y=r.y+r.height/2;({x,y,hit:document.elementFromPoint(x,y)?.closest('[data-node-id]')?.dataset.nodeId})");
   assert.equal(center.hit, 'a', 'drag target is visible after resetting the camera');
-  win.webContents.sendInputEvent({ type: "mouseDown", x: Math.round(center.x), y: Math.round(center.y), button: "left", clickCount: 1 });
-  win.webContents.sendInputEvent({ type: "mouseMove", x: Math.round(center.x + 40), y: Math.round(center.y + 25), movementX: 40, movementY: 25 });
-  win.webContents.sendInputEvent({ type: "mouseUp", x: Math.round(center.x + 40), y: Math.round(center.y + 25), button: "left", clickCount: 1 });
+  const beforeInterruptedDrag = await run("document.querySelector('[data-node-id=a]').dataset.worldX");
+  await run("document.querySelector('.vault-graph svg').addEventListener('gotpointercapture',event=>window.qaHeldPointer=event.pointerId,{once:true})");
+  win.webContents.sendInputEvent({ type: 'mouseMove', x: Math.round(center.x), y: Math.round(center.y) });
+  win.webContents.sendInputEvent({ type: 'mouseDown', x: Math.round(center.x), y: Math.round(center.y), button: 'left', clickCount: 1 });
+  await pause(30);
+  win.webContents.sendInputEvent({ type: 'mouseMove', x: Math.round(center.x + 30), y: Math.round(center.y + 15), modifiers: ['leftbuttondown'] });
+  await until(() => run(`!!window.qaHeldPointer && document.querySelector('[data-node-id=a]').dataset.worldX!==${JSON.stringify(beforeInterruptedDrag)}`), 'captured node drag');
+  await run("document.querySelector('.vault-graph svg').releasePointerCapture(window.qaHeldPointer)");
+  win.webContents.sendInputEvent({ type: 'mouseMove', x: Math.round(center.x + 30), y: Math.round(center.y + 15), modifiers: ['leftbuttondown'] });
+  await until(() => run(`document.querySelector('[data-node-id=a]').dataset.worldX===${JSON.stringify(beforeInterruptedDrag)}`), 'interrupted drag restored');
+  win.webContents.sendInputEvent({ type: 'mouseUp', x: Math.round(center.x + 30), y: Math.round(center.y + 15), button: 'left', clickCount: 1 });
+  assert.ok(!(await (await fetch(fixture.url + '/files/knowledge-base/graph')).json()).nodes.find(node => node.doc_id === 'a').position);
+  checks.push('Losing pointer capture cancels an unfinished node move and permits the next drag');
+  await pointerDrag({ x: Math.round(center.x), y: Math.round(center.y) }, 40, 25);
   await until(async () => (await (await fetch(fixture.url + "/files/knowledge-base/graph")).json()).nodes.find(node => node.doc_id === "a").position, "saved node position");
   const draggedPosition = (await (await fetch(fixture.url + "/files/knowledge-base/graph")).json()).nodes.find(node => node.doc_id === "a").position;
   assert.ok(Number.isFinite(draggedPosition.z));
@@ -135,9 +171,7 @@ app.whenReady().then(async () => {
   await run("Array.from(document.querySelectorAll('.vault-node-actions button')).find(button=>button.textContent==='Cancel').click()");
   assert.ok(await run("document.querySelector('[data-node-id=a]').getAttribute('aria-label').includes('Atlas hub')"));
   const lockedCenter = await run("const r=document.querySelector('[data-node-id=a] .vault-node-shape').getBoundingClientRect();({x:r.x+r.width/2,y:r.y+r.height/2})");
-  win.webContents.sendInputEvent({ type: "mouseDown", x: Math.round(lockedCenter.x), y: Math.round(lockedCenter.y), button: "left", clickCount: 1 });
-  win.webContents.sendInputEvent({ type: "mouseMove", x: Math.round(lockedCenter.x + 35), y: Math.round(lockedCenter.y + 25), movementX: 35, movementY: 25 });
-  win.webContents.sendInputEvent({ type: "mouseUp", x: Math.round(lockedCenter.x + 35), y: Math.round(lockedCenter.y + 25), button: "left", clickCount: 1 });
+  await pointerDrag({ x: Math.round(lockedCenter.x), y: Math.round(lockedCenter.y) }, 35, 25);
   assert.deepEqual((await (await fetch(fixture.url + "/files/knowledge-base/graph")).json()).nodes.find(node => node.doc_id === "a").position, savedNode.position);
   assert.equal(await run("Array.from(document.querySelectorAll('.vault-depth-buttons button')).every(button=>button.disabled)"), true);
   await snapshot("vault-customized.png");
@@ -187,6 +221,8 @@ app.whenReady().then(async () => {
   win.setSize(390, 844); await pause(200);
   assert.equal(await run("document.documentElement.scrollWidth<=innerWidth && document.querySelector('.vault-workspace').scrollWidth<=document.querySelector('.vault-workspace').clientWidth"), true);
   await snapshot("vault-narrow.png");
+  await run("document.querySelector('.vault-graph').scrollIntoView({block:'start'})");
+  await snapshot('vault-space-narrow.png');
   await run("document.querySelector('.vault-node-editor summary').click()");
   await run("document.querySelector('.vault-node-editor').scrollIntoView()");
   assert.equal(await run("document.querySelector('.vault-node-editor').scrollWidth<=document.querySelector('.vault-inspector').clientWidth"), true);
