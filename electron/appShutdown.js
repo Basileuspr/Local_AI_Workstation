@@ -70,14 +70,18 @@ function createAppShutdown({ app, stopBackend, dispose = [], onBegin, onFailure,
     return { request, beforeQuit, closeWindow };
 }
 
-function applicationMenu(request) {
+function applicationMenu(request, openDesignMirror = () => {}) {
     return [
         { label: 'File', submenu: [
             { label: 'Exit && Restart', click: () => { void request({ restart: true }); } },
             { type: 'separator' },
             { label: 'Exit', accelerator: 'Alt+F4', click: () => { void request(); } },
         ] },
-        { role: 'editMenu' }, { role: 'viewMenu' }, { role: 'windowMenu' },
+        { role: 'editMenu' }, { role: 'viewMenu' },
+        { label: 'Design', submenu: [
+            { label: 'UI Design Mirror…', accelerator: 'CmdOrCtrl+Alt+D', click: () => { void openDesignMirror(); } },
+        ] },
+        { role: 'windowMenu' },
     ];
 }
 

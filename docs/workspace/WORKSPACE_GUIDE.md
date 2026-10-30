@@ -37,6 +37,48 @@ Web's position and its tool order; Find a tab searches all three destinations.
 
 ## Design & Programming
 
+### UI Design Mirror (menu bar)
+
+Open **Design → UI Design Mirror…** in the desktop menu bar, or press
+**Ctrl+Alt+D**. This opens a separate offline child window with a visual copy of
+the rendered application. It has no app API connection or working app actions.
+Neither editing, **Review requested edits**, nor exporting applies changes.
+
+Click an element in the copy, or use **Find an element** and the element list.
+Change that element's font family, size, weight, style, colors, border, corners,
+padding, spacing, alignment, or dimensions. Leaf labels and field placeholders
+can be rewritten. **Select parent** targets a containing section; the UX request
+field records behavior/layout ideas that styling controls cannot demonstrate.
+Restore a property with its reset arrow, reset the selected element, or undo the
+last edit. Requests are specific to an element in a capture, not global rules.
+
+The bright **Review requested edits** button activates on the first change. It
+opens original/proposed views at identical viewport sizes with linked scrolling,
+plus a per-element table of original and requested values. **Compare target**
+opens the relevant capture and workspace. **Continue editing** returns to the
+playground. **Export requests** saves a versioned JSON request record containing
+targets and before/requested values; it is not an executable theme or an apply action.
+
+**Workspace in copy** previews workspaces whose DOM was mounted at capture time.
+Double-click a copied menu/disclosure, or use **Open / close section**, to inspect
+its existing contents. To include newly loaded content or a conditionally created
+menu/dialog, open it in the main app and choose **Add current app view**. Up to
+eight captures share one draft, bounded to 48 MiB. Lazy views not yet mounted are
+marked unavailable. Media already decoded in memory can be copied; no assets are
+fetched. Embedded apps, browser pages and native surfaces use placeholders, and
+shadow-root internals are excluded. The native menu bar preview is a design
+proposal; the operating system still draws the real menu.
+
+The mirror automatically saves its captures and requests separately under the
+desktop profile's `ui-design-mirror/draft.json`, and restores them on reopening.
+Captures include on-screen text; password, hidden and file input values are blanked.
+Export includes requested values and target descriptions, without the full copy.
+**Remove capture** asks before removing its requests. Save failures remain visible
+with a retry action, and ordinary window closing waits for outstanding edits to
+save. Mirror drafts do not change the application appearance preferences.
+
+### Shared appearance playground
+
 **Design & Programming** is a main tab beside Dashboard, Functions, and Info
 Center. It contains **UI Playground**, **Styling Library**, **HTML Viewer**,
 **CSS / Styling**, **JavaScript Viewer**, and **Markdown Viewer**. Find a tab,

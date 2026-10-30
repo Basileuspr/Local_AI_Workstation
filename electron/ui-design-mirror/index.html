@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; frame-src 'self' about:; img-src data:; connect-src 'none'; font-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>UI Design Mirror</title>
+  <link rel="stylesheet" href="editor.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="logo" aria-hidden="true">◈</span><div><h1>UI Design Mirror</h1><p>Design requests · never applied to your app</p></div></div>
+    <div class="top-actions"><span class="offline">● Offline copy</span><button id="capture">Add current app view</button><button id="review" class="review-button" disabled>Review requested edits <span id="count">0</span></button></div>
+  </header>
+  <div class="notice-row"><p id="status" role="status" aria-live="polite">Opening your design draft…</p><button id="retry-save" hidden>Retry saving</button></div>
+  <main>
+    <section class="view-controls" aria-label="Preview controls">
+      <label>Capture<select id="captures"></select></label>
+      <label>Workspace in copy<select id="workspace"></select></label>
+      <label>Preview scale<select id="zoom"><option value="fit">Fit</option><option value="1">100%</option><option value="0.75">75%</option><option value="0.5">50%</option></select></label>
+      <button id="remove-capture">Remove capture</button><button id="back" hidden>← Continue editing</button>
+    </section>
+    <div id="workbench" class="workbench">
+      <aside id="inspector" aria-label="Element editor">
+        <div class="inspector-heading"><span class="eyebrow">SELECT & EXPERIMENT</span><h2>Make it yours.</h2><p>Click any element in the copy. Edit just that element, or select its parent to change a whole section.</p></div>
+        <details id="element-picker" open><summary>Find or choose an element</summary>
+          <label class="search-label">Find an element<input id="search" type="search" placeholder="Header, button, label…"></label>
+          <label>Elements<select id="elements" size="5" aria-label="Elements in this workspace"></select></label>
+        </details>
+        <div id="selection-empty" class="empty">Choose an element to see its design options.</div>
+        <div id="selection" hidden>
+          <div class="selection-title"><span id="tag" class="eyebrow"></span><h3 id="selected-label"></h3><p id="target-path"></p></div>
+          <div class="small-actions"><button id="parent">Select parent</button><button id="reveal" hidden>Open / close section</button></div>
+          <div id="fields"></div>
+          <label>UX request or explanation<textarea id="note" maxlength="2000" rows="3" placeholder="Describe behavior or layout you would like changed…"></textarea></label>
+          <div class="small-actions"><button id="undo">Undo last edit</button><button id="reset-element">Reset this element</button></div>
+        </div>
+      </aside>
+      <section class="canvas-area" aria-label="Design canvas">
+        <div class="canvas-heading"><div><span class="eyebrow" id="canvas-kicker">YOUR APPLICATION, AS A PLAYGROUND</span><h2 id="canvas-title">Select a detail. Try a new look.</h2></div><span class="draft-badge">Draft only</span></div>
+        <p class="canvas-help" id="canvas-help">Click to edit · Double-click menus and disclosures to open them · Scroll to reach more controls</p>
+        <div class="comparison" id="comparison">
+          <section id="before-panel" class="preview-panel" hidden><header>Original <span>Frozen at capture</span></header><div class="viewport"><div class="frame-size"><iframe id="before" title="Original application appearance" sandbox="allow-same-origin"></iframe></div></div></section>
+          <section class="preview-panel"><header>Proposed <span id="capture-time"></span></header><div class="viewport"><div class="frame-size"><iframe id="after" title="Proposed application appearance" sandbox="allow-same-origin"></iframe></div></div></section>
+        </div>
+        <section id="review-list" hidden aria-label="Requested edits">
+          <div class="review-heading"><div><span class="eyebrow">YOUR REQUEST RECORD</span><h2>Before → Requested</h2><p>Nothing here applies changes. Select a request to compare its target in both views.</p></div><button id="export" class="export-button">Export requests</button></div>
+          <div id="changes"></div>
+        </section>
+        <details class="capture-notes"><summary>About this copy</summary><p>Copies use the rendered app and mounted workspaces from the time of capture. To include a newly opened dialog or a lazy-loaded view, open it in the main app, then choose Add current app view. The mirror cannot run app actions. Menu bar styling is a visual proposal; the operating system draws the real native menus.</p><p>Drafts, including copied on-screen text, stay in this device’s separate mirror draft. Export contains only requested changes and their targets.</p><ul id="warnings"></ul></details>
+      </section>
+    </div>
+  </main>
+  <dialog id="remove-dialog"><h2>Remove this capture?</h2><p>Its requested edits will also be removed from this draft. Export the requests first if you need to keep them.</p><div class="small-actions"><button id="cancel-remove">Keep capture</button><button id="confirm-remove">Remove capture</button></div></dialog>
+  <script type="module" src="editor.js"></script>
+</body>
+</html>

@@ -150,6 +150,11 @@ function trustedDesktop(event) {
     return trustedUrl(event.senderFrame.url, useViteDev ? CONFIG.viteDevUrl : null);
 }
 
+const uiDesignMirror = require('./uiDesignMirror').createUIDesignMirror({
+    BrowserWindow, ipcMain, dialog, getWindow: () => mainWindow, getMenu: () => Menu.getApplicationMenu(),
+    directory: app.getPath('userData'),
+});
+
 const browserWorkflowDirectory = path.join(app.getPath('userData'), 'browser-workflows');
 async function browserMediaRequest(id, action, body) {
     if(!/^[a-f0-9]{32}$/.test(id) || !['verify','cancel'].includes(action))throw Error('Invalid browser media operation.');
@@ -1094,7 +1099,9 @@ app.whenReady().then(async () => {
     log.info("Logging to", logFilePath() || "(console only)");
     log.info('Window rendering:', rendering.state());
     registerAppProtocol();
-    Menu.setApplicationMenu(Menu.buildFromTemplate(applicationMenu(shutdown.request)));
+    Menu.setApplicationMenu(Menu.buildFromTemplate(applicationMenu(shutdown.request, () => uiDesignMirror.open().catch(error => {
+        void dialog.showMessageBox({ type: 'error', title: 'UI Design Mirror', message: error.message });
+    }))));
     try { await selectBackendPort(); }
     catch (err) { backendState = { state: "failed", detail: err.message }; }
     if (isQuitting) return;
@@ -1122,7 +1129,7 @@ const shutdown = createAppShutdown({
     canShutdown: () => localFiles.canLeave(),
     app, log, stopBackend: stopPythonBackend,
     onBegin: () => { isQuitting = true; },
-    dispose: [() => functionWorkflows.dispose(), () => tabCapture.dispose(), () => driveSpace.dispose(),
+    dispose: [() => uiDesignMirror.dispose(), () => functionWorkflows.dispose(), () => tabCapture.dispose(), () => driveSpace.dispose(),
         () => reelsAnalyzer.dispose(), () => mediaManager.dispose(), () => browserWindows.dispose(), () => viewerBrowser.dispose(), () => meshRepair.dispose(),
         // Close the renderer before stopping the API so polling and live streams
         // cannot keep submitting requests during Uvicorn's shutdown.

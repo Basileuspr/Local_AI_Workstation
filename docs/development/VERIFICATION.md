@@ -6,6 +6,43 @@ of every feature, provider, installation or device.
 
 ## October 30 Design & Programming
 
+### UI Design Mirror
+
+The desktop **Design → UI Design Mirror** opens a sandboxed child with its own
+minimal preload and ephemeral browser partition. Captures read mounted DOM and
+already decoded pixels without fetching assets or mounting the React app again.
+Per-element proposals, comparison and export never apply to the real app.
+
+- Validation used an isolated copy of `main` plus only the mirror's task files,
+  excluding the unrelated Knowledge Vault and info-bubble drafts. The full
+  frontend suite passed **1,610 tests**, with **3 existing skips**. The focused
+  mirror/shutdown checks passed **17 tests**, including immutable request history,
+  target/property filtering, menu routing, IPC sender/frame guards, network
+  allowlisting, serialized draft writes, restoration, capture limits and corrupt
+  draft recovery.
+- `node scripts/qa-ui-design-mirror.cjs --app` exercised the real child window,
+  preload and sandbox with temporary profile/files and synthetic app responses.
+  It checked single-heading font/size/color changes, unchanged neighboring/source
+  controls, review counts and before/after values, export, reset/undo, disabled
+  controls, placeholders, mounted-workspace selection, native-menu proposals,
+  closed/open popovers, portal dialogs, multiple captures and a fresh host's
+  restoration from disk. Network fetches, popups, injected scripts and foreign
+  IPC callers were denied. The actual React fixture exposed over 6,400 editable
+  elements across 48 workspace slots. Desktop/comparison/900-pixel captures were
+  visually inspected; no renderer errors or horizontal overflow remained.
+- Isolated desktop production build passed with the existing large-chunk and
+  manifold externalization warnings. Documentation links and whitespace checks
+  passed. No deployed renderer, running app, phone, backend, GPU service or
+  unrelated draft was changed by validation.
+
+Embedded/native surfaces and shadow-root internals are not editable DOM copies;
+unmounted views require a new capture after opening them in the main app. The
+native menu preview illustrates styling requests, rather than restyling the OS
+menu. Live desktop restart, GPU generation and phone/Android acceptance were
+not performed for this menu/editor-only change.
+
+### Shared appearance playground
+
 The main Design & Programming workspace groups the UI Playground, Styling
 Library, HTML, CSS, JavaScript, and Markdown viewers. Existing source routes,
 Functions, captures, search, and pins retain their destinations. Older saved
