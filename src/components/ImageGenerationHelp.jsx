@@ -5,7 +5,7 @@ import "./ImageGenerationHelp.css";
 const scales = [
   {
     title: "Reference image · likeness and emulation",
-    description: "Upload, drop, paste, or choose Use as Generate reference from image actions across the app. Actual reference pixels guide image-to-image generation. Read reference details with an installed vision model, review the separate appearance/style/composition/lighting fields, then explicitly add selected fields to your prompt.",
+    description: "Choose a compatible SDXL model, then upload, drop, paste, or choose Use as Generate reference from image actions across the app. Actual reference pixels guide image-to-image generation. Verboa / ERNIE supports text-to-image only. Read reference details with an installed vision model, review the separate appearance/style/composition/lighting fields, then explicitly add selected fields to your prompt.",
     rows: [
       ["5–35% · Small changes", "A starting range for keeping composition and appearance close. Compare a few settings; likeness is not guaranteed."],
       ["40–75% · Larger changes", "More freedom to alter shapes and details. Subject identity may change."],

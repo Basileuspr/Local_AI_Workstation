@@ -1,8 +1,35 @@
 # Verification record and open findings
 
-This is the consolidated evidence record, reviewed October 23, 2026.
+This is the consolidated evidence record, updated October 30, 2026.
 Current guides describe inspected source; dated tests below are not a certification
 of every feature, provider, installation or device.
+
+## October 30 workspace information audit
+
+All 46 workspace guides were reviewed against current source. Corrections cover
+phone pairing and updates, ordered jobs and batches, character intake, image
+saving and original-resolution zoom, workflow asset limits, model/reference/LoRA
+compatibility, and the Design & Programming navigation. The guides also explain
+the completed UI Design Mirror's captures, individual requests, saved drafts,
+comparison and export separately from the UI Playground's Apply to app action.
+
+- Validation used an isolated checkout of the published UI Design Mirror commit
+  plus only the information-guide changes. The unrelated Knowledge Vault draft
+  was excluded. The full frontend suite passed **1,610 tests across 201 files**,
+  with **3 existing skips**.
+- The existing workspace-information Electron fixture passed for all **46**
+  dialogs: scoped controls, open/close, focus restoration and no horizontal
+  overflow. Escape preserved the chat draft; pinned help, embedded-surface
+  coverage and narrow layout passed. Updated Design & Programming, Dashboard
+  phone guidance and narrow-dialog screenshots were visually inspected.
+- The isolated desktop production build passed with the existing large-chunk
+  and manifold externalization warnings. Documentation validation passed:
+  **55 Markdown files, 269 local links, 92 relocation entries, 0 errors**.
+  Whitespace checks passed.
+
+This was a help-text change. No runtime behavior, deployed assets, phone data or
+live services were changed. Backend, physical-phone, Android-installation and
+GPU acceptance were not rerun; the live app was not restarted.
 
 ## October 30 Design & Programming
 

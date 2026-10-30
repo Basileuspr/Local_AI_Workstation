@@ -10,6 +10,8 @@ export const sharedHelp = [
   ['Appearance', [
     ['Theme / contrast', 'Changes interface colors and text/border contrast immediately. Image, video and document content retain their own appearance.'],
     ['Font / size', 'Uses locally installed fonts with a fallback. Document and website previews keep their own formatting. Preferences are saved on this device.'],
+    ['Design & Programming → UI Playground', 'Preview palettes, fonts and shared control treatments, combine library examples and save named designs. Preview edits stay in the playground until Apply to app. Apply updates supported shared appearance settings; Undo application restores the previous appearance unless it has changed elsewhere. Embedded apps and native surfaces keep their own styling.'],
+    ['Design → UI Design Mirror…', 'Use the desktop menu or Ctrl+Alt+D to edit individual elements in an offline copy of the app. Review and export requested edits; these proposals never change the running app. The Design & Programming guide explains captures, saved drafts and preview limits.'],
     ['Windows compatibility rendering', 'Paints interface text on CPU while retaining available GPU support for video and 3D. It does not change AI model GPU settings.'],
     ['Software rendering', 'Also disables interface GPU acceleration if rendering artifacts persist. Apply/reopen uses the requested desktop rendering mode.'],
   ]],

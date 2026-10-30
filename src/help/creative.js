@@ -1,6 +1,6 @@
 export const creativeHelp = {
   generate: [['Request and results', [
-    ['Model', 'Select an installed image model before generating. Verboa uses text-to-image only, dimensions in multiples of 16, and commonly starts with 8 steps, guidance 2 and an empty negative prompt.'],
+    ['Model', 'Select an installed compatible SDXL or ERNIE image model before generating. Verboa uses text-to-image only, dimensions in multiples of 16, and commonly starts with 8 steps, guidance 2 and an empty negative prompt. Reference images and local SDXL LoRAs require an SDXL model. Downloading weights for another model family does not add a generation provider.'],
     ['Prompt / negative prompt', 'Describe desired content and what to discourage. Review these fields before submitting a request.'],
     ['Steps / Guidance / Seed shortcuts', 'Edit the visible number fields directly, or expand their presets and adjustments for the existing shortcut buttons. Random seed stays visible. Closing an expander retains the current values.'],
     ['Tab options', 'Contains Clear Generate tab, Reset defaults and Jump to Chat. Clear and Reset remain separate actions with their original behavior.'],
@@ -34,6 +34,7 @@ export const creativeHelp = {
     ['Skin-tone request', 'Opens Magic Edit with your current reference assigned to skin tone. Review guidance and paint the relevant area before generating.'],
     ['Strength / working canvas', 'Lower strength stays closer to the source. Small images can use a larger working copy; accepted images keep their original proportions and dimensions.'],
     ['Runtime', 'Magic Edit needs an installed compatible SDXL model, CUDA and all image-runtime packages. An unavailable runtime shows its reason. It does not download models or dependencies.'],
+    ['LoRA scope', 'Magic Edit uses the base SDXL model. The adapter selected in Generate does not carry into Magic Edit.'],
   ]]],
   workflows: [['Processing workflows', [
     ['New workflow / assets', 'Creates a saved draft with owned image copies. Upload sources, masks and control maps, then assign them to stages.'],
@@ -42,6 +43,7 @@ export const creativeHelp = {
     ['Operation / adapter', 'SDXL requires an installed compatible model, CUDA and all image-runtime packages. An unavailable provider shows its reason; use Workflow options → Refresh providers after setup or restart. Ollama vision describes images; Lanczos resizes on CPU. A stage without an available adapter cannot run.'],
     ['Prompt / settings', 'SDXL stages use prompts and generation settings. Describe / OCR reports content separately; Lanczos resizes without a prompt, preserves PNG transparency and saves a new image up to 24 megapixels. Originals stay unchanged.'],
     ['References', 'Assign owned assets to the available roles. ControlNet and multi-reference adapters are not installed in this implementation.'],
+    ['LoRA scope', 'Processing workflows and iterative scenes use the base SDXL model. They do not apply the adapter selected in Generate.'],
     ['Validate / Prepare snapshot', 'Saves pending edits and checks configuration. Prepare stores a read-only input snapshot without running generation.'],
     ['Run / Stop workflow', 'Uses the shared Prompt Queue. Stopping waits for the provider to exit; completed results remain available.'],
     ['Run history', 'Each run keeps its original input snapshot. Review saved outputs after an interrupted run before starting again.'],
@@ -80,6 +82,7 @@ export const creativeHelp = {
     ['Upload files / Saved file', 'Creates an app copy up to 128 MiB; images are limited to 24 megapixels. Saved file links a previous upload again. Video playback depends on the codec.'],
     ['Unlink', 'Removes the profile link while retaining the source and saved file copy.'],
     ['Load into chat', 'Explicitly copies the character’s saved text into roleplay fields. Browsing a profile alone does not change chat or automatically attach its media.'],
+    ['Phone character profiles', 'On a paired phone, More tools → Character profiles edits the same saved names, biographies, notes and tags and links visible Saved Images. Save character is explicit; conflicting desktop edits keep the phone draft for review. Phone intake does not upload raw files or manage LoRA training.'],
   ]], ['Face references', [
     ['Representative face', 'Chooses a real accepted crop closest to the group centroid. It is not an averaged or synthesized face.'],
     ['Primary / additional reference', 'Keeps your explicit chosen references separate from the computed representative.'],

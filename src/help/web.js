@@ -1,5 +1,5 @@
 export const webNavigationHelp = ['Web navigation', [
-  ['Web', 'Expand Web in the main navigation for Browser, Research & Sources, and Reels Analyzer. Find a tab also searches these tools; Arrange can move the Web group and its tools. HTML, CSS and JavaScript editors remain in Viewers.'],
+  ['Web', 'Expand Web in the main navigation for Browser, Research & Sources, and Reels Analyzer. Find a tab also searches these tools; Arrange can move the Web group and its tools. HTML, CSS, JavaScript, Markdown and the Styling Library are inside Design & Programming.'],
   ['Choose a web tool', 'Browser is for interactive pages and account profiles. Research & Sources contains Search & preview, Live research, Recurring sources and Import page. Reels Analyzer uses a manually signed-in account conversation and installed local analysis models.'],
   ['Shared browser and public retrieval', 'Browser, the Reels account browser and the research browser fallback share the selected page and account profile in the main window. A visible Browser side pane keeps the page there. Public search, preview, imports and recurring checks use separate guarded retrieval without browser cookies or sign-ins. Switching tools does not clear account data or cancel submitted jobs; another browser workflow cannot take over a page owned by Reels.'],
 ]];

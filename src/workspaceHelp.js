@@ -4,7 +4,7 @@ import {workspaceControls} from './workspaceControls';
 const overview = {
   'design-programming': {
     purpose: 'Build and test interface designs, save combinations, apply shared app appearance settings, and work with HTML, CSS, JavaScript, and Markdown in one workspace.',
-    example: 'Choose Studio, switch to the Paper palette, keep the violet accent, add a glass panel to the comparison board, then save the design or apply its appearance to the app.',
+    example: 'In UI Playground, choose the Studio template, switch to the Paper palette, keep the violet accent, add a glass panel to the comparison board, then save the design or choose Apply to app.',
   },
   'info-center': {
     purpose: 'Find practical use cases, examples, and detailed control guides for every workspace in one central directory.',
