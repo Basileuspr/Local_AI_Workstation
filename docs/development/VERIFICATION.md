@@ -4,6 +4,50 @@ This is the consolidated evidence record, updated October 30, 2026.
 Current guides describe inspected source; dated tests below are not a certification
 of every feature, provider, installation or device.
 
+## October 30 Coding Coordinator milestone 1
+
+The desktop Coding Coordinator was prepared and validated in isolated checkouts,
+then applied to the normal checkout after explicit approval. The live application
+was not restarted; use **File → Exit & Restart** to load the approved build.
+It adds project selection, native tool calls, protected existing edits, durable
+task state, Python/Node checks, pause/resume, and a separate model review. There
+is no built-in Git publication action or operating-system permission sandbox.
+
+- Reconciled in an isolated checkout against `4e1fe90`, retaining the
+  completed UI mirror and Knowledge constellation changes and their verification records.
+  Original staging artifacts and six pre-existing draft backups remain retained.
+- Final frontend: **1,627 passed, 3 existing skips across 203 files**. Selected backend
+  coordinator, tool execution, queue, model handoff, session and maintenance
+  suites: **108 passed**, with four existing FastAPI deprecation warnings. Both
+  were repeated from the normal checkout with disposable backend runtime data.
+- Windows checks exercised actual command exit codes, cancellation, timeouts,
+  credential omission and descendant cleanup using a private Job Object. Source
+  tests covered dirty/staged/untracked preservation, stale hashes, external
+  edits, links, instruction scopes, concurrent writers and interrupted recovery.
+- The isolated Coding Coordinator Electron fixture passed explicit project/start,
+  model selection, diff/check output, preserved-file display and narrow layout.
+  Desktop and narrow screenshots were inspected. The existing full-app Design &
+  Programming Electron fixture also passed its navigation and editing checks.
+- Real local Ollama **0.34.3** acceptance used disposable Git projects with one
+  arithmetic bug, three assertions, and a pre-existing user edit. GPT-OSS 20B
+  completed the coordinator run in **71.55 seconds** with a 16,384-token context;
+  the same fixture without the separate reviewer completed in **43.25 seconds**.
+  A second GPT-OSS run with the default **8,192-token** context passed in
+  **71.49 seconds**. Qwen3.5 9B also passed, in **129.56 seconds** at 16,384 tokens.
+  All runs preserved the user edit, check file and Git HEAD and changed only the
+  requested source file. These are small workflow acceptance runs, not model
+  rankings; warm model state, reasoning settings and model decisions differ.
+- Desktop and companion production compilation and documentation link checks
+  passed in the isolated checkout. Builds retained the existing large-chunk and
+  manifold browser-externalization warnings. Preparation builds left deployed
+  assets untouched; the approved checkout build is available for the next restart.
+
+Larger coding tasks, broad model quality, Linux/macOS check execution, hostile
+project isolation, Android installation and physical-phone behavior were not
+validated. No dependencies or models were installed. See the
+[Coding Coordinator guide](../workspace/CODING_COORDINATOR.md) for scope and usage.
+
+
 ## October 30 Knowledge constellation design and navigation
 
 The follow-up design replaces the enclosing box with an open constellation,

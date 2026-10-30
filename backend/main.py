@@ -162,6 +162,13 @@ async def storage_unavailable(_request, exc):
     return JSONResponse(status_code=503, content={"detail": str(exc)})
 from routes.folder_review import router as folder_review_router
 app.include_router(folder_review_router)
+from routes.coding_coordinator import router as coding_coordinator_router
+from services.coding_coordinator import manager as coding_manager
+app.include_router(coding_coordinator_router)
+app.add_event_handler('startup', lambda: coding_manager())
+async def close_coding_coordinator():
+    await coding_manager().close()
+app.add_event_handler('shutdown', close_coding_coordinator)
 app.include_router(memory_router)
 app.include_router(prompt_index_router)
 app.include_router(image_generation_router)

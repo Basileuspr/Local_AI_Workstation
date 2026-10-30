@@ -556,6 +556,24 @@ for (const action of ['open', 'save']) ipcMain.handle(`local-files:${action}`, a
 ipcMain.on('local-files:dirty', (event, value) => { if (trustedDesktop(event)) localFiles.setDirty(value); });
 ipcMain.on('local-files:forget', (event, value) => { if (trustedDesktop(event)) localFiles.forget(value); });
 
+const codingCoordinator = require('./codingCoordinator').createCodingCoordinator({
+    choose: () => dialog.showOpenDialog(mainWindow, { title: 'Choose a Git project for coding', properties: ['openDirectory', 'dontAddToRecent'] }),
+    request: async (route, body) => {
+        const response = await fetch(`http://127.0.0.1:${CONFIG.backendPort}/coding${route}`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'x-law-session': sessionToken, 'x-local-files': localFilesToken },
+            body: JSON.stringify(body),
+        });
+        const result = await response.json();
+        if (!response.ok) throw Error(typeof result.detail === 'string' ? result.detail : 'The coding request was rejected. Check its settings.');
+        return result;
+    },
+});
+for (const action of ['choose', 'control']) ipcMain.handle(`coding:${action}`, async (event, value) => {
+    if (!trustedDesktop(event)) return { error: 'Coding requires the trusted desktop window.' };
+    try { return await codingCoordinator[action](value); }
+    catch (error) { return { error: error.message }; }
+});
+
 const faceImports = createFaceImports();
 ipcMain.handle("faces:choose-inputs", async (event, options) => {
     if (!trustedDesktop(event)) return { error: "Face imports are only available in the desktop app." };

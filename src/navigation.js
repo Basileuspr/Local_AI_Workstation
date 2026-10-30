@@ -9,6 +9,8 @@ appTabs.push('slicer', 'integrations', 'styling-library', 'sound-mixer', 'info-c
 appTabs.push('reels-analyzer');
 appTabs.push('web-system');
 appTabs.push('design-programming');
+appTabs.push('coding-coordinator');
+appTabLabels['coding-coordinator'] = 'Coding Coordinator';
 appTabLabels['design-programming'] = 'Design & Programming';
 appTabLabels['web-system'] = 'Web Research & Sources';
 appTabLabels['reels-analyzer'] = 'Reels Analyzer';

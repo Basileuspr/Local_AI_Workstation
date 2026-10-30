@@ -7,7 +7,7 @@ October 23, 2026. Start with the workflow you need; dated test evidence lives in
 | Area | Current guides |
 |---|---|
 | Install and connect | [Setup/recovery](setup/SETUP.md), [phone companion](../mobile-companion/docs/SETUP.md), [Android source/build](../mobile-companion/android/README.md), [PC bridge](setup/PC_BRIDGE.md) |
-| Workspace and chat | [Workspace](workspace/WORKSPACE_GUIDE.md), [chat/media actions](chat/CHAT_GUIDE.md), [Functions](workspace/FUNCTIONS.md) |
+| Workspace and chat | [Workspace](workspace/WORKSPACE_GUIDE.md), [chat/media actions](chat/CHAT_GUIDE.md), [Functions](workspace/FUNCTIONS.md), [Coding Coordinator](workspace/CODING_COORDINATOR.md) |
 | Documents and knowledge | [Document Editor](workspace/DOCUMENT_EDITOR.md), [Local Files/Folder Review](workspace/FILE_TOOLS.md), [Knowledge](workspace/KNOWLEDGE_VAULT.md) |
 | Images | [Generation/training/queue](images/GENERATION.md), [workflows/scenes](images/IMAGE_WORKFLOWS.md), [editor](images/IMAGE_EDITOR.md), [characters/faces/parts](images/CHARACTERS.md) |
 | Libraries and review | [Gallery/collections/review](images/GALLERY_AND_BULK_ACTIONS.md), [Image Manager/folder tools](images/IMAGE_MANAGER.md), [storage/backup/reset](workspace/STORAGE_AND_BACKUP.md) |

@@ -1,7 +1,9 @@
 import {workspaceControls} from './workspaceControls';
+import {codingOverview} from './help/coding';
 // Every workspace has an explicit guide. New routes must add one here too.
 // Keep instructions out of the work surface; WorkspaceInfo owns their presentation.
 const overview = {
+  'coding-coordinator': codingOverview,
   'design-programming': {
     purpose: 'Build and test interface designs, save combinations, apply shared app appearance settings, and work with HTML, CSS, JavaScript, and Markdown in one workspace.',
     example: 'In UI Playground, choose the Studio template, switch to the Paper palette, keep the violet accent, add a glass panel to the comparison board, then save the design or choose Apply to app.',

@@ -2,6 +2,20 @@ import { projectBrief, inventoryCsv, workshopMarkdown, recordingScript } from '.
 
 export const agentAppLessons = [
   {
+    id: 'coding-project-review', title: 'Supervise a local coding task', module: 'Planning and evidence', minutes: 12,
+    workspaces: ['coding-coordinator', 'queue'],
+    concepts: ['The coding coordinator gives a tool-capable local model scoped source tools and user-configured checks. It protects existing changes and keeps a durable plan, diff and output record.',
+      'Passing checks and a model review are evidence with limits. A check executes project code on your PC; use a trusted practice repository and inspect its commands first.'],
+    steps: ['Create or choose a disposable Git project with one small bug and a check that exposes it. Keep a separate pre-existing note edit.',
+      'Open Coding Coordinator, select the project and a tool-capable local model, describe the correction and configure the check.',
+      'Start the task only after reviewing its edit and command scope. Compare the final diff and actual command output with the request.',
+      'Verify the pre-existing note is unchanged and review the separate model assessment before deciding whether to commit.'],
+    checkpoint: 'The requested correction has a reviewable diff, actual passing check output, and an unchanged pre-existing note; no publication is inferred.',
+    exercise: 'Explain what you would inspect if the checks pass but the model reviewer identifies a missing edge case.',
+    question: 'What does Completed establish in this milestone?', choices: ['All possible defects are eliminated', 'Configured final checks passed and the model reviewer accepted the change', 'The change was pushed to GitHub'], answer: 1,
+    explanation: 'Completed records those two checks. Human review, broader coverage, and any Git publication remain separate decisions.',
+  },
+  {
     id: 'discover-app-tools', title: 'Discover tools before planning', module: 'Planning and evidence', minutes: 10,
     workspaces: ['dashboard', 'tools', 'chats'],
     concepts: [

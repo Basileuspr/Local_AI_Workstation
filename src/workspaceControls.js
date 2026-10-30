@@ -1,4 +1,5 @@
 import {chatHelp} from './help/chat';
+import {codingHelp} from './help/coding';
 import {fileToolHelp} from './help/fileTools';
 import {mediaHelp} from './help/media';
 import {creativeHelp} from './help/creative';
@@ -10,6 +11,7 @@ import {linkedToolHelp} from './help/linkedTools';
 import {webHelp} from './help/web';
 
 export const workspaceControls = {
+  'coding-coordinator': codingHelp,
   'design-programming': [['Design & Programming', [
     ['UI Playground / code viewers', 'Use the tabs inside this main workspace to open the playground, Styling Library, HTML, CSS, JavaScript, or Markdown. Viewer drafts stay mounted when you switch. Browser source actions and existing Functions or pin destinations still open the same viewers here.'],
     ['Starting templates', 'Load one of six combinations of the existing themes and fonts. Templates replace the preview appearance; component choices, sample layout, and preview width remain independent.'],

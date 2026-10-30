@@ -28,7 +28,7 @@ describe('Design & Programming navigation', () => {
       expect(document.querySelector(`[data-sidebar-route="${tool.id}"]`)).toBeNull();
       const workspace = parseHTML(renderToStaticMarkup(<DesignWorkspace tab={tool.id} onNavigate={() => {}}><p>Source draft</p></DesignWorkspace>)).document;
       expect(workspace.querySelector(`[data-design-route="${tool.id}"]`).getAttribute('aria-current')).toBe('page');
-      expect(workspace.querySelectorAll('[data-design-route]')).toHaveLength(6);
+      expect(workspace.querySelectorAll('[data-design-route]')).toHaveLength(designTools.length + 1);
     }
   });
 });

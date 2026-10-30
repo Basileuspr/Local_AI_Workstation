@@ -46,6 +46,7 @@ def authorize(request):
 def workers_busy():
     from services.hash_auditor import is_busy as hash_audit_busy
     from services.folder_review import is_busy as folder_review_busy
+    from services.coding_coordinator import is_busy as coding_busy
     from services.image_manager import manager as image_manager
     from services.request_queue import queue, TERMINAL
     from services.gpu_coordination import gpu_coordinator
@@ -55,7 +56,7 @@ def workers_busy():
     with queue._lock:
         queued = any(job.status not in TERMINAL for job in queue.jobs)
     image_manager_busy = bool(image_manager.worker and image_manager.worker.is_alive())
-    return image_manager_busy or hash_audit_busy() or folder_review_busy() or queued or gpu_coordinator.current_owner() is not None or training.is_active() or bool(workflows.active) or bool(active_analysis_tasks)
+    return coding_busy() or image_manager_busy or hash_audit_busy() or folder_review_busy() or queued or gpu_coordinator.current_owner() is not None or training.is_active() or bool(workflows.active) or bool(active_analysis_tasks)
 
 
 @router.post("/lock")

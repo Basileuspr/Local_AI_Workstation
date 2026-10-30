@@ -1,6 +1,7 @@
 // Keep existing routes usable by Browser, Functions, pins, refresh and captures.
 export const DESIGN_TAB = 'design-programming';
 export const designTools = [
+  { id: 'coding-coordinator', label: 'Coding Coordinator' },
   { id: 'styling-library', label: 'Styling Library', title: 'Styling Library · CSS, HTML, buttons, layouts and animations' },
   { id: 'html-viewer', label: 'HTML Viewer' },
   { id: 'css-viewer', label: 'CSS / Styling' },

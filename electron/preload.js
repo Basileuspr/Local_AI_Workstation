@@ -38,6 +38,8 @@ contextBridge.exposeInMainWorld("workstationDesktop", {
         },
     } : {}),
     openLocalFile: () => ipcRenderer.invoke('local-files:open'),
+    chooseCodingProject: () => ipcRenderer.invoke('coding:choose'),
+    codingControl: value => ipcRenderer.invoke('coding:control', value),
     saveLocalDocument: options => ipcRenderer.invoke('local-files:save', options),
     localDocumentDirty: value => ipcRenderer.send('local-files:dirty', !!value),
     forgetLocalFile: id => ipcRenderer.send('local-files:forget', id),
