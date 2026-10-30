@@ -38,6 +38,17 @@ documents = [
     ("g", "Retrieval pipeline.md", "Indexed chunks are retrieved for chat. [[Research notes]] records the questions."),
     ("h", "Reading list.txt", "A standalone document is still available to RAG."),
 ]
+scene = os.environ.get("LAW_KNOWLEDGE_QA_SCENE", "")
+if scene == "single":
+    documents = [("a", "First thought.md", "One idea to build on.")]
+elif scene == "dense":
+    topics = ["Research", "Design", "Engineering", "Writing", "Planning", "Learning"]
+    documents = []
+    for index in range(48):
+        topic, number = topics[index // 8], index % 8 + 1
+        target = f"{topic} {number % 8 + 1}"
+        cross_link = f" [[{topics[(index // 8 + 1) % 6]} 1]]" if number == 1 else ""
+        documents.append((f"scene-{index}", f"{topic} {number}.md", f"Synthetic constellation fixture. [[{target}]]{cross_link}"))
 kb._get_collection().add(ids=[f"{id}_0" for id, _, _ in documents], documents=[text for _, _, text in documents],
     embeddings=[[1., 0., 0.] for _ in documents],
     metadatas=[{"doc_id": id, "filename": name, "chunk_index": 0, "total_chunks": 1} for id, name, _ in documents])

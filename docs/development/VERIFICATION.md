@@ -4,6 +4,40 @@ This is the consolidated evidence record, updated October 30, 2026.
 Current guides describe inspected source; dated tests below are not a certification
 of every feature, provider, installation or device.
 
+## October 30 Knowledge constellation design and navigation
+
+The follow-up design replaces the enclosing box with an open constellation,
+restrained node glow, lighter labels, and a floating Orbit/Pan/zoom/Fit/Focus dock.
+View contains camera presets, smart/all/focus labels and optional orbital depth
+guides. Expand hides the side panels while retaining their mounted editor state.
+Camera transitions respect reduced motion, and pitch stops at the poles to keep
+the scene upright. Saved coordinates, symbols, custom appearance and locks remain
+in the existing data model.
+
+- Full frontend validation passed **1,622 tests across 202 files**, with **3
+  existing skips**. Geometry tests cover constellation fitting, upright orbit,
+  and labels avoiding nodes whose own labels are hidden.
+- The production-frontend/real-endpoint Electron fixture passed **18 checkpoints**
+  without renderer errors. It covers real orbit/pan input, zoom, offscreen recovery,
+  camera presets, double-click focus, expanded view and unsaved draft retention,
+  keyboard controls, lost pointer capture, persisted xyz/depth dragging, locking,
+  custom symbols/styles, search, linking, reload and authored content editing.
+- Separate **1-node and 48-node** disposable scenes passed smart/all/focus label,
+  expansion and narrow popover checks. Wide, expanded and 390px screenshots were
+  inspected. The dense scene uses smaller node markers; label placement considers
+  unlabeled nodes as obstacles. The camera preset row remains on one line despite
+  shared workspace control styles. Very crowded layouts can still need zoom or
+  Focus; the renderer does not rearrange saved node positions.
+- The isolated desktop build passed with the existing chunk-size/manifold
+  warnings. Documentation validation passed with zero errors; whitespace checks
+  passed. QA uses `LAW_QA_DIST` for the isolated build and optionally
+  `LAW_KNOWLEDGE_QA_SCENE=single` or `dense`; all fixture data stays disposable.
+
+The running app was left open during validation; a full restart loads the new
+desktop renderer. Backend unit suites, GPU generation and physical phone/Android
+acceptance were outside this renderer change. The OS reduced-motion preference
+was honored in source but not exercised through a live OS setting change.
+
 ## October 30 Knowledge graph contrast and spatial guides
 
 The Knowledge graph now has a padded enclosing frame, a visible floor grid and

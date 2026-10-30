@@ -86,6 +86,18 @@ export function fitKnowledgeGraph3D(positions, orbit = DEFAULT_ORBIT) {
   return { ...camera, distance, panX: 0, panY: 0 };
 }
 
+export function fitKnowledgeConstellation(positions, orbit = DEFAULT_ORBIT) {
+  const camera = { ...orbit, target: knowledgeGraphSpace(positions).center };
+  // Frame the documents with room for labels and the navigation dock. Guides
+  // have their own larger-volume fit; neither view changes saved coordinates.
+  let distance = 620;
+  for (const position of Object.values(positions)) {
+    const point = rotateGraphPoint(position, camera);
+    distance = Math.max(distance, point.z + Math.max(Math.abs(point.x) * FOCAL_LENGTH / 470, Math.abs(point.y) * FOCAL_LENGTH / 290) + 100);
+  }
+  return { ...camera, distance, panX: 0, panY: 0 };
+}
+
 // Labels move in screen space only. Saved document positions are never changed
 // to make room for text, and a leader ties each displaced label to its node.
 export function layoutKnowledgeLabels(items, gap = 8) {
@@ -93,7 +105,7 @@ export function layoutKnowledgeLabels(items, gap = 8) {
     * Math.max(0, Math.min(a.y + a.height / 2, b.y + b.height / 2) - Math.max(a.y - a.height / 2, b.y - b.height / 2));
   const obstacles = items.map(item => ({ x: item.x, y: item.y, width: (item.radius + gap) * 2, height: (item.radius + gap) * 2 }));
   const placed = {};
-  for (const item of [...items].sort((a, b) => (b.priority || 0) - (a.priority || 0) || a.id.localeCompare(b.id))) {
+  for (const item of items.filter(item => !item.hidden).sort((a, b) => (b.priority || 0) - (a.priority || 0) || a.id.localeCompare(b.id))) {
     let best = null, bestScore = Infinity;
     const dx = item.radius + item.width / 2 + gap, dy = item.radius + item.height / 2 + gap;
     const candidates = [];
@@ -117,7 +129,7 @@ export function layoutKnowledgeLabels(items, gap = 8) {
 
 export function orbitKnowledgeGraph(camera, dx, dy) {
   const wrap = angle => Math.atan2(Math.sin(angle), Math.cos(angle));
-  return { ...camera, yaw: wrap(camera.yaw + dx * .006), pitch: wrap(camera.pitch - dy * .006) };
+  return { ...camera, yaw: wrap(camera.yaw + dx * .006), pitch: Math.max(-Math.PI / 2, Math.min(Math.PI / 2, camera.pitch - dy * .006)) };
 }
 
 export function zoomKnowledgeGraph(camera, factor) {

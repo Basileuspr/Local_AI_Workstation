@@ -42,24 +42,35 @@ participate in retrieval when selected.
 
 ## Navigate the graph
 
-The 3D view encloses the documents in a visible frame with a floor grid. Dotted
-guides join each node to a floor marker so its height and depth are easier to
-judge. **Space guides** toggles these aids without moving any documents. Bright
-solid lines are manual links; dashed violet lines are document links. Selecting
-a node emphasizes its connections while keeping the rest of the graph visible.
-Labels use dark backplates and spread around crowded nodes, with small leader
-lines connecting each label to its document. Label placement never changes saved
-document positions.
+The 3D constellation uses softly lit nodes on a quiet background. Solid blue
+lines are manual links; dashed violet lines are document links. Selecting or
+hovering a node emphasizes its connections. Labels spread around crowded nodes,
+with small leader lines connecting displaced text to its document. This placement
+never changes saved document positions.
+
+**View** contains Perspective, Top and Front camera angles, optional **Depth
+guides**, and label settings. Depth guides add subtle orbital rings and a height
+marker for the selected or hovered node; they start off. **Smart labels** shows
+all labels in small graphs, and prioritizes hubs and the selection's neighbors
+in larger graphs. **All labels** and **On focus** give direct control. Search
+matches, hovered and keyboard-focused nodes reveal their labels in any mode,
+unless that node's own label setting is Hidden.
 
 The counter shows how many node centers are in view. If you pan or zoom past
 documents, **Show all nodes** brings the whole space back while keeping your
-viewing angle. The orientation compass stays in the corner, and selecting a
-node shows its saved-space X/Y/Z coordinates below the graph.
+viewing angle. The orientation compass stays in the corner. **Expand graph**
+hides the document list and inspector to give the scene more room; restoring
+the panels preserves the selection and any editor draft.
 
-Drag the background to rotate; Shift/right-drag pans; scroll or +/- zooms.
-Drag an unlocked node in the camera plane, or Alt-drag / Deeper / Closer to change
-depth. Fit graph preserves viewing angle; Reset view restores it; Focus node
-centers the selection.
+Choose **Orbit** or **Pan** in the floating dock, then drag the background.
+Shift/right-drag also pans; scroll or +/- zooms. Orbit stays upright and does not
+flip the scene upside down. **Fit** preserves the viewing angle; **Reset view**
+inside View restores the default angle. **Focus** centers the selection, and
+double-clicking any node centers that node. Camera transitions ease into place
+unless the system requests reduced motion.
+
+Drag an unlocked node in the camera plane, or Alt-drag to change depth. **Deeper**
+and **Closer** are also available in View when a node is selected.
 
 With graph focus, arrows rotate and 0 resets. With node focus, Enter/Space selects,
 arrows move and Page Up/Down changes depth. Positions save in three dimensions;

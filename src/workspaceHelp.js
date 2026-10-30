@@ -44,7 +44,7 @@ const overview = {
   },
   knowledge: {
     purpose: "Keep documents and authored notes in a local Knowledge vault with explicit connections.",
-    example: "Import two project documents, connect them in the inspector, then select the relevant Knowledge scope when asking a question in chat.",
+    example: "Import two documents and connect them in the inspector. Use Orbit or Pan to explore, double-click a node to focus, and Fit to bring everything back. View offers camera angles, labels and depth guides; Expand gives the graph more room. Select the relevant Knowledge scope when asking a question in chat.",
   },
   canvas: {
     purpose: "Paint with brushes, shapes and text, edit selections and layers, and save images or editable projects locally.",

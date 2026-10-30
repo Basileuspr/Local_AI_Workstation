@@ -1,19 +1,24 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { fitKnowledgeGraph3D, knowledgeGraphSpace, layoutKnowledgeGraph3D, layoutKnowledgeLabels, moveKnowledgeNode, orbitKnowledgeGraph, projectGraphPoint, projectGraphSegment, rotateGraphPoint, zoomKnowledgeGraph } from "../knowledgeGraph3D";
+import { DEFAULT_ORBIT, fitKnowledgeConstellation, fitKnowledgeGraph3D, knowledgeGraphSpace, layoutKnowledgeGraph3D, layoutKnowledgeLabels, moveKnowledgeNode, orbitKnowledgeGraph, projectGraphPoint, projectGraphSegment, rotateGraphPoint, zoomKnowledgeGraph } from "../knowledgeGraph3D";
 import { NODE_ICONS, nodeLabel, nodeMatches, nodeOptions, nodePolygon, nodeRadius } from "../knowledgeNodeOptions";
+import KnowledgeGraphControls from "./KnowledgeGraphControls";
 
-export default function KnowledgeGraph({ nodes, edges, selectedId, onSelect, onPosition, query = "" }) {
+export default function KnowledgeGraph({ nodes, edges, selectedId, onSelect, onPosition, query = "", expanded = false, onExpand }) {
   const initial = useMemo(() => layoutKnowledgeGraph3D(nodes, edges), [nodes, edges]);
   const [positions, setPositions] = useState(initial);
-  const [camera, setCamera] = useState(() => fitKnowledgeGraph3D(initial));
+  const [camera, setCamera] = useState(() => fitKnowledgeConstellation(initial));
   const [viewportScale, setViewportScale] = useState(1);
-  const [showGuides, setShowGuides] = useState(true);
+  const [showGuides, setShowGuides] = useState(false), [mode, setMode] = useState("orbit"), [labelMode, setLabelMode] = useState("auto");
+  const [hoveredId, setHoveredId] = useState("");
   const helpId = useId();
   const space = useMemo(() => knowledgeGraphSpace(positions), [positions]);
   const svg = useRef(null), drag = useRef(null), fitted = useRef(false);
+  const cameraRef = useRef(camera), animation = useRef(0);
+  cameraRef.current = camera;
+  useEffect(() => () => cancelAnimationFrame(animation.current), []);
   useEffect(() => {
     setPositions(initial);
-    if (!fitted.current && nodes.length) { setCamera(fitKnowledgeGraph3D(initial)); fitted.current = true; }
+    if (!fitted.current && nodes.length) { setCamera(fitKnowledgeConstellation(initial)); fitted.current = true; }
   }, [initial, nodes.length]);
   useEffect(() => {
     const observer = new ResizeObserver(entries => {
@@ -32,14 +37,20 @@ export default function KnowledgeGraph({ nodes, edges, selectedId, onSelect, onP
     return point.x >= 20 && point.x <= 1180 && point.y >= 20 && point.y <= 780;
   }).length;
   const matching = query.trim() ? nodes.filter(node => nodeMatches(node, query)).length : null;
+  const dense = nodes.length > 24, minimumRadius = dense ? 9 : 15;
+  const degree = new Map(nodes.map(node => [node.doc_id, 0]));
+  edges.forEach(edge => { degree.set(edge.source, (degree.get(edge.source) || 0) + 1); degree.set(edge.target, (degree.get(edge.target) || 0) + 1); });
+  const overviewLabels = new Set([...nodes].sort((a, b) => degree.get(b.doc_id) - degree.get(a.doc_id) || a.doc_id.localeCompare(b.doc_id)).slice(0, 6).map(node => node.doc_id));
+  const showLabel = node => nodeOptions(node).label_mode !== "hidden" && (labelMode === "all" || node.doc_id === selectedId || node.doc_id === hoveredId
+    || (matching !== null ? nodeMatches(node, query) : labelMode === "auto" && (nodes.length <= 12 || connected.has(node.doc_id) || overviewLabels.has(node.doc_id))));
   const labels = layoutKnowledgeLabels(ordered.flatMap(node => {
     const options = nodeOptions(node), screen = projected[node.doc_id], label = nodeLabel(node);
-    if (options.label_mode === "hidden" || screen.x < 0 || screen.x > 1200 || screen.y < 0 || screen.y > 800) return [];
+    if (screen.x < 0 || screen.x > 1200 || screen.y < 0 || screen.y > 800) return [];
     const text = options.label_mode === "short" && label.length > 30 ? `${label.slice(0, 27)}…` : label;
     const fontSize = options.font_size * Math.max(screen.scale, 1 / viewportScale);
     const textUnits = Array.from(text).reduce((width, char) => width + (char.codePointAt(0) > 255 ? 1 : .66), 0);
-    return [{ id: node.doc_id, x: screen.x, y: screen.y, radius: Math.max(nodeRadius(node) * screen.scale, 9 / viewportScale) + 4 / viewportScale,
-      width: textUnits * fontSize + 12 / viewportScale, height: fontSize * 1.6,
+    return [{ id: node.doc_id, hidden: !showLabel(node), x: screen.x, y: screen.y, radius: Math.max(nodeRadius(node) * screen.scale, minimumRadius / viewportScale) + 4 / viewportScale,
+      width: textUnits * fontSize + 10 / viewportScale, height: fontSize * 1.7,
       priority: selectedId === node.doc_id ? 2 : matching !== null && nodeMatches(node, query) ? 1 : 0 }];
   }), 5 / viewportScale);
 
@@ -47,8 +58,25 @@ export default function KnowledgeGraph({ nodes, edges, selectedId, onSelect, onP
     const value = svg.current.createSVGPoint(); value.x = event.clientX; value.y = event.clientY;
     return value.matrixTransform(svg.current.getScreenCTM().inverse());
   }
-  function zoomBy(factor) { setCamera(current => zoomKnowledgeGraph(current, factor)); }
-  function rotateBy(dx, dy) { setCamera(current => orbitKnowledgeGraph(current, dx, dy)); }
+  function moveCamera(next, smooth = true) {
+    cancelAnimationFrame(animation.current);
+    const from = cameraRef.current;
+    if (!smooth || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) { setCamera(next); return; }
+    const started = performance.now(), yawDelta = Math.atan2(Math.sin(next.yaw - from.yaw), Math.cos(next.yaw - from.yaw));
+    const frame = now => {
+      const progress = Math.min(1, (now - started) / 260), t = 1 - (1 - progress) ** 3;
+      if (progress === 1) { setCamera(next); animation.current = 0; return; }
+      const blend = (a, b) => a + (b - a) * t;
+      setCamera({ ...next, yaw: from.yaw + yawDelta * t, pitch: blend(from.pitch, next.pitch), distance: blend(from.distance, next.distance),
+        panX: blend(from.panX, next.panX), panY: blend(from.panY, next.panY), target: Object.fromEntries(["x", "y", "z"].map(axis => [axis, blend(from.target[axis], next.target[axis])])) });
+      animation.current = requestAnimationFrame(frame);
+    };
+    animation.current = requestAnimationFrame(frame);
+  }
+  function fitView(orbit = cameraRef.current) { moveCamera((showGuides ? fitKnowledgeGraph3D : fitKnowledgeConstellation)(positions, orbit)); }
+  function focusNode(id = selectedId) { if (positions[id]) moveCamera({ ...cameraRef.current, target: positions[id], distance: 620, panX: 0, panY: 0 }); }
+  function zoomBy(factor) { cancelAnimationFrame(animation.current); setCamera(current => zoomKnowledgeGraph(current, factor)); }
+  function rotateBy(dx, dy) { moveCamera(orbitKnowledgeGraph(cameraRef.current, dx, dy)); }
   useEffect(() => {
     const element = svg.current;
     const wheel = event => { event.preventDefault(); zoomBy(event.deltaY < 0 ? 1.12 : 1 / 1.12); };
@@ -57,12 +85,13 @@ export default function KnowledgeGraph({ nodes, edges, selectedId, onSelect, onP
   }, []);
   function start(event) {
     if (drag.current || ![0, 2].includes(event.button)) return;
+    cancelAnimationFrame(animation.current);
     event.preventDefault();
     const id = event.button === 0 ? event.target.closest("[data-node-id]")?.dataset.nodeId : null;
     (id ? event.target.closest("[data-node-id]") : svg.current)?.focus({ preventScroll: true });
     const node = nodes.find(item => item.doc_id === id);
     drag.current = { id, pointerId: event.pointerId, start: point(event), camera, origin: id ? positions[id] : null,
-      locked: node && nodeOptions(node).locked, mode: id ? (event.altKey ? "depth" : "node") : (event.shiftKey || event.button === 2 ? "pan" : "orbit"), moved: false };
+      locked: node && nodeOptions(node).locked, mode: id ? (event.altKey ? "depth" : "node") : (event.shiftKey || event.button === 2 ? "pan" : mode), moved: false };
     event.currentTarget.setPointerCapture(event.pointerId);
     if (id) onSelect?.(id);
   }
@@ -75,7 +104,7 @@ export default function KnowledgeGraph({ nodes, edges, selectedId, onSelect, onP
       action.position = moveKnowledgeNode(action.origin, action.camera, dx, dy, action.mode === "depth");
       setPositions(previous => ({ ...previous, [action.id]: action.position }));
     } else if (action.mode === "pan") setCamera({ ...action.camera, panX: action.camera.panX + dx, panY: action.camera.panY + dy });
-    else setCamera(orbitKnowledgeGraph(action.camera, dx, dy));
+    else setCamera(orbitKnowledgeGraph(action.camera, dx * viewportScale, dy * viewportScale));
   }
   function finish(event) {
     const action = drag.current;
@@ -102,7 +131,7 @@ export default function KnowledgeGraph({ nodes, edges, selectedId, onSelect, onP
     const deltas = { ArrowLeft: [-35, 0], ArrowRight: [35, 0], ArrowUp: [0, -35], ArrowDown: [0, 35] };
     if (deltas[event.key]) { event.preventDefault(); rotateBy(...deltas[event.key]); }
     else if (["+", "=", "-", "0"].includes(event.key)) {
-      event.preventDefault(); if (event.key === "0") setCamera(fitKnowledgeGraph3D(positions)); else zoomBy(event.key === "-" ? .8 : 1.25);
+      event.preventDefault(); if (event.key === "0") fitView(DEFAULT_ORBIT); else zoomBy(event.key === "-" ? .8 : 1.25);
     }
   }
   const guide = (source, target, key, className) => {
@@ -111,34 +140,26 @@ export default function KnowledgeGraph({ nodes, edges, selectedId, onSelect, onP
     const [a, b] = segment;
     return <line key={key} className={className} x1={a.x} y1={a.y} x2={b.x} y2={b.y} />;
   };
-  const floor = space.floor.map(point => projectGraphPoint(point, camera));
+  const orbitGuides = showGuides ? [1, .65, .3].map(factor => Array.from({ length: 65 }, (_, index) => {
+    const angle = index / 64 * Math.PI * 2;
+    return { x: space.center.x + (space.max.x - space.min.x) / 2 * factor * Math.cos(angle), y: space.max.y,
+      z: space.center.z + (space.max.z - space.min.z) / 2 * factor * Math.sin(angle) };
+  })) : [];
 
-  return <div className="vault-graph vault-graph-3d">
-    <div className="vault-graph-tools" aria-label="3D graph controls">
-      <button onClick={() => zoomBy(1.25)} aria-label="Zoom in">+</button><button onClick={() => zoomBy(.8)} aria-label="Zoom out">−</button>
-      <button onClick={() => setCamera(fitKnowledgeGraph3D(positions, camera))}>Fit graph</button>
-      <button onClick={() => setCamera(fitKnowledgeGraph3D(positions))}>Reset view</button>
-      <button disabled={!positions[selectedId]} onClick={() => setCamera(current => ({ ...current, target: positions[selectedId], distance: 600, panX: 0, panY: 0 }))}>Focus node</button>
-      <button aria-pressed={showGuides} onClick={() => setShowGuides(current => !current)} title="Show the space boundary, floor grid and node depth markers">Space guides</button>
-      <div className="vault-orbit-buttons"><button aria-label="Rotate left" onClick={() => rotateBy(-35, 0)}>↶</button><button aria-label="Rotate right" onClick={() => rotateBy(35, 0)}>↷</button><button aria-label="Rotate up" onClick={() => rotateBy(0, -35)}>↑</button><button aria-label="Rotate down" onClick={() => rotateBy(0, 35)}>↓</button></div>
-      <div className="vault-depth-buttons"><button disabled={!selected || nodeOptions(selected).locked} onClick={() => moveNode(selectedId, 0, 35, true)}>Deeper</button><button disabled={!selected || nodeOptions(selected).locked} onClick={() => moveNode(selectedId, 0, -35, true)}>Closer</button></div>
-    </div>
-    <div className="vault-graph-overview">
-      <span className="vault-3d-badge">3D SPACE</span>
-      <span className="vault-visibility-count">{inView} of {nodes.length} nodes in view</span>
-      {matching !== null && <span>{matching} search {matching === 1 ? "match" : "matches"}</span>}
-      {inView < nodes.length && <button onClick={() => setCamera(fitKnowledgeGraph3D(positions, camera))}>Show all nodes</button>}
-    </div>
+  return <div className="vault-graph vault-graph-3d" data-navigation={mode} data-density={dense ? "dense" : "normal"}>
+    <KnowledgeGraphControls inView={inView} count={nodes.length} edgeCount={edges.length} matching={matching} mode={mode} onMode={setMode}
+      onZoom={zoomBy} onFit={() => fitView()} onReset={() => fitView(DEFAULT_ORBIT)} onFocus={() => focusNode()} selected={selected}
+      showGuides={showGuides} onGuides={() => setShowGuides(current => !current)} labels={labelMode} onLabels={setLabelMode}
+      onView={view => fitView(view === "Top" ? { yaw: 0, pitch: Math.PI / 2 } : view === "Front" ? { yaw: 0, pitch: 0 } : DEFAULT_ORBIT)}
+      onRotate={rotateBy} onDepth={dy => moveNode(selectedId, 0, dy, true)} locked={selected && nodeOptions(selected).locked} expanded={expanded} onExpand={onExpand} />
     <div className="vault-graph-stage">
     <svg ref={svg} viewBox="0 0 1200 800" tabIndex={0} role="group" aria-label="Knowledge document graph" aria-roledescription="Rotatable 3D graph"
       aria-describedby={helpId}
       data-yaw={camera.yaw} data-pitch={camera.pitch} data-distance={camera.distance}
       onPointerDown={start} onPointerMove={move} onPointerUp={finish} onPointerCancel={finish} onLostPointerCapture={finish} onDragStart={event => event.preventDefault()} onContextMenu={event => event.preventDefault()} onKeyDown={cameraKey}>
       {showGuides && <g aria-hidden="true" pointerEvents="none" className="vault-space-guides">
-        {floor.every(point => point.visible) && <polygon className="vault-space-floor" points={floor.map(point => `${point.x},${point.y}`).join(" ")} />}
-        {space.grid.map(([a, b], index) => guide(a, b, `grid${index}`, "vault-space-grid"))}
-        {space.frame.map(([a, b], index) => guide(a, b, `frame${index}`, "vault-space-frame"))}
-        {ordered.map(node => {
+        {orbitGuides.flatMap((ring, ringIndex) => ring.slice(1).map((point, index) => guide(ring[index], point, `orbit${ringIndex}-${index}`, "vault-space-orbit")))}
+        {ordered.filter(node => node.doc_id === selectedId || node.doc_id === hoveredId).map(node => {
           const position = positions[node.doc_id], foot = { ...position, y: space.max.y }, screen = projectGraphPoint(foot, camera);
           return <g key={node.doc_id} className={`vault-space-anchor${selectedId === node.doc_id ? " selected" : ""}`}>
             {guide(position, foot, node.doc_id, "vault-space-stem")}
@@ -152,7 +173,7 @@ export default function KnowledgeGraph({ nodes, edges, selectedId, onSelect, onP
           const segment = projectGraphSegment(positions[edge.source], positions[edge.target], camera);
           if (!segment) return null;
           const [source, target] = segment;
-          const active = selectedId && (edge.source === selectedId || edge.target === selectedId);
+          const active = [selectedId, hoveredId].some(id => id && (edge.source === id || edge.target === id));
           return <g key={`${edge.source}-${edge.target}`} className={`vault-edge${active ? " selected" : selectedId ? " muted" : ""}`}>
             <line className="vault-edge-underlay" x1={source.x} y1={source.y} x2={target.x} y2={target.y} aria-hidden="true" />
             <line data-graph-edge={`${edge.source}-${edge.target}`} x1={source.x} y1={source.y} x2={target.x} y2={target.y}
@@ -163,22 +184,24 @@ export default function KnowledgeGraph({ nodes, edges, selectedId, onSelect, onP
           const position = positions[node.doc_id], screen = projected[node.doc_id];
           const dim = query.trim() ? !nodeMatches(node, query) : selectedId && !connected.has(node.doc_id);
           const options = nodeOptions(node), label = nodeLabel(node);
-          const radius = Math.max(nodeRadius(node), 9 / (screen.scale * viewportScale));
-          const iconSize = Math.max(12, nodeRadius(node)) / Math.min(1, screen.scale * viewportScale);
+          const radius = Math.max(nodeRadius(node), minimumRadius / (screen.scale * viewportScale));
+          const iconSize = Math.max(dense ? 10 : 12, nodeRadius(node) * (dense ? .7 : 1)) / Math.min(1, screen.scale * viewportScale);
           const labelSize = options.font_size / Math.min(1, screen.scale * viewportScale);
-          const shapeStyle = { fill: options.color, stroke: options.color, strokeDasharray: options.border === "dashed" ? "5 3" : undefined, strokeWidth: options.border === "none" ? 0 : 2 };
+          const shapeStyle = { fill: options.color, stroke: options.color, strokeDasharray: options.border === "dashed" ? "5 3" : undefined, strokeWidth: options.border === "none" ? 0 : 1.4 };
           const labelBox = labels[node.doc_id];
           const lx = labelBox ? (labelBox.x - screen.x) / screen.scale : 0, ly = labelBox ? (labelBox.y - screen.y) / screen.scale : radius + labelSize * 1.5;
           return <g key={node.doc_id} data-node-id={node.doc_id} data-locked={options.locked} data-world-x={position.x} data-world-y={position.y} data-world-z={position.z} data-depth={screen.z}
             role="button" tabIndex={0} aria-label={`Open ${label}${options.locked ? " (position locked)" : ""}`} aria-pressed={selectedId === node.doc_id}
-            className={`vault-node${selectedId === node.doc_id ? " selected" : ""}${dim ? " muted" : ""}`} transform={`translate(${screen.x} ${screen.y}) scale(${screen.scale})`}
-            onKeyDown={event => nodeKey(event, node.doc_id)}>
+            className={`vault-node${selectedId === node.doc_id ? " selected" : ""}${dim ? " muted" : ""}${hoveredId === node.doc_id ? " hovered" : ""}`} style={{ "--node-color": options.color }} transform={`translate(${screen.x} ${screen.y}) scale(${screen.scale})`}
+            onPointerEnter={() => setHoveredId(node.doc_id)} onPointerLeave={() => setHoveredId("")} onFocus={() => setHoveredId(node.doc_id)} onBlur={() => setHoveredId("")}
+            onDoubleClick={() => focusNode(node.doc_id)} onKeyDown={event => nodeKey(event, node.doc_id)}>
             <title>{`${label} · ${node.filename} · ${node.chunks} indexed chunks${options.tags.length ? ` · ${options.tags.join(", ")}` : ""}${options.locked ? " · Position locked" : ""}${options.note ? `\n${options.note}` : ""}`}</title>
             {labelBox && <line className="vault-label-leader" x1={0} y1={0} x2={lx} y2={ly} aria-hidden="true" />}
+            <circle className="vault-node-aura" r={radius + 12 / (screen.scale * viewportScale)} aria-hidden="true" />
             <circle className="vault-node-halo" r={radius + 4 / (screen.scale * viewportScale)} aria-hidden="true" />
             {options.shape === "circle" ? <circle className="vault-node-shape" r={radius} style={shapeStyle} /> : options.shape === "square" ? <rect className="vault-node-shape" x={-radius * .8} y={-radius * .8} width={radius * 1.6} height={radius * 1.6} rx={4} style={shapeStyle} /> : <polygon className="vault-node-shape" points={nodePolygon(options.shape, radius)} style={shapeStyle} />}
             {options.icon !== "none" && <text className="vault-node-icon" textAnchor="middle" dominantBaseline="central" style={{ fontSize: iconSize }} aria-hidden="true">{NODE_ICONS[options.icon]}</text>}
-            {options.label_mode !== "hidden" && <g className="vault-node-label" transform={`translate(${lx} ${ly})`}>
+            {showLabel(node) && <g className="vault-node-label" transform={`translate(${lx} ${ly})`}>
               {labelBox && <rect x={-labelBox.width / screen.scale / 2} y={-labelBox.height / screen.scale / 2} width={labelBox.width / screen.scale} height={labelBox.height / screen.scale} rx={4 / (screen.scale * viewportScale)} />}
               <text textAnchor="middle" dominantBaseline="central" style={{ fontSize: labelSize }}>{options.label_mode === "short" && label.length > 30 ? `${label.slice(0, 27)}…` : label}</text>
             </g>}
@@ -196,8 +219,7 @@ export default function KnowledgeGraph({ nodes, edges, selectedId, onSelect, onP
     </div>
     <div className="vault-graph-footer">
       <div className="vault-legend"><span><i className="vault-legend-manual" />Manual link</span><span><i className="vault-legend-wikilink" />Document link</span>{showGuides && <span><i className="vault-legend-depth" />Height above floor</span>}</div>
-      {selected && positions[selectedId] && <div className="vault-position"><span title={nodeLabel(selected)}>{nodeLabel(selected)}</span><span>{["x", "y", "z"].map(axis => `${axis.toUpperCase()} ${Math.round(positions[selectedId][axis])}`).join(" · ")}</span></div>}
-      <p id={helpId}>Drag space to rotate · Shift/right-drag to pan · Scroll to zoom · Alt-drag a node for depth</p>
+      <p id={helpId}>Drag to {mode === "pan" ? "pan" : "orbit"} · Scroll to zoom · Double-click to focus<span className="vault-graph-keyboard-help">. Shift or right-drag pans. With the graph focused, arrow keys rotate, plus and minus zoom, and 0 resets the view. With a node focused, Enter selects, arrows move it, and Page Up or Page Down changes its depth.</span></p>
     </div>
   </div>;
 }

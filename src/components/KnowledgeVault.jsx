@@ -21,6 +21,7 @@ export default function KnowledgeVault({ active }) {
   const state = useStore(), dispatch = useDispatch();
   const characters=useCharacterWorkspace();
   const [graph, setGraph] = useState({ nodes: [], edges: [] });
+  const [expandedGraph, setExpandedGraph] = useState(false);
   const [nodePreview, setNodePreview] = useState(null);
   const [startingNode, setStartingNode] = useState(false), [editingNodeId, setEditingNodeId] = useState('');
   const [nodeContentPreview, setNodeContentPreview] = useState(null);
@@ -151,7 +152,7 @@ export default function KnowledgeVault({ active }) {
     </header>
     <KnowledgeCharacterStart active={active} nodes={graph.nodes} onSelect={id => {setQuery('');setSelectedId(id);}} onIndexed={selectIndexedDocument}/>
     {error && <div className="vault-error" role="alert">{error} <button onClick={refresh}>Retry</button></div>}
-    <div className="vault-workspace">
+    <div className={`vault-workspace${expandedGraph ? " vault-workspace-expanded" : ""}`}>
       <aside className="vault-files" aria-label="Vault documents"><label>Find a document<input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Names, tags, notes…" /></label>
         {loading && <p role="status">Loading vault…</p>}
         <BulkActions selection={selection} items={visibleNodes} label="documents" batch={batch} disabled={busy}
@@ -159,7 +160,7 @@ export default function KnowledgeVault({ active }) {
         {visibleNodes.map(node => <div className="vault-file" key={node.doc_id}><SelectionCheckbox selection={selection} item={node} label={nodeLabel(node)} disabled={batch.busy} /><button aria-pressed={selectedId === node.doc_id} onMouseDown={preventSelectionText} onClick={event => selection.activate(node,event,()=>setSelectedId(node.doc_id))}><span>{nodeLabel(node)}</span><small>{node.authored ? `${node.node_kind} · ` : node.options?.label && `${node.filename} · `}{node.chunks} chunks{node.options?.locked ? " · Locked" : ""}</small>{!!node.options?.tags?.length && <small>{node.options.tags.join(" · ")}</small>}</button></div>)}
         {!loading && query && !visibleNodes.length && <p>No matching documents.</p>}
       </aside>
-      <KnowledgeGraph {...previewGraph} selectedId={selectedId} query={query} onSelect={setSelectedId} onPosition={async (id, position) => {
+      <KnowledgeGraph {...previewGraph} selectedId={selectedId} query={query} onSelect={setSelectedId} expanded={expandedGraph} onExpand={() => setExpandedGraph(value => !value)} onPosition={async (id, position) => {
         try { await api.knowledgeGraphRequest(`/positions/${encodeURIComponent(id)}`, "PUT", position); setGraph(current => ({ ...current, nodes: current.nodes.map(node => node.doc_id === id ? { ...node, position } : node) })); }
         catch (failure) { setError(`Position not saved: ${failure.message}`); }
       }} />

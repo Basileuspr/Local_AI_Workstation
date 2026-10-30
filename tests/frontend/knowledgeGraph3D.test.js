@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { fitKnowledgeGraph3D, knowledgeGraphSpace, layoutKnowledgeGraph3D, layoutKnowledgeLabels, moveKnowledgeNode, orbitKnowledgeGraph, projectGraphPoint, projectGraphSegment, rotateGraphPoint, zoomKnowledgeGraph } from "../../src/knowledgeGraph3D";
+import { fitKnowledgeConstellation, fitKnowledgeGraph3D, knowledgeGraphSpace, layoutKnowledgeGraph3D, layoutKnowledgeLabels, moveKnowledgeNode, orbitKnowledgeGraph, projectGraphPoint, projectGraphSegment, rotateGraphPoint, zoomKnowledgeGraph } from "../../src/knowledgeGraph3D";
 
 it("gives documents stable depth while preserving legacy x/y and saved xyz positions", () => {
   const nodes = [{ doc_id: "a", position: { x: 12, y: 13 } }, { doc_id: "b", position: { x: 4, y: 5, z: 67 } }, { doc_id: "c" }];
@@ -18,9 +18,26 @@ it("projects depth with perspective and rotates through full orbits without chan
   const turn = orbitKnowledgeGraph(camera, Math.PI / .006, 0);
   const point = { x: 100, y: 20, z: 30 };
   expect(rotateGraphPoint(point, turn).x).toBeCloseTo(-100);
-  const full = orbitKnowledgeGraph(camera, 2 * Math.PI / .006, 2 * Math.PI / .006);
+  const full = orbitKnowledgeGraph(camera, 2 * Math.PI / .006, 0);
   expect(rotateGraphPoint(point, full)).toEqual(expect.objectContaining({ x: expect.closeTo(100), y: expect.closeTo(20), z: expect.closeTo(30) }));
   expect(point).toEqual({ x: 100, y: 20, z: 30 });
+  expect(orbitKnowledgeGraph(camera, 0, 100000).pitch).toBe(-Math.PI / 2);
+  expect(orbitKnowledgeGraph(camera, 0, -100000).pitch).toBe(Math.PI / 2);
+});
+
+it("frames sparse and dense constellations without a room or changes to saved positions", () => {
+  for (const nodes of [[{ doc_id: "only" }], Array.from({ length: 50 }, (_, index) => ({ doc_id: String(index) }))]) {
+    const positions = layoutKnowledgeGraph3D(nodes, []), saved = structuredClone(positions);
+    for (const orbit of [{ yaw: -.45, pitch: .25 }, { yaw: 0, pitch: Math.PI / 2 }, { yaw: 0, pitch: 0 }]) {
+      const camera = fitKnowledgeConstellation(positions, orbit);
+      for (const point of Object.values(positions)) {
+        const screen = projectGraphPoint(point, camera);
+        expect(screen.visible).toBe(true); expect(screen.x).toBeGreaterThan(130); expect(screen.x).toBeLessThan(1070);
+        expect(screen.y).toBeGreaterThan(110); expect(screen.y).toBeLessThan(690);
+      }
+    }
+    expect(positions).toEqual(saved);
+  }
 });
 
 it("moves nodes along the camera plane and through depth at arbitrary orientations", () => {
@@ -101,4 +118,13 @@ it("separates clustered labels without moving their nodes and keeps edge labels 
       expect(Math.abs(box.x - other.x) >= (box.width + other.width) / 2 || Math.abs(box.y - other.y) >= (box.height + other.height) / 2).toBe(true);
     }
   }
+});
+
+it("keeps smart labels clear of nodes whose labels are hidden", () => {
+  const items = [{ id: 'label', x: 600, y: 400, radius: 15, width: 180, height: 28 },
+    { id: 'unlabeled', x: 600, y: 437, radius: 18, width: 180, height: 28, hidden: true }];
+  const labels = layoutKnowledgeLabels(items);
+  expect(Object.keys(labels)).toEqual(['label']);
+  const box = labels.label, node = items[1];
+  expect(Math.abs(box.x - node.x) >= box.width / 2 + node.radius || Math.abs(box.y - node.y) >= box.height / 2 + node.radius).toBe(true);
 });
