@@ -41,6 +41,7 @@ Keep environments, models and runtime data local to each computer.
 | `npm run qa:android` | Check the native image adapter with synthetic Chromium content |
 | `node scripts/qa-testing-lab.cjs` | Verify Testing Lab controls, exports, saved history, scrolling and narrow layouts with a synthetic hidden Chromium fixture |
 | `node scripts/qa-reverse-engineer.cjs` | Verify the full renderer's Reverse Engineer navigation, filtering, saved launchers, error handling and narrow layout with simulated desktop actions |
+| `node mobile-companion/scripts/qa-phone-workspace.cjs` | Verify Phone navigation, passive detection states, folder controls, Companion preservation and narrow layout with synthetic APIs in a disposable profile |
 | `npm run build:android` | Check, build and sign the APK with this PC's private signing identity |
 | `npm run build:mobile` | Build only the hosted phone interface |
 | `npm run build` | Capture build identity, compile the desktop renderer, then build the phone interface |

@@ -150,6 +150,10 @@ function trustedDesktop(event) {
     return trustedUrl(event.senderFrame.url, useViteDev ? CONFIG.viteDevUrl : null);
 }
 
+const { createPhoneTools, registerPhoneToolsIpc } = require('../mobile-companion/desktop/phoneTools.cjs');
+registerPhoneToolsIpc({ ipcMain, trustedDesktop, dialog, getWindow: () => mainWindow,
+    service: createPhoneTools({ directory: app.getPath('userData'), downloads: app.getPath('downloads') }) });
+
 const uiDesignMirror = require('./uiDesignMirror').createUIDesignMirror({
     BrowserWindow, ipcMain, dialog, getWindow: () => mainWindow, getMenu: () => Menu.getApplicationMenu(),
     directory: app.getPath('userData'),

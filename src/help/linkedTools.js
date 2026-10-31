@@ -17,13 +17,13 @@ export const linkedToolHelp = {
   ]]],
   integrations: [['Connections and Discord', [
     ['Read active processes', 'Refreshes matching Discord, Spotify or phone-tool processes and phone-tool readiness. A running process does not confirm that playback, account access or recording is available.'],
-    ['Discord / Spotify / Phone / scrcpy', 'Switch between the Discord widget and message tools, Spotify player and recording tools, or phone-tool readiness information.'],
+    ['Discord / Spotify / Phone / scrcpy', 'Switch between the Discord widget and message tools, Spotify player and recording tools, or the link to the dedicated Phone workspace.'],
     ['Server ID / Open Discord widget', 'Enter a Discord server ID whose Server Widget is enabled, then open its official widget. The widget displays available member and invite information.'],
     ['Connection / Webhook URL / Bot token', 'Choose a webhook or bot connection and enter its required credentials. Bot sending also requires a channel ID. Credentials stay in the open workspace.'],
     ['Message / Embed title / Embed description', 'Prepare the message and optional embed, then inspect the Discord message preview before sending. Editing the preview fields does not send anything.'],
     ['Attach files / Remove', 'Choose the files to send with the message or remove a pending attachment. Removing an attachment leaves its source file intact.'],
     ['Send to Discord', 'Explicitly sends the prepared message and selected attachments through the chosen connection. Automatic mentions are disabled.'],
-    ['Phone / scrcpy readiness', 'Shows whether the supplied Windows release and separate source checkout are available. Opening this tab does not connect a device or start mirroring.'],
+    ['Phone / scrcpy', 'Open the dedicated Phone workspace for KDE Connect and scrcpy installation detection, setup guides and the existing Companion controls. Detection does not connect a device or start mirroring.'],
   ]], ['Spotify and playback recording', [
     ['Spotify link / Open Spotify player', 'Open a supported Spotify link in the official embedded player, then press Play in that player. Opening the link alone does not start playback.'],
     ['Mini Piano track reference / Return to piano', 'Open in Linked Applications from a piano lesson selects Spotify and fills its track link. Open Spotify player loads the reference for separate listening; Return to piano returns to Break Room. Note conversion uses local files and does not import Spotify streams.'],

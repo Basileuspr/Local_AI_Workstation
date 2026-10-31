@@ -50,6 +50,7 @@ const DesignPlayground = lazy(() => import('./components/DesignPlayground'));
 const Coordinator = lazy(() => import('./components/Coordinator'));
 const TestingLab = lazy(() => import('./components/TestingLab'));
 const ReverseEngineer = lazy(() => import('./components/ReverseEngineer'));
+const PhoneWorkspace = lazy(() => import('../mobile-companion/desktop/PhoneWorkspace'));
 import ViewerBrowser from './components/ViewerBrowser';
 const ReelsAnalyzer = lazy(() => import('./components/ReelsAnalyzer'));
 const WebWorkspace = lazy(() => import('./components/WebWorkspace'));
@@ -455,6 +456,7 @@ function AppInner() {
           <div className="pane" data-capture-tab="coordinator" hidden={!visible('coordinator')}><Suspense fallback={<p>Opening Coordinator…</p>}><Coordinator active={visible('coordinator')} legacyCoding={state.activeSidebarTab === 'coding-coordinator'} onNavigate={tab => dispatch({ type: 'SET_SIDEBAR_TAB', payload: tab })}/></Suspense></div>
           <div className="pane" data-capture-tab="testing-lab" hidden={!visible('testing-lab')}><Suspense fallback={<p>Opening Testing Lab…</p>}><TestingLab active={visible('testing-lab')} /></Suspense></div>
           <div className="pane" data-capture-tab="reverse-engineer" hidden={!visible('reverse-engineer')}><Suspense fallback={<p>Opening Reverse Engineer…</p>}><ReverseEngineer active={visible('reverse-engineer')} /></Suspense></div>
+          <div className="pane" data-capture-tab="phone" hidden={!visible('phone')}><Suspense fallback={<p>Opening Phone…</p>}><PhoneWorkspace active={visible('phone')} /></Suspense></div>
           <div className="pane" data-capture-tab="browser" hidden={!visible("browser")}><ViewerBrowser active={visible("browser")} onOpenSource={openBrowserSource}/></div>
           <div className="pane" data-capture-tab="reels-analyzer" hidden={!visible("reels-analyzer")}><Suspense fallback={<p>Opening Reels Analyzer…</p>}><ReelsAnalyzer active={visible("reels-analyzer")} models={state.models} defaultModel={state.summaryModel||state.selectedModel}/></Suspense></div>
           <div className="pane" data-capture-tab="web-system" hidden={!visible("web-system")}><Suspense fallback={<p>Opening web workspace…</p>}><WebWorkspace active={visible("web-system")} models={state.models} defaultModel={state.summaryModel||state.selectedModel} chatModel={state.selectedModel} onOpenSession={async id => {const loaded=await handleLoadSession(id);if(loaded)dispatch({type:'SET_SIDEBAR_TAB',payload:'chats'});return loaded;}} isGenerating={state.isGenerating}/></Suspense></div>

@@ -1,5 +1,16 @@
 # Mobile companion
 
+The desktop **Phone** workspace combines passive KDE Connect/scrcpy installation
+detection and setup guidance with these existing Companion controls. Dashboard
+still provides the same Companion controls. Phone's Screen, Notifications,
+Messages and Files & photos sections do not yet operate devices; opening them
+does not start tools, connect a phone or read notifications.
+
+Desktop implementation lives in `desktop/PhoneWorkspace.jsx` and
+`desktop/phoneTools.cjs`. Folder choices are saved only in the Electron profile's
+`phone-tools.json`; no phone data or pairings are stored there. The IPC surface
+is restricted to the trusted main window and a native directory picker.
+
 Open this folder in Codex or Claude Code for companion work. Read [AGENTS.md](AGENTS.md)
 and the parent [architecture](../ARCHITECTURE.md) first. The companion is still part
 of the workstation repository and uses its dependencies, services and runtime.

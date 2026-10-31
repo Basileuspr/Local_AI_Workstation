@@ -11,6 +11,12 @@ import {linkedToolHelp} from './help/linkedTools';
 import {webHelp} from './help/web';
 
 export const workspaceControls = {
+  phone: [['Phone tools and Companion', [
+    ['Refresh detection', 'Inspect local Windows installation folders without starting tools, ADB, device connections or notification tests. Core files found checks the main executables and scrcpy server; it does not verify signatures, runtime dependencies or phone connectivity. Results refresh when you return to Phone.'],
+    ['Choose folder / Use automatic detection', 'Choose a local KDE Connect installation or extracted scrcpy release folder. KDE Connect can be selected at its root or bin folder; scrcpy supports nested release folders. Choices are saved in the local desktop profile. Automatic detection checks standard KDE Connect locations, extracted scrcpy releases in Downloads and local PATH folders. Store-only or custom packages may require manual selection. An incomplete or missing selected folder remains visible until changed or reset.'],
+    ['Screen / Notifications / Messages / Files & photos', 'Read setup guidance for features supplied by scrcpy and KDE Connect. Workstation does not yet start screen sessions, display notifications or messages, transfer files through KDE Connect, or provide call audio or RCS. Official links open in your browser. No installation or device action runs when a section is opened.'],
+    ['Companion', 'Open the existing Mobile companion controls for private connection settings, pairing, chat, image batches, Gallery and character profiles. The Dashboard controls remain available. Existing permissions, pairing, jobs and storage are shared, and their security and behavior are unchanged.'],
+  ]]],
   'reverse-engineer': [['Tools and launchers', [
     ['Search tools / Category / Linked only', 'Filter all ten tools by name, purpose or platform, analysis category, or whether you have saved a launcher. Clear filters restores the full list. Ghidra, IDA, Binary Ninja, Cutter and radare2 cover native code; x64dbg and Frida investigate running programs; ILSpy and dnSpyEx work with .NET; JADX reads Android bytecode.'],
     ['Official downloads / Documentation', 'Open the project website or guide in your default browser. Installations and licenses are managed separately. IDA Free uses cloud decompilation; review its edition before sending code. No files are sent to an external tool simply by opening this workspace.'],

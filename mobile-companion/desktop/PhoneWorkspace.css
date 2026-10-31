@@ -1,0 +1,36 @@
+.phone-workspace { flex: 1; min-width: 0; min-height: 0; overflow: auto; padding: 24px; color: var(--text); }
+.phone-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin-bottom: 24px; }
+.phone-eyebrow { color: var(--accent); font: 10px var(--font-mono); letter-spacing: .12em; }
+.phone-heading h1 { font-size: 30px; letter-spacing: -.03em; margin: 8px 0; }
+.phone-workspace p { font-size: 13px; line-height: 1.65; color: var(--text-dim); }
+.phone-workspace h2 { font-size: 20px; margin: 4px 0 8px; letter-spacing: -.02em; }
+.phone-workspace h3 { font-size: 14px; margin-bottom: 10px; }
+.phone-workspace button { border: 1px solid var(--border); border-radius: 8px; padding: 9px 13px; background: var(--bg-input); color: var(--text); cursor: pointer; font: 12px var(--font-body); }
+.phone-workspace button:hover:not(:disabled) { border-color: var(--accent); }
+.phone-workspace button:disabled { opacity: .5; cursor: not-allowed; }
+.phone-workspace a { color: var(--accent); font-size: 12px; }
+.phone-workspace :is(a, button):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.phone-sections { display: flex; gap: 6px; flex-wrap: wrap; border-bottom: 1px solid var(--border); padding-bottom: 12px; }
+.phone-sections button { border-color: transparent; background: transparent; color: var(--text-muted); }
+.phone-sections button[aria-current] { color: var(--accent); background: var(--accent-dim); border-color: var(--border-active); }
+.phone-detection-note { color: var(--text-muted); font-size: 11px; line-height: 1.7; padding: 16px 0; }
+.phone-notice, .phone-workspace .phone-error { margin-top: 12px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card); }
+.phone-workspace .phone-error { color: var(--danger, #ed8b8b); }
+.phone-tools { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 16px; }
+.phone-tool { min-width: 0; padding: 22px; border: 1px solid var(--border); border-radius: 14px; background: var(--bg-card); display: flex; flex-direction: column; }
+.phone-tool-top { display: flex; justify-content: space-between; gap: 10px; align-items: center; margin-bottom: 16px; }
+.phone-tool-mark { width: 40px; height: 40px; display: grid; place-items: center; border: 1px solid var(--border-active); border-radius: 12px; color: var(--accent); background: var(--accent-dim); font: 18px var(--font-mono); }
+.phone-badge { border: 1px solid var(--border); border-radius: 20px; padding: 5px 9px; font-size: 10px; color: var(--text-muted); }
+.phone-found { color: var(--accent); border-color: var(--border-active); }.phone-incomplete { color: var(--warning, #d7ab6b); }
+.phone-tool .phone-role { color: var(--text-muted); font-size: 11px; margin-bottom: 12px; }
+.phone-location { margin: 18px 0; padding: 12px; border-radius: 8px; background: var(--bg-input); min-height: 64px; overflow-wrap: anywhere; }
+.phone-location > span { color: var(--text-muted); display: block; font-size: 10px; margin-bottom: 6px; }
+.phone-location code { font: 11px/1.7 var(--font-mono); color: var(--text-dim); }
+.phone-location p { margin: 7px 0 0; font-size: 11px; }
+.phone-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: auto; }
+.phone-companion-intro { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 22px; margin: 18px 0; border: 1px solid var(--border-active); border-radius: 14px; background: var(--accent-dim); }
+.phone-companion-intro h2 { margin-top: 10px; }.phone-companion-intro button { flex-shrink: 0; }
+.phone-next { padding: 12px 0; }.phone-next > div { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 10px; margin: 14px 0; }.phone-next button { display: flex; justify-content: space-between; gap: 12px; }.phone-next span { color: var(--accent); }
+.phone-section-intro { margin: 6px 0 20px; max-width: 800px; }.phone-guide { max-width: 800px; margin-top: 22px; line-height: 1.8; }.phone-guide ol { font-size: 13px; color: var(--text-dim); padding-left: 24px; margin-bottom: 12px; }.phone-guide p { margin-bottom: 12px; }
+.phone-companion[hidden] { display: none; }
+@media (max-width: 680px) { .phone-workspace { padding: 16px 12px; }.phone-tool { padding: 16px; }.phone-companion-intro { flex-direction: column; align-items: start; }.phone-heading { gap: 12px; } }

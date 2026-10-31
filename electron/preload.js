@@ -1,6 +1,9 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("workstationDesktop", {
+    phoneToolsStatus: () => ipcRenderer.invoke('phone-tools:status'),
+    choosePhoneToolFolder: id => ipcRenderer.invoke('phone-tools:choose', id),
+    resetPhoneToolFolder: id => ipcRenderer.invoke('phone-tools:reset', id),
     findWorkspaceText: value => ipcRenderer.invoke('workspace-find:search', value),
     stopWorkspaceFind: (target, restoreFocus = false) => ipcRenderer.invoke('workspace-find:stop', {target, restoreFocus}),
     onWorkspaceFind: callback => {

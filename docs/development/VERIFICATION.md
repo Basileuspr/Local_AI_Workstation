@@ -4,6 +4,40 @@ This is the consolidated evidence record, updated October 31, 2026.
 Current guides describe inspected source; dated tests below are not a certification
 of every feature, provider, installation or device.
 
+## October 31 Phone workspace, phase 2
+
+Added **Workspace → Phone** with passive KDE Connect and scrcpy file discovery,
+native folder selection/reset and official setup guides. Existing Companion
+controls are reused in Phone and remain on Dashboard. Navigation, pins,
+Functions, captures, Info Center, the supervised-workflow lesson and the UI-only
+tool catalog include Phone. The old Linked applications phone tab links here.
+
+- Full frontend suite: **1,680 passed, 3 existing skips across 211 files**.
+- Companion backend/publication, tool registry and session guards: **142 passed**,
+  with four existing FastAPI lifecycle deprecation warnings.
+- `node mobile-companion/scripts/qa-phone-workspace.cjs` passed with synthetic
+  APIs and a disposable Chromium profile. Checks cover navigation, browser
+  fallback, refresh, picker cancellation, duplicate-click protection, reset,
+  error recovery, setup sections, existing Companion form retention, Dashboard
+  controls, official links and 420 px layout. Desktop and narrow captures were
+  visually inspected. No test invoked a live phone action.
+- Native discovery tests cover nested/versioned releases, incomplete/zero-byte
+  files, standard and PATH installs, persistence, moved selections, cancellation,
+  invalid/network paths, corrupt settings and trusted IPC boundaries. A separate
+  read-only check on this Windows installation found both tools' core files.
+- Documentation validation: **58 Markdown files, 293 local links, 92 relocation
+  entries; zero errors**. Desktop and mobile production builds passed in a
+  temporary source checkout with the existing dependencies and Python runtime.
+  Existing large-chunk, linkedom eval and manifold browser-externalization
+  warnings remain. The initial isolated build needed Git metadata for source
+  capture; it passed after adding local history to that temporary checkout.
+- No tool execution, phone pairing, SMS, file transfers, notification testing,
+  screen session, native APK build or physical-device acceptance was performed.
+  Installation discovery does not verify versions, signatures or all runtime
+  dependencies. Live app data, pairings and deployed builds were not replaced,
+  and the running app was not restarted; activation requires a normal rebuild
+  and restart. No new dependencies were added.
+
 ## October 31 Reverse Engineer workspace
 
 Added the main-bar **Reverse Engineer** tool hub with Ghidra, IDA / IDA Pro,

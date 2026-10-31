@@ -3,6 +3,10 @@ import {coordinatorOverview} from './help/coordinator';
 // Every workspace has an explicit guide. New routes must add one here too.
 // Keep instructions out of the work surface; WorkspaceInfo owns their presentation.
 const overview = {
+  phone: {
+    purpose: 'Find KDE Connect and scrcpy installations on Windows, follow official setup guides, and use existing Workstation Companion controls.',
+    example: 'Open Phone and refresh detection. If scrcpy is not found, choose the folder containing its extracted Windows release. Use Companion for existing pairing and remote chat controls. Core files found means installation files are present; it does not establish a phone connection.',
+  },
   'reverse-engineer': {
     purpose: 'Compare ten reverse-engineering tools, open official downloads and guides, and save launch buttons for installed desktop programs.',
     example: 'Find Ghidra, expand Setup & tool notes, and install its official release and required Java runtime. Create a Windows shortcut to ghidraRun.bat, choose that shortcut here, then select Launch. Open your target file inside Ghidra.',
@@ -81,7 +85,7 @@ const overview = {
     example: 'Refresh Cura readiness, choose an STL file and select the profile for your printer. Check the material, nozzle, layer height, infill and support settings, then Slice model. Download the completed G-code and inspect it in your printer software before printing.',
   },
   integrations: {
-    purpose: 'Use the Discord widget and explicit message sending, record Windows or embedded Spotify playback, and inspect phone-mirroring readiness.',
+    purpose: 'Use the Discord widget and explicit message sending, record Windows or embedded Spotify playback, and open the dedicated Phone workspace.',
     example: 'Open a Spotify link and press Play in its embedded player. Choose Embedded Spotify player as the recording source, start recording and confirm Audio signal received. Stop, listen to the preview, then save the recording locally. Use shared Sound output controls to adjust preview volume and its playback device.',
   },
   images: {

@@ -5,6 +5,7 @@ import { workspaceHelp } from './workspaceHelp';
 // Task-oriented examples complement the shared control guides. Keep one entry
 // per workspace so the directory cannot silently omit a newly added feature.
 export const featureUseCases = {
+  phone: ['Detect KDE Connect and scrcpy installations or choose their local folders.', 'Set up phone tools and open existing Workstation Companion controls in one workspace.'],
   'reverse-engineer': ['Choose a native-code, .NET, Android or runtime-analysis tool for the program you want to understand.', 'Keep Ghidra and nine related tools together with official guides and saved local launchers.'],
   'testing-lab': ['Compare local responses with flagship online-model answers using your own prompts and verified references.', 'Schedule repeated evaluations and review accuracy, changing information, failures and local performance over days or weeks.'],
   coordinator: ['Choose Coding to fix a focused bug and inspect verified changes.', 'Research with citations, save selected evidence to Knowledge, or review Media Librarian organization proposals.'],
@@ -22,7 +23,7 @@ export const featureUseCases = {
   audio: ['Transcribe a meeting recording and correct its speaker labels.', 'Read a draft aloud or generate speech with an available local voice model.'],
   'sound-mixer': ['Balance speech, video, alerts, and local backing tracks.', 'Record a mix and use solo, EQ, and pan to inspect individual channels.'],
   slicer: ['Prepare an STL for a printer using CuraEngine and a matching profile.', 'Compare layer height, infill, and support settings before exporting G-code.'],
-  integrations: ['Record supported Spotify playback and save a local recording.', 'Use the Discord widget or check phone-mirroring readiness.'],
+  integrations: ['Record supported Spotify playback and save a local recording.', 'Use the Discord widget or open the dedicated Phone workspace.'],
   images: ['Find and revisit an image saved from a previous generation.', 'Choose a gallery image to send to Image Editor for an adjustment.'],
   'image-manager': ['Scan a photo folder, review metadata, and find exact duplicates.', 'Prepare an organization plan or use Image tools for batch sizing and sheet layouts.'],
   generate: ['Create concept art or illustrations from a text prompt with a local model.', 'Compare controlled variations using a fixed seed, references, or a compatible LoRA.'],

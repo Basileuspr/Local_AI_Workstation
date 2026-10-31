@@ -25,6 +25,30 @@ and generated documents; [Characters](../images/CHARACTERS.md) for roleplay;
 and [Knowledge](KNOWLEDGE_VAULT.md) for indexed context. Index notes and checklists
 remain separate from chat history and Knowledge ingestion.
 
+## Phone
+
+Open **Workspace → Phone** for KDE Connect and scrcpy installation detection.
+**Refresh detection** checks standard Windows KDE Connect folders, extracted
+scrcpy releases in Downloads (including nested release folders), and local PATH
+entries. **Choose folder** saves a location in this desktop's profile; **Use
+automatic detection** removes that override. An incomplete or moved selection
+stays visible until you change it. Store-only and custom installations may need
+manual folder selection. Complete portable scrcpy releases should stay together.
+
+**Core files found** means the main executable files and, for scrcpy, ADB and
+the server are present. It does not verify versions, signatures, runtime
+dependencies or a working phone connection. Detection never starts KDE Connect,
+ADB or scrcpy. Screen, Notifications, Messages, and Files & photos contain setup
+guides; their Workstation device controls are reserved for later phases. Open
+the installed tools separately to use those capabilities. Full call audio and
+RCS are outside this integration.
+
+**Companion** reuses the existing Mobile companion setup and pairing controls.
+They also remain on Dashboard. Existing chat, image jobs, Gallery, permissions,
+pairing and storage are unchanged. Browser clients can use Companion and setup
+guides; installation detection requires the Windows desktop. See the
+[Companion README](../../mobile-companion/README.md) for its existing features.
+
 ## Web
 
 Expand **Web** for **Browser**, **Research & Sources**, and **Reels Analyzer**.

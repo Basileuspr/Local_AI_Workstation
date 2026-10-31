@@ -12,6 +12,8 @@ appTabs.push('design-programming');
 appTabs.push('coordinator');
 appTabs.push('testing-lab');
 appTabs.push('reverse-engineer');
+appTabs.push('phone');
+appTabLabels.phone = 'Phone';
 appTabLabels['reverse-engineer'] = 'Reverse Engineer';
 appTabLabels['testing-lab'] = 'Testing Lab';
 appTabLabels.coordinator = 'Coordinator';

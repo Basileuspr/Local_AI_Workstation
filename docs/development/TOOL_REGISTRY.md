@@ -25,6 +25,11 @@ desktop launchers. Ghidra and the nine other listed applications require separat
 installation. They are not exposed as model-callable analysis or shell endpoints;
 opening a catalog entry does not launch a program.
 
+Phone is an interactive setup workspace. Its catalog entry does not expose
+filesystem discovery or device commands to models. Trusted desktop IPC checks
+installation files for KDE Connect and scrcpy; it does not launch either tool,
+probe a phone, or read notifications. Companion retains its existing controls.
+
 HTTP schemas derive from the actual route models. Arguments are grouped into
 path/query/body and other documented locations. Binary/upload contracts do not
 grant arbitrary filesystem access. Outputs can be asynchronous task snapshots or

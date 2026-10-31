@@ -299,16 +299,18 @@ export const universityAppLessons = [
   },
   {
     id: 'functions-and-linked-apps', title: 'Make a supervised workflow', module: 'Files and workflows', minutes: 12,
-    workspaces: ['tools', 'integrations', 'shortcuts', 'chats'],
+    workspaces: ['tools', 'integrations', 'phone', 'shortcuts', 'chats'],
     concepts: [
       'Functions saves ordered THEN steps such as opening an app, waiting for a window, auditing a selected folder, preparing request text and saving outputs. Saving is separate from Run. Stop prevents later steps but does not undo completed actions.',
-      'Linked applications has distinct Discord, Spotify and Phone / scrcpy controls. Preparing an attachment or message preview is separate from Send to Discord. Playback recording and phone tools have their own readiness and explicit controls. Credentials belong in the designated connection fields, never in a practice prompt.',
+      'Linked applications has Discord and Spotify controls and a link to Phone. Preparing an attachment or message preview is separate from Send to Discord. Credentials belong in the designated connection fields, never in a practice prompt.',
+      'Phone checks KDE Connect and scrcpy installation files without launching tools or connecting a device. Core files found does not verify runtime compatibility or phone connectivity. Existing Companion setup is available in Phone and Dashboard; messaging, mirroring and KDE Connect transfers inside Workstation are reserved for later phases.',
     ],
     steps: [
       'In Functions, inspect Create Function and an existing template. Name each step’s input, visible result and effect.',
       'Draft a simple practice sequence using a selected folder audit, request text and saved outputs. Review the destinations and stop point before an optional run.',
       'Inspect Add result to chat: it stages removable attachments for review before Send.',
       'Open Linked applications and inspect a message preview or recording requirements. Write down the recipient or recording source you would need to verify before using its action control.',
+      'Open Phone and refresh detection. Compare each installation status with its selected or automatic folder. Explain why finding scrcpy files is different from authorizing an Android screen session; inspect Companion without starting a connection.',
     ],
     checkpoint: 'You can identify the actions that prepare, save, run, stage and send. A function is a fixed supervised sequence, and copying a tool catalog does not add an automatic executor to ordinary chat.',
     exercise: 'Draw your proposed sequence and mark the last reversible preparation step before any external message would be sent.',

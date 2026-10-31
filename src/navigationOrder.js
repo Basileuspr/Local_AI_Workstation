@@ -16,6 +16,7 @@ const groups = [
     { id: "sound-mixer", label: "Sound Mixer", title: "Sound Mixer · soundboard, audio channels, EQ and recording" },
     { id: "slicer", label: "3D Slicer" },
     { id: "integrations", label: "Linked applications" },
+    { id: "phone", label: "Phone", title: "Phone · KDE Connect, scrcpy and Workstation Companion" },
   ] },
   { id: "web", label: "Web", icon: "globe", items: [
     { id: "browser", label: "Browser", title: "Browser · pages, account profiles, tabs and bookmarks" },

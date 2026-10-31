@@ -33,6 +33,7 @@ export const functionTargets = [
   { id: "converter", name: "File Converter" },
   { id: "slicer", name: "3D Slicer" },
   { id: "integrations", name: "Linked applications" },
+  { id: "phone", name: "Phone" },
   { id: "packager", name: "Packager" },
   { id: "hash-auditor", name: "Hash Auditor" },
   { id: "folder-review", name: "Folder Review" },

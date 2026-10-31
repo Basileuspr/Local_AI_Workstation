@@ -59,6 +59,14 @@ def test_query_path_and_multipart_arguments_retain_required_fields(client):
     assert not convert.is_valid({"body": {"file": "file", "target": "png", "quality": 101}})
 
 
+def test_phone_discovery_is_interactive_not_model_execution(client):
+    tool = client.get("/tools/registry/phone_workspace_ui").json()["tool"]
+    assert tool["workspace"] == "phone"
+    assert tool["availability"] == "ui_only"
+    assert tool["llm_callable"] is False
+    assert tool["endpoint"] is None
+
+
 def test_reverse_engineer_discovery_is_interactive_not_model_execution(client):
     tool = client.get("/tools/registry/reverse_engineer_ui").json()["tool"]
     assert tool["workspace"] == "reverse-engineer"
