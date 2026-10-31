@@ -35,6 +35,7 @@ replayed after backend restart.
 | Media Manager | Separate module, reports and media-operation records |
 | Browser | Isolated account profiles and bounded workflow checkpoints/media |
 | Web system | Crawl metadata, optional latest-content storage and temporary research |
+| Testing Lab | Private `evaluations/history.sqlite3`: immutable suites, response evidence, human reviews and finite local schedules; text-only inference shares the GPU queue |
 | Native companion | Phone connection settings; uses desktop-owned session/gallery services |
 
 Use the owning service for mutations. Session revisions prevent stale history

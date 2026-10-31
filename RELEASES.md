@@ -19,6 +19,13 @@ Recorded during the September 30, 2026 application-review follow-up. This is a
 local development version. It identifies captured source and is not a published
 stable release or a certification of all preexisting features.
 
+- October 30: **Testing Lab** adds saved, repeatable text-model evaluations for
+  request accuracy, data/document facts, revised information, local performance
+  and pasted online-model comparisons. Custom suite revisions, human reviews,
+  history charts, finite local schedules and JSON/CSV exports retain inspectable
+  evidence. See the [Testing Lab guide](docs/workspace/TESTING_LAB.md) and
+  [verification record](docs/development/VERIFICATION.md#october-30-testing-lab).
+
 - October 30: **Design & Programming** is a main workspace with a live UI
   customization playground, six starting templates, independent appearance
   controls, local presets, design import/export, and a board for all 20 styling

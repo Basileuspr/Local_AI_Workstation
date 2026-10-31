@@ -1,4 +1,5 @@
 export function queueDestination(job) {
+  if (job.kind === 'evaluation') return { tab: 'testing-lab' };
   if (job.kind === 'coding') return { tab: 'coding-coordinator' };
   if (job.kind === 'coordinator-media') return { tab: 'coordinator' };
   if (job.kind === 'analysis' && job.owner?.startsWith('scene-planner:')) return {tab:'workflows',workflowId:job.project_id,scene:true};

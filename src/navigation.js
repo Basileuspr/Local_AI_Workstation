@@ -10,6 +10,8 @@ appTabs.push('reels-analyzer');
 appTabs.push('web-system');
 appTabs.push('design-programming');
 appTabs.push('coordinator');
+appTabs.push('testing-lab');
+appTabLabels['testing-lab'] = 'Testing Lab';
 appTabLabels.coordinator = 'Coordinator';
 appTabLabels['coding-coordinator'] = 'Coding Coordinator';
 appTabLabels['design-programming'] = 'Design & Programming';

@@ -15,6 +15,7 @@ October 23, 2026. Start with the workflow you need; dated test evidence lives in
 | Web navigation | [Search/preview/import/research/recurring sources](development/WEB_SYSTEM.md), [Browser/profiles](development/BROWSER.md), [Reels Analyzer](development/REELS_ANALYZER.md) |
 | Development | [Architecture](../ARCHITECTURE.md), [reference](development/ARCHITECTURE_REFERENCE.md), [commands/publication](development/DEVELOPMENT.md), [tool discovery/execution](development/TOOL_REGISTRY.md) |
 | Evidence | [Verification/open findings](development/VERIFICATION.md), [releases](../RELEASES.md), [source history reader](application-review/README.md), [document map](development/DOCUMENT_MAP.md) |
+| Model evaluations | [Testing Lab: comparisons, accuracy, freshness and saved history](workspace/TESTING_LAB.md) |
 
 Info buttons provide in-app help. Source and tests resolve discrepancies; model,
 provider and device capabilities require their own live checks.

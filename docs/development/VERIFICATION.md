@@ -4,6 +4,40 @@ This is the consolidated evidence record, updated October 30, 2026.
 Current guides describe inspected source; dated tests below are not a certification
 of every feature, provider, installation or device.
 
+## October 30 Testing Lab
+
+The [Testing Lab guide](../workspace/TESTING_LAB.md) documents the persistent
+text-model evaluation workspace, ten synthetic starter cases, custom immutable
+suite revisions, pasted online baselines, separate automatic/human scores,
+response evidence, history charts, finite local schedules and JSON/CSV exports.
+
+- Full frontend suite: **1,641 passed, 3 existing skips across 205 files**.
+  Complete backend/companion suite passed with **3 skips** and existing dependency
+  deprecation warnings. Subsequent focused checks on the final evaluation,
+  API, maintenance and reset changes passed **101 tests**, including all **14
+  evaluation tests**. Runtime test locations were disposable.
+- Backend checks cover exact/JSON/text assertions, numeric versus boolean JSON,
+  unscored cases, missing/expired reference handling, immutable snapshots,
+  manually recorded response provenance, independent human scoring, failure
+  coverage, cancellation before startup and during work, retained interrupted
+  results, schedule persistence/limits, maintenance exclusion, unavailable-store
+  preservation, session authorization and bounded request schemas. Mock Ollama
+  streams verify protocol fields, measured-token calculations and release of
+  queue admission on success/failure. They are not real inference results.
+- Hidden Electron/Chromium walkthrough passed for online-response recording,
+  saved reviews, exact-prompt inspection, keyboard chart navigation, suite
+  customization, local-only schedule creation/disabling, JSON/CSV downloads,
+  history after reload, internal scrolling and 430 px layout. Screenshots were
+  inspected. All model responses and historical points in this walkthrough are
+  explicitly synthetic fixtures.
+- Documentation links and production desktop/companion compilation passed.
+  The desktop Vite root now resolves beside its configuration, keeping launches
+  through a directory junction consistent with canonical module paths.
+  Existing running application processes are not restarted as part
+  of fixture QA. No actual paid/online model, live-source verification, long-term
+  soak run, real GPU inference, native-phone or fresh-install acceptance is
+  established by these checks. Schedules require the backend open and host awake.
+
 ## October 30 Coding Coordinator language runners
 
 The [Coding verification guide](../workspace/CODING_COORDINATOR.md#language-runners)

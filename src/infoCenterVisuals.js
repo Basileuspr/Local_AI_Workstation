@@ -1,6 +1,7 @@
 // Small, local illustrations: no external images, user files, or model calls.
 // [input picture, result picture, input label, action, result label, motion]
 export const featureVisuals = {
+  'testing-lab': ['sliders', 'check', 'Your test cases', 'Compare over time', 'Saved evidence'],
   coordinator: ['code', 'check', 'Task and harness', 'Plan and verify', 'Reviewed result'],
   'design-programming': ['sliders', 'code', 'Design choices', 'Mix', 'Your interface'],
   dashboard: ['status', 'check', 'Services', 'Check', 'Ready to work', 'pulse'],

@@ -8,7 +8,7 @@ SECTIONS = {
     'workflows': ('Image workflows', 'Saved workflows and their app-data assets and results.', ('image_workflows',)),
     'training': ('Characters, faces and LoRAs', 'Character/face datasets, training projects and trained adapters inside app data.', ('lora', 'face_bank', 'face_datasets', 'character_datasets')),
     'web': ('Web research', 'Saved web research, sources and background-monitor settings inside app data. Separate browser profiles remain.', ('web', 'web-system')),
-    'utilities': ('Audit and review records', 'Hash Auditor, Folder Review and visual review records.', ('hash_auditor', 'folder_review', 'visual_review')),
+    'utilities': ('Audit, review and evaluation records', 'Hash Auditor, Folder Review, visual review and Testing Lab history/schedules.', ('hash_auditor', 'folder_review', 'visual_review', 'evaluations')),
     'history': ('Logs, Trash and recovery copies', 'App-data logs, thinking history, Trash and backups. Select this too to remove old copies.', ('logs', 'thinking', 'backups', 'trash')),
     'mobile': ('Phone access and job history', 'Revokes paired phones and removes invitations, phone jobs and connection setup unless retained below.', ('mobile',)),
     'bridge': ('PC bridge', 'PC pairing, connection settings and delegated job history.', ('bridge',)),

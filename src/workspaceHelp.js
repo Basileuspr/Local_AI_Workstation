@@ -3,6 +3,10 @@ import {coordinatorOverview} from './help/coordinator';
 // Every workspace has an explicit guide. New routes must add one here too.
 // Keep instructions out of the work surface; WorkspaceInfo owns their presentation.
 const overview = {
+  'testing-lab': {
+    purpose: 'Compare local models with pasted online-model responses, review request and factual accuracy, and track saved evaluations over hours, days and weeks.',
+    example: 'Choose Workstation essentials and a local model, enter the exact online model version, and start a comparison. Paste the online answers using the same prompts, review each answer against its reference, then compare the accuracy charts. Schedule daily local runs to track changes over a month.',
+  },
   coordinator: coordinatorOverview,
   'design-programming': {
     purpose: 'Build and test interface designs, save combinations, apply shared app appearance settings, and work with HTML, CSS, JavaScript, and Markdown in one workspace.',

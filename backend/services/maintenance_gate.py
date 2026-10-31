@@ -44,6 +44,9 @@ def authorize(request):
 
 
 def workers_busy():
+    from services.evaluation_runner import is_busy as evaluation_busy
+    if evaluation_busy():
+        return True
     from services.hash_auditor import is_busy as hash_audit_busy
     from services.folder_review import is_busy as folder_review_busy
     from services.coding_coordinator import is_busy as coding_busy

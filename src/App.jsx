@@ -48,6 +48,7 @@ import CodeViewer from "./components/CodeViewer";
 import DesignWorkspace from './components/DesignWorkspace';
 const DesignPlayground = lazy(() => import('./components/DesignPlayground'));
 const Coordinator = lazy(() => import('./components/Coordinator'));
+const TestingLab = lazy(() => import('./components/TestingLab'));
 import ViewerBrowser from './components/ViewerBrowser';
 const ReelsAnalyzer = lazy(() => import('./components/ReelsAnalyzer'));
 const WebWorkspace = lazy(() => import('./components/WebWorkspace'));
@@ -451,6 +452,7 @@ function AppInner() {
           {designPane('design-programming', (designVisible || designUsed) && <Suspense fallback={<p>Opening UI Playground…</p>}><DesignPlayground active={designVisible} incomingExample={designExample} onEdit={openBrowserSource} /></Suspense>)}
           {designPane('markdown', <MarkdownViewer />)}
           <div className="pane" data-capture-tab="coordinator" hidden={!visible('coordinator')}><Suspense fallback={<p>Opening Coordinator…</p>}><Coordinator active={visible('coordinator')} legacyCoding={state.activeSidebarTab === 'coding-coordinator'} onNavigate={tab => dispatch({ type: 'SET_SIDEBAR_TAB', payload: tab })}/></Suspense></div>
+          <div className="pane" data-capture-tab="testing-lab" hidden={!visible('testing-lab')}><Suspense fallback={<p>Opening Testing Lab…</p>}><TestingLab active={visible('testing-lab')} /></Suspense></div>
           <div className="pane" data-capture-tab="browser" hidden={!visible("browser")}><ViewerBrowser active={visible("browser")} onOpenSource={openBrowserSource}/></div>
           <div className="pane" data-capture-tab="reels-analyzer" hidden={!visible("reels-analyzer")}><Suspense fallback={<p>Opening Reels Analyzer…</p>}><ReelsAnalyzer active={visible("reels-analyzer")} models={state.models} defaultModel={state.summaryModel||state.selectedModel}/></Suspense></div>
           <div className="pane" data-capture-tab="web-system" hidden={!visible("web-system")}><Suspense fallback={<p>Opening web workspace…</p>}><WebWorkspace active={visible("web-system")} models={state.models} defaultModel={state.summaryModel||state.selectedModel} chatModel={state.selectedModel} onOpenSession={async id => {const loaded=await handleLoadSession(id);if(loaded)dispatch({type:'SET_SIDEBAR_TAB',payload:'chats'});return loaded;}} isGenerating={state.isGenerating}/></Suspense></div>

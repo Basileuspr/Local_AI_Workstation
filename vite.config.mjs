@@ -20,7 +20,9 @@ export default defineConfig(({ command }) => {
     },
   }],
   define: { __LAW_BUILD_INFO__: JSON.stringify(rendererIdentity) },
-  root: "src",
+  // Resolve beside this config so directory-junction launches use the same root
+  // as Vite/Rollup's canonical module paths.
+  root: path.resolve(__dirname, "src"),
   assetsInclude: ['**/*.bin'],
   worker: { format: 'es' },
   base: "./",

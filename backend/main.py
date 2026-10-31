@@ -62,6 +62,7 @@ from routes.lora import router as lora_router
 from routes.image_workflows import router as image_workflows_router
 from routes.system_stats import router as system_stats_router
 from routes.request_queue import router as request_queue_router
+from routes.evaluations import router as evaluations_router
 from services.request_queue import queue, QueueCancelled, prepare_runtime
 from services.chat_model_runtime import prepare_chat_model, activity as chat_runtime_activity
 from config import settings
@@ -185,6 +186,21 @@ app.include_router(system_stats_router)
 from routes.tool_registry import router as tool_registry_router
 app.include_router(tool_registry_router)
 app.include_router(request_queue_router)
+app.include_router(evaluations_router)
+from services.evaluation_runner import manager as evaluation_manager
+async def start_evaluations():
+    try:
+        service = evaluation_manager()
+        await service.startup()
+        app.state.evaluation_manager = service
+    except Exception:
+        logger.exception('Testing Lab history could not be opened; other workspaces remain available')
+async def close_evaluations():
+    service = getattr(app.state, 'evaluation_manager', None)
+    if service:
+        await service.close()
+app.add_event_handler('startup', start_evaluations)
+app.add_event_handler('shutdown', close_evaluations)
 from routes.bridge import router as bridge_router
 app.include_router(bridge_router)
 from mobile_companion.routes import router as mobile_router

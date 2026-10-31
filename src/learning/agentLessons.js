@@ -2,6 +2,15 @@ import { projectBrief, inventoryCsv, workshopMarkdown, recordingScript } from '.
 
 export const agentAppLessons = [
   {
+    id: 'testing-lab-evidence', title: 'Compare models with saved evidence', module: 'Evaluation and recovery', minutes: 10,
+    workspaces: ['testing-lab', 'queue'],
+    concepts: ['A model comparison needs the same request, explicit expected outcomes and recorded conditions. Automated format checks, human factual review and measured local speed answer different questions.', 'Testing Lab preserves suite revisions and run snapshots. Its text-only tests do not execute normal chat tools or retrieve Knowledge; pasted online responses have self-reported conditions and no measured latency.'],
+    steps: ['Open Testing Lab, inspect the Workstation essentials cases and identify the reference and review rubric for a data calculation and a revised fact.', 'Run a small custom suite using an installed local model. Add an optional exact online model version and record its pasted response with tool and reasoning conditions.', 'Review both answers for request and factual accuracy. Open the run evidence, compare coverage and local timings, and export the JSON. If you schedule a repeat, keep the backend running and disable the schedule when finished.'],
+    checkpoint: 'You can show the saved prompt, reference, settings, response and review for each model, and distinguish automated checks from human factual accuracy and unmeasured online speed.',
+    question: 'What does a passing JSON format check establish?', choices: ['Every fact in the answer is true', 'The answer passed that specific JSON assertion', 'The online model is slower'], answer: 1,
+    explanation: 'A format or expected-value assertion checks its stated condition; broader accuracy and performance claims require their own evidence.',
+  },
+  {
     id: 'coding-project-review', title: 'Supervise a local coding task', module: 'Planning and evidence', minutes: 12,
     workspaces: ['coordinator', 'queue'],
     concepts: ['The coding coordinator gives a tool-capable local model scoped source tools and user-configured checks. It protects existing changes and keeps a durable plan, diff and output record.',

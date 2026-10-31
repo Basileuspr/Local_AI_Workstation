@@ -57,6 +57,7 @@ export const navigationSections = [
   // Children live in the main workspace. Keep them indexed for search and ordering.
   { id: 'design-code', label: 'Design & Programming', items: designTools },
 ];
+navigationSections[0].items.push({ id: 'testing-lab', label: 'Testing Lab', title: 'Testing Lab · model comparisons, request accuracy, factual accuracy and results over time' });
 export const NAVIGATION_ORDER_KEY = 'local-ai-workstation-tab-order-v1';
 const complete = (saved, defaults) => [...new Set([...(Array.isArray(saved) ? saved.filter(id => defaults.includes(id)) : []), ...defaults])];
 export function normalizeNavigationOrder(value) {
