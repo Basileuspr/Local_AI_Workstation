@@ -3,6 +3,12 @@
 .github-publisher-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .github-publisher-header h2 { margin: 0; }
 .github-publisher-header button { align-self: center; }
+.github-pull { border-bottom: 1px solid var(--border); padding-bottom: 12px; }
+.github-pull-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.github-pull code { overflow-wrap: anywhere; }
+.github-pull .dashboard-note { margin-top: 8px; }
+.github-pull pre { max-height: 240px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.6 var(--font-mono); }
+.github-pull [role="status"], .github-pull [role="alert"] { margin-top: 10px; overflow-wrap: anywhere; }
 .github-publication-summary { margin: 0; color: var(--text-dim); overflow-wrap: anywhere; }
 .github-publication-details { display: flex; flex-direction: column; gap: 12px; }
 .github-publication-details[hidden] { display: none; }

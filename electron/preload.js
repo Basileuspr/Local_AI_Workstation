@@ -75,6 +75,7 @@ contextBridge.exposeInMainWorld("workstationDesktop", {
     validateGitHubSelection: request => ipcRenderer.invoke('github-publication:validate', request),
     commitGitHubSelection: request => ipcRenderer.invoke('github-publication:commit', request),
     pushGitHubCommit: request => ipcRenderer.invoke('github-publication:push', request),
+    pullGitHubUpdates: () => ipcRenderer.invoke('github-publication:pull'),
     githubPublicationState: () => ipcRenderer.invoke('github-publication:state'),
     openGitHubPublicationLog: () => ipcRenderer.invoke('github-publication:log'),
     startMediaManager: () => ipcRenderer.invoke("media-manager:start"),

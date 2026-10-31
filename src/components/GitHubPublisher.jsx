@@ -55,7 +55,8 @@ export default function GitHubPublisher({ initialJob = { status: 'idle' } }) {
     try { globalThis.window?.localStorage?.setItem('law.github-publication.expanded', String(next)); }
     catch { /* The disclosure still works when browser storage is unavailable. */ }
   }
-  const summary = busy ? (job.phase || 'Working') + '…'
+  const summary = job.pull?.status === 'running' ? 'Pulling updates from GitHub…'
+    : busy ? (job.phase || 'Working') + '…'
     : steps.published ? 'Pushed and verified on GitHub'
     : steps.committed ? 'Committed locally · ready to push'
     : review ? `${selected.length} of ${review.changes.length} changes selected · ${steps.validated ? 'Validated' : 'Validation pending'}`
@@ -66,6 +67,23 @@ export default function GitHubPublisher({ initialJob = { status: 'idle' } }) {
       <button type="button" aria-expanded={expanded} aria-controls="github-publication-details" onClick={toggleDetails}>
         {expanded ? 'Hide GitHub details' : 'Show GitHub details'}
       </button>
+    </div>
+    <div className="github-pull">
+      <div className="github-pull-actions">
+        <button type="button" disabled={busy || !desktop?.pullGitHubUpdates} onClick={() => act('pullGitHubUpdates')}>
+          {job.pull?.status === 'running' ? 'Pulling…' : 'Pull from GitHub'}
+        </button>
+        <code>git pull --ff-only origin main</code>
+      </div>
+      <p className="dashboard-note">Download source updates into this app’s main checkout. Finish local edits first. Build and fully restart the app to load changed code.</p>
+      {!desktop?.pullGitHubUpdates && <p className="dashboard-note">Open or fully restart the desktop app to enable pulling updates.</p>}
+      {job.pull?.status === 'completed' && <p role="status">
+        {job.pull.changed ? `Updated source to ${job.pull.after.slice(0, 7)}.` : 'Source is already up to date.'}
+        {job.pull.ahead > 0 && ` Local main has ${job.pull.ahead} unpublished commit${job.pull.ahead === 1 ? '' : 's'}.`}
+        {job.pull.changed && ' Run npm run build, then fully quit and restart the app.'}
+      </p>}
+      {job.pull?.status === 'failed' && !error && <p role="alert">{job.pull.error}</p>}
+      {job.pull?.output && <details><summary>Pull output</summary><pre>{job.pull.output}</pre></details>}
     </div>
     <p className="github-publication-summary" role="status" aria-live="polite">{summary}</p>
     {(error || job.error) && <p role="alert">{error || job.error}</p>}

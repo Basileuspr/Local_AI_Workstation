@@ -10,13 +10,13 @@ import GitHubPublisher, { githubPublicationSteps } from '../../src/components/Gi
 import publisherModule from '../../electron/githubPublisher';
 
 const { createGitHubPublisher } = publisherModule;
-function setup() {
+function setup(options = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'law-github-controller-'));
   const python = path.join(root, 'python.exe'); fs.writeFileSync(python, '');
   const workers = [], launch = vi.fn(() => {
     const child = new EventEmitter(); child.stdout = new PassThrough(); child.stderr = new PassThrough(); child.stdin = new PassThrough(); child.kill = vi.fn(); workers.push(child); return child;
   });
-  const publisher = createGitHubPublisher({ root, storage: path.join(root, 'jobs'), launch, environment: { LAW_PYTHON: python } });
+  const publisher = createGitHubPublisher({ root, storage: path.join(root, 'jobs'), launch, environment: { LAW_PYTHON: python }, ...options });
   return { root, publisher, workers, launch, environment: { LAW_PYTHON: python }, cleanup: () => {
     const resolved = fs.realpathSync(root);
     if (path.dirname(resolved) !== fs.realpathSync(os.tmpdir()) || !path.basename(resolved).startsWith('law-github-controller-')) throw Error('Unexpected test directory');
@@ -25,6 +25,23 @@ function setup() {
 }
 
 describe('GitHub publication controller', () => {
+  it('blocks pulling during publication and invalidates an old review after source changes', async () => {
+    const pull = vi.fn(async () => ({ changed: true, after: 'b'.repeat(40) }));
+    const fixture = setup({ pull });
+    try {
+      fixture.publisher.prepare();
+      await expect(fixture.publisher.pull()).rejects.toThrow('already running');
+      expect(pull).not.toHaveBeenCalled();
+      const folder = path.join(fixture.root, 'jobs', 'github-retained'); fs.mkdirSync(folder, { recursive: true });
+      const retained = path.join(folder, 'preview.json'); fs.writeFileSync(retained, 'retained snapshot');
+      fixture.workers[0].stdout.write(JSON.stringify({ kind: 'result', result: { folder, preview: { id: 'review', changes: [] } } }) + '\n');
+      fixture.workers[0].emit('close', 0);
+      await fixture.publisher.pull();
+      expect(fixture.publisher.state()).toMatchObject({ status: 'idle', preview: null, busy: false, pull: { status: 'completed' } });
+      expect(fs.readFileSync(retained, 'utf8')).toBe('retained snapshot');
+      expect(() => fixture.publisher.validate({ id: 'review', paths: ['src/app.js'] })).toThrow('Review');
+    } finally { fixture.cleanup(); }
+  });
   it('starts no process at construction or status reads; the UI requires desktop access', () => {
     const fixture = setup();
     try {

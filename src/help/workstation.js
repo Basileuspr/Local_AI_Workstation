@@ -54,6 +54,7 @@ export const workstationHelp = {
     ['Tool registry / filters', 'Browse tool requirements, outputs, effects and API schemas. Enable Local model tool use in Chat options and select up to 16 tools. Read tools can execute; actions that change data require review. Interactive and uploaded-file tools use their workspaces.'],
     ['Copy catalog / download', 'Exports the full catalog for review. Individual item TXT and Copy use the selected tool.'],
     ['Check / prepare maintenance', 'Runs only when requested. Prepared updates require a reviewed proposal and explicit approval; proposals expire after ten minutes.'],
+    ['Pull from GitHub', 'Runs git pull --ff-only origin main in the app source folder. Requires clean main tracking origin/main and the expected GitHub repository. Stops on local edits or divergent history. View Pull output for the result, then build and fully restart to load changed code.'],
     ['GitHub review / validate / commit / publish', 'Each step runs separately on the selected source snapshot. Validate checks isolated tests, dependencies, the build and outgoing content; commit and publish use the validated selection.'],
   ]], ['Storage and backups', [
     ['Storage libraries / Create', 'Creates an app-owned folder on a chosen drive. Reattach an existing app library using its parent and folder name; unrelated folders are not adopted.'],

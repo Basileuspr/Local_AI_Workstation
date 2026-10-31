@@ -455,10 +455,10 @@ ipcMain.handle("dashboard:open-app-folder", async (event) => {
 });
 
 const githubPublisher = createGitHubPublisher({ root: path.resolve(__dirname, '..'), storage: path.join(app.getPath('userData'), 'github-publications') });
-for (const [channel, method] of Object.entries({ prepare: 'prepare', validate: 'validate', commit: 'commit', push: 'push', state: 'state' })) {
-    ipcMain.handle(`github-publication:${channel}`, (event, request) => {
+for (const [channel, method] of Object.entries({ prepare: 'prepare', validate: 'validate', commit: 'commit', push: 'push', pull: 'pull', state: 'state' })) {
+    ipcMain.handle(`github-publication:${channel}`, async (event, request) => {
         if (!trustedDesktop(event)) return { error: 'Desktop access required.' };
-        try { return githubPublisher[method](request); } catch (error) { return { error: error.message }; }
+        try { return await githubPublisher[method](request); } catch (error) { return { error: error.message }; }
     });
 }
 ipcMain.handle('github-publication:log', async event => {

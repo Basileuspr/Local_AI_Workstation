@@ -1,10 +1,12 @@
 const path = require('node:path');
 const fs = require('node:fs');
 const { spawn } = require('node:child_process');
+const { pullGitHub } = require('./githubPull');
 
 const samePaths = (left, right) => Array.isArray(left) && Array.isArray(right) && JSON.stringify([...left].sort()) === JSON.stringify([...right].sort());
-function createGitHubPublisher({ root, storage, launch = spawn, environment = process.env }) {
+function createGitHubPublisher({ root, storage, launch = spawn, environment = process.env, pull = pullGitHub }) {
   let state = { status: 'idle', phase: '', error: '', preview: null, validation: null, commit: null, result: null }, snapshot, child, logFile;
+  let pullState = { status: 'idle' };
   const stateFile = path.join(storage, 'publication-state.json');
   const insideStorage = value => typeof value === 'string' && path.dirname(path.resolve(value)) === path.resolve(storage) && path.basename(value).startsWith('github-');
   function persist() {
@@ -32,7 +34,25 @@ function createGitHubPublisher({ root, storage, launch = spawn, environment = pr
       }
     }
   } catch { state.error = 'Could not restore the last update. Review a new source snapshot.'; }
-  const busy = () => !!child || ['preparing', 'validating', 'committing', 'pushing'].includes(state.status);
+  const busy = () => pullState.status === 'running' || !!child || ['preparing', 'validating', 'committing', 'pushing'].includes(state.status);
+  async function pullUpdates() {
+    if (busy()) throw Error('A GitHub operation is already running.');
+    pullState = { status: 'running' };
+    try {
+      const result = await pull({ root, environment });
+      if (result.changed) {
+        // Old snapshots/branches stay on disk, but need a fresh review after a pull.
+        snapshot = null; logFile = null;
+        state = { status: 'idle', phase: '', error: '', preview: null, validation: null, commit: null, result: null };
+        persist();
+      }
+      pullState = { status: 'completed', ...result };
+      return result;
+    } catch (error) {
+      pullState = { status: 'failed', error: error.message };
+      throw error;
+    }
+  }
   function start(action, request = {}) {
     if (busy()) throw Error('A GitHub publication is already running.');
     if (action !== 'prepare' && (!snapshot || !request || request.id !== state.preview?.id || state.result)) throw Error('Review the source changes before continuing.');
@@ -88,6 +108,7 @@ function createGitHubPublisher({ root, storage, launch = spawn, environment = pr
     return { started: true };
   }
   return { prepare: () => start('prepare'), validate: request => start('validate', request), commit: request => start('commit', request),
-    push: request => start('push', request), state: () => ({ ...structuredClone(state), busy: busy() }), log: () => logFile || snapshot?.log || null };
+    push: request => start('push', request), pull: pullUpdates,
+    state: () => ({ ...structuredClone(state), pull: structuredClone(pullState), busy: busy() }), log: () => logFile || snapshot?.log || null };
 }
 module.exports = { createGitHubPublisher };

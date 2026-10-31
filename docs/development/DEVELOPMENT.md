@@ -132,7 +132,24 @@ See [verification](VERIFICATION.md), the [recording workflow](../application-rev
 and the [document map](DOCUMENT_MAP.md). Update the shared relocation map when a
 guide moves; do not rewrite historical snapshot paths/hashes.
 
-## Dashboard snapshot publisher
+## Dashboard GitHub updates
+
+Dashboard → GitHub update → **Pull from GitHub** runs
+`git pull --ff-only origin main` in the app's source folder. The command and its
+output are visible in the card, even when publication details are collapsed.
+It requires a clean `main` checkout tracking `origin/main` and the expected
+GitHub remote (including effective fetch/push URL rewrites). It stops on local
+edits, a wrong branch/remote, Git errors or divergent history. It never stashes,
+rebases, resets or force-updates source. Pulling and snapshot publication cannot
+run at the same time in the desktop app. Changed source invalidates the current
+publication review; retained snapshots and recovery branches stay on disk.
+
+Pulling updates source files. After a successful update, run `npm run build` and
+fully quit/restart the app to load it; follow setup guidance if dependencies have
+changed. Pull output reports any remaining local unpublished commits. No pull
+runs automatically when the Dashboard opens.
+
+### Dashboard snapshot publisher
 
 Dashboard → GitHub update → Show GitHub details exposes three separate actions
 after Review source changes captures/fetches a snapshot:

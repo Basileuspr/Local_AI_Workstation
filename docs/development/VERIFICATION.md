@@ -1,8 +1,30 @@
 # Verification record and open findings
 
-This is the consolidated evidence record, updated October 30, 2026.
+This is the consolidated evidence record, updated October 31, 2026.
 Current guides describe inspected source; dated tests below are not a certification
 of every feature, provider, installation or device.
+
+## October 31 Dashboard GitHub pull
+
+Dashboard → GitHub update exposes **Pull from GitHub** and the exact
+`git pull --ff-only origin main` command outside the publication disclosure.
+The desktop checks the source root, branch, upstream, effective remote URLs and
+local edits, then shows progress, output and build/restart guidance. Pulls and
+snapshot publication share the same operation lock.
+
+- Full frontend suite: **1,660 passed, 3 existing skips across 208 files**.
+- Disposable real Git repositories verify fast-forward/no-change pulls, retained
+  local commits, dirty-file rejection and divergence with rebase/autostash
+  configured. URL inspection uses the expected GitHub URL fixture; network
+  transfers remain local. Wrong branches/upstreams, URL rewrites, missing Git,
+  error redaction, review invalidation and operation locking are covered.
+- Hidden Chromium checks passed for explicit clicks, disabled busy controls,
+  completion/output and a 390 px layout without horizontal overflow. Desktop
+  and narrow screenshots were inspected; Git responses in this UI fixture were
+  synthetic. Documentation links and native JavaScript syntax checks passed.
+- No live GitHub pull through the running desktop, backend/GPU checks or physical
+  device acceptance was performed. Fully restart the desktop after installing
+  the updated renderer to load the new preload/main-process action.
 
 ## October 30 global upload and import quotas
 
