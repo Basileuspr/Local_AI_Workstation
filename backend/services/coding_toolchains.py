@@ -27,6 +27,8 @@ def installed():
     except (ValueError, OSError):
         pass
     java_homes = [Path(p) for p in [os.environ.get('JAVA_HOME'), android.get('java')] if p]
+    # Portable verification installs need not modify the user's global PATH.
+    java_homes += [root / 'jdk', *sorted((root / 'jdk').glob('*'), reverse=True)]
     javac = first_file([shutil.which('javac'), *(p / ('bin/javac' + exe) for p in java_homes)])
     java = first_file([Path(javac).with_name('java' + exe) if javac else None, shutil.which('java')])
     gradle_homes = [Path(p) for p in [os.environ.get('GRADLE_HOME')] if p]
