@@ -37,6 +37,39 @@ installed defaults. Retired catalog choices no longer invalidate retained links.
 - These checks do not establish decompilation accuracy for arbitrary files,
   every debugger feature, Unity support or mobile tracing/device readiness.
 
+## October 31 image model installation
+
+Added an explicit, revision-pinned installer and a source-linked catalog for
+DreamShaper XL 1.0, Animagine XL 4.0, Illustrious XL Improved Uncensored v3 and
+the previously documented Verboa Image 1.0 NF4. Weights, manifests, download
+caches and generated checks remain local and excluded from Git. Existing setup
+still does not download image models automatically.
+
+- Installer boundary/integrity tests: **12 passed**. Coverage includes FP16
+  selection, omitted alternate weight formats, path traversal, missing pipeline
+  indexes, size/hash mismatches, existing-folder preservation and required
+  default weight filenames, continuing after failures and suppressing remote
+  response details that might contain signed URLs.
+- Existing reference, ERNIE and workflow tests: **53 passed**, with existing
+  FastAPI lifecycle deprecation warnings. `pip check` passed.
+- DreamShaper, Animagine and Illustrious completed real **512 × 512** generation
+  and **25% reference variation** checks, seed 123 and 12 scheduled steps. All
+  six outputs were opened and visually inspected. The application service used
+  offline local weights and temporary data/catalog/log locations. Seed metadata,
+  dimensions, nonblank pixels and GPU-lease release were checked. These small
+  smoke checks do not certify maximum resolutions or overall image quality.
+- The installed SDXL files were checked against published LFS hashes. Re-running
+  the checked-in installer verified existing files without replacing them.
+- Documentation check: **58 Markdown files, 294 local links, 92 relocation
+  entries; zero errors**. No frontend/build changes or dependency upgrades.
+- Verboa was downloaded after approved Hugging Face authentication, with file
+  sizes and LFS hashes verified. Discovery and offline tokenizer checks passed.
+  Installed the existing optional profile's `bitsandbytes==0.50.2`; a real NF4
+  CUDA kernel check and a subsequent `pip check` passed. No existing package
+  versions were upgraded. Full Verboa generation was not tested with the limited
+  free system RAM. Its performance fixture requires 16 GiB of available RAM;
+  installation and component checks do not certify that benchmark.
+
 ## October 31 Phone workspace, phase 2
 
 Added **Workspace → Phone** with passive KDE Connect and scrcpy file discovery,

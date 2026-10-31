@@ -28,6 +28,9 @@ install their selected subset. `requirements.txt` lists direct upgrade inputs.
 Optional audio, faces, Knowledge and SDXL CUDA profiles remain separate.
 A detected GPU/runtime is not proof that a particular model/resolution fits.
 
+For explicit, resumable weight installation, see the
+[image model catalog and installer](../images/GENERATION.md#installing-image-models).
+
 Media Manager is bundled; an external Desktop installation is not required.
 See [its guide](../media/MEDIA_MANAGER.md) for optional overrides.
 
