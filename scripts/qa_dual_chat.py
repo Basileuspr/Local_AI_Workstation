@@ -11,6 +11,7 @@ import time
 
 root = Path(tempfile.mkdtemp(prefix="law-dual-chat-data-"))
 os.environ.update(LAW_DATA_DIR=str(root / "data"), LAW_LOG_DIR=str(root / "logs"), LAW_MODELS_DIR=str(root / "models"),
+                  LAW_IMAGE_MANAGER_DIR=str(root / "image-catalog"),
                   LAW_SESSION_TOKEN="dual-chat-qa", ANONYMIZED_TELEMETRY="False")
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 import uvicorn
@@ -22,6 +23,7 @@ from starlette.requests import ClientDisconnect
 loaded = ["alpha:latest"]
 operations = []
 requests = []
+vision_requests = []
 controls = {"release": set(), "hold_switch": True, "hold_load": True, "active": 0, "maximum": 0}
 provider = FastAPI()
 
@@ -51,6 +53,9 @@ async def generate(request: Request):
 async def chat(request: Request):
     body = await request.json()
     prompt = next(item["content"] for item in reversed(body["messages"]) if item["role"] == "user")
+    if not body.get("stream", True):
+        vision_requests.append(body)
+        return {"message": {"content": "Synthetic observation: colored square."}, "done": True}
     requests.append({"prompt": prompt, "model": body["model"], "messages": body["messages"]})
     async def stream():
         controls["active"] += 1
@@ -113,7 +118,7 @@ def privacy(): return {"locked_hashes": []}
 def knowledge(): return {"documents": []}
 
 @app.get("/qa/state")
-def state(): return {"loaded": loaded, "operations": operations, "requests": requests, "maximum": controls["maximum"], "queue": main.queue.snapshot()}
+def state(): return {"loaded": loaded, "operations": operations, "requests": requests, "vision_requests": vision_requests, "maximum": controls["maximum"], "queue": main.queue.snapshot()}
 
 @app.post("/qa/release/{prompt}")
 def release(prompt: str):

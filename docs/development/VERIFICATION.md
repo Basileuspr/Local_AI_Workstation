@@ -4,6 +4,24 @@ This is the consolidated evidence record, updated October 30, 2026.
 Current guides describe inspected source; dated tests below are not a certification
 of every feature, provider, installation or device.
 
+## October 30 image-only chat submissions
+
+The [chat composer](../chat/CHAT_GUIDE.md#compose-and-control-a-response) accepts
+attachments without typed text in new and existing chats. Saved attachments
+trigger the reply queue without adding a blank or invented user prompt. Queued
+image-only follow-ups end their model context with their own submitted attachments
+while retaining prior replies and the saved conversation order.
+
+- Full frontend suite: **1,650 passed, 3 existing skips across 206 files**.
+  Nine composer regressions cover both panes, empty sends, typed image prompts,
+  queued follow-up context, upload failure/retry and navigation during a save.
+- Hidden Electron/Chromium dual-chat walkthrough passed, including image-only
+  Enter/Send in new/existing chats, multiple image analysis passes and persisted
+  replies through the production chat/session routes. The provider was synthetic;
+  runtime data and the image catalog were isolated in temporary folders.
+- Documentation checks and production desktop/companion builds passed. No running
+  application was restarted and no real GPU vision-model inference was tested.
+
 ## October 30 Testing Lab
 
 The [Testing Lab guide](../workspace/TESTING_LAB.md) documents the persistent

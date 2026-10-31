@@ -197,10 +197,54 @@ app.whenReady().then(async () => {
   await until(() => js("document.querySelector('.workspace-panes').classList.contains('split-stacked')"), "stacked second chat layout");
   assert(await js("document.querySelector('#chat-input').getBoundingClientRect().width > 100 && document.querySelector('#chat-input-secondary').getBoundingClientRect().width > 100"));
   fs.writeFileSync(path.join(output, "full-app-stacked-chats.png"), (await win.webContents.capturePage()).toPNG());
+  // Image-only sends exercise the real composer, session/image persistence,
+  // queue and backend payload expansion. The model itself remains synthetic.
+  const submitImages = async (names, enter) => {
+    const before = await api('/qa/state');
+    await js(`(() => {
+      document.querySelector('#chat-input').focus();
+      const files=${JSON.stringify(names)}.map((name,index)=>{
+        const canvas=document.createElement('canvas');canvas.width=canvas.height=16;
+        const context=canvas.getContext('2d');context.fillStyle=index?'blue':'red';context.fillRect(0,0,16,16);
+        const bytes=Uint8Array.from(atob(canvas.toDataURL('image/png').split(',')[1]),c=>c.charCodeAt(0));
+        return new File([bytes],name,{type:'image/png'});
+      });
+      window.dispatchEvent(new CustomEvent('stage-chat-images',{cancelable:true,detail:files}));
+    })()`);
+    await until(() => js(`document.querySelectorAll('[data-chat-pane=primary] .pending-chat-images article').length === ${names.length}`), 'review image-only attachments');
+    if (enter) await js("document.querySelector('#chat-input').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}))");
+    else await js("document.querySelector('#send-btn').click()");
+    await until(async () => (await api('/qa/state')).requests.length === before.requests.length + 1, 'image-only inference admitted');
+    const admitted = await api('/qa/state'), request = admitted.requests.at(-1);
+    assert.equal(request.messages.at(-1).role, 'user');
+    assert(request.messages.at(-1).content.includes(names.at(-1)));
+    if (names.length > 1) {
+      const passes = admitted.vision_requests.slice(before.vision_requests.length);
+      assert.equal(passes.length, names.length);
+      assert(passes.every(pass => pass.messages.flatMap(message => message.images || []).length === 1));
+      assert(request.messages.some(message => message.content.includes('Synthetic observation: colored square.')));
+    } else assert.equal(request.messages.flatMap(message => message.images || []).length, 1);
+    await release(request.prompt);
+    await until(() => js(`!document.querySelector('[data-chat-pane=primary] .pending-chat-images') && document.querySelector('[data-chat-pane=primary]').innerText.includes(${JSON.stringify('Reply to ' + request.prompt)}) && !document.querySelector('#stop-btn').classList.contains('visible')`), 'image-only reply saved');
+    const listed = await api('/sessions/list');
+    for (const item of listed.sessions) {
+      const saved = await api('/sessions/' + item.id);
+      if (saved.messages.some(message => message.imagePreviews?.some(image => image.name === names[0]))) return saved;
+    }
+    throw Error('Image-only session not found');
+  };
+  await js("document.querySelector('#new-chat-btn').click()");
+  const imageChat = await submitImages(['Image-only-first.png', 'Image-only-second.png'], true);
+  assert.deepEqual(imageChat.messages.map(message => message.role), ['user', 'user', 'assistant']);
+  const imageFollowup = await submitImages(['Image-only-followup.png'], false);
+  assert.equal(imageFollowup.id, imageChat.id);
+  assert.deepEqual(imageFollowup.messages.map(message => message.role), ['user', 'user', 'assistant', 'user', 'assistant']);
+  assert(imageFollowup.messages.filter(message => message.role === 'user').every(message => message.images?.length));
+  fs.writeFileSync(path.join(output, 'full-app-image-only-chat.png'), (await win.webContents.capturePage()).toPNG());
   assert(!failures.some(message => /TypeError|ReferenceError|Cannot read properties/.test(message)), JSON.stringify(failures));
   const finalState = await api("/qa/state");
   console.log(JSON.stringify({ result: "passed", output, data: fixture.data, requests: state.requests.length,
     fullApplicationRequests: finalState.requests.length - state.requests.length,
-    maximumConcurrentProviderRequests: finalState.maximum, operations: finalState.operations, checks: ["independent histories/models/drafts", "FIFO A/B/A", "safe model unload/load", "switching/loading health", "dismiss/reopen notice", "background persistence", "followup context", "unique DOM IDs", "complete application integration", "normal and tool-pinned chats have no popup", "second pinned chat retains popup", "waiting and switch cancellation", "two blank chat creation", "stacked layout"] }));
+    maximumConcurrentProviderRequests: finalState.maximum, operations: finalState.operations, checks: ["independent histories/models/drafts", "FIFO A/B/A", "safe model unload/load", "switching/loading health", "dismiss/reopen notice", "background persistence", "followup context", "unique DOM IDs", "complete application integration", "normal and tool-pinned chats have no popup", "second pinned chat retains popup", "waiting and switch cancellation", "two blank chat creation", "new/existing image-only chats with Enter/Send", "multiple images without an invented prompt", "stacked layout"] }));
   finish();
 }).catch(finish);

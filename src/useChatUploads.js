@@ -8,7 +8,8 @@
  *
  * Presentation stays with the caller. Each upload accepts onStart/onSuccess/
  * onError callbacks so one surface can raise a toast while the other writes a
- * transient system message into the transcript.
+ * transient system message into the transcript. onSuccess receives the file
+ * and saved message ID so a submission can target its own attachments.
  */
 
 import { useCallback, useRef, useState } from "react";
@@ -198,7 +199,7 @@ export function useChatUploads({ onNewChat, onSessionSaved } = {}) {
           : buildDocumentMessage(await api.parseFile(file));
 
         const saved = await commit(target.id, message);
-        onSuccess?.(file);
+        onSuccess?.(file, message.id);
         return { ...target, messages: saved.messages, title: saved.title };
       } catch (error) {
         onError?.(error, file);

@@ -268,28 +268,29 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
 
   async function sendMessage() {
     if(attaching.current || isUploading)return;
-    if (!currentSessionRef.current && !textareaRef.current?.value.trim()) {
-      if (pendingImagesRef.current.length) showToast("Enter a prompt before sending attachments in a new chat.", "error");
-      return;
-    }
     if(!pendingImagesRef.current.length){sendTextMessage();return;}
     attaching.current=true;
     const text=textareaRef.current?.value.trim() || '';
+    const attachmentIds=[];
     let failed=false, targetId=null;
     try {
       const uploaded=await uploadFiles(pendingImagesRef.current.map(item=>item.file),{
         onTarget:id=>{targetId=id;},
-        onSuccess:file=>{const item=pendingImagesRef.current.find(item=>item.file===file);if(item)removePendingImages([item]);},
+        onSuccess:(file,id)=>{
+          attachmentIds.push(id);
+          const item=pendingImagesRef.current.find(item=>item.file===file);
+          if(item)removePendingImages([item]);
+        },
         onError:error=>{failed=true;showToast(error.message,'error');}
       });
-      if(uploaded && !failed && currentSessionRef.current===targetId)sendTextMessage(text);
+      if(uploaded && !failed && currentSessionRef.current===targetId)sendTextMessage(text, { attachmentIds });
     } finally {attaching.current=false;}
   }
 
-  function sendTextMessage(submittedText, { steerAfter = null, steerReceipt = null } = {}) {
+  function sendTextMessage(submittedText, { steerAfter = null, steerReceipt = null, attachmentIds = [] } = {}) {
     if (isUploading) { showToast("Wait for the attachment to finish saving before sending.", "error"); return; }
     const text = submittedText ?? textareaRef.current?.value.trim();
-    if (!text) return;
+    if (!text && !attachmentIds.length) return;
     if (!steerAfter && isEditCommand(text)) { void startChatEdit(text); return; }
     const sourceId = currentSessionRef.current;
     const documentArtifactId = !steerAfter && documentTargetRef.current?.sessionId === sourceId && /^\/docx\s+(?:append|add|continue)\b/i.test(text) ? documentTargetRef.current.id : undefined;
@@ -312,7 +313,7 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
     const prepared = target.then(session => ({ session }), error => ({ error }));
     if (!steerAfter && textareaRef.current.value.trim() === text) { textareaRef.current.value = ""; textareaRef.current.style.height = "44px"; selectDocumentTarget(null); }
     const followUpId = createMessageId();
-    const queued = chatSubmissionQueue.enqueue({ id: followUpId, label: text, session_id: sourceId, session_title: sessionTitle, model: selectedModel, afterId: steerAfter,
+    const queued = chatSubmissionQueue.enqueue({ id: followUpId, label: text || 'Attachments', session_id: sourceId, session_title: sessionTitle, model: selectedModel, afterId: steerAfter,
       pane_id: pane.id, pane_label: pane.label, onError: error => {
         if (steerAfter && currentSessionRef.current === sourceId) setSteerDraft(text);
         showToast(error.message, "error");
@@ -323,13 +324,13 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
       if (steerAfter && (!steerReceipt?.saved || steerReceipt.requestId !== steerAfter || steerReceipt.sessionId !== session.id)) {
         throw new Error('The partial reply could not be saved. Your steering instruction was kept; copy it from Steer and send it after resolving the save error.');
       }
-      await runMessage(text, session.id, signal, followUpId, documentArtifactId);
+      await runMessage(text, session.id, signal, followUpId, documentArtifactId, attachmentIds);
     } });
     void prepared.then(({ session }) => { if (session) chatSubmissionQueue.setSession(followUpId, session.id); });
     return queued;
   }
 
-  async function runMessage(text, sessionId, signal, requestId, documentArtifactId) {
+  async function runMessage(text, sessionId, signal, requestId, documentArtifactId, attachmentIds) {
     const progress = (stage, stage_detail) => {
       chatSubmissionQueue.update(requestId, { request_id: requestId, stage, stage_detail });
       invalidatePolling("runtime", "queue");
@@ -385,9 +386,10 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
       nextMemorySummary = original.memory_summary || "";
       nextSummarizedMessageCount = original.summarized_message_count || 0;
       if (wasStopped()) return;
-      // Persist the submitted turn before waiting; append cannot overwrite a
-      // result arriving from Generate or a different queued request.
-      saved = await api.appendSessionMessages(sessionId, [userMsg], selectedModel);
+      // Attachments are already saved user turns. With no typed prompt, request
+      // a reply to those turns without appending a blank or invented message.
+      // Append text without overwriting concurrent uploads or queued replies.
+      saved = text ? await api.appendSessionMessages(sessionId, [userMsg], selectedModel) : original;
       chatSubmissionQueue.update(requestId, { session_title: saved.title });
       nextMemorySummary = saved.memory_summary || "";
       nextSummarizedMessageCount = saved.summarized_message_count || 0;
@@ -414,6 +416,19 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
       } catch (error) {
         if (error.name === "AbortError") stopped = true;
         else { console.warn("Memory compaction skipped:", error); showToast(error.message || "Memory compaction was not saved", "error"); }
+      }
+      if (!text) {
+        const ids = new Set(attachmentIds);
+        const attachments = saved.messages.filter(message => ids.has(message.id));
+        if (attachments.length !== ids.size) throw new Error('A submitted attachment is no longer in this chat. Attach it again to request a reply.');
+        // An earlier queued reply can finish after these uploads were saved.
+        // End this request's context with its own attachments, without changing
+        // saved history or the prefix already covered by the rolling summary.
+        contextMessages = buildContextMessages([
+          ...saved.messages.slice(0, nextSummarizedMessageCount),
+          ...saved.messages.slice(nextSummarizedMessageCount).filter(message => !ids.has(message.id)),
+          ...attachments,
+        ], nextMemorySummary, nextSummarizedMessageCount);
       }
       if (wasStopped()) return;
       progress("queued", "Waiting for the shared model queue");

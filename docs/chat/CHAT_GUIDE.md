@@ -12,7 +12,9 @@ session. Typing alone does not. Startup normally opens a blank workspace;
   800 pixels. Messages and the composer resize together. The maximum width is
   remembered for both chats on this computer, and smaller panes fit their available
   space. Long replies scroll above the composer.
-- Enter sends text; use the composer’s image-generation action for an image job.
+- Enter or **Send** submits text, attachments, or both. You can send images alone
+  in a new or existing chat and let the selected vision model react without typing
+  a prompt. Use the composer’s image-generation action for an image job.
   The selected chat model and the image model are separate settings.
 - **Response length** accepts an exact limit from 1 to 32,768 tokens. Automatic
   allows up to 2,048. Thinking uses the same allowance. The effective limit can
