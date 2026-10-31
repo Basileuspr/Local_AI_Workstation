@@ -31,7 +31,6 @@ export default function Slicer({active = true}) {
   async function slice() {
     setBusy(true); setError('');
     try {
-      if (file.size > 50*1024**2) throw Error('Choose an STL no larger than 50 MiB.');
       const body = new FormData(); body.append('file', file); body.append('options', JSON.stringify(options));
       setJob(await request('/jobs', {method:'POST',body}));
     } catch (failure) { setError(failure.message); } finally { setBusy(false); }

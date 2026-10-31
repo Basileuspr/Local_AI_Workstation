@@ -23,8 +23,6 @@ MAX_FILES = 250_000
 def storage_values(value):
     if not isinstance(value, dict) or any(not isinstance(k, str) or not isinstance(v, str) for k, v in value.items()):
         raise ValueError("Backup desktop preferences must contain string keys and values.")
-    if len(json.dumps(value).encode("utf-8")) > MAX_PREFERENCES:
-        raise ValueError("Backup desktop preferences are too large.")
     return value
 
 
@@ -75,7 +73,6 @@ def validate_backup(source, root=None, expected_digest=None, staging=None):
                 raise ValueError("The selected backup changed. Select and review it again.")
             with zipfile.ZipFile(handle) as archive:
                 infos = archive.infolist()
-                if len(infos) > MAX_FILES + 2: raise ValueError("Backup contains too many files.")
                 names = {}
                 for info in infos:
                     if info.orig_filename != info.filename: raise ValueError("Backup contains an unsafe file path.")
@@ -92,12 +89,11 @@ def validate_backup(source, root=None, expected_digest=None, staging=None):
                         raise ValueError("Backup contains conflicting file and folder paths.")
                 if "manifest.json" not in names or names["manifest.json"].filename != "manifest.json":
                     raise ValueError("Choose an EXPORT BACK-UP archive. Metadata ZIPs cannot be imported.")
-                if names["manifest.json"].file_size > MAX_MANIFEST: raise ValueError("Backup manifest is too large.")
                 manifest = _json(archive.read("manifest.json"))
                 if not isinstance(manifest, dict) or manifest.get("format") != FORMAT or manifest.get("content_backup") is not True:
                     raise ValueError("This backup format/version is not supported.")
                 files = manifest.get("files")
-                if not isinstance(files, list) or not files or len(files) > MAX_FILES:
+                if not isinstance(files, list) or not files:
                     raise ValueError("Backup file manifest is invalid.")
                 expected = set()
                 total = 0
@@ -112,8 +108,6 @@ def validate_backup(source, root=None, expected_digest=None, staging=None):
                     if name in expected or name.casefold() not in names or names[name.casefold()].filename != name:
                         raise ValueError("Backup manifest does not match its files.")
                     if names[name.casefold()].file_size != size: raise ValueError("Backup file length does not match its manifest.")
-                    if name == "desktop/local-storage.json" and size > MAX_PREFERENCES:
-                        raise ValueError("Backup desktop preferences are too large.")
                     expected.add(name)
                     total += size
                 if "desktop/local-storage.json" not in expected or {info.filename for info in infos} != expected | {"manifest.json", "RESTORE.txt"}:

@@ -27,11 +27,11 @@ describe('document table editing', () => {
     expect(firstRowIsHeader(editor.state.doc.firstChild)).toBe(true);
     expect(editor.state.doc.firstChild.child(2).child(1).type.name).toBe('tableCell');
   });
-  it('keeps drag and pasted column widths exportable and blocks a thirteenth column', () => {
+  it('keeps drag and pasted column widths exportable and accepts a thirteenth column', () => {
     const editor = editorFor(1, 12);
     selectCellRange(editor, { top: 0, bottom: 1, left: 11, right: 12 });
     addColumnAfter(editor.state, editor.view.dispatch);
-    expect(TableMap.get(editor.state.doc.firstChild).width).toBe(12);
+    expect(TableMap.get(editor.state.doc.firstChild).width).toBe(13);
     const first = editor.state.doc.firstChild.firstChild.firstChild;
     editor.view.dispatch(editor.state.tr.setNodeMarkup(2, undefined, { ...first.attrs, colwidth: [2500] }));
     expect(columnWidths(editor.state.doc.firstChild)[0]).toBe(1600);

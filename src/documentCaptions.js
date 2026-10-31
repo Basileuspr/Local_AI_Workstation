@@ -63,13 +63,11 @@ export function saveCaption(editor, attrs, id = null, position = 'after') {
   const value = { label: attrs.label?.trim(), text: attrs.text ?? '' }, error = captionError(value); if (error) throw new Error(error);
   const all = captionsIn(editor.state.doc).captions, labels = new Set([...Object.keys(captionSettings(editor.state.doc)), ...all.map(item => item.label)]);
   value.label = [...labels].find(label => label.toLowerCase() === value.label.toLowerCase()) || value.label;
-  if (!labels.has(value.label) && labels.size >= 20) throw new Error('A document supports up to 20 caption labels.');
   const tr = closeHistory(editor.state.tr);
   if (id) {
     const item = all.find(item => item.id === id); if (!item) throw new Error('The caption no longer exists.');
     tr.setNodeMarkup(item.pos, undefined, { ...value, id });
   } else {
-    if (all.length >= 200) throw new Error('A document supports up to 200 captions.');
     if (!['before', 'after'].includes(position)) throw new Error('Choose above or below the current block.');
     const { $from, from, to } = editor.state.selection;
     const pos = $from.depth ? (position === 'before' ? $from.before(1) : $from.after(1)) : position === 'before' ? from : to;
@@ -98,7 +96,7 @@ export function saveCaptionNumbering(editor, label, rule) {
   if (!CAPTION_LABEL.test(label) || !CAPTION_FORMATS.some(([format]) => format === rule.format) || !Number.isInteger(rule.start) || rule.start < 1 || rule.start > 9999) throw new Error('Choose a numbering format and starting number from 1–9,999.');
   const settings = { ...captionSettings(editor.state.doc), [label]: { format: rule.format, start: rule.start } };
   const labels = new Set([...Object.keys(settings), ...captionsIn(editor.state.doc).captions.map(item => item.label)]);
-  if (labels.size > 20 || new Set([...labels].map(value => value.toLowerCase())).size !== labels.size) throw new Error('Use up to 20 different caption labels.');
+  if (new Set([...labels].map(value => value.toLowerCase())).size !== labels.size) throw new Error('Use distinct caption labels.');
   editor.view.dispatch(closeHistory(editor.state.tr).setDocAttribute('captionSettings', settings)); return true;
 }
 export function saveCrossReference(editor, attrs, id = null) {
@@ -109,7 +107,6 @@ export function saveCrossReference(editor, attrs, id = null) {
   const value = { target: attrs.target, display: attrs.display, hyperlink: attrs.hyperlink }, tr = closeHistory(editor.state.tr), all = captionsIn(tr.doc).references;
   if (id) { const item = all.find(item => item.id === id); if (!item) throw new Error('The cross-reference no longer exists.'); tr.setNodeMarkup(item.pos, undefined, { ...value, id }); }
   else {
-    if (all.length >= 1000) throw new Error('A document supports up to 1,000 cross-references.');
     if (!editor.state.selection.$from.parent.isTextblock) throw new Error('Place the cursor in a text paragraph first.');
     const pos = editor.state.selection.to; id = freshReferenceId(); tr.insert(pos, editor.schema.nodes.documentCrossReference.create({ ...value, id })); tr.setSelection(TextSelection.create(tr.doc, pos + 1));
   }
@@ -142,7 +139,7 @@ export function captionPlugin() { return new Plugin({
     if (!tr.docChanged) return true; let valid = true;
     tr.doc.descendants((node, _pos, parent) => { if (node.type.name === 'documentCaption' && parent.type.name !== 'doc') valid = false; });
     const { captions, references } = captionsIn(tr.doc), labels = new Set([...Object.keys(captionSettings(tr.doc)), ...captions.map(item => item.label)]);
-    return valid && captions.length <= 200 && references.length <= 1000 && labels.size <= 20;
+    return valid;
   },
 }); }
 export const DocumentCaptions = Extension.create({ name: 'documentCaptions',

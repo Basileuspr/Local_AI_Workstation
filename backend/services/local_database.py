@@ -19,8 +19,6 @@ def snapshot(source, directory):
     def stamps():
         return [(p.stat().st_size, p.stat().st_mtime_ns) if p.exists() else None for p in files]
     before = stamps()
-    if sum(item[0] for item in before if item) > 8 * 1024**3:
-        raise ValueError('The read-only snapshot supports databases up to 8 GiB.')
     if before[2] and before[2][0]:
         raise ValueError('This database has an active recovery journal. Close its owning application cleanly before inspecting it.')
     target = Path(directory) / 'snapshot.db'

@@ -26,7 +26,7 @@ describe('3D file parsing and safeguards',()=>{
     expect(()=>inspectZip(split)).toThrow(/Split ZIP64/);
     const huge=asZip64(source),h=new DataView(huge),start=new DataView(source).getUint32(source.byteLength-6,true);
     h.setBigUint64(start+46+h.getUint16(start+28,true)+4,300n*1024n*1024n,true);
-    expect(()=>inspectZip(huge)).toThrow(/256 MB/);
+    expect(inspectZip(huge).expandedBytes).toBeGreaterThan(256*1024**2);
     const unsafe=asZip64(source);new DataView(unsafe).setBigUint64(unsafe.byteLength-34,2n**60n,true);
     expect(()=>inspectZip(unsafe)).toThrow(/supported archive size/);
   });
@@ -83,12 +83,12 @@ describe('3D file parsing and safeguards',()=>{
     expect(()=>inspectZip(archive(model(`<object id="1">${tetra}</object>`),{'../bad':strToU8('bad')}))).toThrow(/unsafe/);
     const buffer=archive(model(`<object id="1">${tetra}</object>`)),v=new DataView(buffer);
     const start=v.getUint32(buffer.byteLength-6,true);v.setUint32(start+24,300*1024*1024,true);
-    expect(()=>inspectZip(buffer)).toThrow(/256 MB/);
+    expect(inspectZip(buffer).expandedBytes).toBeGreaterThan(256*1024**2);
     expect(()=>prepareSTL(new TextEncoder().encode('solid bad\nfacet normal 0 0 1\nvertex 1 2 3\nendsolid').buffer)).toThrow(/three vertices/);
   });
-  it('requires a supported, nonempty file within the memory limit',()=>{
+  it('requires a supported nonempty file without a size ceiling',()=>{
     expect(()=>validateFile({name:'a.obj',size:1})).toThrow(/STL or 3MF/);
     expect(()=>validateFile({name:'a.stl',size:0})).toThrow(/empty/);
-    expect(()=>validateFile({name:'a.3mf',size:600*1024*1024})).toThrow(/512 MB/);
+    expect(()=>validateFile({name:'a.3mf',size:600*1024*1024})).not.toThrow();
   });
 });

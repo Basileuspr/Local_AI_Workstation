@@ -18,7 +18,6 @@ export function downloadPaint(blob, name) {
 }
 export async function savePaintFile(blob, format, name, ticket = null) {
   name = paintFileName(name, format);
-  if (blob.size > 128 * 1024 * 1024) throw Error('Canvas files must be smaller than 128 MB.');
   if (window.workstationDesktop?.savePaintFile) {
     const result = await window.workstationDesktop.savePaintFile({ bytes: new Uint8Array(await blob.arrayBuffer()), format, name, ticket });
     if (result?.error) throw Error(result.error);

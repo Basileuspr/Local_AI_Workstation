@@ -44,13 +44,15 @@ def test_rejects_overlapping_paths(paths):
         packager.build_package([upload(), upload()], [{"path": path, "directory": False} for path in paths])
 
 
-def test_size_limit_checks_actual_bytes_and_cleans_partial_archive(tmp_path, monkeypatch):
+def test_streams_source_data_without_an_application_byte_ceiling(tmp_path, monkeypatch):
     monkeypatch.setattr(packager, "MAX_BYTES", 3)
     monkeypatch.setattr(packager.tempfile, "tempdir", str(tmp_path))
     item = upload(b"too big")
     item.size = None
-    with pytest.raises(ValueError, match="512 MiB"):
-        packager.build_package([item], [{"path": "file", "directory": False}])
+    target = packager.build_package([item], [{"path": "file", "directory": False}])
+    with zipfile.ZipFile(target) as archive:
+        assert archive.read('file') == b'too big'
+    target.unlink()
     assert list(tmp_path.iterdir()) == []
 
 

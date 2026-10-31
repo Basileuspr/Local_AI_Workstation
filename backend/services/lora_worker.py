@@ -22,6 +22,7 @@ import threading
 import uuid
 from pathlib import Path
 from services.cpu_assistance import PreparationPool, assistance_plan, image_working_bytes
+from services.upload_images import open_upload_image
 
 
 def emit(kind: str, **payload) -> None:
@@ -36,7 +37,7 @@ def _prepare_image(path: Path, resolution: int, aspect_mode: str):
     from PIL import Image, ImageOps
     import torch
 
-    with Image.open(path) as source:
+    with open_upload_image(path) as source:
         image = source.convert("RGB")
     original_size = (image.height, image.width)
     if aspect_mode == "pad":

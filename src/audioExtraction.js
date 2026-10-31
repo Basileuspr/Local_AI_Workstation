@@ -2,11 +2,10 @@ import {apiUrl} from './api';
 
 export const MEDIA_AUDIO_ACCEPT = '.mp4,.m4v,.mov,.mkv,.webm,.avi,.wmv,.flv,.mpg,.mpeg,.ts,.mts,.m2ts,.3gp,.3g2,.vob,.ogv,.mxf,.wav,.mp3,.m4a,.aac,.ogg,.oga,.flac,.opus,.wma,.aif,.aiff,.ac3,.mka,.amr,.caf';
 export const EXTRACTION_FORMATS = {mp3:'MP3 · compact',wav:'WAV · uncompressed',m4a:'M4A · compact',flac:'FLAC · compressed PCM'};
-export const EXTRACTION_MAX_BYTES = 2 * 1024 ** 3;
+export const EXTRACTION_MAX_BYTES = Infinity;
 
 export function validateExtractionInput(file) {
   if (!file?.size) return 'Choose a nonempty video or audio file.';
-  if (file.size > EXTRACTION_MAX_BYTES) return 'Video and audio inputs must be 2 GB or smaller.';
   if (!MEDIA_AUDIO_ACCEPT.split(',').some(ext => file.name.toLowerCase().endsWith(ext))) return 'Choose a supported video or audio file, such as MP4, MOV, MKV, WebM, MP3, or WAV.';
   return '';
 }

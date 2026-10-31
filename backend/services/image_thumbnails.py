@@ -10,6 +10,7 @@ import warnings
 
 from fastapi import HTTPException, Response
 from PIL import Image, ImageOps
+from services.upload_images import open_upload_image
 
 MAX_PIXELS = 40_000_000
 MAX_BYTES = 64 * 1024 * 1024
@@ -33,8 +34,8 @@ def render(data, size=320):
     from services import image_vault
     if size not in (160, 320, 640):
         raise HTTPException(422, "Unsupported preview size")
-    if not data or len(data) > MAX_BYTES:
-        raise HTTPException(422, "Image exceeds the preview byte limit")
+    if not data:
+        raise HTTPException(422, "Choose a nonempty image")
     digest = hashlib.sha256(data).hexdigest()
     key = (digest, size)
     with _slots:
@@ -52,9 +53,7 @@ def render(data, size=320):
         try:
             with warnings.catch_warnings():
                 warnings.simplefilter("error", Image.DecompressionBombWarning)
-                with Image.open(BytesIO(data)) as source:
-                    if source.width * source.height > MAX_PIXELS:
-                        raise ValueError("Image exceeds the preview pixel limit")
+                with open_upload_image(BytesIO(data)) as source:
                     source.seek(0)  # Animated inputs have a stable first-frame preview.
                     source.draft("RGB", (size, size))
                     image = ImageOps.exif_transpose(source)

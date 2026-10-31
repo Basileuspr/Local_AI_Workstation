@@ -15,7 +15,6 @@ export default function CodeViewer({ kind, incoming }) {
   async function read(file) {
     if (!file) return;
     try {
-      if (file.size > 2 * 1024 * 1024) throw new Error("Choose a text file under 2 MB.");
       setSource(await file.text()); setPreview(null); setError("");setOrigin(null);setNotice('');
     } catch (failure) { setError(failure.message); }
   }

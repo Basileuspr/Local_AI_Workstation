@@ -217,8 +217,6 @@ def add_faces(dataset_id, records, embeddings, source):
     """Append one source image's faces. Crops are written before the index."""
     with LOCK:
         data = _read(dataset_id)
-        if len(data["faces"]) + len(records) > MAX_FACES:
-            raise ValueError(f"A dataset holds at most {MAX_FACES} faces")
         matrix = vectors(dataset_id)
         rows = [] if not len(embeddings) else list(np.asarray(embeddings, dtype=np.float32))
         base = matrix.shape[0]

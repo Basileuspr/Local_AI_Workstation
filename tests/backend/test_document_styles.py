@@ -97,10 +97,12 @@ def test_invalid_style_definitions_are_rejected(patch):
     with pytest.raises(ValueError): export_docx(model(spec), DEFAULT_LAYOUT)
 
 
-def test_duplicate_names_unknown_references_and_style_limit_are_rejected():
+def test_duplicate_names_unknown_references_rejected_and_large_style_catalog_accepted():
     duplicate = model(style()); duplicate['attrs']['styles'].append({**style(), 'id': 'other', 'name': 'CALLOUT'})
     too_many = model(style()); too_many['attrs']['styles'] = [{**style(), 'id': f'style-{i}', 'name': f'Style {i}'} for i in range(33)]
+    too_many['content'][0]['attrs']['styleId'] = 'style-0'
     unknown = model(style(), paragraph('Unknown', styleId='missing'))
     builtin = model({**deepcopy(DEFAULT_STYLES[0]), 'name': 'Renamed Normal'})
-    for source in (duplicate, too_many, unknown, builtin):
+    for source in (duplicate, unknown, builtin):
         with pytest.raises(ValueError): export_docx(source, DEFAULT_LAYOUT)
+    assert any(item['name'] == 'Style 32' for item in import_docx(export_docx(too_many, DEFAULT_LAYOUT))['document']['attrs']['styles'])

@@ -12,7 +12,9 @@ from contextlib import suppress
 from uuid import UUID, uuid4
 from services.request_queue import queue, QueueCancelled
 
-router = APIRouter(prefix="/workspaces", tags=["workspaces"])
+from services.upload_routes import UploadRoute
+
+router = APIRouter(route_class=UploadRoute, prefix="/workspaces", tags=["workspaces"])
 
 
 @router.post("/gif")
@@ -87,8 +89,6 @@ def gif_progress(request_id: UUID):
 async def create_package(files: list[UploadFile] = File(...), entries: str = Form(...),
                          name: str = Form("Package"), compression: str = Form("compressed")):
     try:
-        if len(entries) > 1024 * 1024:
-            raise ValueError("Too many package paths.")
         manifest = json.loads(entries)
         if not isinstance(manifest, list):
             raise ValueError("Invalid package file list.")
@@ -106,7 +106,7 @@ async def create_package(files: list[UploadFile] = File(...), entries: str = For
 @router.post("/convert")
 async def convert_image(file: UploadFile = File(...), target: str = Form(...), quality: int = Form(92, ge=1, le=100),
                         icon_size: int = Form(256), icon_fit: str = Form('contain')):
-    raw = await file.read(image_conversion.MAX_BYTES + 1)
+    raw = await file.read()
     try: return await run_in_threadpool(image_conversion.convert, raw, file.filename or "image", target, quality,
                                       icon_size=icon_size, icon_fit=icon_fit)
     except ValueError as exc: raise HTTPException(400, str(exc)) from exc

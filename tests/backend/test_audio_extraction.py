@@ -143,12 +143,10 @@ def test_bounds_and_cancellation_release_lock(source,tmp_path,monkeypatch):
         extraction.extract(source,output,'wav',0,'id',cancelled)
     assert not extraction.status()['busy']
     monkeypatch.setattr(extraction,'MAX_SECONDS',.1)
-    with pytest.raises(AudioError,match='2 hours'):
-        extraction.extract(source,output,'wav',0,'id',threading.Event())
+    assert extraction.extract(source,output,'wav',0,'id',threading.Event())['duration'] > .1
     monkeypatch.setattr(extraction,'MAX_SECONDS',7200)
     monkeypatch.setattr(extraction,'MAX_OUTPUT_BYTES',100)
-    with pytest.raises(AudioError,match='250 MB'):
-        extraction.extract(source,output,'wav',0,'id',threading.Event())
+    assert extraction.extract(source,output,'wav',0,'id',threading.Event())['bytes'] > 100
     assert not extraction.status()['busy']
 
 
@@ -174,7 +172,7 @@ def test_real_api_download_and_failure_remove_temporary_files(client,source,monk
     assert response.status_code == 400 and not paths[-1].exists()
     monkeypatch.setattr(extraction,'MAX_INPUT_BYTES',2)
     response = client.post('/audio/extract',files={'file':('sample.mp4',b'123')},data=options)
-    assert response.status_code == 413 and not paths[-1].exists()
+    assert response.status_code == 400 and not paths[-1].exists()
 
 
 @pytest.mark.parametrize('name,body,extra,code',[

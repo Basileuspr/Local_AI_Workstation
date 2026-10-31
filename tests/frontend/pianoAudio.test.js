@@ -48,16 +48,19 @@ it('normalizes Spotify track references, rejects other origins, and round-trips 
   savePianoTemplates([template],storage); expect(readPianoTemplates(storage).templates[0].spotifyLink).toBe(url);
 });
 
-it('bounds file decoding and creates a normalized mono clip without opening playback audio', async () => {
+it('decodes large files and creates a normalized mono clip without opening playback audio', async () => {
   const channels=[Float32Array.from([.05,.1,.15,.2,.1,.05]),Float32Array.from([.05,.1,.15,.2,.1,.05])];
   const decode=vi.fn(async()=>({duration:3,sampleRate:2,numberOfChannels:2,getChannelData:index=>channels[index]}));
   class Context { decodeAudioData=decode; }
   const file={size:32,arrayBuffer:async()=>new ArrayBuffer(32)};
   const result=await decodePianoAudioFile(file,{start:1,duration:1},{OfflineAudioContext:Context});
   expect(result.samples).toEqual(Float32Array.from([.375,.5]));
-  await expect(decodePianoAudioFile({...file,size:40*1024**2},{},{OfflineAudioContext:Context})).rejects.toThrow('32 MB');
+  decode.mockResolvedValueOnce({duration:3,sampleRate:2,numberOfChannels:9,getChannelData:index=>channels[index%2]});
+  const multichannel=await decodePianoAudioFile(file,{start:1,duration:1},{OfflineAudioContext:Context});
+  expect(multichannel.samples[1]).toBeCloseTo(.5);
+  expect((await decodePianoAudioFile({...file,size:40*1024**2},{},{OfflineAudioContext:Context})).duration).toBe(3);
   await expect(decodePianoAudioFile(file,{start:4},{OfflineAudioContext:Context})).rejects.toThrow('past the end');
-  decode.mockResolvedValueOnce({duration:601});await expect(decodePianoAudioFile(file,{}, {OfflineAudioContext:Context})).rejects.toThrow('ten minutes');
+  decode.mockResolvedValueOnce({duration:601,sampleRate:2,numberOfChannels:2,getChannelData:index=>channels[index]});expect((await decodePianoAudioFile(file,{}, {OfflineAudioContext:Context})).fileDuration).toBe(601);
 });
 
 it('terminates workers on result, failure, or cancellation and ignores late messages', async () => {

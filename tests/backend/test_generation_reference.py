@@ -46,12 +46,12 @@ def test_upload_validates_actual_bytes_and_preserves_original():
         assert client.post('/image-generation/references', files={'file': ('fake.png', b'not pixels', 'image/png')}).status_code == 400
 
 
-def test_oversized_upload_and_locked_reference_rejected(monkeypatch):
+def test_large_upload_accepted_and_locked_reference_rejected(monkeypatch):
     monkeypatch.setattr(references, 'MAX_UPLOAD_BYTES', 30)
     app = FastAPI()
     app.include_router(routes.router)
     with TestClient(app) as client:
-        assert client.post('/image-generation/references', files={'file': ('big.png', png(), 'image/png')}).status_code == 413
+        assert client.post('/image-generation/references', files={'file': ('big.png', png(), 'image/png')}).status_code == 200
     monkeypatch.setattr(image_vault, 'is_locked', lambda _: True)
     with pytest.raises(image_vault.LockedImageError):
         references.store_reference('locked.png', png())

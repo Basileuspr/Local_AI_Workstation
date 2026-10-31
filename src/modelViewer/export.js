@@ -4,7 +4,6 @@ import {UNIT_MM,unpackGeometry,validateDocument} from './editor';
 export function exportSTL(doc){
   validateDocument(doc);if(!doc.objects.length)throw Error('Add or open a model first.');
   const triangles=doc.objects.reduce((n,o)=>n+(o.geometry.index?.length||o.geometry.attributes.position.array.length/3)/3,0);
-  if(84+50*triangles>128*1024*1024)throw Error('STL export exceeds 128 MB. Export a smaller scene.');
   const root=new Group();
   try{
     for(const o of doc.objects){const original=unpackGeometry(o.geometry),g=original.clone(),matrix=new Matrix4().makeScale(UNIT_MM[doc.units],UNIT_MM[doc.units],UNIT_MM[doc.units]).multiply(new Matrix4().fromArray(o.matrix));original.dispose();

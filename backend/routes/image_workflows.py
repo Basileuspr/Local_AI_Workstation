@@ -16,7 +16,9 @@ from services.image_vault import PinError
 from services.image_workflows import scene_planner
 from services.request_queue import QueueCancelled
 
-router = APIRouter(prefix="/image-workflows", tags=["image-workflows"])
+from services.upload_routes import UploadRoute
+
+router = APIRouter(route_class=UploadRoute, prefix="/image-workflows", tags=["image-workflows"])
 
 
 @router.on_event("startup")

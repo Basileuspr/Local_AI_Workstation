@@ -55,8 +55,6 @@ def _add_copy(workflow, name, content, origin):
     asset = store._inspect_image(name, content)
     require_public(asset.id)
     if asset.id not in {item.id for item in workflow.assets}:
-        if len(workflow.assets) >= 100:
-            raise ValueError("Workflow has 100 assets. Start a new scene to add more references.")
         asset.origin = origin
         store._atomic_bytes(store._directory(workflow.id) / "assets" / f"{asset.id}{asset.suffix}", content)
         workflow.assets.append(asset)

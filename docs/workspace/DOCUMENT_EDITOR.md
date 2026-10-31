@@ -23,10 +23,11 @@ bookmarks, a contents list, notes, captions, cross-references, citations and a
 bibliography. Style reset preserves hyperlinks; imported/resolved formatting is
 not a complete live Word style-inheritance system.
 
-Tables are bounded to 100 rows and 12 columns. Documents support up to 20 images,
-each within 8 MiB and 24 megapixels. DOCX input is bounded to 24 MiB compressed,
-64 MiB expanded and 2,048 ZIP entries, with additional node/text limits. These
-limits protect conversion and do not measure how long a document will take to lay out.
+DOCX input, package expansion, ZIP-entry counts and embedded pictures have no
+application byte or pixel ceiling. Table rows/columns, paragraph-style counts,
+source/citation counts and document element/text quotas are removed. Structure,
+duplicate ZIP entries, embedded image formats and unsupported active content
+still undergo validation. See [upload and import sizes](FILE_TOOLS.md#upload-and-import-sizes).
 
 ## References and numbering
 

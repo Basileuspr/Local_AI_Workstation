@@ -1,13 +1,13 @@
 import { MAX_IMAGE_STEPS } from './imageGenerationLimits';
 
-export const MAX_REFERENCE_BYTES = 20 * 1024 * 1024;
+export const MAX_REFERENCE_BYTES = Infinity;
 export const REFERENCE_FIELDS = {appearance: 'Face and appearance', style: 'Style and palette', composition: 'Composition and pose', lighting: 'Lighting'};
 
 export async function readReferenceImage(file) {
   if (!file || !['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
     throw new Error('Choose a PNG, JPEG, or WebP image.');
   }
-  if (!file.size || file.size > MAX_REFERENCE_BYTES) throw new Error('Choose an image up to 20 MiB.');
+  if (!file.size) throw new Error('Choose a nonempty image.');
   const url = URL.createObjectURL(file);
   try {
     const image = new Image();
@@ -16,7 +16,6 @@ export async function readReferenceImage(file) {
       image.onerror = () => reject(new Error('This image could not be opened.'));
       image.src = url;
     });
-    if (image.naturalWidth * image.naturalHeight > 24_000_000) throw new Error('Choose an image up to 24 megapixels.');
     return { file, url, width: image.naturalWidth, height: image.naturalHeight };
   } catch (error) { URL.revokeObjectURL(url); throw error; }
 }

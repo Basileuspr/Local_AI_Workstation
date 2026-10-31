@@ -15,6 +15,7 @@ from functools import wraps
 from datetime import datetime, timezone
 from pathlib import Path
 
+from services.upload_images import open_upload_image
 from PIL import Image
 
 from config import settings
@@ -305,15 +306,13 @@ def update_project(project_id: str, changes: dict) -> dict:
 def _image_metadata(data: bytes, filename: str) -> tuple[str, int, int, str]:
     digest = hashlib.sha256(data).hexdigest()
     try:
-        with Image.open(io.BytesIO(data)) as image:
+        with open_upload_image(io.BytesIO(data)) as image:
             image.verify()
-        with Image.open(io.BytesIO(data)) as image:
+        with open_upload_image(io.BytesIO(data)) as image:
             width, height = image.size
             media = Image.MIME.get(image.format, "image/unknown")
     except Exception as exc:
         raise ValueError(f"{filename} is not a readable image") from exc
-    if width < 64 or height < 64:
-        raise ValueError(f"{filename} is too small for training")
     return digest, width, height, media
 
 

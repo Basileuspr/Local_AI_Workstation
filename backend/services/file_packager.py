@@ -32,8 +32,8 @@ def package_name(value):
 
 
 def build_package(files, entries, compression="compressed"):
-    if not files or len(files) != len(entries) or len(entries) > MAX_ENTRIES:
-        raise ValueError(f"Choose between 1 and {MAX_ENTRIES} files and folders.")
+    if not files or len(files) != len(entries):
+        raise ValueError("Choose files and folders with one package path per entry.")
     if compression not in ("compressed", "stored"):
         raise ValueError("Choose compressed or stored ZIP format.")
     paths = {}
@@ -50,8 +50,6 @@ def build_package(files, entries, compression="compressed"):
         for end in range(1, len(parts)):
             if paths.get("/".join(parts[:end])) is False:
                 raise ValueError("A file and folder cannot share the same package path.")
-    if sum(file.size or 0 for file in files) > MAX_BYTES:
-        raise ValueError("Packages can contain up to 512 MiB of source files.")
 
     descriptor, target = tempfile.mkstemp(prefix="law-package-", suffix=".zip")
     os.close(descriptor)
@@ -67,11 +65,9 @@ def build_package(files, entries, compression="compressed"):
                         raise ValueError("Folder entries cannot contain file data.")
                     archive.writestr(entry["path"] + "/", b"")
                     continue
-                with archive.open(entry["path"], "w") as output:
+                with archive.open(entry["path"], "w", force_zip64=True) as output:
                     while chunk := file.file.read(1024 * 1024):
                         total += len(chunk)
-                        if total > MAX_BYTES:
-                            raise ValueError("Packages can contain up to 512 MiB of source files.")
                         output.write(chunk)
         return target
     except BaseException:

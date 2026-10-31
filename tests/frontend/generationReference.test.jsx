@@ -27,9 +27,17 @@ describe('Generate reference images', () => {
     expect(() => referenceOptions({}, .3, 'contain', 1)).toThrow('at least one');
     expect(() => referenceOptions({}, NaN, 'contain', 24)).toThrow('Change amount');
   });
-  it('rejects unsupported and oversized files before creating previews or uploads', async () => {
+  it('rejects unsupported and empty files before creating previews or uploads', async () => {
     await expect(readReferenceImage({type:'image/svg+xml',size:10})).rejects.toThrow('PNG');
-    await expect(readReferenceImage({type:'image/png',size:21*1024**2})).rejects.toThrow('20 MiB');
+    await expect(readReferenceImage({type:'image/png',size:0})).rejects.toThrow('nonempty');
+  });
+  it('previews images above the former byte and pixel ceilings', async () => {
+    const create = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:large');
+    vi.stubGlobal('Image', class { naturalWidth=10000; naturalHeight=10000; set src(value) { queueMicrotask(() => this.onload()); } });
+    try {
+      const result=await readReferenceImage({type:'image/png',size:200*1024**2});
+      expect([result.width,result.height]).toEqual([10000,10000]);
+    } finally { create.mockRestore(); vi.unstubAllGlobals(); }
   });
   it('releases a failed preview URL', async () => {
     const create = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:failed');

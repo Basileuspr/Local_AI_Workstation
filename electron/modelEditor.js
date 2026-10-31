@@ -5,7 +5,7 @@ const MAX_BYTES = 128 * 1024 * 1024;
 
 function editorExport(request) {
     if (!request || !['law3d', 'stl'].includes(request.format)) throw Error('Choose a project or STL export.');
-    if (!(request.bytes instanceof Uint8Array) || !request.bytes.byteLength || request.bytes.byteLength > MAX_BYTES) throw Error('3D exports must contain 1 byte to 128 MB.');
+    if (!(request.bytes instanceof Uint8Array) || !request.bytes.byteLength) throw Error('3D exports must contain nonempty model or project bytes.');
     const stem = String(request.name || 'model').split(/[\\/]/).pop().replace(/\.(law3d|stl)$/i, '').replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').slice(0,160) || 'model';
     return {name: `${stem}.${request.format}`, format: request.format, bytes: Buffer.from(request.bytes)};
 }

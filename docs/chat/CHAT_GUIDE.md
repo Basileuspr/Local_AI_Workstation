@@ -42,6 +42,11 @@ model is needed to interpret image pixels; attaching an image to a text-only mod
 does not give it vision. Installed software/specification context describes
 detected local capabilities, not a guarantee that a runtime or model works.
 
+Uploads have no application byte, pixel or attachment-count ceiling. Image
+originals stream to disk and the transcript stores references rather than base64
+copies. Model context and inference previews are handled separately from saving
+the original. See [upload and import sizes](../workspace/FILE_TOOLS.md#upload-and-import-sizes).
+
 Chat history, optional durable user memory, roleplay settings and Knowledge
 retrieval have distinct owners. Review the active context controls when answers
 include unexpected information. [Knowledge](../workspace/KNOWLEDGE_VAULT.md) is

@@ -1,7 +1,7 @@
 import { apiUrl } from './api';
 import { readPollingJson } from './polling';
 
-export const folderReviewDefaults = { recursive: true, max_entries: 2000, max_bytes: 16 * 1024 * 1024, max_chars: 200000, batch_chars: 4000 };
+export const folderReviewDefaults = { recursive: true, max_entries: 0, max_bytes: 0, max_chars: 0, batch_chars: 4000 };
 export const folderReviewRunning = status => ['running', 'cancelling'].includes(status);
 export function folderReviewModels(models = []) {
   return [...new Set((Array.isArray(models) ? models : []).map(model => typeof model === 'string' ? model : model?.name).filter(name => typeof name === 'string' && name))];

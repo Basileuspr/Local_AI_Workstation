@@ -14,6 +14,7 @@ import threading
 from uuid import uuid4
 
 import numpy as np
+from services.upload_images import open_upload_image
 from PIL import Image, ImageOps
 from config import settings
 from services import image_vault
@@ -67,10 +68,10 @@ def public(digest):
 
 
 def image(raw):
-    if not raw or len(raw) > 40*1024*1024: raise ValueError('Choose an image up to 40 MiB.')
-    with Image.open(io.BytesIO(raw)) as source:
-        if source.width*source.height > 40_000_000 or getattr(source, 'n_frames', 1) != 1:
-            raise ValueError('Choose a single-frame image up to 40 megapixels.')
+    if not raw: raise ValueError('Choose a nonempty image.')
+    with open_upload_image(io.BytesIO(raw)) as source:
+        if getattr(source, 'n_frames', 1) != 1:
+            raise ValueError('Choose a single-frame image.')
         return ImageOps.exif_transpose(source).convert('RGB')
 
 
@@ -98,7 +99,6 @@ def read_source(source, identifier):
         from services.image_manager import manager, signature
         item = manager.image(identifier)
         item, path = manager.image_path(identifier)
-        if path.stat().st_size > 40*1024*1024: raise ValueError('Image exceeds the 40 MiB analysis limit.')
         before = signature(path.stat())
         raw = path.read_bytes()
         if before != signature(path.stat()): raise ValueError('Image changed while reading. Rescan and retry.')

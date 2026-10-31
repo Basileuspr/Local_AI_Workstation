@@ -6,7 +6,6 @@ import {downloadConvertedImage} from '../convertedImages';
 import "./Tools.css";
 import ImageThumbnail, { FileImageThumbnail, ThumbnailRetryButton } from "./ImageThumbnail";
 
-const MAX_IMAGE_BYTES = 100 * 1024 * 1024;
 
 export function ConvertedAttachment({ artifact }) {
   const [saving,setSaving]=useState(false),[notice,setNotice]=useState(''),[error,setError]=useState('');
@@ -33,7 +32,6 @@ export default function FileConverter() {
       for (const [index, file] of files.entries()) {
         setProgress(`Converting ${index + 1} of ${files.length}: ${file.name}`);
         try {
-          if (file.size > MAX_IMAGE_BYTES) throw new Error("Image exceeds the 100 MB file size limit.");
           const body = new FormData(); body.append("file", file); body.append("target", target);
           if (target === 'ico') { body.append('icon_size', iconSize); body.append('icon_fit', iconFit); }
           const response = await fetch(apiUrl("/workspaces/convert"), { method: "POST", body });
@@ -44,7 +42,7 @@ export default function FileConverter() {
     } finally { setBusy(false); setProgress("Finished."); }
   }
   return <section className="tools-workspace" onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();if(!busy)setFiles(Array.from(e.dataTransfer.files));}}>
-    <header className="tools-heading"><h1>File Converter</h1><p>Still images up to 100 MB and 24 megapixels each.</p></header>
+    <header className="tools-heading"><h1>File Converter</h1><p>Convert local still images while preserving the originals.</p></header>
     <ScrollToolbar as="div" label="Conversion controls" className="tools-toolbar"><button disabled={busy} onClick={()=>input.current.click()}>Choose images</button><input ref={input} hidden multiple type="file" accept="image/*" onChange={e=>{setFiles(Array.from(e.target.files));e.target.value="";}} />
       <label>Convert to <select disabled={busy} value={target} onChange={e=>setTarget(e.target.value)}>{["png","jpg","webp","bmp","tiff","ico"].map(format=><option key={format} value={format}>{format.toUpperCase()}</option>)}</select></label>
       {target === 'ico' && <><label>Largest icon size<select aria-label="Largest icon size" disabled={busy} value={iconSize} onChange={event => setIconSize(Number(event.target.value))}>{[16,24,32,48,64,128,256].map(size => <option key={size} value={size}>{size} × {size}</option>)}</select></label><label>Icon fit<select aria-label="Icon fit" disabled={busy} value={iconFit} onChange={event => setIconFit(event.target.value)}><option value="contain">Fit · transparent padding</option><option value="cover">Fill · crop edges</option></select></label></>}

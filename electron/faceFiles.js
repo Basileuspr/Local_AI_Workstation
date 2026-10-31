@@ -48,7 +48,6 @@ function createFaceImports({ io = fs } = {}) {
                         const type = TYPES[path.extname(selected).slice(1).toLowerCase()];
                         const info = await io.lstat(selected);
                         if (!type || !info.isFile() || info.isSymbolicLink()) throw new Error("Not a supported image file.");
-                        if (info.size > MAX_FILE_BYTES) throw new Error("Images must be at most 20 MiB each.");
                         if (files.length && bytes + info.size > BATCH_BYTES) break;
                         // Bound the read even if a file grows after stat. Opening the
                         // file handle also lets us recheck the object actually read.

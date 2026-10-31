@@ -11,6 +11,7 @@ from io import BytesIO
 import json
 import re
 
+from services.upload_images import open_upload_image
 from PIL import Image, ImageOps
 from services.context_awareness import estimate_text, payload_usage, remember_runtime_limit
 
@@ -53,10 +54,7 @@ def image_copy(value, edge=768):
     """Resize only the inference copy. Stored uploads are never rewritten."""
     try:
         raw = base64.b64decode(value.split(',', 1)[-1], validate=True)
-        with Image.open(BytesIO(raw)) as source:
-            # Reuse the application's existing upload limits; bound decoder work.
-            if source.width * source.height > 40_000_000:
-                raise ValueError('Image exceeds the 40 megapixel chat preview limit. Resize a copy before attaching it.')
+        with open_upload_image(BytesIO(raw)) as source:
             frame = ImageOps.exif_transpose(source)
             frame.thumbnail((edge, edge), Image.Resampling.LANCZOS)
             output = BytesIO()
@@ -211,8 +209,6 @@ async def open_chat_stream(client, base_url, payload, disconnected=None, progres
     images = [image for message in current['messages'] for image in message.get('images', [])]
     if images:
         current['_context_notices'].append('Image inference uses resized previews; original uploads are preserved. Small text or fine details may need a closer crop.')
-    if len(images) > max(2, current['options']['num_ctx'] // 128):
-        raise ValueError('The images are saved, but this group is too large to summarize reliably in the current context window. Ask about a smaller group at a time.')
     if len(images) > 1:
         observations = await describe_images(client, base_url, current, images, disconnected, progress)
         # Include every image by number. A bounded synthesis cannot carry all

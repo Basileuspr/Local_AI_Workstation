@@ -10,6 +10,32 @@ Use Local Files to open supported files deliberately. Opening a file does not
 automatically send it to a model. Folder Review prepares inventories and reviewed
 actions; it is not an automatic organizer.
 
+## Upload and import sizes
+
+Owner-selected files have no application-imposed upload byte, pixel, total-byte
+or file-count ceiling. The native chooser and multipart parser follow the same
+policy as the browser controls. Disk spooling, transfer chunks, preview sizes,
+cache eviction and sequential processing manage working memory without rejecting
+the rest of a selection.
+
+| Intake | Behavior |
+|---|---|
+| Chat images and documents / Knowledge | Images stream to content-addressed storage; chat JSON holds references. Document parsing keeps the extracted input; model context is budgeted separately. |
+| Image Review, Generate references, workflows and scenes | No generic image-byte, pixel or saved-asset-count ceiling. Originals remain intact. |
+| Faces, character parts and profile resources | All selected inputs are accepted for validation; large selections continue in automatic batches. |
+| Audio transcription, voice references and audio extraction | No application upload-byte or source-duration ceiling. Transcription continues in overlapping chunks; extraction remains cancellable. |
+| CSV, code viewers, designs, Word files, Canvas and 3D projects | No generic file-byte ceiling. CSV row/column, document picture/element, table row/column and project geometry quotas are removed. Supported structures still require validation. |
+| File Packager | Streams every selected entry to a ZIP64-capable archive without a total-byte, entry-count or folder-depth quota. |
+| Native bookmark and application-backup imports | No manifest, library-byte or item-count quota. Existing path, checksum, duplicate-entry and restore validation remains required. |
+| Media Manager image-folder intake | No source image-count or pixel ceiling. Its output operations retain their own format/settings requirements. |
+
+Supported formats, archive integrity, source ownership and locked-media access
+still apply. Actual disk space, available memory, codec capabilities, browser
+representation and model context can determine whether processing succeeds; an
+accepted original is not proof that a decoder or model can process it. Output
+settings and unrelated generation/analysis budgets are separate from upload
+acceptance.
+
 ## Existing Word files
 
 The Local Files DOCX editor makes bounded text/run changes while preserving
@@ -23,8 +49,8 @@ preservation limits.
 
 ## SQLite inspection
 
-SQLite viewing works from a private copy of the database and available WAL,
-within an 8-GiB input bound. Copying files is not a transactional snapshot; close
+SQLite viewing works from a private copy of the database and available WAL.
+Copying files is not a transactional snapshot; close
 the writer or use a proper database backup when consistency matters.
 
 Queries are read-only SELECT/WITH operations under an authorizer. Mutations,
@@ -41,7 +67,7 @@ analysis explicitly; optional transcription uses the installed speech runtime.
 Quick, Balanced and Detailed settings sample progressively more frames and
 vision moments, with actual timestamps. Even Detailed is bounded to 120 sampled
 frames and 12 vision moments; it is not continuous motion understanding.
-Decoded previews are bounded, and selected files can be up to 8 GiB.
+Decoded previews are bounded; source file bytes have no application ceiling.
 
 Temporary sessions expire and are cleaned up by the supported lifecycle. A crash
 can leave temporary files for later cleanup. Original media remains unchanged.
@@ -60,10 +86,10 @@ PDF support extracts native text, not OCR or rendered images. DOCX contributes
 paragraph/table text; images and other binaries contribute metadata only.
 Images are never sent to the model by this workflow.
 
-Coverage and source hashes remain in the full report. Default bounds include
-2,000 discovered entries, 16 MiB per readable file, 200,000 readable characters
-per file and 4,000 characters per batch; PDF extraction stops at 500 pages.
-Configure limits before starting. Limits, changed files, read errors and failed
+Coverage and source hashes remain in the full report. Discovery, file bytes and
+readable characters default to **0 = all**, with no forced upper ceiling. PDF
+extraction visits every page. Model requests use 4,000-character working batches
+by default. Optional user-selected coverage limits, changed files, read errors and failed
 model/compaction responses leave explicit incomplete results.
 
 Model inference uses the shared queue and actual context budget. Completed source

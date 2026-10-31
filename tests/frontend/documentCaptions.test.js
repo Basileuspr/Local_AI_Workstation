@@ -76,13 +76,13 @@ describe('captions and live cross-references', () => {
     expect(saveCaption(e,{})).toBe(false); expect(removeCaption(e,id)).toBe(false); expect(saveCaptionNumbering(e,'Figure',{})).toBe(false);
     expect(saveCrossReference(e,{})).toBe(false); expect(removeCrossReference(e,ref)).toBe(false); expect(goToReference(e,id)).toBe(true); expect(scrolled).toBe(true); expect(e.state.doc.toJSON()).toEqual(before);
   });
-  it('enforces limits and root placement, and serializes visible HTML rather than live clipboard nodes', () => {
+  it('accepts large caption counts, enforces root placement, and serializes visible HTML', () => {
     const e = editorFor(), id = saveCaption(e,{ label:'Figure',text:'A' }); select(e,1); saveCrossReference(e,{ target:id,display:'labelNumber',hyperlink:true });
-    const { captions,references } = captionsIn(e.state.doc); e.view.dispatch(e.state.tr.insert(0,Array(200).fill(captions[0].node))); expect(captionsIn(e.state.doc).captions).toHaveLength(1);
-    e.view.dispatch(e.state.tr.insert(1,Array(1000).fill(references[0].node))); expect(captionsIn(e.state.doc).references).toHaveLength(1);
-    const list = schema.nodes.bulletList.create(null,schema.nodes.listItem.create(null,[schema.nodes.paragraph.create(),captions[0].node])); e.view.dispatch(e.state.tr.insert(0,list)); expect(captionsIn(e.state.doc).captions).toHaveLength(1);
-    expect(DocumentCaption.config.renderHTML.call({ editor:e },{ node:captions[0].node }).at(-1)).toBe('Figure 1: A');
-    expect(DocumentCrossReference.config.renderHTML.call({ editor:e },{ node:references[0].node }).at(-1)).toBe('Figure 1');
+    const { captions,references } = captionsIn(e.state.doc); e.view.dispatch(e.state.tr.insert(0,Array(200).fill(captions[0].node))); expect(captionsIn(e.state.doc).captions).toHaveLength(201);
+    e.view.dispatch(e.state.tr.insert(1,Array(1000).fill(references[0].node))); expect(captionsIn(e.state.doc).references).toHaveLength(1001);
+    const list = schema.nodes.bulletList.create(null,schema.nodes.listItem.create(null,[schema.nodes.paragraph.create(),captions[0].node])); e.view.dispatch(e.state.tr.insert(0,list)); expect(captionsIn(e.state.doc).captions).toHaveLength(201);
+    expect(DocumentCaption.config.renderHTML.call({ editor:e },{ node:captions[0].node }).at(-1)).toBe('Figure 201: A');
+    expect(DocumentCrossReference.config.renderHTML.call({ editor:e },{ node:references[0].node }).at(-1)).toBe('Figure 201');
     expect(() => saveCaption(e,{ label:'Bad"label',text:'A' })).toThrow(); expect(() => saveCaption(e,{ label:'Figure',text:'😀'.repeat(501) })).toThrow();
     expect(() => saveCaptionNumbering(e,'Figure',{ format:'decimal',start:0 })).toThrow(); expect(() => saveCrossReference(e,{ target:'Missing',display:'full',hyperlink:true })).toThrow();
   });

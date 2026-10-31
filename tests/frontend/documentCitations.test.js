@@ -98,9 +98,9 @@ describe('local citations and bibliography', () => {
     const html = DocumentBibliography.config.renderHTML.call({ editor: e }, { node: bibliography.node });
     expect(JSON.stringify(html)).toContain('Analytical notes'); expect(JSON.stringify(html)).toContain('1843');
     expect(DocumentCitation.config.renderHTML.call({ editor: e }, { node: citations[0].node }).at(-1)).toBe('(Lovelace, 1843)');
-    e.view.dispatch(e.state.tr.insert(2, Array(1000).fill(citations[0].node))); expect(citationsIn(e.state.doc).citations).toHaveLength(1);
-    expect(() => importSources(e, { version: 1, sources: Array.from({ length: 100 }, () => book()) })).toThrow(/100 sources/);
-    expect(sourceCatalog(e.state.doc)).toHaveLength(1);
+    e.view.dispatch(e.state.tr.insert(2, Array(1000).fill(citations[0].node))); expect(citationsIn(e.state.doc).citations).toHaveLength(1001);
+    expect(() => importSources(e, { version: 1, sources: Array.from({ length: 100 }, (_, index) => ({...book(),id:`LAW_S${index.toString(16).padStart(32,'0')}`})) })).not.toThrow();
+    expect(sourceCatalog(e.state.doc)).toHaveLength(101);
   });
   it.each([{ year: '202' }, { authors: [{ given: 'Ada' }] }, { url: 'javascript:alert(1)' }, { doi: 'bad' }, { title: '😀'.repeat(251) }, { title: '\ud800' }])('rejects unsupported source values: %j', changes => {
     expect(sourceError({ ...book(), ...changes })).toBeTruthy();

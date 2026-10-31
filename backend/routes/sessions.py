@@ -7,7 +7,9 @@ They're thin wrappers around session_store.py — the route receives
 the request, calls the service, and returns the result.
 """
 
-from fastapi import APIRouter, HTTPException, Response
+from fastapi import APIRouter, HTTPException, Response, UploadFile, File, Form
+from starlette.concurrency import run_in_threadpool
+from services.upload_routes import UploadRoute
 from services.image_thumbnails import response as image_response
 from pydantic import BaseModel, Field
 
@@ -40,7 +42,23 @@ from services.session_store import (
     permanently_delete_trashed_session as purge_trashed_session,
 )
 
-router = APIRouter(prefix="/sessions", tags=["sessions"])
+router = APIRouter(prefix="/sessions", tags=["sessions"], route_class=UploadRoute)
+
+
+@router.post('/{session_id}/images')
+async def upload_image(session_id: str, file: UploadFile = File(...), model: str | None = Form(None)):
+    from services.chat_uploads import save_image
+    from services.image_vault import LockedImageError
+    try:
+        return await run_in_threadpool(save_image, session_id, file.filename, file.file, model)
+    except LookupError as error:
+        raise HTTPException(404, str(error)) from error
+    except LockedImageError as error:
+        raise HTTPException(403, 'Image unavailable or locked') from error
+    except ValueError as error:
+        raise HTTPException(400, str(error)) from error
+    finally:
+        await file.close()
 
 
 # --- Data models for requests ---

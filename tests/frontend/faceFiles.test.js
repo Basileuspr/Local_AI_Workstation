@@ -42,7 +42,7 @@ describe("buffered desktop face inputs", () => {
     await expect(imports.next(1, grant.ticket)).rejects.toThrow("closed");
   });
 
-  it("bounds bytes as well as count, skips oversized files, and continues with good images", async () => {
+  it("batches reads and accepts every image above and below the former byte ceiling", async () => {
     const folder = await temporary();
     await fs.writeFile(path.join(folder, "a.png"), Buffer.alloc(9 * 1024 ** 2));
     await fs.writeFile(path.join(folder, "b.png"), Buffer.alloc(9 * 1024 ** 2));
@@ -53,10 +53,12 @@ describe("buffered desktop face inputs", () => {
     const grant = await imports.choose(1, { directory: true }, choose(folder));
     const first = await imports.next(1, grant.ticket);
     expect(first.files.map(f => f.name)).toEqual(["a.png"]);
+    const second = await imports.next(1, grant.ticket);
+    const third = await imports.next(1, grant.ticket);
     const last = await imports.next(1, grant.ticket);
-    expect(last.files.map(f => f.name)).toEqual(["b.png", "d.png"]);
-    expect(last.errors).toEqual([{ source: "c.png", error: "Images must be at most 20 MiB each." }]);
-    expect(last.consumed).toBe(3); expect(last.done).toBe(true);
+    expect([...second.files, ...third.files, ...last.files].map(f => f.name)).toEqual(["b.png", "c.png", "d.png"]);
+    expect([...second.errors, ...third.errors, ...last.errors]).toEqual([]);
+    expect(second.consumed + third.consumed + last.consumed).toBe(3); expect(last.done).toBe(true);
   });
 
   it("binds grants to their window and handles cancel without reading files", async () => {

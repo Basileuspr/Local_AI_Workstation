@@ -7,6 +7,7 @@ import uuid
 from pathlib import Path
 
 from PIL import Image, ImageOps, UnidentifiedImageError
+from services.upload_images import open_upload_image
 from config import settings
 from services import storage_libraries as storage
 from services import image_vault, session_store
@@ -27,13 +28,12 @@ def conversion_target(text):
 
 def convert(raw, name, target, quality=92, session_id=None, icon_size=256, icon_fit='contain'):
     if target not in FORMATS: raise ValueError("Choose PNG, JPG, WebP, BMP, TIFF, or ICO.")
-    if not raw or len(raw) > MAX_BYTES: raise ValueError("Choose an image up to 100 MB.")
+    if not raw: raise ValueError("Choose a nonempty image.")
     if icon_size not in ICON_SIZES or icon_fit not in ('contain', 'cover'):
         raise ValueError('Choose a standard icon size and Fit or Fill.')
     digest = hashlib.sha256(raw).hexdigest(); image_vault.require_public(digest)
     try:
-        with Image.open(io.BytesIO(raw)) as original:
-            if original.width * original.height > 24_000_000: raise ValueError("Choose an image up to 24 megapixels.")
+        with open_upload_image(io.BytesIO(raw)) as original:
             if getattr(original, "n_frames", 1) != 1: raise ValueError("Animated and multipage files are not supported yet. Choose a still image.")
             image = ImageOps.exif_transpose(original).convert("RGBA")
             if target in ("jpg", "bmp"):

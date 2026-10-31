@@ -4,6 +4,33 @@ This is the consolidated evidence record, updated October 30, 2026.
 Current guides describe inspected source; dated tests below are not a certification
 of every feature, provider, installation or device.
 
+## October 30 global upload and import quotas
+
+The [upload policy](../workspace/FILE_TOOLS.md#upload-and-import-sizes) removes
+application byte, pixel, file-count, archive-volume and source-duration ceilings
+from owner-selected upload/import pipelines. Native selection and multipart
+parsing use the same policy. Chat images now stream to disk with reference-only
+transcripts. Supported formats, archive/path integrity, ownership, locked-media
+access and actual processing/runtime requirements still apply.
+
+- Full frontend suite: **1,652 passed, 3 existing skips across 206 files**.
+- Full backend/companion suite: **2,390 passed, 3 existing skips**; existing
+  dependency deprecation warnings remain. A final focused backend check passed
+  **36 tests**. Runtime data, models and image catalogs were isolated.
+- Media Manager: **124 Python and 23 JavaScript tests passed**.
+- Regressions cover an 11 MiB original chat image with byte-for-byte retention,
+  1,001 multipart files and a manifest above 1 MiB, larger document tables/style
+  catalogs/notes/citations, image pixel-policy isolation, unrestricted source
+  durations, automatic batches and additional local mixer tracks.
+- Hidden Electron/Chromium chat walkthrough passed with an image above the old
+  10 MiB ceiling and no typed prompt. Its provider was synthetic; screenshots
+  were inspected. Native JavaScript/PowerShell syntax, documentation checks and
+  isolated production desktop/companion builds passed.
+- Verified desktop assets were installed without restarting the running app;
+  companion validation used temporary output. Real GPU vision/voice inference,
+  native Windows mesh-repair execution and physical-phone acceptance were not
+  rerun. Actual memory, disk, codecs and model context still constrain processing.
+
 ## October 30 image-only chat submissions
 
 The [chat composer](../chat/CHAT_GUIDE.md#compose-and-control-a-response) accepts

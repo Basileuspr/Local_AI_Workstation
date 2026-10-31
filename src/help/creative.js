@@ -79,7 +79,7 @@ export const creativeHelp = {
     ['Related tools / Character options', 'Related tools opens Faces, Audio or Packager. Character options contains Rename, Recalculate and Delete; deleting still requires confirmation.'],
     ['Name / biography / notes', 'Defines the saved character profile. A character can exist without face images.'],
     ['References / resources', 'Links existing faces, parts, LoRAs, audio, images, video, documents and other resources. Existing resources remain in their workspaces.'],
-    ['Upload files / Saved file', 'Creates an app copy up to 128 MiB; images are limited to 24 megapixels. Saved file links a previous upload again. Video playback depends on the codec.'],
+    ['Upload files / Saved file', "Creates an app copy without a file-byte, image-pixel or resource-count ceiling. Saved file links a previous upload again. Video playback depends on its codec."],
     ['Unlink', 'Removes the profile link while retaining the source and saved file copy.'],
     ['Load into chat', 'Explicitly copies the character’s saved text into roleplay fields. Browsing a profile alone does not change chat or automatically attach its media.'],
     ['Phone character profiles', 'On a paired phone, More tools → Character profiles edits the same saved names, biographies, notes and tags and links visible Saved Images. Save character is explicit; conflicting desktop edits keep the phone draft for review. Phone intake does not upload raw files or manage LoRA training.'],

@@ -74,7 +74,7 @@ const overview = {
   },
   slicer: {
     purpose: 'Prepare a G-code file from a local STL using the installed CuraEngine and a matching printer profile, with local progress and cancellation controls.',
-    example: 'Refresh Cura readiness, choose an STL under 50 MiB and select the profile for your printer. Check the material, nozzle, layer height, infill and support settings, then Slice model. Download the completed G-code and inspect it in your printer software before printing.',
+    example: 'Refresh Cura readiness, choose an STL file and select the profile for your printer. Check the material, nozzle, layer height, infill and support settings, then Slice model. Download the completed G-code and inspect it in your printer software before printing.',
   },
   integrations: {
     purpose: 'Use the Discord widget and explicit message sending, record Windows or embedded Spotify playback, and inspect phone-mirroring readiness.',

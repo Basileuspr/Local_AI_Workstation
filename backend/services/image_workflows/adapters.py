@@ -12,6 +12,7 @@ from pathlib import Path
 
 import httpx
 from PIL import Image, ImageOps
+from services.upload_images import open_upload_image
 
 from config import settings
 from services.image_generation_limits import MAX_IMAGE_STEPS, MAX_IMAGE_GUIDANCE, current_resolution_limits, validate_dimensions
@@ -105,7 +106,7 @@ class PillowProvider:
     def resize(self, request, context):
         context.check_cancelled()
         context.progress(phase="Resizing image on CPU", step=0, total_steps=1)
-        with Image.open(request.source) as original:
+        with open_upload_image(request.source) as original:
             source = ImageOps.exif_transpose(original)
             # PNG can carry transparency in an alpha band, palette or color key.
             mode = "RGBA" if "A" in source.getbands() or "transparency" in source.info else "RGB"
@@ -140,11 +141,11 @@ class SDXLProvider:
         context.check_cancelled()
         source = None
         if request.source is not None:
-            with Image.open(request.source) as original:
+            with open_upload_image(request.source) as original:
                 source = ImageOps.exif_transpose(original).convert("RGB").resize((stage.width, stage.height), Image.Resampling.LANCZOS)
         mask = None
         if stage.operation == "inpaint":
-            with Image.open(request.mask) as original:
+            with open_upload_image(request.mask) as original:
                 mask = ImageOps.exif_transpose(original).convert("L").resize(source.size, Image.Resampling.NEAREST)
         resident = None
         args = {}
@@ -251,7 +252,7 @@ class OllamaProvider:
         context.check_cancelled()
         context.progress(phase="Analyzing scene with Ollama" if scene_analysis else "Describing image with Ollama", step=0, total_steps=0)
         def encode(path):
-            with Image.open(path) as original:
+            with open_upload_image(path) as original:
                 image = ImageOps.exif_transpose(original).convert("RGB")
                 image.thumbnail((1024, 1024))
                 data = io.BytesIO()

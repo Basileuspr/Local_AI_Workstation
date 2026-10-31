@@ -32,11 +32,10 @@ async function copyNativeImage(image, { clipboard, ClipboardItem }) {
 }
 
 async function writeClipboardImage(dataUrl, { clipboard, nativeImage, ClipboardItem }) {
-  if (typeof dataUrl !== "string" || dataUrl.length > 68 * 1024 * 1024 || !/^data:image\/(png|jpeg|webp);base64,/i.test(dataUrl)) throw new Error("Invalid clipboard image.");
+  if (typeof dataUrl !== "string" || !/^data:image\/(png|jpeg|webp);base64,/i.test(dataUrl)) throw new Error("Invalid clipboard image.");
   const image = nativeImage.createFromDataURL(dataUrl);
   if (image.isEmpty()) throw new Error("The image could not be decoded.");
   const size = image.getSize();
-  if (size.width * size.height > 64 * 1024 * 1024) throw new Error("The image is too large to copy.");
   await copyNativeImage(image, { clipboard, ClipboardItem });
   return { ok: true, ...size };
 }

@@ -1,5 +1,5 @@
 import {useEffect,useMemo,useRef,useState} from 'react';
-import {appendHistory,bounds,DEFAULT_MATERIAL,duplicateObjects,emptyDocument,ensureUV,importPayload,MAX_PROJECT_BYTES,mirrorObjects,PRIMITIVES,primitive,settleObjects,statistics,transformObject,transformValues,translateObject,validateDocument} from '../modelViewer/editor';
+import {appendHistory,bounds,DEFAULT_MATERIAL,duplicateObjects,emptyDocument,ensureUV,importPayload,mirrorObjects,PRIMITIVES,primitive,settleObjects,statistics,transformObject,transformValues,translateObject,validateDocument} from '../modelViewer/editor';
 import {validateFile,WARN_FILE_BYTES} from '../modelViewer/limits';
 import {pendingEditor,retainEditor} from '../modelViewer/session';
 import ModelPaint from './ModelPaint';
@@ -79,7 +79,7 @@ export default function ModelEditor({initialFile=null}){
     stop();setError('');const current=ticket.current;
     try{
       const isProject=file.name.toLowerCase().endsWith('.law3d');
-      if(isProject){if(file.size>MAX_PROJECT_BYTES)throw Error('Project exceeds 128 MB.');if(how==='append')throw Error('Open projects with Open file. Use Add for STL or 3MF models.');}
+      if(isProject){if(how==='append')throw Error('Open projects with Open file. Use Add for STL or 3MF models.');}
       else validateFile(file);
       if(file.size>WARN_FILE_BYTES&&!approved){setWarning({message:`This file is ${number(file.size/1024/1024)} MB and may require substantial memory. Continue?`,continue:()=>open(file,how,true,discardApproved,repairPreview)});return;}
       const parser=isProject?new Worker(new URL('../modelViewer/projectWorker.js',import.meta.url),{type:'module'}):new Worker(new URL('../modelViewer/worker.js',import.meta.url),{type:'module'});worker.current=parser;setProgress('Reading and checking model…');

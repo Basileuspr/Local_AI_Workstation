@@ -41,8 +41,8 @@ def _asset(workflow, asset_id):
 
 
 def _image_size(path):
-    from PIL import Image
-    with Image.open(path) as image:
+    from services.upload_images import open_upload_image
+    with open_upload_image(path) as image:
         width, height = image.size
         return (height, width) if image.getexif().get(274) in {5, 6, 7, 8} else (width, height)
 

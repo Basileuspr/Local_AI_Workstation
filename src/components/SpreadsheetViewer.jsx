@@ -16,7 +16,7 @@ export default function SpreadsheetViewer() {
   }
   async function read(file) {
     if (!file) return;
-    try { if (file.size > 10 * 1024 * 1024) throw new Error("Choose a CSV under 10 MB."); const text = await file.text(); parse(text, delimiter); setSource(text); setName(file.name); }
+    try { const text = await file.text(); parse(text, delimiter); setSource(text); setName(file.name); }
     catch (failure) { setError(failure.message); }
   }
   const visible = useMemo(() => {

@@ -1,14 +1,13 @@
 import { apiUrl } from './api';
 
 export const AUDIO_ACCEPT = '.wav,.mp3,.m4a,.aac,.ogg,.flac,.webm,.mp4';
-export const AUDIO_MAX_BYTES = 250 * 1024 * 1024;
-export const AUDIO_RECORDING_MAX_BYTES = 25 * 1024 * 1024;
-export const AUDIO_MAX_SECONDS = 600;
+export const AUDIO_MAX_BYTES = Infinity;
+export const AUDIO_RECORDING_MAX_BYTES = Infinity;
+export const AUDIO_MAX_SECONDS = Infinity;
 export const AUDIO_LANGUAGES = {auto:'Auto detect', en:'English', es:'Spanish', fr:'French', de:'German', it:'Italian', pt:'Portuguese', ja:'Japanese', ko:'Korean', zh:'Chinese', ru:'Russian', ar:'Arabic', hi:'Hindi', uk:'Ukrainian'};
 
 export function validateAudio(file) {
   if (!file?.size) return 'Choose a nonempty audio file.';
-  if (file.size > AUDIO_MAX_BYTES) return 'Audio files must be 250 MB or smaller.';
   if (!AUDIO_ACCEPT.split(',').some(ext => file.name.toLowerCase().endsWith(ext))) return 'Choose a WAV, MP3, M4A, AAC, OGG, FLAC, WebM, or MP4 audio file.';
   return '';
 }
@@ -64,7 +63,6 @@ export function createAudioCapture({onRecording, onFile, onError, maxSeconds = A
       recorder = new env.MediaRecorder(stream, mimeType ? {mimeType} : undefined);
       recorder.ondataavailable = event => {
         if (event.data.size) { chunks.push(event.data); bytes += event.data.size; }
-        if (bytes > AUDIO_RECORDING_MAX_BYTES) { cancel(); onError('Recording exceeded 25 MB. Record a shorter clip.'); }
       };
       recorder.onerror = () => { cancel(); onError('Microphone recording failed. Check the selected input device and try again.'); };
       recorder.onstop = () => {
@@ -76,7 +74,7 @@ export function createAudioCapture({onRecording, onFile, onError, maxSeconds = A
       };
       stream.getAudioTracks().forEach(track => { track.onended = stop; });
       recorder.start(1000); onRecording(true);
-      timer = env.setTimeout(stop, Math.min(AUDIO_MAX_SECONDS, Math.max(1, Number(maxSeconds) || AUDIO_MAX_SECONDS)) * 1000);
+      if (Number.isFinite(maxSeconds) && maxSeconds > 0) timer = env.setTimeout(stop, maxSeconds * 1000);
     } catch (error) {
       release();
       if (!cancelled) onError(error.name === 'NotAllowedError' ? 'Microphone access was denied. Allow microphone access in Windows privacy settings, then retry.' : error.message);

@@ -2,7 +2,7 @@ import {webNavigationHelp} from './web';
 
 const sourceControls = kind => [
   ['Design & Programming', 'The source viewers and Styling Library live inside this main workspace. Use its tool tabs to switch views while retaining your drafts, or UI Playground to mix a design and open its generated source here.'],
-  ['File actions / drop file', `Open reads a local ${kind} file up to 2 MB into this viewer. Copy source is also in File actions; Save source stays on the toolbar. Source remains available while switching tabs.`],
+  ['File actions / drop file', `Open reads a local ${kind} file into this viewer. Copy source is also in File actions; Save source stays on the toolbar. Source remains available while switching tabs.`],
   ['Preview / Edit source', 'HTML and CSS toggle between a sandboxed preview and editable source. Copy and Save use the current source text; the source file is not overwritten automatically. JavaScript remains a text editor.'],
   ['Draft lifetime', 'Source remains while switching tabs. Refreshing or closing the app clears unsaved viewer content.'],
 ];
@@ -114,7 +114,7 @@ export const fileToolHelp = {
     ['Draft lifetime', 'Text stays while switching workspaces. Refreshing or closing the app clears this draft.'],
   ]]],
   spreadsheets: [['CSV controls', [
-    ['Open / drop CSV', 'Reads a CSV up to 10 MB. Choose comma, semicolon or tab delimiters as needed. Formulas remain text.'],
+    ['Open / drop CSV', "Reads local CSV files without a byte, row or column ceiling. Choose comma, semicolon or tab delimiters. Formulas remain text."],
     ['Filter', 'Narrows visible rows to matching data.'],
     ['Column heading', 'Sorts the table by that column.'],
     ['Row selection', 'Select rows to prepare a smaller context for chat.'],
@@ -132,7 +132,7 @@ export const fileToolHelp = {
     ['Resize / Properties / Print', 'Resize or skew artwork, adjust canvas dimensions/background, or print the artwork. JPEG and BMP use a white background. Save a project before replacing work to preserve its layers.'],
   ]]],
   converter: [['Image conversion', [
-    ['Choose / drop images', 'Accepts still images up to 100 MB and 24 megapixels each. File size and pixel dimensions are separate limits. Original files are preserved.'],
+    ['Choose / drop images', "Accepts supported still images without a generic byte or pixel ceiling. Original files are preserved; decoding and output depend on the installed codecs and available memory."],
     ['Output format', 'Choose PNG, JPG, WebP, BMP, TIFF or ICO. JPG and BMP replace transparency with white.'],
     ['ICO size', 'Choose a square size from 16 to 256 pixels. ICO preserves supported transparency.'],
     ['Convert / Save', 'Creates and saves converted copies. Chat can also convert an attached image through an explicit request.'],
@@ -141,7 +141,7 @@ export const fileToolHelp = {
     ['Add files / folders', 'Accepts any file type. Add more with another selection or drop. Folder drops retain empty folders; the folder picker includes files only.'],
     ['File list / Remove', 'Review package paths and remove unwanted entries before creating the archive. Source files remain on disk.'],
     ['Package name / compression', 'Sets the archive name and compression option. Matching filenames receive numbered names; folder structure is retained.'],
-    ['Save ZIP', 'Creates an archive with up to 1,000 items and 512 MiB. Existing originals are not moved.'],
+    ['Save ZIP', "Streams the selected files into a ZIP64-capable archive without a file-count or total-byte ceiling. Existing originals are not moved."],
   ]]],
   'hash-auditor': [['Audit controls', [
     ['Folders / drive roots', 'Enter one absolute path per line or choose folders. Nothing is scanned until Start audit.'],
@@ -155,7 +155,7 @@ export const fileToolHelp = {
   'folder-review': [['Review controls', [
     ['Folder / text model', 'Select the folder and a local text model. File contents go to the configured Ollama service; source files are not edited or executed.'],
     ['Start Folder Review', 'Reviews files individually and combines the findings into a saved report.'],
-    ['Batch size and coverage limits', 'Divides long text into contiguous batches and automatically reduces their size to fit the model context. All readable text within the file limits is included. Entry limits, skips and unreadable PDF pages are recorded in the report. PDFs are inspected up to 500 pages.'],
+    ['Batch size and coverage limits', "Folder intake defaults to all entries and readable characters, with no file-size ceiling. Set 0 for all, or choose your own coverage limit. Model requests still use contiguous batches within the model context."],
     ['Compaction and memory', 'Compacts batch findings into per-file analyses and a folder overview, while retaining the full per-file report. Releases image-model GPU memory before inference, unloads other Ollama models, and verifies release of the review model after completion. Progress shows batch, compaction and memory preparation counts.'],
     ['File coverage', 'Python receives static source analysis; other supported text gets summaries. Word contributes paragraphs and tables; PDFs contribute native text only. Images contribute metadata, not pixels.'],
     ['Skipped files', 'Credential files, links, cloud placeholders, dependency/tooling folders and report storage are excluded. Unsupported binaries receive filesystem metadata only.'],

@@ -11,7 +11,7 @@ export async function copyImage(url) {
   const response = await fetch(url);
   if (!response.ok) throw new Error("Could not load this image for copying.");
   const blob = await response.blob();
-  if (!blob.type.startsWith("image/") || blob.size > 48 * 1024 * 1024) throw new Error("The image cannot be copied (invalid format or larger than 48 MB).");
+  if (!blob.type.startsWith("image/")) throw new Error("The image cannot be copied because its format is invalid.");
   if (window.workstationDesktop?.copyImage) {
     const result = await window.workstationDesktop.copyImage(await blobDataUrl(blob));
     if (result?.error) throw new Error(result.error);

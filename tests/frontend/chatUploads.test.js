@@ -47,14 +47,12 @@ describe("validateImageFile", () => {
     expect(validateImageFile(fakeFile())).toBeNull();
   });
 
-  it("accepts a file exactly at the size limit", () => {
-    expect(validateImageFile(fakeFile({ size: MAX_IMAGE_BYTES }))).toBeNull();
+  it("accepts an image at the former byte limit", () => {
+    expect(validateImageFile(fakeFile({ size: 10 * 1024 * 1024 }))).toBeNull();
   });
 
-  it("rejects a file over the size limit with the user-facing wording", () => {
-    expect(validateImageFile(fakeFile({ size: MAX_IMAGE_BYTES + 1 }))).toBe(
-      "Image is larger than 10 MB"
-    );
+  it("accepts images above the former byte limit", () => {
+    expect(validateImageFile(fakeFile({ size: 200 * 1024 * 1024 }))).toBeNull();
   });
 
   it("rejects an unsupported format", () => {

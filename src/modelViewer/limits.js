@@ -1,17 +1,15 @@
-export const MAX_FILE_BYTES = 512 * 1024 * 1024;
-export const MAX_EXPANDED_BYTES = 256 * 1024 * 1024;
-export const MAX_TRIANGLES = 8_000_000;
+export const MAX_FILE_BYTES = Infinity;
+export const MAX_EXPANDED_BYTES = Infinity;
+export const MAX_TRIANGLES = Infinity;
 export const WARN_TRIANGLES = 1_000_000;
 export const WARN_FILE_BYTES = 50 * 1024 * 1024;
 export function modelType(name) {return String(name).split('.').pop().toLowerCase();}
 export function validateFile(file) {
   if(!['stl','3mf'].includes(modelType(file.name)))throw Error('Choose an STL or 3MF file.');
   if(!file.size)throw Error('This file is empty.');
-  if(file.size>MAX_FILE_BYTES)throw Error('This file exceeds the 512 MB safety limit. Export a smaller preview first.');
 }
 export function checkTriangles(count) {
   if(!Number.isSafeInteger(count) || count<1)throw Error('No model triangles were found.');
-  if(count>MAX_TRIANGLES)throw Error('This model exceeds the 8 million triangle safety limit. Export a reduced-detail preview first.');
 }
 // ZIP64 is an archive encoding, not necessarily a large file. Read its 64-bit
 // fields first, then apply the same allocation limits as ordinary ZIP archives.
@@ -40,7 +38,6 @@ export function readZipDirectory(buffer) {
     if((count!==65535&&count!==actualCount)||(diskCount!==65535&&diskCount!==actualCount)||(size!==0xffffffff&&size!==actualSize)||(offset!==0xffffffff&&offset!==actualOffset))throw Error('Inconsistent ZIP64 directory fields.');
     count=actualCount;size=actualSize;offset=actualOffset;
   } else if(count===65535||size===0xffffffff||offset===0xffffffff)throw Error('The ZIP64 directory record is missing.');
-  if(count>4096)throw Error(`This archive contains ${count.toLocaleString()} entries, exceeding the 4,096-entry preview limit.`);
   requireRange(offset,size,footer);const directoryEnd=offset+size,directoryStart=offset;
   const signatureEnd=(start,limit)=>{requireRange(start,6,limit);if(v.getUint32(start,true)!==0x05054b50)throw Error('Invalid archive directory layout.');const stop=start+6+v.getUint16(start+4,true);if(stop!==limit)throw Error('Invalid archive directory signature.');};
   if(directoryEnd!==footer)signatureEnd(directoryEnd,footer);
@@ -67,8 +64,6 @@ export function readZipDirectory(buffer) {
     if(flags & (1|64))throw Error('Encrypted 3MF archives are not supported.');
     if(names.has(name) || /(^|[\\/])\.\.([\\/]|$)/.test(name) || name.startsWith('/') || name.includes('\\') || name.includes('\0'))throw Error('Unsupported or unsafe archive entry.');
     names.add(name);total+=unpacked;
-    if(total>MAX_EXPANDED_BYTES)throw Error('Expanded 3MF exceeds the 256 MB safety limit.');
-    if(/\.model$/i.test(name) && unpacked>128*1024*1024)throw Error('A 3MF XML model exceeds the 128 MB safety limit.');
     requireRange(local,30,directoryStart);
     if(v.getUint32(local,true)!==0x04034b50||v.getUint16(local+8,true)!==method||v.getUint16(local+6,true)!==flags)throw Error('Invalid ZIP local entry header.');
     const localName=v.getUint16(local+26,true),localExtra=v.getUint16(local+28,true);

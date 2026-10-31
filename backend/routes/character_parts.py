@@ -14,7 +14,9 @@ from services.character_parts import store
 from services.character_parts.analysis import analyzer
 from services.character_parts.contracts import (Record, Revision, Id, SaveSelection, StateRequest, AnalyzeRequest, PARTS, VIEWS, SIDES)
 
-router = APIRouter(prefix="/character-parts", tags=["character-parts"])
+from services.upload_routes import UploadRoute
+
+router = APIRouter(route_class=UploadRoute, prefix="/character-parts", tags=["character-parts"])
 
 
 def call(function, *args):
@@ -92,14 +94,10 @@ async def import_sources(dataset_id: str, request: ImportRequest):
 @router.post("/datasets/{dataset_id}/upload")
 async def upload(dataset_id: str, files: list[UploadFile] = File(...)):
     await run_in_threadpool(call, store.read, dataset_id)
-    if len(files) > 100:
-        raise HTTPException(400, "Choose up to 100 files per batch")
     added, errors = 0, []
     for item in files:
         try:
-            payload = await item.read(image_library.MAX_BYTES + 1)
-            if len(payload) > image_library.MAX_BYTES:
-                raise ValueError('Images must be at most 20 MiB each')
+            payload = await item.read()
             name = item.filename or "Upload"
             added += await run_in_threadpool(store.import_image, dataset_id, payload, name, {"kind": "upload", "name": name})
         except (ValueError, OSError) as exc:

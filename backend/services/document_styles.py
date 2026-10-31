@@ -35,7 +35,7 @@ def style_catalog(model):
     attrs = model.get('attrs') or {}
     if not isinstance(attrs, dict): raise ValueError('Invalid document attributes.')
     values = attrs.get('styles', [])
-    if not isinstance(values, list) or len(values) > 40: raise ValueError('A document supports eight built-in and 32 custom paragraph styles.')
+    if not isinstance(values, list): raise ValueError('Invalid document paragraph styles.')
     catalog, ids = deepcopy(BUILTINS), set()
     for value in values:
         if not isinstance(value, dict): raise ValueError('Invalid paragraph style.')
@@ -52,8 +52,8 @@ def style_catalog(model):
         if not isinstance(spec['bold'], bool) or not isinstance(spec['italic'], bool): raise ValueError('Style emphasis must be true or false.')
         if sid in BUILTINS and (name != BUILTINS[sid]['name'] or spec['level'] != BUILTINS[sid]['level']): raise ValueError('Built-in style names and heading levels cannot change.')
         ids.add(sid); catalog[sid] = spec
-    if len(catalog) > 40 or len({spec['name'].casefold() for spec in catalog.values()}) != len(catalog):
-        raise ValueError('Use unique style names and no more than 32 custom styles.')
+    if len({spec['name'].casefold() for spec in catalog.values()}) != len(catalog):
+        raise ValueError('Use unique style names.')
     return catalog
 
 
@@ -105,7 +105,6 @@ class StyleReader:
         if source.style_id in self.source_ids: return self.catalog[self.source_ids[source.style_id]]
         own_id = source.style_id.removeprefix('LAW5_')
         sid = builtin_id or (own_id if source.style_id.startswith('LAW5_') and STYLE_ID.fullmatch(own_id) and own_id not in BUILTINS else 'imported-' + hashlib.sha256(source.style_id.encode()).hexdigest()[:16])
-        if sid not in self.catalog and len(self.catalog) >= 40: raise ValueError('This document uses more than 32 custom paragraph styles.')
         seed = deepcopy(BUILTINS.get(sid, BASE))
         chain, visited, current = [], set(), source
         while current is not None and current.style_id not in visited and len(chain) < 64:

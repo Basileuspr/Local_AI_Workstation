@@ -17,7 +17,7 @@ export const VOICE_DEMO_TEXT = {
 };
 
 export function validateVoiceReference(file) {
-  return validateAudio(file) || (file.size > 25 * 1024 * 1024 ? 'Reference recordings must be 25 MB or smaller.' : '');
+  return validateAudio(file);
 }
 
 export async function generateClonedVoice({engine, text, reference, referenceText, language, acceleration, requestId, signal}) {

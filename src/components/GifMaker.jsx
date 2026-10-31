@@ -137,7 +137,6 @@ export default function GifMaker({ open, input, readImage }) {
     if (!input || busy || consumed.current === input.id) return;
     consumed.current = input.id;
     void add(async () => {
-      if (framesRef.current.length + input.images.length + input.files.length > 60) throw new Error("A GIF can contain up to 60 frames. Clear or remove frames first.");
       const files = [...input.files];
       for (const image of input.images) {
         setProgress({phase:'Loading images',completed:files.length,total:input.files.length+input.images.length});

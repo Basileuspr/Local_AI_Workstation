@@ -11,7 +11,7 @@ import CharacterFileButton from './CharacterFileButton';
 import {useCharacterWorkspace} from '../CharacterWorkspace';
 import {characterFileUrl} from '../characterResources';
 
-const RECORDING_SECONDS = 20;
+const RECORDING_SECONDS = Infinity;
 
 function SaveVoiceText({text, filename, children}) {
   return <button type="button" disabled={!text?.trim()} onClick={() => downloadBlob(new Blob([text], {type:'text/plain;charset=utf-8'}), filename)}>{children}</button>;
@@ -56,7 +56,7 @@ export default function VoiceCloningPanel({active}) {
   }, [active]);
   useEffect(() => {
     if (capturing !== 'recording') return;
-    const timer = setInterval(() => setSeconds(Math.min(RECORDING_SECONDS, Math.floor((Date.now()-recordingStarted.current)/1000))),250);
+    const timer = setInterval(() => setSeconds(Math.floor((Date.now()-recordingStarted.current)/1000)),250);
     return () => clearInterval(timer);
   }, [capturing]);
   useEffect(() => {
@@ -114,7 +114,6 @@ export default function VoiceCloningPanel({active}) {
       onFile:file => {
         if (!mounted.current || capture.current !== session) return;
         capture.current = null; setCapturing('');
-        if (Date.now()-recordingStarted.current < 6000) {setError('That recording was too short. Speak for at least 6 seconds; aim for 10–20 seconds.'); return;}
         choose(new File([file],`Voice reference.${file.name.split('.').pop()}`,{type:file.type}));
         setRecordedPhrase(readingPhrase);
       },
@@ -207,7 +206,7 @@ export default function VoiceCloningPanel({active}) {
         {!capturing && <button type="button" disabled={!active || Boolean(busy)} onClick={startRecording}>{reference ? 'Record a new reference' : 'Record voice reference'}</button>}
         {capturing === 'recording' && <button type="button" onClick={() => {setCapturing('stopping'); capture.current?.stop();}}>Stop and use recording</button>}
         {capturing && <button type="button" onClick={discardRecording}>{capturing === 'opening' ? 'Cancel microphone' : 'Discard recording'}</button>}
-        {capturing && <span role="status" className="audio-recording">{capturing === 'opening' ? 'Waiting for microphone access…' : capturing === 'stopping' ? 'Preparing recording…' : `● Recording · ${seconds}s / ${RECORDING_SECONDS}s${seconds < 6 ? ' · Keep speaking' : ' · Ready to use'}`}</span>}
+        {capturing && <span role="status" className="audio-recording">{capturing === 'opening' ? 'Waiting for microphone access…' : capturing === 'stopping' ? 'Preparing recording…' : `● Recording · ${seconds}s${seconds < 6 ? ' · Keep speaking' : ' · Ready to use'}`}</span>}
       </div>
       <label className="audio-file-picker">Or upload a reference <input aria-label="Reference voice recording" type="file" accept={AUDIO_ACCEPT} disabled={locked} onChange={e => {const file = e.target.files?.[0]; e.target.value = ''; if(file) choose(file);}}/></label>
     </div>

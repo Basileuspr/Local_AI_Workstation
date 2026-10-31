@@ -1,7 +1,7 @@
 export const workflowSettingsHelp = [
   ['Workflow settings', [
     ['Scene continuity notes', 'Records appearance, action and details that must remain consistent. These planning notes are not silently appended to the prompt.'],
-    ['Attach images', 'Select single-frame PNG, JPEG or WebP files. Uploads stream to disk without a generic byte or pixel cap, with up to 100 distinct assets per workflow. Attaching saves pending draft changes first. Processing stages retain their own output and memory limits; storing a large original does not guarantee every stage can process it.'],
+    ['Attach images', "Select supported single-frame PNG, JPEG or WebP files. Uploads stream to disk without a byte, pixel or asset-count ceiling. Attaching saves pending draft changes first. Processing stages use their selected settings and installed runtime."],
     ['Positive prompt', 'Describes the desired image or edit. Review model suggestions before applying them to this field.'],
     ['Negative prompt', 'Describes things to discourage. Support depends on the selected model and adapter.'],
     ['Seed', '-1 requests a new random seed. Fixing a seed helps comparisons but does not guarantee identical output across models or hardware.'],

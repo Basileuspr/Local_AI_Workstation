@@ -15,7 +15,7 @@ export const linkResource = (id,kind,target_id,note='') => request(`/characters/
 export const editResource = (id,link,note) => request(`/characters/${id}/resources/${link}`,json('PUT',{note}));
 export const unlinkResource = (id,link) => request(`/characters/${id}/resources/${link}`,{method:'DELETE'});
 export function attachCharacterFile(id,file,note='') {
-  if (!file?.size || file.size > 128*1024*1024) throw new Error('Choose a nonempty file up to 128 MiB.');
+  if (!file?.size) throw new Error('Choose a nonempty file.');
   const body = new FormData();body.append('file',file,file.name || 'Audio.wav');body.append('note',note);
   return request(`/characters/${id}/files`,{method:'POST',body});
 }

@@ -95,11 +95,12 @@ def test_catalogs_do_not_export_local_model_paths(lora_paths):
 
 def test_upload_limits_and_invalid_ids_do_not_create_files(monkeypatch):
     profile=bank.create_character('A');monkeypatch.setattr(resources,'MAX_FILE_BYTES',10)
-    for payload in [b'',b'x'*11]:
+    for payload in [b'']:
         with pytest.raises(ValueError):resources.upload(profile['id'],'file.txt',payload)
     with pytest.raises(ValueError):resources.upload('f'*32,'file.txt',b'abc')
     with pytest.raises(ValueError):resources.asset_path('../private','blob')
     assert not (bank.ROOT/'assets').exists()
+    assert resources.upload(profile['id'],'file.txt',b'x'*11)
 
 
 def test_routes_round_trip_binary_and_do_not_execute_html():

@@ -9,11 +9,11 @@ export function TableLayoutRibbon({ editor, context, disabled, available, openDi
     <Group name="Selection" className="de-table-selection"><Button label="Select table cells by range" disabled={disabled} onClick={() => openDialog('Select table cells', cellRange)}>Select cells…</Button>
       {['row', 'column', 'table'].map(part => <Button key={part} label={`Select ${part}`} disabled={disabled} onClick={() => selectTablePart(editor, part)}>Select {part}</Button>)}</Group>
     <Group name="Rows & Columns" className="de-table-rows"><div className="de-row">
-      <Button label="Insert row above" disabled={disabled || context.map.height >= 100} onClick={() => command('addRowBefore')}>↑ Row</Button>
-      <Button label="Insert row below" disabled={disabled || context.map.height >= 100} onClick={() => command('addRowAfter')}>↓ Row</Button>
+      <Button label="Insert row above" disabled={disabled} onClick={() => command('addRowBefore')}>↑ Row</Button>
+      <Button label="Insert row below" disabled={disabled} onClick={() => command('addRowAfter')}>↓ Row</Button>
       <Button label="Delete selected rows" disabled={disabled} onClick={() => command(context.top === 0 && context.bottom === context.map.height ? 'deleteTable' : 'deleteRow')}>Delete rows</Button></div><div className="de-row">
-      <Button label="Insert column left" disabled={disabled || context.map.width >= 12} onClick={() => command('addColumnBefore')}>← Column</Button>
-      <Button label="Insert column right" disabled={disabled || context.map.width >= 12} onClick={() => command('addColumnAfter')}>→ Column</Button>
+      <Button label="Insert column left" disabled={disabled} onClick={() => command('addColumnBefore')}>← Column</Button>
+      <Button label="Insert column right" disabled={disabled} onClick={() => command('addColumnAfter')}>→ Column</Button>
       <Button label="Delete selected columns" disabled={disabled} onClick={() => command(context.left === 0 && context.right === context.map.width ? 'deleteTable' : 'deleteColumn')}>Delete columns</Button></div></Group>
     <Group name="Merge" className="de-table-merge"><Button label="Merge selected cells" disabled={disabled || mergeCrossesHeader || !editor.can().mergeCells()} onClick={() => command('mergeCells')}>Merge cells</Button>
       <Button label="Split merged cell" disabled={disabled || !editor.can().splitCell()} onClick={() => command('splitCell')}>Split cell</Button>{mergeCrossesHeader && <span className="de-shortcut">Turn off Repeat first row<br/>to merge into later rows.</span>}</Group>

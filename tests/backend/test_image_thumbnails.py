@@ -83,8 +83,8 @@ def test_invalid_and_oversized_images_fail_without_caching(monkeypatch):
         with pytest.raises(HTTPException) as error: thumbs.render(data)
         assert error.value.status_code == 422
     monkeypatch.setattr(thumbs, "MAX_PIXELS", 10)
-    with pytest.raises(HTTPException): thumbs.render(picture())
-    assert not thumbs._cache
+    assert thumbs.render(picture())[1] == 'image/jpeg'
+    assert thumbs._cache
 
 
 def test_cache_item_and_byte_limits(monkeypatch):

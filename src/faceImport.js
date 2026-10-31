@@ -1,4 +1,3 @@
-const MAX_FILE_BYTES = 20 * 1024 ** 2;
 const BATCH_BYTES = 16 * 1024 ** 2;
 const BATCH_FILES = 100;
 const TERMINAL = new Set(["complete", "error", "cancelled"]);
@@ -13,11 +12,8 @@ export function browserFaceSource(input) {
       let bytes = 0, consumed = 0;
       while (index < files.length && consumed < BATCH_FILES) {
         const file = files[index];
-        if (file.size > MAX_FILE_BYTES) errors.push({ source: file.name, error: "Images must be at most 20 MiB each." });
-        else {
-          if (batch.length && bytes + file.size > BATCH_BYTES) break;
-          bytes += file.size; batch.push(file);
-        }
+        if (batch.length && bytes + file.size > BATCH_BYTES) break;
+        bytes += file.size; batch.push(file);
         index++; consumed++;
       }
       return { files: batch, errors, consumed, done: index === files.length };

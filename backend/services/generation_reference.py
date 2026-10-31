@@ -2,6 +2,7 @@
 import hashlib
 import io
 
+from services.upload_images import open_upload_image
 from PIL import Image, ImageOps
 
 from services import image_store, image_vault
@@ -25,8 +26,8 @@ def reference_bytes(reference):
     if stored is None:
         raise ValueError("Reference image is missing or locked. Upload it again or unlock it first.")
     content, _ = stored
-    if len(content) > MAX_UPLOAD_BYTES or hashlib.sha256(content).hexdigest() != reference[5:]:
-        raise ValueError("Reference image changed or exceeds the 20 MiB limit.")
+    if hashlib.sha256(content).hexdigest() != reference[5:]:
+        raise ValueError("Reference image changed.")
     return content
 
 
@@ -49,7 +50,7 @@ def prepare_reference(reference, width, height, fit):
 
 def _prepare_reference_content(content, width, height, fit):
     _inspect_image("reference", content)
-    with Image.open(io.BytesIO(content)) as original:
+    with open_upload_image(io.BytesIO(content)) as original:
         oriented = ImageOps.exif_transpose(original).convert("RGBA")
         image = Image.alpha_composite(Image.new("RGBA", oriented.size, "white"), oriented).convert("RGB")
     if fit == "crop":

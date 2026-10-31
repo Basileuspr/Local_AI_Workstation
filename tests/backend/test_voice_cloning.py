@@ -62,11 +62,18 @@ def test_invalid_options_are_rejected(change):
         voices.validate(**{**dict(engine='qwen3-tts',text='Hello',reference_text='Sample',language='English',acceleration='auto'), **change})
 
 
-@pytest.mark.parametrize('seconds,silent,message', [(2,False,'6 and 30'), (31,False,'6 and 30'), (7,True,'silent')])
+@pytest.mark.parametrize('seconds,silent,message', [(0,False,'nonempty'), (7,True,'silent')])
 def test_reference_bounds(tmp_path, seconds, silent, message):
     source = tmp_path/'reference.wav'; source.write_bytes(wav(seconds,silent))
     with pytest.raises(AudioError, match=message):
         voices.prepare_reference(source,tmp_path/'out.wav')
+
+
+@pytest.mark.parametrize('seconds', [2, 31])
+def test_reference_duration_is_not_capped(tmp_path, seconds):
+    source = tmp_path / 'reference.wav'
+    source.write_bytes(wav(seconds))
+    assert voices.prepare_reference(source, tmp_path / 'out.wav') == seconds
 
 
 def test_reference_decode_preserves_source(tmp_path):
@@ -93,8 +100,8 @@ def test_uploaded_reference_is_temporary_and_result_is_wav(client, monkeypatch):
     assert json.loads(response.headers['x-voice-processing'])['device'] == 'cpu'
     assert not seen[0].exists()
     monkeypatch.setattr(voices,'MAX_REFERENCE_BYTES',2)
-    assert client.post('/audio/voices/synthesize', files={'reference':('voice.wav',b'large')},
-        data={'engine':'chatterbox-turbo','text':'Hello'}).status_code == 413
+    assert client.post('/audio/voices/synthesize', files={'reference':('voice.wav',b'reference')},
+        data={'engine':'qwen3-tts','text':'Hello','reference_text':'Sample'}).status_code == 200
 
 
 @pytest.mark.parametrize('returncode', [0,1])
@@ -142,8 +149,8 @@ def test_saving_a_chat_reference_reuses_the_shared_library(client, tmp_path, mon
     assert saved['name'] == 'Reference.wav' and saved['category'] == 'audio'
     assert character_resources.asset_path(saved['id'], 'blob').read_bytes() == payload
     assert character_resources.catalog('file') == [saved]
-    assert client.post('/audio/voices/references', files={'reference':('Reference.wav', wav(2))}).status_code == 400
-    assert len(character_resources.catalog('file')) == 1
+    assert client.post('/audio/voices/references', files={'reference':('Reference.wav', wav(2))}).status_code == 201
+    assert len(character_resources.catalog('file')) == 2
 
 
 def test_chat_stop_cancels_the_existing_synthesis_request_and_cleans_temporary_files(client, monkeypatch):

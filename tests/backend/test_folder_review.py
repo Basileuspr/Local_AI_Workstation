@@ -657,28 +657,24 @@ def test_malformed_or_oversized_provider_output_is_not_accepted(tmp_path, monkey
     assert calls == ['/api/chat']
 
 
-def test_docx_expansion_is_bounded_before_parser_and_text_cap_reports_coverage(tmp_path, monkeypatch):
+def test_docx_volume_is_not_capped_and_owner_selected_text_cap_reports_coverage(tmp_path, monkeypatch):
     import docx
     import io
     import zipfile
-    package = io.BytesIO()
-    with zipfile.ZipFile(package, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr('word/document.xml', 'x' * 10000)
-    with monkeypatch.context() as patch:
-        patch.setattr(reader, 'DOCX_MAX_EXPANDED_BYTES', 1000)
-        patch.setattr(docx, 'Document', lambda *args: pytest.fail('Oversized package reached XML parser'))
-        with pytest.raises(ValueError, match='expanded size'):
-            reader.extract(package.getvalue(), 'fixture.docx', 1000)
     document = docx.Document(); document.add_paragraph('First fixture paragraph.')
     document.add_paragraph('Second fixture paragraph.')
     table = document.add_table(rows=1, cols=2)
     table.cell(0, 0).text = 'Left'; table.cell(0, 1).text = 'Right'
     package = io.BytesIO(); document.save(package)
-    full = reader.extract(package.getvalue(), 'fixture.docx', 1000)
+    with monkeypatch.context() as patch:
+        patch.setattr(reader, 'DOCX_MAX_EXPANDED_BYTES', 1000)
+        full = reader.extract(package.getvalue(), 'fixture.docx', 1000)
     partial = reader.extract(package.getvalue(), 'fixture.docx', 10)
     assert full['text'] == 'First fixture paragraph.\nSecond fixture paragraph.\nLeft | Right'
     assert partial['text'] == full['text'][:10] and partial['coverage']['partial']
     assert partial['coverage']['original_characters'] == len(full['text'])
+    unlimited = reader.extract(package.getvalue(), 'fixture.docx', 0)
+    assert unlimited['text'] == full['text'] and not unlimited['coverage']['partial']
 
 
 def test_invalid_loaded_model_list_cannot_claim_verified_offload(tmp_path, monkeypatch):

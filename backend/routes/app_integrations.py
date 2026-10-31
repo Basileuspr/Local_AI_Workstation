@@ -3,7 +3,9 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from services import app_integrations as integrations, linked_apps
 
-router = APIRouter(prefix='/integrations', tags=['integrations'])
+from services.upload_routes import UploadRoute
+
+router = APIRouter(route_class=UploadRoute, prefix='/integrations', tags=['integrations'])
 
 class EmbedRequest(BaseModel):
     service: str = Field(pattern=r'^(discord|spotify)$')
@@ -37,12 +39,10 @@ async def send(payload: str = Form(..., max_length=10000), files: list[UploadFil
     try:
         try: value = DiscordMessage.model_validate_json(payload).model_dump()
         except ValueError: raise HTTPException(400, 'Invalid Discord message request.') from None
-        if len(files) > 10: raise ValueError('Choose at most 10 attachments.')
         attachments = []; size = 0
         for index, file in enumerate(files):
-            raw = await file.read(integrations.MAX_ATTACHMENT + 1)
+            raw = await file.read()
             size += len(raw)
-            if size > integrations.MAX_ATTACHMENT: raise ValueError('Attachments must total no more than 10 MiB.')
             name = (file.filename or f'attachment-{index}').replace('\\', '/').split('/')[-1]
             # Prefix names to avoid attachment URL collisions and remove control characters.
             import re
@@ -55,7 +55,7 @@ async def send(payload: str = Form(..., max_length=10000), files: list[UploadFil
 
 @router.post('/spotify/recordings')
 async def save_recording(file: UploadFile = File(...)):
-    try: return integrations.save_recording(await file.read(integrations.MAX_AUDIO + 1))
+    try: return integrations.save_recording(await file.read())
     except ValueError as exc: raise HTTPException(400, str(exc)) from exc
     finally: await file.close()
 

@@ -2,10 +2,10 @@ import {afterEach,expect,it,vi} from 'vitest';
 import {extractAudio,validateExtractionInput,EXTRACTION_MAX_BYTES} from '../../src/audioExtraction';
 
 afterEach(() => vi.unstubAllGlobals());
-it('accepts common video and audio inputs while bounding uploads',() => {
+it('accepts common video and audio inputs above the former ceiling',() => {
   for (const name of ['VIDEO.MP4','clip.mov','movie.mkv','capture.webm','clip.avi','sound.wav','song.flac','sound.m4a']) expect(validateExtractionInput({name,size:10})).toBe('');
   expect(validateExtractionInput({name:'empty.mp4',size:0})).toMatch('nonempty');
-  expect(validateExtractionInput({name:'large.mp4',size:EXTRACTION_MAX_BYTES+1})).toMatch('2 GB');
+  expect(validateExtractionInput({name:'large.mp4',size:3*1024**3})).toBe('');
   expect(validateExtractionInput({name:'fake.mp4.exe',size:10})).toMatch('supported');
 });
 it('sends the selected track, format and cancellation signal, returning a named audio file',async() => {

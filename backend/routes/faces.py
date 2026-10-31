@@ -10,7 +10,9 @@ from services.faces.providers import catalog, get_provider
 from services.image_library import MAX_BYTES
 from services import character_resources
 
-router = APIRouter(prefix="/faces", tags=["faces"])
+from services.upload_routes import UploadRoute
+
+router = APIRouter(route_class=UploadRoute, prefix="/faces", tags=["faces"])
 MAX_UPLOAD_FILES = 100
 
 
@@ -30,7 +32,7 @@ class SettingsRequest(BaseModel):
 
 
 class ExtractRequest(BaseModel):
-    sources: list[dict] = Field(default_factory=list, max_length=500)
+    sources: list[dict] = Field(default_factory=list)
     name: str = Field(default="", max_length=120)
 
 
@@ -98,20 +100,13 @@ async def extract(dataset_id: str, request: ExtractRequest):
 
 @router.post("/datasets/{dataset_id}/upload", status_code=202)
 async def upload(dataset_id: str, files: list[UploadFile] = File(...), name: str = Form(default="", max_length=120)):
-    if len(files) > MAX_UPLOAD_FILES:
-        raise HTTPException(400, f"Choose up to {MAX_UPLOAD_FILES} images at a time")
     import base64
     sources = []
     total_bytes = 0
     for item in files:
-        payload = await item.read(MAX_BYTES + 1)
+        payload = await item.read()
         await item.close()
-        if len(payload) > MAX_BYTES:
-            sources.append({"kind": "invalid-upload", "name": item.filename or "Upload", "error": "Images must be at most 20 MiB each"})
-            continue
         total_bytes += len(payload)
-        if total_bytes > 64 * 1024 * 1024:
-            raise HTTPException(400, "Send face images in batches up to 64 MiB")
         sources.append({"kind": "inline", "name": item.filename or "Upload",
                         "data": base64.b64encode(payload).decode("ascii")})
     return call(pipeline.extractor.start, dataset_id, sources, name)
@@ -291,7 +286,7 @@ async def unlink_resource(character_id: str, link_id: str):
 @router.post("/characters/{character_id}/files", status_code=201)
 async def upload_character_file(character_id: str, file: UploadFile = File(...), note: str = Form(default="", max_length=4000)):
     try:
-        payload = await file.read(character_resources.MAX_FILE_BYTES + 1)
+        payload = await file.read()
         return await run_in_threadpool(call, character_resources.upload, character_id, file.filename, payload, note)
     finally:
         await file.close()

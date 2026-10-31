@@ -19,7 +19,7 @@ export default function VoiceOutputSettings() {
   useEffect(() => {
     let disposed = false;
     Promise.all([resourceCatalog('file'),audioRequest('voices/status')]).then(([{items},readiness]) => {
-      if (!disposed) {setFiles(items.filter(item => item.category === 'audio' && item.size <= 25*1024*1024));setStatus(readiness);setError('');}
+      if (!disposed) {setFiles(items.filter(item => item.category === 'audio'));setStatus(readiness);setError('');}
     }).catch(e => {if (!disposed) setError(e.message);});
     return () => {disposed = true;};
   },[revision]);

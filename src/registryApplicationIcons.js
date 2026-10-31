@@ -8,7 +8,7 @@ import onedrive from "./assets/application-icons/onedrive.svg";
 import access from "./assets/application-icons/access.svg";
 
 export const REGISTRY_ICONS_KEY = "local-ai-workstation-shortcut-icons-v1";
-export const ICON_FILE_LIMIT = 128 * 1024;
+export const ICON_FILE_LIMIT = Infinity;
 const icons = { word, excel, powerpoint, outlook, onenote, teams, onedrive, access };
 const prefixes = ["", "microsoft ", "ms ", "office ", "microsoft office ", "microsoft 365 ", "office 365 "];
 export const applicationIconKey = application => application.trim().toLowerCase().replace(/\s+/g, " ");
@@ -26,12 +26,11 @@ export function applicationInitials(application) {
 }
 
 function validateIcons(value) {
-  if (!value || typeof value !== "object" || Array.isArray(value) || Object.keys(value).length > 200)
+  if (!value || typeof value !== "object" || Array.isArray(value))
     throw new Error("Invalid saved application icons.");
   const clean = Object.create(null);
   for (const [application, source] of Object.entries(value)) {
     if (!application.trim() || application.length > 300 || typeof source !== "string" ||
-      source.length > Math.ceil(ICON_FILE_LIMIT / 3) * 4 + 80 ||
       !/^data:image\/(?:png|jpeg|webp|x-icon);base64,[A-Za-z0-9+/]+={0,2}$/.test(source))
       throw new Error("Invalid saved application icon.");
     clean[applicationIconKey(application)] = source;
@@ -59,7 +58,7 @@ export function applicationIconMime(bytes) {
 }
 
 export async function readApplicationIcon(file) {
-  if (!file || !file.size || file.size > ICON_FILE_LIMIT) throw new Error("Choose an icon image up to 128 KB.");
+  if (!file || !file.size) throw new Error("Choose a nonempty icon image.");
   const bytes = new Uint8Array(await file.arrayBuffer());
   const type = applicationIconMime(bytes);
   const source = await new Promise((resolve, reject) => {

@@ -317,6 +317,16 @@ export async function parseFile(file) {
   return await res.json();
 }
 
+export async function uploadSessionImage(sessionId, file, model) {
+  const body = new FormData();
+  body.append('file', file);
+  if (model) body.append('model', model);
+  const res = await fetch(apiUrl(`/sessions/${sessionId}/images`), { method: 'POST', body });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Could not save the image attachment.');
+  return data;
+}
+
 export async function streamChat({
   toolIds = [],
   exclusiveModel = false,

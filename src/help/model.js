@@ -22,7 +22,7 @@ export const modelHelp = [
   ['Paint and view', [
     ['Paint / texture picker', 'Applies materials to selected objects. The picker samples a material from the viewport; imported meshes without UVs use a top-down texture projection.'],
     ['Material / Color', 'Choose plastic, matte, metal, gold or glass, then adjust color, roughness, metallic and opacity. Apply brush reuses the sampled material on selected objects.'],
-    ['Load texture / swatches / stamps', 'Use a local PNG, JPEG or WebP up to 12 MB, a procedural texture, or a shape stamp. Images are limited to 2048 pixels per side. Recent materials stay in memory. Transparent stamps reveal the underlying paint.'],
+    ['Load texture / swatches / stamps', "Use a local PNG, JPEG or WebP without a file-byte ceiling, a procedural texture, or a shape stamp. Working textures are resized for rendering. Transparent stamps reveal the underlying paint."],
     ['Generate QR', 'Enter an HTTP or HTTPS URL to generate a texture locally. The URL is encoded without visiting the website. Turn off transparent background for a white QR background.'],
     ['Camera', 'Starts a local video-only preview after explicit permission. Capture texture, Cancel, or leaving Paint stops it. A full desktop restart is required after installing the camera service.'],
     ['Orbit / zoom / pan', 'Drag to rotate, scroll or pinch to zoom, and right-drag to pan.'],
@@ -41,7 +41,7 @@ export const modelHelp = [
     ['Save repaired STL', 'Saves repaired surface geometry in millimeters. Choose millimeters when importing it into a slicer.'],
     ['New filename', 'Repair exports refuse existing filenames. Cancelling the save dialog retains the repair result.'],
     ['Cancel repair / Cancel export', 'Stops unfinished preparation or processing while preserving the source. Save a result before closing the repair view or changing its source.'],
-    ['Repair limits', 'Input/output are limited to 128 MB each, expanded 3MF to 256 MB and geometry to 8 million triangles. The Windows worker times out after 15 minutes.'],
+    ['Repair limits', "File bytes, archive expansion, entry counts and imported geometry have no application upload ceiling. Invalid archives, external resources and cycles are rejected. The Windows repair worker can be cancelled and has its existing processing timeout."],
     ['Desktop availability', 'Native repair needs the Windows desktop app. After a desktop update, fully quit and reopen it to load the repair service.'],
   ]],
 ];

@@ -16,10 +16,10 @@ describe("file packaging selection", () => {
     expect(result.map(item => item.path)).toEqual(["folder (2)", "folder/file.bin", "empty", "empty (2)"]);
     expect(() => addPackageEntries(addPackageEntries([], [entry("folder")]), [entry("folder/file.txt")])).toThrow("folder name");
   });
-  it("rejects traversal and excessive selections without changing the current list", () => {
+  it("rejects traversal while accepting large selections", () => {
     expect(() => addPackageEntries([], [entry("../escape")])).toThrow("relative");
-    expect(() => addPackageEntries([], [{ ...entry("big"), file: { size: MAX_PACKAGE_BYTES + 1 } }])).toThrow("512 MiB");
-    expect(() => addPackageEntries([], Array.from({length:1001}, (_, i) => entry(`${i}`)))).toThrow("1,000");
+    expect(addPackageEntries([], [{ ...entry("big"), file: { size: 2 * 1024 ** 3 } }])).toHaveLength(1);
+    expect(addPackageEntries([], Array.from({length:1001}, (_, i) => entry(`${i}`)))).toHaveLength(1001);
   });
   it("uses relative folder-picker paths and portable names", () => {
     expect(selectedPackageFiles([{name:"readme",webkitRelativePath:"project/readme"}])[0].path).toBe("project/readme");

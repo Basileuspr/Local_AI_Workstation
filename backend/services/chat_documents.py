@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import io
+from services.upload_images import open_upload_image
 import json
 import math
 import re
@@ -322,9 +323,7 @@ def create_document(spec: DocumentSpec | DocumentAdditionSpec, session_id: str, 
                     if not found: raise ValueError("A selected chat image is missing. Attach it again before creating the document.")
                     raw = found[0]; digest = hashlib.sha256(raw).hexdigest()
                     image_vault.require_public(digest); source_hashes.append(digest)
-                    if len(raw) > 25*1024*1024: raise ValueError("The selected image is too large for this document.")
-                    with Image.open(io.BytesIO(raw)) as image:
-                        if image.width * image.height > 40_000_000: raise ValueError("The selected image has too many pixels.")
+                    with open_upload_image(io.BytesIO(raw)) as image:
                         image.thumbnail((2000, 2000))
                         output = io.BytesIO(); image.convert("RGB").save(output, format="PNG"); raw = output.getvalue()
                 else:
@@ -332,7 +331,7 @@ def create_document(spec: DocumentSpec | DocumentAdditionSpec, session_id: str, 
                 source_hashes.append(hashlib.sha256(raw).hexdigest())
                 name = f"image-{next_image if base else index}.png"; next_image += 1
                 (temporary / name).write_bytes(raw)
-                with Image.open(io.BytesIO(raw)) as image:
+                with open_upload_image(io.BytesIO(raw)) as image:
                     width = min(6.6, 6.5 * image.width / image.height)
                 doc.add_picture(io.BytesIO(raw), width=Inches(width))
                 if block.caption: doc.add_paragraph(block.caption, "Caption")

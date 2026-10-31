@@ -23,6 +23,8 @@ import base64
 import binascii
 import hashlib
 import re
+import os
+import tempfile
 from pathlib import Path
 
 from config import settings
@@ -112,6 +114,36 @@ def put_payload(value: str) -> str | None:
     if data is None:
         return None
     return put_bytes(data)
+
+
+def put_stream(stream) -> str:
+    """Store a seekable upload in chunks, returning only its content reference."""
+    ensure_dir()
+    stream.seek(0)
+    digest = hashlib.file_digest(stream, 'sha256').hexdigest()
+    stream.seek(0)
+    _, suffix = _sniff(stream.read(16))
+    stream.seek(0)
+    target = storage.resolve(BLOBS_DIR / f'{digest}{suffix}', create=True)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = None
+    try:
+        if not target.exists():
+            with tempfile.NamedTemporaryFile(dir=target.parent, prefix='.upload-', delete=False) as output:
+                temporary = Path(output.name)
+                copied = hashlib.sha256()
+                while chunk := stream.read(1024 * 1024):
+                    output.write(chunk)
+                    copied.update(chunk)
+                output.flush()
+                os.fsync(output.fileno())
+            if copied.hexdigest() != digest:
+                raise ValueError('The image changed while it was being saved. Upload it again.')
+            temporary.replace(target)
+        return f'{REF_PREFIX}{digest}'
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
 
 
 def _path_for(reference: str) -> Path | None:

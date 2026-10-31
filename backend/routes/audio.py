@@ -5,7 +5,9 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from starlette.concurrency import run_in_threadpool
 from services import audio
 
-router = APIRouter(prefix="/audio", tags=["audio"])
+from services.upload_routes import UploadRoute
+
+router = APIRouter(route_class=UploadRoute, prefix="/audio", tags=["audio"])
 from routes.voice_cloning import router as voice_router
 router.include_router(voice_router)
 from routes.audio_extraction import router as extraction_router
@@ -45,8 +47,6 @@ async def transcribe(file: UploadFile = File(...), language: str = Form("auto"),
             with path.open("wb") as target:
                 while chunk := await file.read(1024 * 1024):
                     size += len(chunk)
-                    if size > audio.MAX_BYTES:
-                        raise HTTPException(413, "Audio files must be 250 MB or smaller.")
                     target.write(chunk)
             if not size:
                 raise HTTPException(400, "The audio file is empty.")

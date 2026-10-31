@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
 
+from services.upload_images import open_upload_image
 from PIL import Image, ImageOps
 
 from config import settings
@@ -102,15 +103,13 @@ def import_image(dataset_id, payload, name, origin):
     meta = inspect(payload, name)
     digest = hashlib.sha256(payload).hexdigest()
     require_public(digest)
-    with Image.open(io.BytesIO(payload)) as raw:
+    with open_upload_image(io.BytesIO(payload)) as raw:
         image = ImageOps.exif_transpose(raw)
         width, height = image.size
     with LOCK:
         data = read(dataset_id)
         if any(item["id"] == digest for item in data["sources"]):
             return False
-        if len(data["sources"]) >= MAX_SOURCES:
-            raise ValueError(f"A dataset holds at most {MAX_SOURCES} source images")
         target = storage.resolve(ROOT / "sources" / f"{digest}.image", create=True)
         if not target.exists():
             atomic(target, payload)
@@ -202,7 +201,7 @@ def selection(data, selection_id):
 
 
 def _render(payload, box=None, thumbnail=False):
-    with Image.open(io.BytesIO(payload)) as original:
+    with open_upload_image(io.BytesIO(payload)) as original:
         image = ImageOps.exif_transpose(original).convert("RGB")
         if box:
             left, top, right, bottom = box

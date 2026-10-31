@@ -12,6 +12,7 @@ from typing import Any
 
 import httpx
 from PIL import Image, ImageOps
+from services.upload_images import open_upload_image
 
 from config import settings
 from services import lora_store
@@ -151,7 +152,7 @@ async def list_vision_models() -> list[dict]:
 
 def _analysis_image(path) -> str:
     try:
-        with Image.open(path) as source:
+        with open_upload_image(path) as source:
             image = ImageOps.exif_transpose(source).convert("RGB")
             image.thumbnail((MAX_IMAGE_EDGE, MAX_IMAGE_EDGE), Image.Resampling.LANCZOS)
             buffer = io.BytesIO()

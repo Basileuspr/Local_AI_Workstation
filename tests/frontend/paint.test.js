@@ -9,9 +9,9 @@ it('fill respects alpha boundaries and selection masks',()=>{
   const mask=new Uint8ClampedArray(12); mask[3]=255;
   expect(floodPaint(image,1,0,[0,0,0,255],255,mask)).toBe(false);
 });
-it('bounds image and layer memory before allocating',()=>{
-  expect(()=>paintDimensions(8192,8192)).toThrow();
-  expect(()=>paintDimensions(8192,1,17)).toThrow();
+it('validates dimensions without fixed pixel or layer ceilings',()=>{
+  expect(()=>paintDimensions(8192,8192)).not.toThrow();
+  expect(()=>paintDimensions(8192,1,17)).not.toThrow();
   expect(()=>paintDimensions(NaN,800)).toThrow();
   expect(()=>paintDimensions(1200,800,4)).not.toThrow();
 });

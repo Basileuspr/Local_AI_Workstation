@@ -128,13 +128,9 @@ def prepare_reference(source, destination):
             for frame in frames():
                 values = frame.to_ndarray().reshape(-1)
                 count += len(values)
-                if count > 30 * 24000:
-                    raise AudioError('Use a reference clip between 6 and 30 seconds, with one clear voice.')
-                if time.monotonic() - started > 30:
-                    raise AudioError('Reference decoding took too long. Try a WAV file.')
                 arrays.append(values)
-        if count < 6 * 24000:
-            raise AudioError('Use a reference clip between 6 and 30 seconds, with one clear voice.')
+        if not count:
+            raise AudioError('Choose a nonempty reference recording with one clear voice.')
         samples = np.concatenate(arrays)
         if np.max(np.abs(samples.astype('float32'))) < 32:
             raise AudioError('The reference appears silent. Choose a clear voice recording.')

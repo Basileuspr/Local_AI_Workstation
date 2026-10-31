@@ -19,8 +19,8 @@ SMALL_MODEL_DIR = settings.models_dir / "audio" / "whisper-small"
 TURBO_MODEL_DIR = settings.models_dir / "audio" / "whisper-turbo"
 MODELS = {'turbo': ('Whisper large-v3 Turbo · accuracy + GPU speed', 1600),
           'small': ('Whisper small · lighter CPU option', 500), 'base': ('Whisper base · lowest memory', 150)}
-MAX_BYTES = 250 * 1024 * 1024
-MAX_SECONDS = 2 * 60 * 60
+MAX_BYTES = None
+MAX_SECONDS = None
 SAMPLE_RATE = 16000
 CHUNK_SECONDS = 8 * 60
 OVERLAP_SECONDS = 2
@@ -154,8 +154,6 @@ def iter_audio_chunks(path):
                     frame.pts = None
                     outputs = resampler.resample(frame)
                     decoding_time += time.monotonic() - started
-                    if decoding_time > 120:
-                        raise AudioError("Audio decoding took too long. Try converting the file to WAV or MP3.")
                     for output in outputs:
                         yield output.to_ndarray().reshape(-1)
                 for output in resampler.resample(None):
@@ -163,8 +161,6 @@ def iter_audio_chunks(path):
 
             for values in decoded_arrays():
                 samples += len(values)
-                if samples > MAX_SECONDS * SAMPLE_RATE:
-                    raise AudioError("Audio uploads must be 2 hours or shorter.", 413)
                 while len(values):
                     if used == capacity:
                         yield chunk(last=False)

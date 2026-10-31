@@ -10,10 +10,12 @@ export const mixerChannels = [
 ];
 export const trackIds = Array.from({length:8},(_,i)=>`track-${i+1}`);
 export const mixerChannelIds = [...mixerChannels.map(channel=>channel.id), ...trackIds];
+export const validMixerChannel = id => mixerChannelIds.includes(id) || /^track-[1-9][0-9]*$/.test(id);
 export const flatChannel = {volume:1, muted:false, solo:false, pan:0, low:0, mid:0, high:0};
 const number=(value,fallback,min,max)=>typeof value==='number' && Number.isFinite(value) ? Math.min(max,Math.max(min,value)) : fallback;
 export function normalizeMixerSettings(value) {
-  return {limiter:value?.limiter!==false, channels:Object.fromEntries(mixerChannelIds.map(id=>{
+  const ids = [...new Set([...mixerChannelIds, ...Object.keys(value?.channels || {}).filter(validMixerChannel)])];
+  return {limiter:value?.limiter!==false, channels:Object.fromEntries(ids.map(id=>{
     const item=value?.channels?.[id];
     return [id,{volume:number(item?.volume,1,0,1), muted:item?.muted===true, solo:item?.solo===true,
       pan:number(item?.pan,0,-1,1), low:number(item?.low,0,-12,12), mid:number(item?.mid,0,-12,12), high:number(item?.high,0,-12,12)}];
@@ -33,7 +35,7 @@ export function mixerPreset(name) {
 }
 export function mediaMixerChannel(media) {
   const explicit=media?.dataset?.mixerChannel;
-  if(mixerChannelIds.includes(explicit))return explicit;
+  if(validMixerChannel(explicit))return explicit;
   const tab=media?.closest?.('[data-capture-tab]')?.dataset?.captureTab;
   if(tab==='sound-mixer')return 'audio';
   if(['browser','media-manager','integrations'].includes(tab))return tab;

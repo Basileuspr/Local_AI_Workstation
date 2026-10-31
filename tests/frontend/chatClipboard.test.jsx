@@ -9,7 +9,7 @@ const { state, dispatch } = vi.hoisted(() => ({
   dispatch: vi.fn(),
 }));
 vi.mock("../../src/useStore.jsx", () => ({ useStore: () => state, useDispatch: () => dispatch }));
-vi.mock("../../src/api", () => ({ appendSessionMessages: vi.fn(), parseFile: vi.fn() }));
+vi.mock("../../src/api", () => ({ appendSessionMessages: vi.fn(), uploadSessionImage: vi.fn(), parseFile: vi.fn() }));
 const png = () => new File(["test pixels"], "image.png", { type: "image/png" });
 const event = data => ({ clipboardData: data, preventDefault: vi.fn() });
 function uploads(options) {
@@ -23,6 +23,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   state.currentSessionId = "source-chat";
   api.appendSessionMessages.mockImplementation(async (id, messages) => ({ id, messages, title: "Chat", memory_summary: "Retained memory", summarized_message_count: 2 }));
+  api.uploadSessionImage.mockImplementation(async id => ({ id, uploaded_message_id: 'uploaded', messages: [{id:'uploaded',role:'user',content:'Image',images:['blob:abc']}], title: 'Chat', memory_summary: 'Retained memory', summarized_message_count: 2 }));
   vi.stubGlobal("FileReader", class {
     readAsDataURL() { this.result = "data:image/png;base64,QUJD"; this.onload(); }
   });
@@ -77,19 +78,20 @@ describe("clipboard paste", () => {
 describe("clipboard attachment persistence", () => {
   it("saves image bytes once, then displays the saved reference and keeps server memory", async () => {
     const existing = { id: "concurrent-reply", role: "assistant", content: "Another result" };
-    api.appendSessionMessages.mockImplementationOnce(async (id, messages) => ({ id, title: "Chat", messages: [existing, { ...messages[0], images: ["stored:abc"] }], memory_summary: "Current memory", summarized_message_count: 5 }));
+    api.uploadSessionImage.mockImplementationOnce(async id => ({ id, uploaded_message_id: 'uploaded', title: "Chat", messages: [existing, { id:'uploaded',role:'user',content:'Image', images: ["blob:abc"] }], memory_summary: "Current memory", summarized_message_count: 5 }));
     const onSuccess = vi.fn();
     await uploads().uploadFiles([png()], { onSuccess });
-    expect(api.appendSessionMessages).toHaveBeenCalledWith("source-chat", [expect.objectContaining({ role: "user", images: ["QUJD"] })], "test-model");
+    expect(api.uploadSessionImage).toHaveBeenCalledWith("source-chat", expect.any(File), "test-model");
+    expect(api.appendSessionMessages).not.toHaveBeenCalled();
     const session = dispatch.mock.calls.find(([a]) => a.type === "SET_SESSION")[0].payload;
     expect(session.messages[0]).toEqual(existing);
-    expect(session.messages[1].images).toEqual(["stored:abc"]);
+    expect(session.messages[1].images).toEqual(["blob:abc"]);
     expect(session.memorySummary).toBe("Current memory");
     expect(session.summarizedMessageCount).toBe(5);
     expect(onSuccess).toHaveBeenCalledOnce();
   });
   it("does not display a successful attachment when saving fails", async () => {
-    api.appendSessionMessages.mockRejectedValueOnce(new Error("Disk full"));
+    api.uploadSessionImage.mockRejectedValueOnce(new Error("Disk full"));
     const onError = vi.fn(), onSuccess = vi.fn();
     expect(await uploads().uploadFiles([png()], { onError, onSuccess })).toBe(false);
     expect(dispatch).not.toHaveBeenCalled();
@@ -99,24 +101,26 @@ describe("clipboard attachment persistence", () => {
   it("preserves every file in a mixed clipboard batch", async () => {
     api.parseFile.mockResolvedValueOnce({ filename: "notes.txt", char_count: 5, text: "notes" });
     expect(await uploads().uploadFiles([png(), new File(["notes"], "notes.txt", { type: "text/plain" })])).toBe(true);
-    expect(api.appendSessionMessages).toHaveBeenCalledTimes(2);
+    expect(api.uploadSessionImage).toHaveBeenCalledOnce();
+    expect(api.appendSessionMessages).toHaveBeenCalledOnce();
     expect(api.parseFile).toHaveBeenCalledOnce();
   });
-  it("rejects oversize screenshots and unsupported image types without sending bytes", async () => {
+  it("accepts large screenshots while rejecting unsupported image types", async () => {
     const onError = vi.fn();
-    expect(await uploads().uploadFiles([{ type: "image/png", size: MAX_IMAGE_BYTES + 1 }, { type: "image/svg+xml" }], { onError })).toBe(false);
+    expect(await uploads().uploadFiles([{ name:'large.png', type: "image/png", size: 200 * 1024 ** 2 }, { type: "image/svg+xml" }], { onError })).toBe(true);
+    expect(api.uploadSessionImage).toHaveBeenCalledOnce();
     expect(api.appendSessionMessages).not.toHaveBeenCalled();
     expect(api.parseFile).not.toHaveBeenCalled();
-    expect(onError.mock.calls.map(([error]) => error.message)).toEqual(["Image is larger than 10 MB", "Unsupported image format. Paste a PNG, JPEG, or WebP image."]);
+    expect(onError.mock.calls.map(([error]) => error.message)).toEqual(["Unsupported image format. Paste a PNG, JPEG, or WebP image."]);
   });
   it("does not silently drop a second paste while saving the first", async () => {
     let release;
-    api.appendSessionMessages.mockReturnValueOnce(new Promise(resolve => { release = resolve; }));
+    api.uploadSessionImage.mockReturnValueOnce(new Promise(resolve => { release = resolve; }));
     const hook = uploads(), onError = vi.fn();
     const first = hook.uploadFiles([png()]);
     expect(await hook.uploadFiles([png()], { onError })).toBe(false);
     expect(onError).toHaveBeenCalledWith(expect.objectContaining({ userFacing: true, message: expect.stringContaining("already being saved") }), expect.any(File));
-    release({ id: "source-chat", messages: [], title: "Chat" });
+    release({ id: "source-chat", uploaded_message_id:'uploaded', messages: [], title: "Chat" });
     await first;
   });
   it("reports session creation failures", async () => {

@@ -8,7 +8,7 @@ const validId = id => typeof id === 'string' && /^[a-f0-9-]{36}$/i.test(id);
 const bytesOf = value => {
     if (!(value instanceof Uint8Array) && !(value instanceof ArrayBuffer)) throw Error('Model bytes are required.');
     const bytes = value instanceof ArrayBuffer ? Buffer.from(value) : Buffer.from(value.buffer, value.byteOffset, value.byteLength);
-    if (!bytes.length || bytes.length > MAX_BYTES) throw Error('Repair supports files up to 128 MB.');
+    if (!bytes.length) throw Error('Choose a nonempty model file.');
     return bytes;
 };
 
@@ -70,7 +70,7 @@ function createMeshRepair({dialog, getWindow, onProgress = () => {}, platform = 
                 });
                 if (job.cancelled) return {cancelled: true};
                 const stat = await fs.stat(target);
-                if (!stat.isFile() || stat.size < 4 || stat.size > MAX_BYTES) throw Error('Windows produced an invalid or oversized result.');
+                if (!stat.isFile() || stat.size < 4) throw Error('Windows produced an invalid or oversized result.');
                 const bytes = await fs.readFile(target);
                 if (job.cancelled) return {cancelled: true};
                 completed = {id: job.id, bytes};

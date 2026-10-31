@@ -102,20 +102,19 @@ export function prepare3MF(buffer) {
   }
   const counts=new Map(),visiting=new Set();
   function count(id,depth=0) {
-    if(depth>128||visiting.has(id))throw Error('Cyclic or excessively deep 3MF component hierarchy.');
+    if(visiting.has(id))throw Error('Cyclic 3MF component hierarchy.');
     if(counts.has(id))return counts.get(id);
     const object=objects.get(id);if(!object)throw Error('Missing 3MF object.');
     visiting.add(id);let triangles=object.triangles,instances=1;
     for(const child of object.children){const c=count(child,depth+1);triangles+=c.triangles;instances+=c.instances;}
     visiting.delete(id);
-    if(triangles>MAX_TRIANGLES||instances>10000)throw Error('Expanded component geometry exceeds the preview safety limit.');
     const result={triangles,instances};counts.set(id,result);return result;
   }
   // ThreeMFLoader builds every resource, including unused objects.
-  let allocation=0;for(const id of objects.keys()){allocation+=count(id).instances;if(allocation>30000)throw Error('Too many expanded component instances.');}
+  let allocation=0;for(const id of objects.keys()){allocation+=count(id).instances;}
   let triangles=0,instances=0;
   for(const node of Array.from(root.querySelector('build')?.children||[])){const c=count(node.getAttribute('objectid'));triangles+=c.triangles;instances+=c.instances;}
-  checkTriangles(triangles);if(instances>10000)throw Error('Too many model instances.');
+  checkTriangles(triangles);
   const packed=zipSync({'3D/model.model':strToU8(root.toString()),'_rels/.rels':strToU8('<Relationships><Relationship Target="/3D/model.model" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel" Id="r1"/></Relationships>')},{level:0});
   return {triangles,units,warnings:[...new Set(warnings)],parse(){
     globalThis.DOMParser=DOMParser;

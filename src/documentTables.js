@@ -40,7 +40,7 @@ export function documentTableBoundsPlugin() {
       transaction.doc.descendants(node => {
         if (node.type.name !== 'table') return;
         const map = TableMap.get(node);
-        if (map.height > 100 || map.width > 12) valid = false;
+        if (!map.height || !map.width) valid = false;
         return false;
       });
       return valid;

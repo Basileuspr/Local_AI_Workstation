@@ -7,6 +7,7 @@ import { reducer } from '../../src/useStore';
 import { ChatPaneProvider } from '../../src/ChatPane';
 import { chatSubmissionQueue } from '../../src/chatSubmissionQueue';
 import * as api from '../../src/api';
+import { buildImageMessage } from '../../src/useChatUploads';
 
 const store = vi.hoisted(() => ({ state: null, dispatch: null, refs: null }));
 vi.mock('../../src/useStore.jsx', async original => ({
@@ -16,6 +17,7 @@ vi.mock('../../src/useStore.jsx', async original => ({
 vi.mock('../../src/api', () => ({
   createSession: vi.fn(), loadSession: vi.fn(), appendSessionMessages: vi.fn(),
   streamChat: vi.fn(), parseFile: vi.fn(), compactMemory: vi.fn(),
+  uploadSessionImage: vi.fn(),
 }));
 vi.mock('../../src/polling', () => ({ invalidatePolling: vi.fn() }));
 vi.mock('../../src/chatSpeech', () => ({ chatSpeech: { completed: vi.fn() } }));
@@ -103,6 +105,12 @@ beforeEach(() => {
       ? { ...message, images: [`stored:${message.id}`] } : message));
     saved.revision++;
     return snapshot(id);
+  });
+  api.uploadSessionImage.mockImplementation(async (id, file, model) => {
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const message = buildImageMessage(file, 'data:image/png;base64,QUJD', 'QUJD');
+    const saved = await api.appendSessionMessages(id, [message], model);
+    return { ...saved, uploaded_message_id: message.id };
   });
   api.streamChat.mockImplementation(async () => new Response('data: {"token":"Image reaction","done":true}\n\n'));
   root = createRoot(document.getElementById('root'));

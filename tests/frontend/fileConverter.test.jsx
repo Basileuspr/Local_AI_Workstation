@@ -49,13 +49,13 @@ describe('File Converter uploads', () => {
     expect(request.body.get('target')).toBe('png');
     expect(document.querySelector('.document-attachment').textContent).toContain('large.png');
     expect(document.querySelector('[role="alert"]')).toBeNull();
-    expect(document.querySelector('.tools-heading').textContent).toContain('100 MB and 24 megapixels');
+    expect(document.querySelector('.tools-heading').textContent).not.toContain('100 MB');
   });
 
-  it('explains the 100 MB limit before uploading an oversized file', async () => {
+  it('uploads files above the former 100 MB ceiling', async () => {
     await dropAndConvert({name: 'too-large.bmp', size: 100 * 1024 * 1024 + 1, lastModified: 0});
-    expect(fetch).not.toHaveBeenCalled();
-    expect(document.querySelector('[role="alert"]').textContent).toContain('100 MB file size limit');
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(document.querySelector('[role="alert"]')).toBeNull();
   });
 
   it('displays the separate pixel limit when the backend rejects the image dimensions', async () => {

@@ -16,9 +16,9 @@ def _integer(value, low, high):
 
 def table_grid(node):
     rows = node.get('content', [])
-    if not isinstance(rows, list) or not 1 <= len(rows) <= 100:
-        raise ValueError('Tables support 1–100 rows and 1–12 grid columns.')
-    grid, anchors, widths, columns = [[None] * 12 for _ in rows], [], [0] * 12, 0
+    if not isinstance(rows, list) or not rows:
+        raise ValueError('Tables need at least one row.')
+    grid, anchors, widths, columns = [[] for _ in rows], [], [], 0
     attrs = node.get('attrs') or {}
     if not isinstance(attrs, dict) or attrs.get('tableAlignment', 'left') not in tuple(TABLE_ALIGN):
         raise ValueError('Invalid table alignment.')
@@ -29,14 +29,18 @@ def table_grid(node):
             raise ValueError('Invalid table row.')
         c = 0
         for cell in row.get('content', []):
-            while c < 12 and grid[r][c] is not None: c += 1
+            while c < len(grid[r]) and grid[r][c] is not None: c += 1
             if not isinstance(cell, dict) or cell.get('type') not in ('tableCell', 'tableHeader'):
                 raise ValueError('Invalid table cell.')
             ca = cell.get('attrs') or {}
             if not isinstance(ca, dict): raise ValueError('Invalid cell attributes.')
             colspan, rowspan = ca.get('colspan', 1), ca.get('rowspan', 1)
-            if not _integer(colspan, 1, 12) or not _integer(rowspan, 1, 100) or c + colspan > 12 or r + rowspan > len(rows):
-                raise ValueError('Cell spans must fit inside the 100-row / 12-column table grid.')
+            if type(colspan) is not int or colspan < 1 or not _integer(rowspan, 1, len(rows)) or r + rowspan > len(rows):
+                raise ValueError('Cell spans must be positive and fit inside the table rows.')
+            missing = c + colspan - len(widths)
+            if missing > 0:
+                widths.extend([0] * missing)
+                for line in grid: line.extend([None] * missing)
             if ca.get('verticalAlign', 'top') not in tuple(CELL_ALIGN):
                 raise ValueError('Invalid cell vertical alignment.')
             fill = ca.get('backgroundColor')
@@ -115,8 +119,8 @@ def write_table(parent, node, available, write):
 
 def read_table(table, blocks, warn):
     rows, columns = list(table.rows), len(table.columns)
-    if not 1 <= len(rows) <= 100 or not 1 <= columns <= 12:
-        raise ValueError('A table exceeds the 100-row / 12-column editing limit or has no layout grid.')
+    if not rows or columns < 1:
+        raise ValueError('A table needs rows and a layout grid.')
     if table._tbl.xpath('.//w:hMerge'):
         raise ValueError('Legacy horizontal table merges are unsupported. Resave a copy with standard grid-span merges before importing.')
     widths = []
@@ -130,7 +134,7 @@ def read_table(table, blocks, warn):
     for r, row in enumerate(rows):
         before, after = row.grid_cols_before, row.grid_cols_after
         spans = [cell.grid_span for cell in row._tr.tc_lst]
-        if not _integer(before, 0, 12) or not _integer(after, 0, 12) or len(spans) > 12 or any(not _integer(span, 1, 12) for span in spans) or before + sum(spans) + after != columns:
+        if not _integer(before, 0, columns) or not _integer(after, 0, columns) or len(spans) > columns or any(not _integer(span, 1, columns) for span in spans) or before + sum(spans) + after != columns:
             raise ValueError('A table contains invalid or oversized grid spans.')
         if any(cell.vMerge == 'continue' and cell.xpath('.//w:t') for cell in row._tr.tc_lst):
             warn('Hidden content in a vertical-merge continuation cell was omitted; the merged origin cell’s content is retained.')

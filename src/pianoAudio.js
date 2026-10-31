@@ -1,6 +1,6 @@
 import { pianoMidiName } from './miniPiano';
 
-export const PIANO_AUDIO_LIMIT = 32 * 1024 * 1024;
+export const PIANO_AUDIO_LIMIT = Infinity;
 export const PIANO_CLIP_LIMIT = 30;
 
 export function validatePianoAudioOptions({ start = 0, duration = 10, tempo = 90, grid = .25, threshold = .3 } = {}) {
@@ -53,7 +53,6 @@ export function pianoNotesToSequence(events, options = {}) {
 export async function decodePianoAudioFile(file, options, env = globalThis) {
   const settings = validatePianoAudioOptions(options);
   if (!file || !file.size) throw Error('Choose a nonempty audio file.');
-  if (file.size > PIANO_AUDIO_LIMIT) throw Error('Choose an audio file under 32 MB.');
   const Context = env.OfflineAudioContext;
   if (!Context) throw Error('Audio decoding is unavailable in this browser. Use the desktop app.');
   // Decoding opens no output device, microphone, or shared audio context.
@@ -61,8 +60,6 @@ export async function decodePianoAudioFile(file, options, env = globalThis) {
   let audio;
   try { audio = await decoder.decodeAudioData(await file.arrayBuffer()); }
   catch { throw Error('This file could not be decoded. Try WAV, MP3, FLAC, OGG, or M4A supported by this browser.'); }
-  if (audio.duration > 600) throw Error('Choose a file no longer than ten minutes, or trim it first.');
-  if (audio.numberOfChannels > 8) throw Error('Choose a file with eight audio channels or fewer.');
   if (settings.start >= audio.duration) throw Error('The clip start is past the end of this file.');
   const duration = Math.min(settings.duration, audio.duration - settings.start);
   const offset = Math.floor(settings.start * audio.sampleRate), length = Math.floor(duration * audio.sampleRate);

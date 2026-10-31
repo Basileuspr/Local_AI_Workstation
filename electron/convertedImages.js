@@ -29,9 +29,8 @@ function createConvertedImageSaver({getResponse, showDialog, downloads, writeFil
             }
             const extension = FORMATS[(response.headers.get('content-type') || '').split(';')[0].trim()];
             if (!extension) throw Error('The backend did not return a converted image. Convert it again and retry.');
-            if (Number(response.headers.get('content-length')) > MAX_BYTES) throw Error('The converted image is too large to save.');
             const bytes = Buffer.from(await response.arrayBuffer());
-            if (!bytes.length || bytes.length > MAX_BYTES) throw Error('The converted image is empty or too large to save.');
+            if (!bytes.length) throw Error('The converted image is empty.');
             if (extension === 'ico' && (bytes.length < 6 || bytes.readUInt32LE(0) !== 0x00010000 || !bytes.readUInt16LE(4))) throw Error('The converted icon is invalid. Convert it again and retry.');
             const name = convertedFilename(response.headers.get('content-disposition'), extension);
             const choice = await showDialog({title:'Save converted image',defaultPath:path.join(downloads(), name),

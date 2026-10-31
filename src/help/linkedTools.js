@@ -1,7 +1,7 @@
 export const linkedToolHelp = {
   slicer: [['Model and printer', [
     ['Refresh Cura readiness', 'Checks the installed CuraEngine and lists available printer profiles. Slice model becomes available only when the engine is ready and a model is selected.'],
-    ['Choose STL', 'Choose a nonempty local STL no larger than 50 MiB. The source file is preserved; other model formats need conversion before slicing.'],
+    ['Choose STL', "Choose a nonempty local STL. There is no application input byte ceiling. The source is preserved; other model formats need conversion before slicing."],
     ['Printer profile', 'Choose the profile that matches your printer. Check its build volume, extruder, nozzle and material settings before using the resulting G-code.'],
     ['Generic printer confirmation', 'Enables the generic profile only after you confirm a 220 × 220 × 250 mm build volume, one extruder, 1.75 mm filament and generic G-code.'],
     ['Material', 'Select PLA, PETG or ABS to set the workspace’s preset nozzle and bed temperatures. Check that those settings match the selected printer and filament.'],

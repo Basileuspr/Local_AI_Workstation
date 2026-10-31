@@ -152,9 +152,11 @@ class FaceExtractor:
         data, meta = await run_in_threadpool(self._load, source)
         dataset = store.get_dataset(run.dataset_id)
         options = dataset["settings"]
-        faces = await run_in_threadpool(
-            provider.detect, Image.open(io.BytesIO(data)), lambda: job.cancel_event.is_set() or run.cancel_event.is_set(),
-            float(options["detect_threshold"]))
+        from services.upload_images import open_upload_image
+        with open_upload_image(io.BytesIO(data)) as image:
+            faces = await run_in_threadpool(
+                provider.detect, image, lambda: job.cancel_event.is_set() or run.cancel_event.is_set(),
+                float(options["detect_threshold"]))
         if job.cancel_event.is_set() or run.cancel_event.is_set():
             raise QueueCancelled()
         if not faces:
@@ -187,7 +189,9 @@ class FaceExtractor:
 
     @staticmethod
     def _build(dataset_id, data, meta, source, faces, options):
-        image = Image.open(io.BytesIO(data)).convert("RGB")
+        from services.upload_images import open_upload_image
+        with open_upload_image(io.BytesIO(data)) as original:
+            image = original.convert("RGB")
         records, embeddings = [], []
         for index, face in enumerate(faces):
             try:
@@ -228,7 +232,9 @@ def recrop(dataset_id, face_ids=None):
             continue
         try:
             data, _ = FaceExtractor._load(face["source"])
-            image = Image.open(io.BytesIO(data)).convert("RGB")
+            from services.upload_images import open_upload_image
+            with open_upload_image(io.BytesIO(data)) as original:
+                image = original.convert("RGB")
         except (ValueError, OSError, UnidentifiedImageError):
             continue
         from services.faces.providers import DetectedFace

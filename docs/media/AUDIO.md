@@ -15,8 +15,8 @@ count. Rename labels and correct mistaken turns/words before copying or saving.
 Labels distinguish voices; they do not establish identity. Short/overlapping
 speech and noise can produce Unknown or Unclear speaker labels.
 
-Uploads are bounded to 250 MB / two hours; microphone recordings to 25 MB /
-ten minutes. Long transcription uses bounded overlapping chunks. Processing
+Uploads and microphone recordings have no application byte or duration ceiling.
+Record until you choose Stop. Long transcription uses bounded overlapping chunks. Processing
 availability depends on the installed Whisper/runtime and hardware. Speaker
 separation failures remain visible rather than being reported as successful
 diarization.
@@ -33,9 +33,9 @@ Cloned speech uses separately installed engines and an explicit reference.
 ## Voice cloning
 
 1. Choose OmniVoice, Qwen3-TTS or Chatterbox Turbo.
-2. Record/upload a clear reference within the displayed duration/size bounds.
-   Upload references support 6–30 seconds; microphone reference recording is
-   bounded more tightly.
+2. Record/upload a clear reference. The application does not impose an upload
+   byte or duration ceiling; the chosen engine and available memory determine
+   what it can process. A focused recording of one clear voice is useful.
 3. Review the reference transcript. OmniVoice and Qwen use it; Chatterbox uses
    the audio-only reference path.
 4. Enter up to 1,500 characters and generate. Save the result explicitly.

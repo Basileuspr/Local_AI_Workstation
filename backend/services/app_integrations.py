@@ -58,8 +58,6 @@ async def send_discord(value, attachments):
         url = f'https://discord.com/api/v10/channels/{value["channel_id"]}/messages'
         auth = {'Authorization': 'Bot ' + value['bot_token']}
     else: raise ValueError('Choose Webhook or Bot.')
-    if len(attachments) > 10 or sum(len(raw) for _, raw, _ in attachments) > MAX_ATTACHMENT:
-        raise ValueError('Choose at most 10 attachments, totaling no more than 10 MiB.')
     image = next((name for name, _, mime in attachments if mime in ('image/png', 'image/jpeg', 'image/webp', 'image/gif')), '')
     payload = discord_payload(value['content'], value['title'], value['description'], image)
     if not (value['content'] or payload.get('embeds') or attachments): raise ValueError('Add a message, embed or file.')
@@ -79,8 +77,8 @@ async def send_discord(value, attachments):
 
 
 def save_recording(raw):
-    if not raw or len(raw) > MAX_AUDIO or not raw.startswith(b'\x1a\x45\xdf\xa3'):
-        raise ValueError('Choose a captured WebM recording no larger than 64 MiB.')
+    if not raw or not raw.startswith(b'\x1a\x45\xdf\xa3'):
+        raise ValueError('Choose a captured WebM recording.')
     ident = uuid.uuid4().hex
     target = storage.resolve(ROOT / f'{ident}.webm', create=True)
     target.parent.mkdir(parents=True, exist_ok=True)

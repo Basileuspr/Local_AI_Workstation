@@ -26,7 +26,6 @@ export function validatePaintProject(value) {
     const dimension = start => [0, 1, 2, 3].reduce((n, i) => n * 256 + header.charCodeAt(start + i), 0);
     if (dimension(16) !== value.width || dimension(20) !== value.height) throw Error('Project layer dimensions do not match the canvas.');
     size += item.png.length;
-    if (size > 128 * 1024 * 1024) throw Error('The project is larger than 128 MB.');
   }
   if (!ids.has(value.activeLayerId)) throw Error('Invalid active layer.');
   if (typeof value.name !== 'string' || value.name.length > 180) throw Error('Invalid project name.');

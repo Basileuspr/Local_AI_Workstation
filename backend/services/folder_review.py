@@ -237,7 +237,7 @@ class FolderReview:
                     children = []
                     for child in listing:
                         self.check(); visited += 1
-                        if visited > options['max_entries']:
+                        if options['max_entries'] and visited > options['max_entries']:
                             complete = False; break
                         children.append(child)
             except OSError as error:

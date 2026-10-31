@@ -90,16 +90,23 @@ def test_repeated_source_reference_becomes_independent_editable_notes():
     {'type': 'doc', 'content': []},
     {'type': 'doc', 'content': [{'type': 'heading'}]},
     {'type': 'doc', 'content': [{'type': 'paragraph', 'content': [note()]}]},
-    {'type': 'doc', 'content': [{'type': 'paragraph', 'content': [{'type': 'text', 'text': 'x' * 10001}]}]},
     {'type': 'doc', 'content': [{'type': 'paragraph', 'content': [{'type': 'text', 'text': '\ud800'}]}]},
     {'type': 'doc', 'content': [{'type': 'paragraph', 'content': [{'type': 'text', 'text': 'link', 'marks': [{'type': 'link', 'attrs': {'href': 'file:///private'}}]}]}]},
     {'type': 'doc', 'content': [{'type': 'paragraph', 'content': [{'type': 'text', 'text': 'link', 'marks': [{'type': 'link', 'attrs': {'href': '#Destination'}}]}]}]},
     {'type': 'doc', 'content': [{'type': 'paragraph', 'content': [{'type': 'text', 'text': 'link', 'marks': [{'type': 'link', 'attrs': [1]}]}]}]},
-    {'type': 'doc', 'content': [{'type': 'paragraph'}] * 41},
 ])
 def test_invalid_note_bodies_are_rejected(body):
     item = note(); item['attrs']['body'] = body
     with pytest.raises(ValueError): export_docx(model(item), DEFAULT_LAYOUT)
+
+
+@pytest.mark.parametrize('body', [
+    {'type': 'doc', 'content': [{'type': 'paragraph', 'content': [{'type': 'text', 'text': 'x' * 10001}]}]},
+    {'type': 'doc', 'content': [{'type': 'paragraph'}] * 41},
+])
+def test_large_note_bodies_are_accepted(body):
+    item = note(); item['attrs']['body'] = body
+    assert export_docx(model(item), DEFAULT_LAYOUT).startswith(b'PK')
 
 
 @pytest.mark.parametrize('settings', [
@@ -111,16 +118,16 @@ def test_invalid_note_numbering_is_rejected(settings):
     with pytest.raises(ValueError): validate_model(source)
 
 
-def test_duplicate_ids_and_note_limit_are_rejected_and_emoji_uses_same_browser_character_budget():
+def test_duplicate_note_ids_fail_while_note_count_and_text_have_no_quota():
     with pytest.raises(ValueError, match='unique'): validate_model(model(note(), note()))
     items = [note(digit='a') for _ in range(201)]
     for index, item in enumerate(items): item['attrs']['id'] = f'note-{index:032x}'
-    with pytest.raises(ValueError, match='200 notes'): validate_model(model(*items))
+    validate_model(model(*items))
     validate_model(model(note(text='😀' * 5000)))
-    with pytest.raises(ValueError, match='10,000'): validate_model(model(note(text='😀' * 5001)))
+    validate_model(model(note(text='😀' * 5001)))
 
 
-def test_oversized_import_is_explicitly_truncated():
+def test_import_preserves_long_note_text():
     native = Document(BytesIO(export_docx(model(note()), DEFAULT_LAYOUT)))
     part = next(rel.target_part for rel in native.part.rels.values() if rel.reltype == RT.FOOTNOTES)
     root = etree.fromstring(part.blob)
@@ -128,9 +135,9 @@ def test_oversized_import_is_explicitly_truncated():
     # Generic parts loaded by python-docx store their XML as bytes.
     part._blob = etree.tostring(root)
     result = import_docx(save(native))
-    assert any('10,000 characters' in warning for warning in result['warnings'])
+    assert not any('10,000 characters' in warning for warning in result['warnings'])
     source = next(node for node in walk(result['document']) if node['type'] == 'documentNote')
-    assert len(source['attrs']['body']['content'][0]['content'][0]['text']) == 10000
+    assert len(source['attrs']['body']['content'][0]['content'][0]['text']) == 10001
 
 
 def test_external_note_part_is_not_fetched_and_the_reference_is_repairable():

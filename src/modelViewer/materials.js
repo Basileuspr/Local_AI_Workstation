@@ -40,7 +40,7 @@ export async function qrTexture(url,transparent=true){
   const QRCode=await import('qrcode');return QRCode.toDataURL(url,{width:512,margin:4,errorCorrectionLevel:'M',color:{dark:'#000000ff',light:transparent?'#ffffff00':'#ffffffff'}});
 }
 export async function imageTexture(file){
-  if(!file||!['image/png','image/jpeg','image/webp'].includes(file.type)||file.size>12*1024*1024)throw Error('Choose a PNG, JPEG, or WebP image up to 12 MB.');
+  if(!file||!['image/png','image/jpeg','image/webp'].includes(file.type))throw Error('Choose a PNG, JPEG, or WebP image.');
   const bitmap=await createImageBitmap(file);
   try{const factor=Math.min(1,2048/Math.max(bitmap.width,bitmap.height)),c=document.createElement('canvas');c.width=Math.max(1,Math.round(bitmap.width*factor));c.height=Math.max(1,Math.round(bitmap.height*factor));c.getContext('2d').drawImage(bitmap,0,0,c.width,c.height);return c.toDataURL('image/png');}finally{bitmap.close();}
 }

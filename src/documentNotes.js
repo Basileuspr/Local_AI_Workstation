@@ -38,7 +38,7 @@ export function documentNotes(doc) {
   return result;
 }
 export function noteBodyError(body) {
-  if (!body || body.type !== 'doc' || !Array.isArray(body.content) || !body.content.length || body.content.length > 40) return 'A note needs 1–40 paragraphs.';
+  if (!body || body.type !== 'doc' || !Array.isArray(body.content) || !body.content.length) return 'A note needs paragraphs.';
   let characters = 0;
   for (const paragraph of body.content) {
     if (!paragraph || paragraph.type !== 'paragraph' || (paragraph.content && !Array.isArray(paragraph.content))) return 'Notes support paragraphs and text formatting.';
@@ -66,13 +66,12 @@ export function noteBodyError(body) {
       }
     }
   }
-  return characters > 10000 ? 'A note can contain up to 10,000 characters.' : '';
+  return '';
 }
 function announce(editor, id) { editor.view.dom?.dispatchEvent(new CustomEvent('document-note-open', { bubbles: true, detail: { id } })); }
 export function insertNote(editor, kind) {
   if (editor.isEditable === false) return false;
   if (!['footnote', 'endnote'].includes(kind)) throw new Error('Choose a footnote or endnote.');
-  if (documentNotes(editor.state.doc).length >= 200) throw new Error('This document already has 200 notes.');
   if (!editor.state.selection.$from.parent.isTextblock) throw new Error('Place the cursor in a text paragraph first.');
   const id = newId(), pos = editor.state.selection.to;
   // Keep selected text and attach the reference after it.
@@ -123,7 +122,7 @@ export function normalizeNotes(state) {
 }
 export function notePlugin() { return new Plugin({
   appendTransaction(transactions, _old, state) { return transactions.some(tr => tr.docChanged) ? normalizeNotes(state) : null; },
-  filterTransaction(tr) { return !tr.docChanged || documentNotes(tr.doc).length <= 200; },
+  filterTransaction() { return true; },
 }); }
 
 export const DocumentNotes = Extension.create({
@@ -143,7 +142,7 @@ export const DocumentNote = Node.create({
   addAttributes: () => ({ id: { default: null, rendered: false }, kind: { default: 'footnote', rendered: false }, body: { default: EMPTY_NOTE, rendered: false } }),
   parseHTML: () => [{ tag: 'sup[data-document-note]', getAttrs: element => {
     try {
-      const raw = element.getAttribute('data-note-body') || ''; if (raw.length > 200000) return false;
+      const raw = element.getAttribute('data-note-body') || '';
       const body = JSON.parse(raw), kind = element.getAttribute('data-note-kind');
       return !noteBodyError(body) && ['footnote', 'endnote'].includes(kind) ? { id: newId(), kind, body } : false;
     } catch { return false; }

@@ -185,7 +185,7 @@ function RichDocumentEditor({ active }) {
   async function importDocument(file) {
     if (!file) return;
     await task(async () => {
-      if (!/\.docx$/i.test(file.name) || file.size > 24 * 1024 ** 2) throw new Error('Choose a .docx file no larger than 24 MiB.');
+      if (!/\.docx$/i.test(file.name)) throw new Error('Choose a .docx file.');
       const response = await conversion('import', { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: file });
       const value = await response.json();
       setPendingImport({ ...value, name: `${file.name.replace(/\.docx$/i, '')} — edited` }); setDialog('Open editable copy');
@@ -205,12 +205,10 @@ function RichDocumentEditor({ active }) {
   async function insertPicture(file) {
     if (!file) return;
     await task(async () => {
-      if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 8 * 1024 ** 2) throw new Error('Choose a PNG, JPG or WebP picture under 8 MiB.');
+      if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) throw new Error('Choose a PNG, JPG or WebP picture.');
       const src = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = () => reject(new Error('Picture could not be read.')); reader.readAsDataURL(file); });
       const picture = await createImageBitmap(file);
-      if (picture.width * picture.height > 24_000_000) { picture.close(); throw new Error('Pictures must be at most 24 megapixels.'); }
       const width = Math.max(24, Math.min(480, picture.width)); picture.close();
-      if (documentStats(editor.state.doc).pictures >= 20) throw new Error('This phase supports up to 20 pictures per document.');
       editor.chain().focus().setImage({ src, width, alt: file.name.replace(/\.[^.]+$/, '') }).run();
       setTab('Picture Format');
     });

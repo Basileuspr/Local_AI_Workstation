@@ -252,11 +252,9 @@ def _parse_pdf(file_bytes: bytes) -> tuple[str, dict]:
     descriptions = {}
     if visual_indices:
         try:
-            descriptions = _describe_images([(index, _render_pdf_page_png(file_bytes, index)) for index in visual_indices[:32]])
+            descriptions = _describe_images([(index, _render_pdf_page_png(file_bytes, index)) for index in visual_indices])
         except Exception as exc:
             warnings.append(f"Visual descriptions unavailable ({type(exc).__name__}); native PDF text was preserved.")
-        if len(visual_indices) > 32:
-            warnings.append("Visual understanding limited to the first 32 graphical pages.")
 
     pages = []
     for index, native_text in enumerate(native_pages):
@@ -292,6 +290,7 @@ def _parse_docx(file_bytes: bytes) -> tuple[str, dict]:
     """Read paragraphs, nested tables and embedded pictures in document order."""
     from docx import Document
     from docx.oxml.ns import qn
+    from services.upload_images import open_upload_image
     from PIL import Image, ImageOps
 
     doc = Document(io.BytesIO(file_bytes))
@@ -314,9 +313,9 @@ def _parse_docx(file_bytes: bytes) -> tuple[str, dict]:
                 image_count += 1
                 pieces.append(f"\n[Embedded image {index + 1}]\n")
                 relation = node.get(qn('r:embed'))
-                if relation and len(images) < 32:
+                if relation:
                     try:
-                        with Image.open(io.BytesIO(doc.part.related_parts[relation].blob)) as original:
+                        with open_upload_image(io.BytesIO(doc.part.related_parts[relation].blob)) as original:
                             img = ImageOps.exif_transpose(original).convert('RGB')
                             img.thumbnail((2048, 2048))
                             output = io.BytesIO()
@@ -325,7 +324,7 @@ def _parse_docx(file_bytes: bytes) -> tuple[str, dict]:
                     except Exception as exc:
                         warnings.append(f"Embedded image {index + 1} could not be decoded ({type(exc).__name__}).")
                 else:
-                    warnings.append(f"Embedded image {index + 1} is linked or exceeds the 32-image limit; not analyzed.")
+                    warnings.append(f"Embedded image {index + 1} is linked; not analyzed.")
         return ''.join(pieces).strip()
 
     def blocks(parent):

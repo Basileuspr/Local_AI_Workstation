@@ -5,6 +5,7 @@ import re
 import threading
 import time
 
+from services.upload_images import open_upload_image
 from PIL import Image, ImageOps, UnidentifiedImageError
 from services import image_vault
 
@@ -62,8 +63,8 @@ progress = GifProgress()
 
 
 def create(files, width=512, height=512, duration=200, loop=True, background="#ffffff", fit="cover", report=None):
-    if not 2 <= len(files) <= MAX_FRAMES:
-        raise ValueError("Choose between 2 and 60 still images.")
+    if len(files) < 2:
+        raise ValueError("Choose at least two still images.")
     if not (64 <= width <= 1024 and 64 <= height <= 1024):
         raise ValueError("GIF width and height must be between 64 and 1024 pixels.")
     if not 50 <= duration <= 2000 or duration % 10:
@@ -72,25 +73,21 @@ def create(files, width=512, height=512, duration=200, loop=True, background="#f
         raise ValueError("Choose a valid background color.")
     if fit not in ("cover", "contain"):
         raise ValueError("Choose Fill frame or Fit whole image.")
-    if width * height * len(files) > MAX_OUTPUT_PIXELS:
-        raise ValueError("Reduce the output size or number of frames.")
     frames, hashes, total = [], [], 0
     report = report or (lambda *_: None)
     report('Preparing frames', 0, len(files))
     try:
         for upload in files:
-            raw = upload.file.read(MAX_FILE_BYTES + 1)
+            raw = upload.file.read()
             total += len(raw)
-            if not raw or len(raw) > MAX_FILE_BYTES or total > MAX_TOTAL_BYTES:
-                raise ValueError("Use images up to 40 MiB each and 160 MiB in total.")
+            if not raw:
+                raise ValueError("Choose nonempty images.")
             digest = hashlib.sha256(raw).hexdigest()
             image_vault.require_public(digest)
             hashes.append(digest)
-            with Image.open(io.BytesIO(raw)) as source:
+            with open_upload_image(io.BytesIO(raw)) as source:
                 if source.format not in ("PNG", "JPEG", "WEBP") or getattr(source, "n_frames", 1) != 1:
                     raise ValueError("Choose still PNG, JPEG, or WebP images.")
-                if source.width * source.height > 24_000_000:
-                    raise ValueError("Each source image must be at most 24 megapixels.")
                 with ImageOps.exif_transpose(source) as oriented:
                     rgba = oriented.convert("RGBA")
                 # Both modes enlarge small inputs. Cover removes letterboxing

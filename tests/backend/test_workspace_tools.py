@@ -64,7 +64,7 @@ def test_converter_accepts_and_downloads_an_image_larger_than_24_mb(converted, t
     assert source.read_bytes() == original
 
 
-def test_converter_accepts_exact_file_limit_and_rejects_one_byte_over(converted, monkeypatch):
+def test_converter_accepts_images_above_former_byte_ceiling(converted, monkeypatch):
     # Exercise the upload read boundary with a small temporary limit.
     monkeypatch.setattr(conversion, "MAX_BYTES", len(converted))
     app = FastAPI(); app.include_router(router)
@@ -72,19 +72,18 @@ def test_converter_accepts_exact_file_limit_and_rejects_one_byte_over(converted,
         accepted = client.post("/workspaces/convert", files={"file": ("boundary.png", converted, "image/png")}, data={"target": "png"})
         assert accepted.status_code == 200
         rejected = client.post("/workspaces/convert", files={"file": ("too-large.png", converted + b"\0", "image/png")}, data={"target": "png"})
-        assert rejected.status_code == 400
-        assert "100 MB" in rejected.json()["detail"]
-    assert len(list(conversion.ROOT.glob("*.json"))) == 1
+        assert rejected.status_code == 200
+    assert len(list(conversion.ROOT.glob("*.json"))) == 2
 
 
-def test_converter_explains_pixel_limit_separately_from_file_size(converted):
+def test_converter_accepts_images_above_former_pixel_ceiling(converted):
     raw = io.BytesIO(); Image.new("1", (5000, 5000)).save(raw, "PNG")
     app = FastAPI(); app.include_router(router)
     with TestClient(app) as client:
         response = client.post("/workspaces/convert", files={"file": ("too-many-pixels.png", raw.getvalue(), "image/png")}, data={"target": "png"})
-        assert response.status_code == 400
-        assert response.json()["detail"] == "Choose an image up to 24 megapixels."
-    assert not conversion.ROOT.exists()
+        assert response.status_code == 200
+        assert response.json()['width'] == 5000
+    assert conversion.ROOT.exists()
 
 
 @pytest.mark.parametrize('dimensions,side', [((1200,600),256), ((30,8),24), ((8,6),16)])

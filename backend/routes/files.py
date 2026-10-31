@@ -36,7 +36,9 @@ from services.knowledge_base import (
     remove_document,
 )
 
-router = APIRouter(prefix="/files", tags=["files"])
+from services.upload_routes import UploadRoute
+
+router = APIRouter(route_class=UploadRoute, prefix="/files", tags=["files"])
 
 
 class KnowledgeLink(BaseModel):

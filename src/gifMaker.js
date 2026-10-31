@@ -1,9 +1,7 @@
-export const MAX_GIF_FRAMES = 60;
+export const MAX_GIF_FRAMES = Infinity;
 export function validateGifFrames(files) {
-  if (files.length > MAX_GIF_FRAMES) throw new Error("A GIF can contain up to 60 frames.");
   if (files.some(file => !/^image\/(png|jpeg|webp)$/.test(file.type))) throw new Error("Choose still PNG, JPEG, or WebP images.");
-  if (files.some(file => !file.size || file.size > 40 * 1024 ** 2)) throw new Error("Each image must be between 1 byte and 40 MiB.");
-  if (files.reduce((sum, file) => sum + file.size, 0) > 160 * 1024 ** 2) throw new Error("Use at most 160 MiB of images.");
+  if (files.some(file => !file.size)) throw new Error("Choose nonempty images.");
 }
 export function moveGifFrame(frames, index, direction) {
   const target = index + direction;
@@ -30,7 +28,6 @@ export async function renderGifThumbnail(file, {width, height, fit, background, 
   let bitmap;
   try {
     bitmap = await createImageBitmap(file, {imageOrientation:'from-image'});
-    if (bitmap.width * bitmap.height > 24_000_000) throw new Error('Use a source image up to 24 megapixels.');
     const layout = gifThumbnailLayout(bitmap.width, bitmap.height, mode === 'original' ? bitmap.width : width, mode === 'original' ? bitmap.height : height, mode === 'original' ? 'contain' : fit, maxSide);
     const canvas = document.createElement('canvas');
     canvas.width = layout.width; canvas.height = layout.height;

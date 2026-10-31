@@ -15,10 +15,10 @@ function captureEnv(getUserMedia) {
   }
   return {track, stream, recorder:()=>instance, env:{navigator:{mediaDevices:{getUserMedia:getUserMedia || vi.fn(async()=>stream)}}, MediaRecorder:Recorder, File, setTimeout:vi.fn(), clearTimeout:vi.fn()}};
 }
-it('validates nonempty audio and bounded uploads', () => {
+it('validates format and empty files without a byte ceiling', () => {
   expect(validateAudio({name:'VOICE.MP3',size:3})).toBe('');
   expect(validateAudio({name:'voice.wav',size:0})).toMatch('nonempty');
-  expect(validateAudio({name:'voice.wav',size:AUDIO_MAX_BYTES+1})).toMatch('250 MB');
+  expect(validateAudio({name:'voice.wav',size:2*1024**3})).toBe('');
   expect(validateAudio({name:'Meeting recording.m4a',size:32123542})).toBe('');
   expect(validateAudio({name:'voice.exe',size:3})).toMatch('Choose');
 });
@@ -51,7 +51,7 @@ it('stops recording, releases tracks, and returns a file for review', async () =
   const test = captureEnv(), onFile = vi.fn(), onRecording=vi.fn();
   const capture = createAudioCapture({onFile,onRecording,onError:vi.fn()},test.env);
   await capture.ready; expect(onRecording).toHaveBeenCalledWith(true);
-  expect(test.env.setTimeout.mock.calls[0][1]).toBe(600000);
+  expect(test.env.setTimeout).not.toHaveBeenCalled();
   capture.stop(); expect(test.track.stop).toHaveBeenCalled(); expect(onFile.mock.calls[0][0].name).toBe('Recording.webm');
 });
 it('automatically stops a short voice reference and produces reusable audio', async () => {

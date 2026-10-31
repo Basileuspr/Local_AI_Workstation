@@ -20,6 +20,7 @@ from docx.table import Table
 from docx.text.paragraph import Paragraph
 from docx.text.run import Run
 from lxml import etree
+from services.upload_images import open_upload_image
 from PIL import Image
 from services.document_page_layout import (DEFAULT_PAGE_DETAILS, PAGINATION, validate_page_details,
                                            write_page_details, read_page_details)
@@ -94,23 +95,19 @@ def layout_model(value):
 
 
 def image_bytes(src):
-    if not isinstance(src, str) or len(src) > 12 * 1024**2:
-        raise ValueError('Pictures must be local PNG, JPEG or WebP images under 8 MiB.')
+    if not isinstance(src, str):
+        raise ValueError('Pictures must be local PNG, JPEG or WebP images.')
     match = re.fullmatch(r'data:image/(png|jpeg|webp);base64,([A-Za-z0-9+/=\r\n]+)', src)
     if not match:
         raise ValueError('Only embedded PNG, JPEG and WebP pictures are supported. Remote images are not loaded.')
     try:
         raw = base64.b64decode(match[2], validate=True)
-        if len(raw) > 8 * 1024**2:
-            raise ValueError('Picture exceeds 8 MiB.')
-        with Image.open(BytesIO(raw)) as image:
-            if image.width * image.height > 24_000_000 or image.format not in ('PNG', 'JPEG', 'WEBP'):
-                raise ValueError('Pictures must be PNG, JPEG or WebP and at most 24 megapixels.')
+        with open_upload_image(BytesIO(raw)) as image:
+            if image.format not in ('PNG', 'JPEG', 'WEBP'):
+                raise ValueError('Pictures must be PNG, JPEG or WebP.')
             output = BytesIO()
             image.convert('RGBA' if 'A' in image.getbands() else 'RGB').save(output, format='PNG')
             encoded = output.getvalue()
-            if len(encoded) > 8 * 1024**2:
-                raise ValueError('The normalized picture exceeds 8 MiB. Resize it before inserting it.')
             return encoded, image.width, image.height
     except (OSError, binascii.Error, Image.DecompressionBombError) as exc:
         raise ValueError('The picture is damaged or unsupported.') from exc
@@ -130,8 +127,6 @@ def validate_model(doc):
         if not isinstance(node, dict) or not isinstance(node.get('type'), str) or node['type'] not in SUPPORTED or depth > 20:
             raise ValueError('Unsupported document structure or nesting.')
         counts['nodes'] += 1
-        if counts['nodes'] > 20000:
-            raise ValueError('Document exceeds 20,000 elements.')
         kind = node['type']
         attrs = node.get('attrs') or {}
         content = node.get('content', [])
@@ -142,8 +137,8 @@ def validate_model(doc):
             if not isinstance(node.get('text'), str):
                 raise ValueError('Invalid document text.')
             counts['text'] += len(node['text'])
-            if counts['text'] > 1_000_000 or re.search(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', node['text']):
-                raise ValueError('Document text is too long or contains unsupported control characters.')
+            if re.search(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', node['text']):
+                raise ValueError('Document text contains unsupported control characters.')
         if kind == 'documentNote':
             validate_note_node(attrs)
             visit(attrs['body'], depth + 1)
@@ -166,8 +161,6 @@ def validate_model(doc):
             table_grid(node)
         if kind == 'image':
             counts['images'] += 1
-            if counts['images'] > 20:
-                raise ValueError('A document can contain at most 20 pictures in this phase.')
             image_bytes(attrs.get('src'))
             number(attrs.get('width'), 24, 1600, 480)
             if not isinstance(attrs.get('alt', ''), str) or len(attrs.get('alt', '')) > 2000:
@@ -345,20 +338,18 @@ def export_docx(model, layout):
     if not document.paragraphs and not document.tables:
         document.add_paragraph()
     result = BytesIO(); document.save(result)
-    if result.tell() > MAX_FILE:
-        raise ValueError('The exported document would exceed 24 MiB. Reduce the number or size of pictures.')
     return result.getvalue()
 
 
 def _checked_package(raw):
-    if not raw or len(raw) > MAX_FILE:
-        raise ValueError('Open a DOCX file no larger than 24 MiB.')
+    if not raw:
+        raise ValueError('Open a nonempty DOCX file.')
     try:
         with zipfile.ZipFile(BytesIO(raw)) as archive:
             entries = archive.infolist()
             names = [entry.filename for entry in entries]
-            if len(entries) > 2048 or len(set(names)) != len(names) or sum(entry.file_size for entry in entries) > 64 * 1024**2:
-                raise ValueError('The DOCX package exceeds the import limits.')
+            if len(set(names)) != len(names):
+                raise ValueError('The DOCX package contains duplicate entries.')
             if 'word/document.xml' not in names or '[Content_Types].xml' not in names:
                 raise ValueError('This is not a DOCX document.')
             for entry in entries:
@@ -366,7 +357,7 @@ def _checked_package(raw):
                     raise ValueError('Unsupported document package.')
                 if entry.filename.endswith(('.xml', '.rels')):
                     content = archive.read(entry)
-                    tree = etree.fromstring(content, etree.XMLParser(resolve_entities=False, load_dtd=False, no_network=True))
+                    tree = etree.fromstring(content, etree.XMLParser(resolve_entities=False, load_dtd=False, no_network=True, huge_tree=True))
                     if tree.getroottree().docinfo.doctype:
                         raise ValueError('Document XML declarations with DTDs are unsupported.')
             if any('vbaproject' in name.lower() for name in names):
@@ -591,8 +582,6 @@ def import_docx(raw):
             elif isinstance(obj, dict):
                 stack = []; result.append(obj)
         return result
-    if len(document.element.xpath('.//w:p | .//w:r | .//w:tc')) > 20000:
-        raise ValueError('Document exceeds 20,000 paragraphs, runs or cells.')
     content = blocks(document) or [{'type': 'paragraph'}]
     notes.finish()
     model = {'type': 'doc', 'attrs': {'styles': list(style_reader.catalog.values()), 'noteSettings': notes.settings, 'sources': citations.sources, 'citationStyle': citations.style, 'captionSettings': captions.settings}, 'content': content}

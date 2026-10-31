@@ -45,8 +45,8 @@ def status():
 
 def start(raw, filename, options):
     global _job, _thread
-    if not filename.lower().endswith('.stl') or not raw or len(raw) > MAX_FILE:
-        raise ValueError('Choose a nonempty STL file no larger than 50 MiB.')
+    if not filename.lower().endswith('.stl') or not raw:
+        raise ValueError('Choose a nonempty STL file.')
     engine, definitions = linked_apps.cura_installation()
     ready = readiness()
     if options['machine'] not in {machine['id'] for machine in ready['machines']}:

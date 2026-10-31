@@ -35,7 +35,9 @@ from services.image_generation import (
 )
 
 
-router = APIRouter(prefix="/image-generation", tags=["image-generation"])
+from services.upload_routes import UploadRoute
+
+router = APIRouter(route_class=UploadRoute, prefix="/image-generation", tags=["image-generation"])
 logger = logging.getLogger(__name__)
 
 
@@ -74,9 +76,7 @@ class ImageGenerationRequest(BaseModel):
 async def upload_generation_reference(file: UploadFile = File(...)):
     from services.generation_reference import MAX_UPLOAD_BYTES, store_reference
     try:
-        content = await file.read(MAX_UPLOAD_BYTES + 1)
-        if len(content) > MAX_UPLOAD_BYTES:
-            raise HTTPException(413, "Reference image exceeds the 20 MiB limit.")
+        content = await file.read()
         return await run_in_threadpool(store_reference, file.filename or "Reference image", content)
     except ValueError as error:
         raise HTTPException(400, str(error)) from error

@@ -4,7 +4,7 @@ export const PRIMITIVES=['Cube','Cylinder','Pyramid','Cone','Sphere','Hexagon','
 export const UNIT_MM={micron:.001,millimeter:1,centimeter:10,inch:25.4,foot:304.8,meter:1000};
 export const IDENTITY=new Matrix4().toArray();
 export const DEFAULT_MATERIAL={color:'#8cbed8',roughness:.65,metalness:0,opacity:1};
-export const MAX_EDITOR_TRIANGLES=2_000_000,MAX_PROJECT_BYTES=128*1024*1024;
+export const MAX_EDITOR_TRIANGLES=Infinity,MAX_PROJECT_BYTES=Infinity;
 export const newId=()=>crypto.randomUUID();
 export const emptyDocument=()=>({objects:[],units:'millimeter',name:'Untitled',warnings:[]});
 export function packGeometry(g){
@@ -84,8 +84,8 @@ export function mirrorObjects(objects,axis){
   return objects.map(o=>({...o,matrix:m.clone().multiply(new Matrix4().fromArray(o.matrix)).toArray()}));
 }
 export function validateDocument(doc){
-  if(!doc||!UNIT_MM[doc.units]||!Array.isArray(doc.objects)||doc.objects.length>1000)throw Error('Invalid project or too many objects (maximum 1,000).');
-  let triangles=0;const ids=new Set();
+  if(!doc||!UNIT_MM[doc.units]||!Array.isArray(doc.objects))throw Error('Invalid project.');
+  const ids=new Set();
   for(const o of doc.objects){
     if(!o.id||ids.has(o.id)||typeof o.name!=='string'||o.name.length>300)throw Error('Invalid object name or ID.');ids.add(o.id);
     if(!Array.isArray(o.matrix)||o.matrix.length!==16||o.matrix.some(n=>!Number.isFinite(n)||Math.abs(n)>1e12)||Math.abs(new Matrix4().fromArray(o.matrix).determinant())<1e-15||o.matrix[3]!==0||o.matrix[7]!==0||o.matrix[11]!==0||o.matrix[15]!==1)throw Error('Invalid object transform.');
@@ -95,23 +95,20 @@ export function validateDocument(doc){
     }
     const index=o.geometry.index,count=index?.length||p.array.length/3;
     if(count%3||index?.some(n=>!Number.isInteger(n)||n<0||n>=p.array.length/3))throw Error('Invalid triangle indices.');
-    triangles+=count/3;
-    if(!Array.isArray(o.materials)||!o.materials.length||o.materials.length>256)throw Error('Invalid materials.');
+    if(!Array.isArray(o.materials)||!o.materials.length)throw Error('Invalid materials.');
     for(const m of o.materials){
       if(!/^#[\da-f]{6}$/i.test(m.color)||['opacity','roughness','metalness'].some(k=>!Number.isFinite(m[k])||m[k]<0||m[k]>1))throw Error('Invalid material settings.');
-      if(m.mapData&&(!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(m.mapData)||m.mapData.length>12*1024*1024))throw Error('Projects only accept embedded local PNG, JPEG, or WebP textures up to 12 MB.');
+      if(m.mapData&&(!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(m.mapData)))throw Error('Projects only accept embedded local PNG, JPEG, or WebP textures.');
     }
     for(const g of o.geometry.groups||[])if(!Number.isInteger(g.start)||g.start<0||g.start%3||!Number.isInteger(g.count)||g.count<0||g.count%3||g.start+g.count>count||!Number.isInteger(g.materialIndex)||g.materialIndex<0||g.materialIndex>=o.materials.length)throw Error('Invalid material groups.');
   }
-  if(triangles>8_000_000)throw Error('The scene exceeds the 8 million triangle limit.');
   return doc;
 }
 export function serializeProject(doc){
   validateDocument(doc);const text=JSON.stringify({format:'law-3d-project',version:1,document:doc},(key,value)=>ArrayBuffer.isView(value)?Array.from(value):value);
-  if(new Blob([text]).size>MAX_PROJECT_BYTES)throw Error('This project exceeds the 128 MB save limit. Export STL or reduce geometry.');return text;
+  return text;
 }
 export function parseProject(text){
-  if(text.length>MAX_PROJECT_BYTES)throw Error('Project exceeds 128 MB.');
   const data=JSON.parse(text);if(data.format!=='law-3d-project'||data.version!==1)throw Error('Choose a 3D editor project (.law3d).');
   const doc=validateDocument(data.document);
   return {...doc,objects:doc.objects.map(o=>({...o,geometry:{...o.geometry,attributes:Object.fromEntries(Object.entries(o.geometry.attributes).map(([k,a])=>[k,{...a,array:Float32Array.from(a.array)}])),index:o.geometry.index?Uint32Array.from(o.geometry.index):null}}))};

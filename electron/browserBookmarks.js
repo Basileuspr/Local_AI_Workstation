@@ -4,8 +4,8 @@ const {randomUUID} = require('node:crypto');
 const {parseHTML} = require('linkedom');
 const {browserUrl} = require('./browserPolicy');
 
-const MAX_HTML = 10 * 1024 * 1024, MAX_STORE = 24 * 1024 * 1024;
-const MAX_BOOKMARKS = 10000, MAX_FOLDERS = 2000, ID = /^[a-f0-9]{32}$/;
+const MAX_HTML = Infinity, MAX_STORE = Infinity;
+const MAX_BOOKMARKS = Infinity, MAX_FOLDERS = Infinity, ID = /^[a-f0-9]{32}$/;
 const id = () => randomUUID().replaceAll('-', '');
 const empty = () => ({version:1, folders:[], bookmarks:[]});
 function title(value, fallback='', limit=500) {
@@ -36,10 +36,10 @@ function validate(data) {
     }
     for(const row of [...data.folders, ...data.bookmarks]) {
         if(row.parentId!==null && !folders.has(row.parentId)) throw Error('Invalid bookmark folder.');
-        let parent=row.parentId, depth=0;
+        let parent=row.parentId;
         const seen=new Set([row.id]);
         while(parent!==null) {
-            if(seen.has(parent) || ++depth>50) throw Error('Invalid bookmark folder nesting.');
+            if(seen.has(parent)) throw Error('Invalid bookmark folder nesting.');
             seen.add(parent);parent=folders.get(parent).parentId;
         }
     }
@@ -52,12 +52,11 @@ function validate(data) {
 
 // Parse the export as data in Node. No page, scripts, icons or network loads.
 function parseBookmarkHTML(html) {
-    if(typeof html!=='string' || Buffer.byteLength(html)>MAX_HTML) throw Error('Choose a bookmark HTML file up to 10 MB.');
+    if(typeof html!=='string') throw Error('Choose a bookmark HTML file.');
     const {document}=parseHTML(html), data=empty(), stack=[];
     let pending=null, skipped=0, anchors=0;
     const attr=(node,name)=>[...node.attributes].find(a=>a.name.toLowerCase()===name)?.value;
     function visit(node,depth=0) {
-        if(depth>150) throw Error('Bookmark HTML nesting is too deep.');
         if(node.nodeType!==1 && node!==document) return;
         const tag=node.tagName;
         if(tag==='H3') {
@@ -91,14 +90,12 @@ function createBrowserBookmarks(directory) {
     function read() {
         if(!file || !fs.existsSync(file)) return structuredClone(memory);
         try {
-            if(fs.statSync(file).size>MAX_STORE) throw Error('Too large');
             return validate(JSON.parse(fs.readFileSync(file,'utf8')));
         } catch {throw Error('The bookmark library needs repair. Its existing file has been preserved.');}
     }
     function write(data) {
         validate(data);
         const serialized=JSON.stringify(data,null,2)+'\n';
-        if(Buffer.byteLength(serialized)>MAX_STORE) throw Error('The bookmark library exceeds its 24 MB storage limit.');
         if(file) {
             fs.mkdirSync(directory,{recursive:true});
             const pending=file+'.'+id()+'.pending';
@@ -149,7 +146,7 @@ function createBrowserBookmarks(directory) {
             return {...list(),createdFolderId:folder.id};
         },
         importHTML(filename) {
-            if(!/\.html?$/i.test(filename) || fs.statSync(filename).size>MAX_HTML) throw Error('Choose a bookmark HTML file up to 10 MB.');
+            if(!/\.html?$/i.test(filename)) throw Error('Choose a bookmark HTML file.');
             const imported=parseBookmarkHTML(fs.readFileSync(filename,'utf8')), data=read(), mapping=new Map([[null,null]]);
             let foldersAdded=0, added=0, duplicates=0;
             for(const folder of imported.data.folders) {

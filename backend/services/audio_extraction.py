@@ -7,10 +7,9 @@ import time
 
 from services.audio import AudioError
 
-MAX_INPUT_BYTES = 2 * 1024**3
-MAX_OUTPUT_BYTES = 250 * 1024**2
-MAX_SECONDS = 2 * 60 * 60
-TIMEOUT_SECONDS = 15 * 60
+MAX_INPUT_BYTES = None
+MAX_OUTPUT_BYTES = None
+MAX_SECONDS = None
 EXTENSIONS = {
     '.mp4','.m4v','.mov','.mkv','.webm','.avi','.wmv','.flv','.mpg','.mpeg',
     '.ts','.mts','.m2ts','.3gp','.3g2','.vob','.ogv','.mxf',
@@ -64,10 +63,6 @@ def extract(source: Path, destination: Path, output_format: str, track: int, req
         def check():
             if cancelled.is_set():
                 raise AudioError('Audio extraction cancelled.',499)
-            if time.monotonic()-started > TIMEOUT_SECONDS:
-                raise AudioError('Extraction exceeded 15 minutes. Try a shorter file.',504)
-            if destination.exists() and destination.stat().st_size > MAX_OUTPUT_BYTES:
-                raise AudioError('Extracted audio exceeds 250 MB. Choose MP3 or M4A, or use a shorter file.',413)
         check()
         with source.open('rb') as handle, av.open(handle, options={'format_whitelist':DEMUXERS,'protocol_whitelist':''}) as incoming:
             streams = list(incoming.streams.audio)
@@ -78,8 +73,6 @@ def extract(source: Path, destination: Path, output_format: str, track: int, req
             stream = streams[track]
             stream.codec_context.thread_count = 2
             estimate = float(stream.duration * stream.time_base) if stream.duration and stream.time_base else (incoming.duration / av.time_base if incoming.duration else None)
-            if estimate and estimate > MAX_SECONDS + 1:
-                raise AudioError('Use a video or audio file of 2 hours or less.',413)
             # Preserve ordinary mono/stereo and 44.1/48 kHz. Surround is mixed
             # down for portable playback, and exotic sample rates become 48 kHz.
             rate = stream.codec_context.sample_rate or 48000
@@ -105,8 +98,6 @@ def extract(source: Path, destination: Path, output_format: str, track: int, req
                     frame.pts = samples
                     frame.time_base = Fraction(1,rate)
                     samples += frame.samples
-                    if samples > MAX_SECONDS * rate:
-                        raise AudioError('Use a video or audio file of 2 hours or less.',413)
                     for packet in encoded.encode(frame):
                         outgoing.mux(packet)
                     if time.monotonic()-last_report >= .25:

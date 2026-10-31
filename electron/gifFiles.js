@@ -32,7 +32,7 @@ function createGifFiles({showSaveDialog, showOpenDialog, showItemInFolder, downl
             if (saving) return {canceled: true};
             if (!(bytes instanceof ArrayBuffer || bytes instanceof Uint8Array)) return {error: 'Invalid GIF data.'};
             const data = Buffer.from(bytes);
-            if (data.length < 13 || data.length > 100 * 1024 * 1024 || !/^GIF8[79]a$/.test(data.toString('ascii', 0, 6))) return {error: 'Choose a valid GIF up to 100 MiB.'};
+            if (data.length < 13 || !/^GIF8[79]a$/.test(data.toString('ascii', 0, 6))) return {error: 'Choose a valid GIF.'};
             saving = true;
             let temporary;
             try {

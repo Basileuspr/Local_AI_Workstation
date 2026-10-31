@@ -6,6 +6,7 @@ import json
 import re
 
 import httpx
+from services.upload_images import open_upload_image
 from PIL import Image, ImageOps
 
 from config import settings
@@ -33,9 +34,7 @@ def transcription_copy(value):
     """Keep legible, lossless inference copies; never replace stored uploads."""
     try:
         raw = base64.b64decode(value.split(',', 1)[-1], validate=True)
-        with Image.open(BytesIO(raw)) as source:
-            if source.width * source.height > 40_000_000:
-                raise ValueError()
+        with open_upload_image(BytesIO(raw)) as source:
             frame = ImageOps.exif_transpose(source)
             frame.thumbnail((2048, 2048), Image.Resampling.LANCZOS)
             # Flatten transparency onto white so black writing remains visible.
@@ -46,7 +45,7 @@ def transcription_copy(value):
             output_image.save(output, format='PNG')
             return base64.b64encode(output.getvalue()).decode('ascii')
     except (ValueError, OSError, Image.DecompressionBombError):
-        raise ValueError('An image could not be prepared for transcription. Use a readable PNG, JPEG or WebP up to 40 megapixels. The saved upload is unchanged.') from None
+        raise ValueError('An image could not be prepared for transcription. Use a readable PNG, JPEG or WebP. The saved upload is unchanged.') from None
 
 
 async def transcription_model(client, base_url, selected_model):
@@ -74,8 +73,6 @@ async def stream_transcription(client, base_url, messages, selected_model, disco
     images = [value for message in recent for value in message.get('images', [])]
     if not images:
         raise ValueError('No readable image is available for transcription. Attach an unlocked image and send your request again.')
-    if len(images) > 16:
-        raise ValueError('Transcribe up to 16 images at a time. Your uploads remain saved; send a smaller group.')
     question = next((m.get('content', '') for m in reversed(messages) if m.get('role') == 'user'), '')
     await check_cancel(disconnected)
     model, limit = await transcription_model(client, base_url, selected_model)

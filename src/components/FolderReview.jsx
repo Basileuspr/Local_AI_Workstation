@@ -100,8 +100,8 @@ export default function FolderReview({ active = true, models = [], defaultModel 
       </select></label>
       <label className="folder-review-check"><input type="checkbox" checked={options.recursive} disabled={busy} onChange={event => setOptions({ ...options, recursive: event.target.checked })}/>Include subfolders</label>
       <details><summary>Batch size and coverage limits</summary><div className="folder-review-limits">
-        {[['max_entries', 'Maximum discovered entries', 1, 10000], ['max_chars', 'Readable characters per file', 1000, 1000000], ['batch_chars', 'Characters per text batch', 500, 6000]].map(([key, label, min, max]) => <label key={key}>{label}<input type="number" min={min} max={max} value={options[key]} disabled={busy} onChange={event => setOptions({ ...options, [key]: Number(event.target.value) })}/></label>)}
-        <label>Maximum file size (MiB)<input type="number" min={1} max={32} value={options.max_bytes / 1048576} disabled={busy} onChange={event => setOptions({ ...options, max_bytes: Number(event.target.value) * 1048576 })}/></label>
+        {[['max_entries', 'Maximum discovered entries (0 = all)', 0, undefined], ['max_chars', 'Readable characters per file (0 = all)', 0, undefined], ['batch_chars', 'Characters per text batch', 500, 6000]].map(([key, label, min, max]) => <label key={key}>{label}<input type="number" min={min} max={max} value={options[key]} disabled={busy} onChange={event => setOptions({ ...options, [key]: Number(event.target.value) })}/></label>)}
+        <label>Maximum file size (MiB, 0 = all)<input type="number" min={0} value={options.max_bytes / 1048576} disabled={busy} onChange={event => setOptions({ ...options, max_bytes: Number(event.target.value) * 1048576 })}/></label>
       </div></details>
 
     </div>

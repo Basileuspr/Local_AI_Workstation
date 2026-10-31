@@ -99,8 +99,9 @@ describe('mixer connections and capture lifecycle',()=>{
     const {mixer,env}=fixture();const file=new Blob(['local'],{type:'audio/wav'});file.name='neutral.wav';mixer.addFiles([file]);
     expect(mixer.getSnapshot().tracks[0]).toMatchObject({playing:false,name:'neutral.wav'});await mixer.transport('track-1','play');expect(mixer.getSnapshot().tracks[0].playing).toBe(true);
     mixer.stopAll();expect(mixer.getSnapshot().tracks[0].playing).toBe(false);
-    expect(()=>mixer.addFiles(Array(8).fill(file))).toThrow('8 local tracks');expect(()=>mixer.addFiles([{size:101*1024*1024,name:'too-large.wav'}])).toThrow('100 MB');
-    mixer.removeTrack('track-1');expect(env.URL.revokeObjectURL).toHaveBeenCalledWith('blob:test-0');expect(mixer.getSnapshot().tracks).toEqual([]);
+    expect(()=>mixer.addFiles(Array(8).fill(file))).not.toThrow();expect(()=>mixer.addFiles([{size:101*1024*1024,name:'large.wav'}])).not.toThrow();
+    expect(mixer.getSnapshot().tracks).toHaveLength(10);
+    mixer.removeTrack('track-1');expect(env.URL.revokeObjectURL).toHaveBeenCalledWith('blob:test-0');expect(mixer.getSnapshot().tracks).toHaveLength(9);
   });
 });
 describe('mixer settings and measured signal',()=>{

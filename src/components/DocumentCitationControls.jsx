@@ -39,7 +39,7 @@ export function SourceManager({ editor, disabled }) {
       <a href={downloadUrl} download="Document sources.json">Save source list</a><button type="button" disabled={disabled} onClick={() => sourceInput.current.click()}>Open source list</button></div>
     <input ref={sourceInput} hidden type="file" accept=".json,application/json" aria-label="Choose source list" onChange={async event => {
       const file = event.target.files?.[0]; event.target.value = ''; if (!file) return;
-      try { if (file.size > 1024 ** 2) throw new Error('Open a source list under 1 MiB.'); const value = JSON.parse(await file.text()); importSources(editor, value); setError(''); setNotice('Source list merged. Existing records and citations were kept. Undo can restore the previous list.'); }
+      try { const value = JSON.parse(await file.text()); importSources(editor, value); setError(''); setNotice('Source list merged. Existing records and citations were kept. Undo can restore the previous list.'); }
       catch (failure) { setError(failure.message); }
     }}/>
     <label>Search sources<input maxLength={500} value={query} onChange={event => setQuery(event.target.value)}/></label>
@@ -57,7 +57,7 @@ export function SourceManager({ editor, disabled }) {
       <AuthorFields authors={draft.authors} disabled={disabled} onChange={authors => change('authors', authors)}/>
       <div className="de-source-actions"><button type="button" onClick={() => safe(() => { saveSource(editor, draft); setDraft(null); setNotice('Source saved. Its citations and bibliography updated.'); })}>Save source</button><button type="button" onClick={() => { setDraft(null); setError(''); }}>Cancel source edit</button></div>
     </fieldset>}
-    <p className="de-setting-hint">Up to 100 sources, 20 authors per source and 1,000 citations. Basic formats cover the fields shown here; title capitalization is kept as entered. A cited source must be retargeted or uncited before deletion.</p>
+    <p className="de-setting-hint">Source and citation counts have no application quota. Basic formats cover the fields shown here; title capitalization is kept as entered. A cited source must be retargeted or uncited before deletion.</p>
   </div>;
 }
 

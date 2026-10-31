@@ -12,7 +12,9 @@ from starlette.concurrency import run_in_threadpool
 from services import audio_extraction as extraction
 from services.audio import AudioError
 
-router = APIRouter(tags=['audio'])
+from services.upload_routes import UploadRoute
+
+router = APIRouter(route_class=UploadRoute, tags=['audio'])
 
 
 class ExtractionResponse(FileResponse):
@@ -65,8 +67,6 @@ async def extract(request: Request, file: UploadFile = File(...), output_format:
                 if cancelled.is_set():
                     raise AudioError('Audio extraction cancelled.',499)
                 size += len(block)
-                if size > extraction.MAX_INPUT_BYTES:
-                    raise AudioError('Video and audio inputs must be 2 GB or smaller.',413)
                 await run_in_threadpool(handle.write,block)
         if not size:
             raise AudioError('Choose a nonempty video or audio file.')

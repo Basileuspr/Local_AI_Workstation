@@ -20,8 +20,6 @@ def decoder(path):
             if not media.streams.video: raise ValueError('This file contains no video stream.')
             stream = media.streams.video[0]
             stream.codec_context.thread_count = 2
-            if stream.width * stream.height > 34000000:
-                raise ValueError('Video exceeds the 34-megapixel frame limit.')
             yield media, stream
     except ImportError as exc:
         raise ValueError('Video decoder unavailable. Install the existing requirements-audio.txt runtime.') from exc
@@ -40,8 +38,8 @@ def sample(path, directory, info, preset='quick', interval=10, keyframes=False, 
     if preset not in PRESETS or not math.isfinite(interval) or not .1 <= interval <= 3600:
         raise ValueError('Choose a workload and an interval between 0.1 and 3,600 seconds.')
     duration = info['duration']
-    if not 0 < duration <= 24 * 60 * 60:
-        raise ValueError('Sampling needs a known duration of at most 24 hours.')
+    if not math.isfinite(duration) or duration <= 0:
+        raise ValueError('Sampling needs a known positive duration.')
     limit = PRESETS[preset][0]
     step = max(interval if preset == 'custom' else duration / limit, duration / limit, .1)
     targets = [index * step for index in range(min(limit, math.ceil(duration / step)))]
@@ -59,7 +57,6 @@ def sample(path, directory, info, preset='quick', interval=10, keyframes=False, 
                 media.seek(int((start + target) / stream.time_base), stream=stream, backward=True, any_frame=False)
                 for decoded in media.decode(stream):
                     check()
-                    if decoded.width * decoded.height > 34000000: raise ValueError('Decoded video frame exceeds the pixel limit.')
                     stamp = float(decoded.pts * stream.time_base) - start if decoded.pts is not None else target
                     if not keyframes and stamp + .001 < target: continue
                     stamp = max(0, stamp)

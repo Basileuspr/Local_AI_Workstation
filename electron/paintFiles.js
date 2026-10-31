@@ -8,7 +8,7 @@ const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 
 function paintExport(request) {
   if (!request || !Object.hasOwn(EXTENSIONS, request.format)) throw Error('Choose a supported Canvas file format.');
-  if (!(request.bytes instanceof Uint8Array) || !request.bytes.byteLength || request.bytes.byteLength > MAX_BYTES) throw Error('Canvas exports must contain 1 byte to 128 MB.');
+  if (!(request.bytes instanceof Uint8Array) || !request.bytes.byteLength) throw Error('Canvas exports must contain nonempty image or project bytes.');
   const bytes = Buffer.from(request.bytes), format = request.format;
   const valid = format === 'png' ? bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
     : format === 'jpeg' ? bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255

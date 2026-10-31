@@ -12,10 +12,10 @@ describe("GIF draft", () => {
     expect(gifThumbnailLayout(100,50,1024,576,'cover',640)).toMatchObject({width:640,height:360});
     expect(()=>gifThumbnailLayout(100,50,512,512,'cover',99999)).toThrow('thumbnail size');
   });
-  it('closes oversized images before creating a canvas',async()=>{
+  it('closes large images after a native thumbnail failure',async()=>{
     const close=vi.fn();
     vi.stubGlobal('createImageBitmap',vi.fn().mockResolvedValue({width:6000,height:5000,close}));
-    await expect(renderGifThumbnail({name:'huge.png'},{width:512,height:512})).rejects.toThrow('24 megapixels');
+    await expect(renderGifThumbnail({name:'huge.png'},{width:512,height:512})).rejects.toThrow('Could not build a thumbnail');
     expect(close).toHaveBeenCalledOnce();
   });
   it('preserves orientation, paints transparency and releases decoded pixels after encoding failure',async()=>{
@@ -41,13 +41,13 @@ describe("GIF draft", () => {
     expect(moveGifFrame(frames, 0, -1)).toBe(frames);
     expect(frames.map(frame => frame.id)).toEqual(["red", "blue", "green"]);
   });
-  it("validates cumulative frame counts, types and upload sizes", () => {
+  it("validates frame types without file-count or byte ceilings", () => {
     const file = { type: "image/png", size: 1024 };
     expect(() => validateGifFrames([file, file])).not.toThrow();
-    expect(() => validateGifFrames(Array(61).fill(file))).toThrow("60");
+    expect(() => validateGifFrames(Array(61).fill(file))).not.toThrow();
     expect(() => validateGifFrames([{ ...file, type: "text/plain" }])).toThrow("PNG");
-    expect(() => validateGifFrames([{ ...file, size: 41 * 1024 ** 2 }])).toThrow("40 MiB");
-    expect(() => validateGifFrames(Array(5).fill({ ...file, size: 40 * 1024 ** 2 }))).toThrow("160 MiB");
+    expect(() => validateGifFrames([{ ...file, size: 41 * 1024 ** 2 }])).not.toThrow();
+    expect(() => validateGifFrames(Array(5).fill({ ...file, size: 40 * 1024 ** 2 }))).not.toThrow();
   });
   it("normalizes output filenames", () => {
     expect(gifFilename("My animation.gif")).toBe("My animation.gif");

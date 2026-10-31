@@ -11,22 +11,19 @@ $outputFile = $null
 try {
     if (-not [IO.Path]::IsPathRooted($InputPath) -or -not [IO.Path]::IsPathRooted($OutputPath)) { throw 'Absolute input and output paths are required.' }
     if (Test-Path -LiteralPath $OutputPath) { throw 'The output already exists.' }
-    if ((Get-Item -LiteralPath $InputPath).Length -gt 128MB) { throw 'Repair input exceeds 128 MB.' }
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     # Check the actual bytes again at the native boundary, independently of the renderer.
     $archive = [IO.Compression.ZipFile]::OpenRead($InputPath)
     try {
-        if ($archive.Entries.Count -gt 4096) { throw 'The 3MF has too many archive entries.' }
         [long]$expanded = 0
         foreach ($entry in $archive.Entries) {
             $expanded += $entry.Length
-            if ($expanded -gt 256MB) { throw 'The 3MF expands beyond the 256 MB repair limit.' }
             if ($entry.FullName -match '(^|[\\/])\.\.([\\/]|$)|:|^[/\\]') { throw 'The 3MF contains an unsafe archive path.' }
             if ($entry.FullName -match '\.(model|rels|xml)$') {
                 $settings = [Xml.XmlReaderSettings]::new()
                 $settings.DtdProcessing = [Xml.DtdProcessing]::Prohibit
                 $settings.XmlResolver = $null
-                $settings.MaxCharactersInDocument = 256MB
+                $settings.MaxCharactersInDocument = 0
                 $entryStream = $entry.Open()
                 $reader = [Xml.XmlReader]::Create($entryStream, $settings)
                 try {
@@ -95,7 +92,6 @@ try {
     $outputPackage = New-Object Windows.Graphics.Printing3D.Printing3D3MFPackage
     Wait-Action ($outputPackage.SaveModelToPackageAsync($model))
     $resultStream = Wait-Result ($outputPackage.SaveAsync()) ([Windows.Storage.Streams.IRandomAccessStream])
-    if ($resultStream.Size -gt 128MB) { throw 'The repaired file exceeds the 128 MB output limit.' }
     $resultStream.Seek(0)
     $resultReader = [IO.WindowsRuntimeStreamExtensions]::AsStreamForRead($resultStream)
     $outputFile = [IO.File]::Open($OutputPath, [IO.FileMode]::CreateNew)

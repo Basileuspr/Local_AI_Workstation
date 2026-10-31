@@ -16,7 +16,7 @@ export const DEFAULT_STYLES = [
 ];
 export const PARAGRAPH_STYLE_KEYS = ['textAlign', 'indent', 'spaceBefore', 'spaceAfter', 'lineSpacing'];
 const resetAttrs = { ...Object.fromEntries(PARAGRAPH_STYLE_KEYS.map(key => [key, null])), keepWithNext: null, keepTogether: null, pageBreakBefore: null, widowControl: null };
-export const MAX_CUSTOM_STYLES = 32;
+export const MAX_CUSTOM_STYLES = Infinity;
 
 export function documentStyles(doc) {
   const overrides = Array.isArray(doc.attrs.styles) ? doc.attrs.styles : [];

@@ -116,17 +116,17 @@ describe("Shortcut Registry", () => {
     const values = storage(); values.set(REGISTRY_ICONS_KEY, "broken-json");
     expect(renderToStaticMarkup(<ShortcutRegistry />)).toContain("Stored icon data has been preserved");
     expect(values.get(REGISTRY_ICONS_KEY)).toBe("broken-json");
-    for (const source of ["https://example.com/icon.png", "data:image/svg+xml;base64,PHN2Zz4=", "data:image/png;base64," + "A".repeat(ICON_FILE_LIMIT * 2)])
+    for (const source of ["https://example.com/icon.png", "data:image/svg+xml;base64,PHN2Zz4=", "data:image/png;base64,invalid!"])
       expect(() => saveRegistryIcons({ word: source })).toThrow("Invalid");
     expect(values.get(REGISTRY_ICONS_KEY)).toBe("broken-json");
   });
-  it("checks image bytes before saving and rejects oversized files", async () => {
+  it("checks image bytes before saving and rejects empty files", async () => {
     expect(applicationIconMime(Uint8Array.from([137,80,78,71,13,10,26,10]))).toBe("image/png");
     expect(applicationIconMime(Uint8Array.from([255,216,255]))).toBe("image/jpeg");
     expect(applicationIconMime(Uint8Array.from([82,73,70,70,0,0,0,0,87,69,66,80]))).toBe("image/webp");
     expect(applicationIconMime(Uint8Array.from([0,0,1,0,1,0]))).toBe("image/x-icon");
     expect(() => applicationIconMime(new TextEncoder().encode('<svg onload="alert(1)"/>'))).toThrow("Choose");
-    await expect(readApplicationIcon({ size: ICON_FILE_LIMIT + 1 })).rejects.toThrow("128 KB");
+    await expect(readApplicationIcon({ size: 0 })).rejects.toThrow("nonempty");
   });
   it("groups Word and Excel separately even when their keys match", () => {
     const excel = { ...personal, application: "Microsoft Excel", keys: "Ctrl + S", title: "Save workbook" };

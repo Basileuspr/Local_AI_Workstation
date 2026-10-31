@@ -27,13 +27,13 @@ describe("face import batching", () => {
     expect(source.release).toHaveBeenCalledTimes(1); expect(api.stopRun).not.toHaveBeenCalled();
   });
 
-  it("bounds bytes, counts skipped oversized files, and keeps processing valid files", async () => {
+  it("batches large images without skipping any selected files", async () => {
     const source = browserFaceSource([{ name: "big.png", size: 21 * 1024 ** 2 }, ...files(2).map(file => ({ ...file, size: 9 * 1024 ** 2 }))]);
     const api = { uploadImages: vi.fn(async (_id, batch) => ({ id: "run", status: "complete", processed: batch.length, faces: 1, errors: [] })) };
     const result = await scanFaceBatches({ datasetId: "dataset", source, api, onProgress() {} });
-    expect(api.uploadImages.mock.calls.map(call => call[1].length)).toEqual([1, 1]);
-    expect(result).toMatchObject({ status: "complete", processed: 3, total: 3, faces: 2, error_count: 1 });
-    expect(result.errors[0].source).toBe("big.png");
+    expect(api.uploadImages.mock.calls.map(call => call[1].length)).toEqual([1, 1, 1]);
+    expect(result).toMatchObject({ status: "complete", processed: 3, total: 3, faces: 3, error_count: 0 });
+    expect(result.errors).toEqual([]);
   });
 
   it("Stop during an upload cancels the returned worker and never uploads the remaining batches", async () => {

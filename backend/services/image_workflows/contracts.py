@@ -79,7 +79,7 @@ class CreateRequest(Record):
 
 
 class Draft(CreateRequest):
-    removed_asset_ids: list[AssetId] = Field(default_factory=list, max_length=100)
+    removed_asset_ids: list[AssetId] = Field(default_factory=list)
     scene: Scene | None = None
     scene_notes: str = Field(default="", max_length=8000)
     prompt_settings: PromptSettings = Field(default_factory=PromptSettings)
@@ -154,7 +154,7 @@ class Workflow(Draft):
     revision: int = Field(ge=1)
     created_at: str
     updated_at: str
-    assets: list[Asset] = Field(default_factory=list, max_length=100)
+    assets: list[Asset] = Field(default_factory=list)
     parent: Lineage | None = None
 
 

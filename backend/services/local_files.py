@@ -37,10 +37,9 @@ _lock = threading.RLock()
 def open_file(path):
     path = Path(path).resolve(strict=True)
     spec = file_handlers.handler(path.name)
-    if not path.is_file() or path.stat().st_size > (512 * 1024**2 if spec['id'] == 'model' else 8 * 1024**3):
-        raise ValueError('Choose a regular file within the handler size limit (3D: 512 MiB; other files: 8 GiB).')
+    if not path.is_file():
+        raise ValueError('Choose a regular file.')
     with _lock:
-        if len(_sessions) >= 4: raise ValueError('Close an existing local file before opening another.')
         item = Session(uuid4().hex, path, spec['id'], tempfile.TemporaryDirectory(prefix='law-local-file-'))
         info=path.stat(); item.source_signature=[info.st_size,info.st_mtime_ns,info.st_dev,info.st_ino]
         _sessions[item.id] = item

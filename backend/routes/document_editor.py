@@ -3,23 +3,21 @@ import json
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response
 from starlette.concurrency import run_in_threadpool
-from services.document_editor import MAX_FILE, MAX_MODEL, export_docx, import_docx
+from services.document_editor import export_docx, import_docx
 
 router = APIRouter(prefix='/document-editor', tags=['document-editor'])
 
 
-async def bounded_body(request, limit):
+async def document_body(request):
     data = bytearray()
     async for chunk in request.stream():
-        if len(data) + len(chunk) > limit:
-            raise HTTPException(413, 'Document exceeds the editor size limit.')
         data.extend(chunk)
     return bytes(data)
 
 
 @router.post('/import')
 async def open_document(request: Request):
-    raw = await bounded_body(request, MAX_FILE)
+    raw = await document_body(request)
     try:
         return await run_in_threadpool(import_docx, raw)
     except ValueError as exc:
@@ -28,7 +26,7 @@ async def open_document(request: Request):
 
 @router.post('/export')
 async def save_document(request: Request):
-    raw = await bounded_body(request, MAX_MODEL)
+    raw = await document_body(request)
     try:
         value = json.loads(raw)
         if not isinstance(value, dict): raise ValueError('Invalid document request.')

@@ -17,7 +17,7 @@ import { useStore, useDispatch } from "./useStore.jsx";
 import * as api from "./api";
 import { createMessageId } from "./messageIds";
 
-export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+export const MAX_IMAGE_BYTES = Infinity;
 
 const IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 
@@ -41,7 +41,6 @@ function userFacingError(message) {
 export function validateImageFile(file) {
   if (!file) return "No image selected";
   if (!isImageFile(file)) return "Unsupported image format";
-  if (file.size > MAX_IMAGE_BYTES) return "Image is larger than 10 MB";
   return null;
 }
 
@@ -143,10 +142,10 @@ export function useChatUploads({ onNewChat, onSessionSaved } = {}) {
   }, [currentSessionId, conversationHistory, sessionTitle, onNewChat]);
 
   const commit = useCallback(
-    async (sessionId, message) => {
+    async (sessionId, message, uploadedSession) => {
       // Append on the server so another upload/reply cannot be overwritten by
       // the history captured before a slow clipboard image finished reading.
-      const saved = await api.appendSessionMessages(sessionId, [message], selectedModel);
+      const saved = uploadedSession ?? await api.appendSessionMessages(sessionId, [message], selectedModel);
       if (currentSessionRef.current === sessionId) {
         dispatch({
           type: "SET_SESSION",
@@ -191,14 +190,10 @@ export function useChatUploads({ onNewChat, onSessionSaved } = {}) {
 
       try {
         onStart?.(file);
-        const message = image
-          ? await (async () => {
-              const { dataUrl, base64 } = await readImageFile(file);
-              return buildImageMessage(file, dataUrl, base64);
-            })()
+        const uploaded = image ? await api.uploadSessionImage(target.id, file, selectedModel) : null;
+        const message = image ? { id: uploaded.uploaded_message_id }
           : buildDocumentMessage(await api.parseFile(file));
-
-        const saved = await commit(target.id, message);
+        const saved = await commit(target.id, message, uploaded);
         onSuccess?.(file, message.id);
         return { ...target, messages: saved.messages, title: saved.title };
       } catch (error) {

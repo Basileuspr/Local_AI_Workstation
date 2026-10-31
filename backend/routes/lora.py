@@ -31,7 +31,9 @@ async def lifespan(app):
     yield
 
 
-router = APIRouter(prefix="/lora", tags=["lora"], lifespan=lifespan)
+from services.upload_routes import UploadRoute
+
+router = APIRouter(route_class=UploadRoute, prefix="/lora", tags=["lora"], lifespan=lifespan)
 active_analysis_tasks: dict[str, asyncio.Task] = {}
 
 

@@ -63,7 +63,7 @@ def read_source(path, root, max_bytes, cancel, expected_signature=None):
             break
     if expected_signature is not None and tuple(expected_signature) != signature(before):
         raise ValueError('File changed since the folder inventory; review it again.')
-    if before.st_size > max_bytes:
+    if max_bytes and before.st_size > max_bytes:
         raise ValueError('File exceeds the configured byte limit; content not read.')
     flags = os.O_RDONLY | getattr(os, 'O_BINARY', 0) | getattr(os, 'O_NOFOLLOW', 0) | getattr(os, 'O_NONBLOCK', 0)
     chunks, size = [], 0
@@ -72,11 +72,11 @@ def read_source(path, root, max_bytes, cancel, expected_signature=None):
             raise ValueError('File changed before reading.')
         while True:
             cancel()
-            chunk = handle.read(min(65536, max_bytes + 1 - size))
+            chunk = handle.read(min(65536, max_bytes + 1 - size) if max_bytes else 65536)
             if not chunk:
                 break
             size += len(chunk)
-            if size > max_bytes:
+            if max_bytes and size > max_bytes:
                 raise ValueError('File grew past the byte limit while reading.')
             chunks.append(chunk)
         after = os.fstat(handle.fileno())
@@ -105,6 +105,7 @@ def python_metadata(text):
 
 def extract(raw, name, max_chars, cancel=lambda: None):
     cancel()
+    max_chars = max_chars or None
     extension = Path(name).suffix.lower()
     metadata = {'sha256': hashlib.sha256(raw).hexdigest()}
     coverage = {'partial': False, 'reason': '', 'characters': 0}
@@ -121,7 +122,8 @@ def extract(raw, name, max_chars, cancel=lambda: None):
                         metadata[key] = match[1]
         else:
             from PIL import Image, ExifTags
-            with Image.open(io.BytesIO(raw)) as image:
+            from services.upload_images import open_upload_image
+            with open_upload_image(io.BytesIO(raw)) as image:
                 metadata.update(format=image.format, width=image.width, height=image.height, mode=image.mode)
                 # PNG's override calls load() to find late chunks. Only read the
                 # metadata available at open; never decode pixels for metadata.
@@ -137,7 +139,7 @@ def extract(raw, name, max_chars, cancel=lambda: None):
             return {'kind': 'pdf', 'text': '', 'status': 'unreadable', 'metadata': {**metadata, 'encrypted': True}, 'coverage': {**coverage, 'reason': 'Encrypted PDF; no password or OCR attempted.'}}
         metadata.update(page_count=len(reader.pages), title=str((reader.metadata or {}).get('/Title', ''))[:500])
         readable, unreadable, pages, used, capped, failed = [], [], [], 0, [], []
-        for index, page in enumerate(reader.pages[:500]):
+        for index, page in enumerate(reader.pages):
             cancel()
             number = index + 1
             try:
@@ -150,32 +152,30 @@ def extract(raw, name, max_chars, cancel=lambda: None):
                 continue
             readable.append(number)
             prefix = f'--- Page {number} ---\n'
-            available = max(0, max_chars - used - len(prefix))
+            available = len(text) if max_chars is None else max(0, max_chars - used - len(prefix))
             if len(text) > available:
                 capped.append(number)
             if available:
                 value = prefix + text[:available]
                 pages.append(value); used += len(value) + 2
         metadata.update(text_layer_pages=readable, pages_without_extractable_text=unreadable, pages_limited_by_text_cap=capped,
-                        pages_with_extraction_errors=failed, pages_not_inspected=max(0, len(reader.pages) - 500), ocr_attempted=False)
+                        pages_with_extraction_errors=failed, pages_not_inspected=0, ocr_attempted=False)
         text = '\n\n'.join(pages)
-        partial = bool(unreadable or capped or failed or len(reader.pages) > 500)
+        partial = bool(unreadable or capped or failed)
         coverage.update(partial=partial, characters=len(text), reason='Only the available native text layer was reviewed; unreadable or capped pages are listed.' if partial else '')
         if not text:
             coverage['reason'] = 'No extractable text. Scanned/image-only pages were not OCRed or visually analyzed.'
         return {'kind': 'pdf', 'text': text, 'status': 'readable' if text else 'unreadable', 'metadata': metadata, 'coverage': coverage}
     if extension == '.docx':
-        # Bound package expansion before python-docx parses XML or media parts.
+        # Validate package paths and structure before parsing XML or media parts.
         with zipfile.ZipFile(io.BytesIO(raw)) as package:
             members = package.infolist()
-            if len(members) > DOCX_MAX_MEMBERS or sum(member.file_size for member in members) > DOCX_MAX_EXPANDED_BYTES:
-                raise ValueError('Word package exceeds its expanded size or member limit.')
             seen = set()
             for member in members:
                 cancel()
                 if (member.filename in seen or '..' in member.filename.replace('\\', '/').split('/') or
-                        member.flag_bits & 1 or member.file_size > DOCX_MAX_MEMBER_BYTES):
-                    raise ValueError('Word package contains a duplicate, unsafe, encrypted or oversized member.')
+                        member.flag_bits & 1):
+                    raise ValueError('Word package contains a duplicate, unsafe or encrypted member.')
                 seen.add(member.filename)
         from docx import Document
         document = Document(io.BytesIO(raw))
@@ -186,7 +186,7 @@ def extract(raw, name, max_chars, cancel=lambda: None):
             cancel()
             value = ('' if first else '\n') + value.replace('\r\n', '\n').replace('\r', '\n')
             first = False
-            available = max(0, max_chars - original_length)
+            available = len(value) if max_chars is None else max(0, max_chars - original_length)
             if available:
                 values.append(value[:available])
             original_length += len(value)
@@ -206,8 +206,9 @@ def extract(raw, name, max_chars, cancel=lambda: None):
     text = text.replace('\r\n', '\n').replace('\r', '\n')
     length = original_length if original_length is not None else len(text)
     text = text[:max_chars]
-    coverage.update(characters=len(text), original_characters=length, partial=length > max_chars,
-                    reason='Only the configured character limit was reviewed.' if length > max_chars else '')
+    partial = max_chars is not None and length > max_chars
+    coverage.update(characters=len(text), original_characters=length, partial=partial,
+                    reason='Only the configured character limit was reviewed.' if partial else '')
     kind = 'python' if extension == '.py' else 'markdown' if extension in {'.md', '.markdown'} else 'document' if extension == '.docx' else 'text'
     if kind == 'python':
         metadata.update(python_metadata(text))

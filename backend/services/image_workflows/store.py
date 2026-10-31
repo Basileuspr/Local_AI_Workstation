@@ -182,7 +182,6 @@ def add_asset_stream(workflow_id, revision, name, stream, origin=None):
             workflow = get(workflow_id)
             _check_revision(workflow, revision)
             if any(item.id == asset.id for item in workflow.assets): return workflow
-            if len(workflow.assets) >= 100: raise ValueError('A workflow can hold at most 100 images.')
             target = confined(directory / f'{asset.id}{asset.suffix}')
             temporary.replace(target)
             workflow.assets.append(asset)

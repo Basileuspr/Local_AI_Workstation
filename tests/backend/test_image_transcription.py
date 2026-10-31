@@ -155,12 +155,24 @@ def test_cancellation_between_images_stops_inference():
     assert len(sent) == 1
 
 
-@pytest.mark.parametrize('images', [[], ['x'] * 17])
+@pytest.mark.parametrize('images', [[]])
 def test_unavailable_or_excessive_images_do_not_start_model(images):
     def provider(request):
         pytest.fail('Invalid image group must not run inference')
     with pytest.raises(ValueError):
         run(provider, [{'role': 'user', 'content': 'Transcribe', 'images': images}])
+
+
+def test_transcription_accepts_more_than_sixteen_images():
+    sent = []
+    def provider(request):
+        if request.url.path == '/api/show':
+            return httpx.Response(200, json={'capabilities': ['vision']})
+        sent.append(json.loads(request.content))
+        return response('Visible text')
+    events = run(provider, [{'role':'user','content':'Transcribe','images':[picture()] * 17}])
+    assert len(sent) == 17
+    assert events[-1]['done'] is True
 
 
 def test_chat_route_resolves_saved_upload_and_bypasses_text_model_and_tools(sessions_dir, tmp_path, monkeypatch):

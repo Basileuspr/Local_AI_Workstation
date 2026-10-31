@@ -140,7 +140,7 @@ Markdown in Design & Programming offers source and formatted views. HTML/CSS pre
 sandbox with scripts, forms and external resources disabled.
 
 Spreadsheets opens UTF-8 CSV/TSV with search, sorting and row/column selection.
-Its bounds are 10 MB, 100,000 data rows and 200 columns. Formulas remain text;
+Files have no application byte, row or column ceiling. Formulas remain text;
 XLSX is not supported. Sending data to chat uses a bounded excerpt with scope and
 truncation notes. Viewer drafts survive tab navigation, not a reload.
 

@@ -33,7 +33,7 @@ def reference_attrs(attrs):
 
 def caption_settings(model):
     settings = (model.get('attrs') or {}).get('captionSettings', {})
-    if not isinstance(settings, dict) or len(settings) > 20: raise ValueError('Use up to 20 caption labels.')
+    if not isinstance(settings, dict): raise ValueError('Invalid caption labels.')
     for label, rule in settings.items():
         if not isinstance(label, str) or not LABEL.fullmatch(label) or label != label.strip() or not isinstance(rule, dict) or not isinstance(rule.get('format'), str) or rule['format'] not in FORMATS or type(rule.get('start')) is not int or not 1 <= rule['start'] <= 9999: raise ValueError('Invalid caption numbering; use a supported format and start from 1–9,999.')
     return {label: {'format': rule['format'], 'start': rule['start']} for label, rule in settings.items()}
@@ -49,8 +49,7 @@ def validate_captions(model):
         ids.add(attrs['id'])
         if node['type'] == 'documentCaption': labels.add(attrs['label']); caption_count += 1
         else: references += 1
-    if len(labels) > 20 or len({label.lower() for label in labels}) != len(labels): raise ValueError('Use up to 20 different caption labels.')
-    if caption_count > 200 or references > 1000: raise ValueError('Use up to 200 captions and 1,000 cross-references.')
+    if len({label.lower() for label in labels}) != len(labels): raise ValueError('Use distinct caption labels.')
 
 
 def caption_number(number, format):

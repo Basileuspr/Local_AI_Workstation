@@ -14,7 +14,9 @@ def no_store(response: Response):
     response.headers["Cache-Control"] = "no-store"
 
 
-router = APIRouter(prefix="/image-library", tags=["image-library"], dependencies=[Depends(no_store)])
+from services.upload_routes import UploadRoute
+
+router = APIRouter(route_class=UploadRoute, prefix="/image-library", tags=["image-library"], dependencies=[Depends(no_store)])
 
 
 def call(function, *args, **kwargs):
@@ -135,7 +137,6 @@ def import_source(request: Source):
 async def upload(files: list[UploadFile] = File(...)):
     images, errors = [], []
     try:
-        if len(files) > 100: raise HTTPException(422, "Select up to 100 images per upload")
         for file in files:
             try:
                 images.append(await run_in_threadpool(call, library.import_stream, file.file, file.filename, {"kind": "review"}))

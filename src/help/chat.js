@@ -79,7 +79,7 @@ export const chatHelp = [
     ['Import limits', 'Web imports are spaced at least 10 seconds apart, limited to 30 requests per hour, and cached for 24 hours. Images count toward the limits; local and private-network addresses are refused.'],
     ['Audio transcription', 'Record or upload audio, transcribe, review the text, then explicitly insert it into your message. Transcribing alone does not send a chat message.'],
     ['Read aloud', 'Speaks a completed reply using the chosen local voice. Automatic speech is opt-in and can be stopped without removing the reply.'],
-    ['Cloned chat voice', 'Audio → Voice cloning → Use this voice for chat saves a reference for local synthesis. Use one clear 6–30 second voice recording; OmniVoice and Qwen also need its exact transcript. Speech uses up to 1,500 characters after the reply finishes.'],
+    ['Cloned chat voice', 'Audio → Voice cloning → Use this voice for chat saves a reference for local synthesis. Use one clear focused voice recording; OmniVoice and Qwen also need its exact transcript. Speech uses up to 1,500 characters after the reply finishes.'],
     ['Functions', 'Saved desktop action sequences run when you explicitly choose Run in Functions. Stop prevents subsequent steps; completed actions remain.'],
   ]],
 ];

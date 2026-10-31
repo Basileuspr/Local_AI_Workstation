@@ -16,7 +16,7 @@ export function sourceError(source) {
   if (source.year && !/^[0-9]{4}$/.test(source.year)) return 'Enter a four-digit year, or leave it blank.';
   if (source.url && !/^https?:\/\/[^\s<>]+$/i.test(source.url)) return 'Source URLs must use http or https.';
   if (source.doi && !/^10\.\d{4,9}\/[^\s<>]+$/.test(source.doi)) return 'Enter a DOI such as 10.1234/example, without the URL prefix.';
-  if (!Array.isArray(source.authors) || source.authors.length > 20) return 'Use up to 20 authors.';
+  if (!Array.isArray(source.authors)) return 'Provide an author list.';
   for (const author of source.authors) {
     if (!author || typeof author !== 'object' || !['family', 'given', 'literal'].every(key => printable(author[key] ?? '', 120))) return 'Invalid author name.';
     if (!(author.literal || author.family)?.trim() || (author.literal && (author.family || author.given))) return 'Enter a family name or an organization name for each author.';
@@ -113,7 +113,7 @@ export function bibliographyEntries(doc, includeUncited = false) {
   });
 }
 export function citationError(attrs) {
-  if (!attrs || !Array.isArray(attrs.sourceIds) || !attrs.sourceIds.length || attrs.sourceIds.length > 10 || new Set(attrs.sourceIds).size !== attrs.sourceIds.length || attrs.sourceIds.some(id => !/^LAW_S[0-9a-f]{32}$/.test(id))) return 'Choose 1–10 different sources.';
+  if (!attrs || !Array.isArray(attrs.sourceIds) || !attrs.sourceIds.length || new Set(attrs.sourceIds).size !== attrs.sourceIds.length || attrs.sourceIds.some(id => !/^LAW_S[0-9a-f]{32}$/.test(id))) return 'Choose different sources.';
   if (!['parenthetical', 'narrative'].includes(attrs.mode)) return 'Choose a citation display mode.';
   for (const key of ['locator', 'prefix', 'suffix']) if (!printable(attrs[key] ?? '', 120)) return 'Citation details support up to 120 printable characters.';
   return '';
@@ -121,7 +121,7 @@ export function citationError(attrs) {
 export function saveSource(editor, source) {
   if (editor.isEditable === false) return false;
   const value = canonicalSource(source), sources = [...sourceCatalog(editor.state.doc)], index = sources.findIndex(item => item.id === value.id);
-  if (index < 0) { if (sources.length >= 100) throw new Error('This document already has 100 sources.'); sources.push(value); } else sources[index] = value;
+  if (index < 0) { sources.push(value); } else sources[index] = value;
   editor.view.dispatch(closeHistory(editor.state.tr).setDocAttribute('sources', sources)); return value.id;
 }
 export function removeSource(editor, id) {
@@ -131,7 +131,7 @@ export function removeSource(editor, id) {
 }
 export function importSources(editor, value) {
   if (editor.isEditable === false) return false;
-  if (!value || value.version !== 1 || !Array.isArray(value.sources) || value.sources.length > 100) throw new Error('Open a version 1 source list with up to 100 sources.');
+  if (!value || value.version !== 1 || !Array.isArray(value.sources)) throw new Error('Open a version 1 source list.');
   const incoming = value.sources.map(canonicalSource), sources = [...sourceCatalog(editor.state.doc)];
   for (const source of incoming) {
     const existing = sources.find(item => item.id === source.id);
@@ -139,7 +139,6 @@ export function importSources(editor, value) {
     if (existing) source.id = newSourceId();
     sources.push(source);
   }
-  if (sources.length > 100) throw new Error('The combined list would exceed 100 sources.');
   editor.view.dispatch(closeHistory(editor.state.tr).setDocAttribute('sources', sources)); return sources.length;
 }
 export function saveCitation(editor, attrs, id = null) {
@@ -149,7 +148,6 @@ export function saveCitation(editor, attrs, id = null) {
   const tr = closeHistory(editor.state.tr), list = citationsIn(tr.doc).citations;
   if (id) { const item = list.find(item => item.id === id); if (!item) throw new Error('The citation no longer exists.'); tr.setNodeMarkup(item.pos, undefined, { ...attrs, id }); }
   else {
-    if (list.length >= 1000) throw new Error('This document already has 1,000 citations.');
     if (!editor.state.selection.$from.parent.isTextblock) throw new Error('Place the cursor in a text paragraph first.');
     const pos = editor.state.selection.to;
     id = newCitationId(); tr.insert(pos, editor.schema.nodes.documentCitation.create({ ...attrs, id }));
@@ -197,7 +195,7 @@ export function citationPlugin() { return new Plugin({
   filterTransaction(tr) {
     if (!tr.docChanged) return true; let valid = true, bibliography = 0, citations = 0;
     tr.doc.descendants((node, _pos, parent) => { if (node.type.name === 'documentBibliography') { bibliography++; if (parent.type.name !== 'doc') valid = false; } if (node.type.name === 'documentCitation') citations++; });
-    return valid && bibliography <= 1 && citations <= 1000 && sourceCatalog(tr.doc).length <= 100;
+    return valid && bibliography <= 1;
   },
 }); }
 export const DocumentCitations = Extension.create({ name: 'documentCitations',

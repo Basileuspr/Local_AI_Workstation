@@ -59,7 +59,6 @@ export default function DesignPlayground({ active = true, incomingExample, onEdi
     if (!selectedFile) return;
     setError(''); setNotice('');
     try {
-      if (selectedFile.size > 100000) throw new Error('Choose a design file under 100 KB.');
       setDraft(parseDesign(await selectedFile.text())); setPreset(''); setNotice('Design imported into the playground.');
     } catch (failure) { setError(failure.message); }
   }

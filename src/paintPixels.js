@@ -1,12 +1,12 @@
-export const PAINT_MAX_PIXELS = 16 * 1024 * 1024;
-export const PAINT_MAX_LAYER_PIXELS = 64 * 1024 * 1024;
-export const PAINT_MAX_LAYERS = 16;
+export const PAINT_MAX_PIXELS = Infinity;
+export const PAINT_MAX_LAYER_PIXELS = Infinity;
+export const PAINT_MAX_LAYERS = Infinity;
 
 export function paintDimensions(width, height, layers = 1) {
-  if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1 || width > 8192 || height > 8192 || width * height > PAINT_MAX_PIXELS)
-    throw Error('Use whole pixel dimensions from 1 to 8192, with at most 16 megapixels.');
-  if (!Number.isInteger(layers) || layers < 1 || layers > PAINT_MAX_LAYERS || width * height * layers > PAINT_MAX_LAYER_PIXELS)
-    throw Error('This document has reached its layer memory limit. Merge layers or use a smaller image.');
+  if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width < 1 || height < 1 || !Number.isSafeInteger(width * height))
+    throw Error('Use positive whole-number pixel dimensions.');
+  if (!Number.isSafeInteger(layers) || layers < 1)
+    throw Error('Use a positive whole-number layer count.');
   return { width, height };
 }
 

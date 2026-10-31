@@ -203,11 +203,12 @@ app.whenReady().then(async () => {
     const before = await api('/qa/state');
     await js(`(() => {
       document.querySelector('#chat-input').focus();
+      const filesAboveOldCeiling=${names.length === 1};
       const files=${JSON.stringify(names)}.map((name,index)=>{
         const canvas=document.createElement('canvas');canvas.width=canvas.height=16;
         const context=canvas.getContext('2d');context.fillStyle=index?'blue':'red';context.fillRect(0,0,16,16);
         const bytes=Uint8Array.from(atob(canvas.toDataURL('image/png').split(',')[1]),c=>c.charCodeAt(0));
-        return new File([bytes],name,{type:'image/png'});
+        return new File(filesAboveOldCeiling ? [bytes,new Uint8Array(11*1024*1024)] : [bytes],name,{type:'image/png'});
       });
       window.dispatchEvent(new CustomEvent('stage-chat-images',{cancelable:true,detail:files}));
     })()`);
@@ -238,6 +239,7 @@ app.whenReady().then(async () => {
   assert.deepEqual(imageChat.messages.map(message => message.role), ['user', 'user', 'assistant']);
   const imageFollowup = await submitImages(['Image-only-followup.png'], false);
   assert.equal(imageFollowup.id, imageChat.id);
+  assert(imageFollowup.messages.at(-2).imagePreviews[0].size > 10 * 1024 * 1024);
   assert.deepEqual(imageFollowup.messages.map(message => message.role), ['user', 'user', 'assistant', 'user', 'assistant']);
   assert(imageFollowup.messages.filter(message => message.role === 'user').every(message => message.images?.length));
   fs.writeFileSync(path.join(output, 'full-app-image-only-chat.png'), (await win.webContents.capturePage()).toPNG());

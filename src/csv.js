@@ -1,8 +1,8 @@
 export function parseCSV(text, delimiter = ",") {
   const rows = []; let row = [], value = "", quoted = false, closed = false;
   text = text.replace(/^\uFEFF/, "");
-  function cell() { row.push(value); value = ""; closed = false; if (row.length > 200) throw new Error("CSV supports up to 200 columns."); }
-  function endRow() { cell(); rows.push(row); row = []; if (rows.length > 100001) throw new Error("CSV supports up to 100,000 data rows."); }
+  function cell() { row.push(value); value = ""; closed = false; }
+  function endRow() { cell(); rows.push(row); row = []; }
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
     if (quoted) {

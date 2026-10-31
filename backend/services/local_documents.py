@@ -25,14 +25,12 @@ def digest(path):
 
 
 def read_package(path):
-    if Path(path).stat().st_size > MAX_BYTES:
-        raise ValueError('DOCX files must be 64 MiB or smaller.')
     try:
         with zipfile.ZipFile(path) as archive:
             entries = archive.infolist()
             names = [entry.filename for entry in entries]
-            if len(entries) > 4096 or len(set(names)) != len(names) or sum(e.file_size for e in entries) > MAX_EXPANDED:
-                raise ValueError('Document package exceeds safe complexity or size limits.')
+            if len(set(names)) != len(names):
+                raise ValueError('Document package contains duplicate entries.')
             for entry in entries:
                 parts = PurePosixPath(entry.filename).parts
                 if entry.flag_bits & 1 or '\\' in entry.filename or ':' in entry.filename or '..' in parts or entry.filename.startswith('/'):
@@ -42,9 +40,7 @@ def read_package(path):
         if 'word/document.xml' not in raw or '[Content_Types].xml' not in raw:
             raise ValueError('This package is not a supported Word DOCX document.')
         xml = raw['word/document.xml']
-        if len(xml) > 16 * 1024**2:
-            raise ValueError('Document XML exceeds the 16 MiB editing limit.')
-        root = ET.fromstring(xml, ET.XMLParser(resolve_entities=False, load_dtd=False, no_network=True))
+        root = ET.fromstring(xml, ET.XMLParser(resolve_entities=False, load_dtd=False, no_network=True, huge_tree=True))
         if root.getroottree().docinfo.doctype or root.tag != W + 'document':
             raise ValueError('Document DTDs and nonstandard Word XML are unsupported.')
         return members, root
@@ -63,8 +59,6 @@ class Document:
         body = self.root.find('w:body', NS)
         if body is None:
             raise ValueError('Document body is missing.')
-        if len(body) > 2000 or len(body.findall('.//w:tc', NS)) > 2000 or len(body.findall('.//w:r', NS)) > 10000:
-            raise ValueError('Document exceeds the initial editor limits (2,000 blocks/cells or 10,000 text runs).')
         names = [entry.filename.lower() for entry, _ in self.members]
         if any('_xmlsignatures/' in name for name in names):
             self.warnings.append('This document has digital signatures. Saving edits invalidates those signatures; use Save As and re-sign in your document application if needed.')
@@ -84,8 +78,6 @@ class Document:
                 self.blocks.append({'type': 'table', 'rows': rows, 'editable': not complex_table})
             elif child.tag != W + 'sectPr':
                 self.blocks.append({'type': 'protected', 'text': 'Unsupported document structure preserved.'})
-        if len(self.runs) > 10000 or len(self.blocks) > 2000:
-            raise ValueError('This document is too large for the initial editor (2,000 blocks / 10,000 runs).')
 
     def paragraph(self, paragraph, editable=True):
         style = paragraph.find('w:pPr/w:pStyle', NS)
@@ -120,8 +112,6 @@ class Document:
             raise ValueError('Save documents with a .docx extension.')
         if not acknowledged:
             raise ValueError('Review and acknowledge the preservation warning before saving.')
-        if len(changes) > 10000 or sum(len(str(change.get('text', ''))) for change in changes) > 8 * 1024**2:
-            raise ValueError('Document edits exceed the supported limit.')
         if target.exists() and not target.stat().st_mode & stat.S_IWRITE:
             raise ValueError('The destination is read-only. Use Save As to choose a writable copy.')
         original = target.resolve() == self.path.resolve()

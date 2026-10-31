@@ -42,7 +42,6 @@ def inspect(state, payload, progress, cancel):
         if cancel.is_set(): raise ValueError('Image inspection cancelled. Source files unchanged.')
         if path.suffix.lower() in EXTENSIONS and path.is_file() and '.media-manager-trash' not in path.parts:
             paths.append(path)
-            if len(paths) > MAX_IMAGES: raise ValueError('Choose up to 1,000 images per batch, or turn off subfolders.')
     paths.sort(key=lambda p: str(p.relative_to(root)).casefold())
     if not paths: raise ValueError('No supported images found. Choose a folder of JPEG, PNG, WebP, BMP, or TIFF images.')
     records = []
@@ -56,8 +55,8 @@ def inspect(state, payload, progress, cancel):
         streams = json.loads(result).get('streams', [])
         if not streams: raise ValueError('Could not read image: ' + path.name)
         stream = streams[0]; width, height = stream.get('width', 0), stream.get('height', 0)
-        if not width or not height or width * height > MAX_PIXELS:
-            raise ValueError('Choose images up to 64 megapixels: ' + path.name)
+        if not width or not height:
+            raise ValueError('Could not read image dimensions: ' + path.name)
         sha, _ = hashing.sha256_file(str(path), stop_event=cancel)
         if (before.st_size, before.st_mtime_ns) != (path.stat().st_size, path.stat().st_mtime_ns):
             raise ValueError('An image changed while being inspected. Inspect again.')

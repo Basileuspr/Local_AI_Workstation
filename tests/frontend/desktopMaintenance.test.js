@@ -21,7 +21,7 @@ describe("fresh upload chooser", () => {
       expect(options.properties).toEqual(["openFile", "dontAddToRecent", "multiSelections"]);
     }
   });
-  it("does not read files on cancel, rejects unsupported types and oversized batches", async () => {
+  it("does not read files on cancel, rejects unsupported types, and accepts large batches", async () => {
     const readFile = vi.fn();
     const deps = { home: "C:\\", readFile, showDialog: async () => ({ canceled: true }) };
     expect((await pickFiles({ accept: "image/png" }, deps)).canceled).toBe(true);
@@ -30,8 +30,10 @@ describe("fresh upload chooser", () => {
     deps.showDialog = async () => ({ filePaths: ["C:\\a.exe"] });
     await expect(pickFiles({ accept: "image/png" }, deps)).rejects.toThrow("unsupported");
     deps.showDialog = async () => ({ filePaths: Array(101).fill("C:\\a.png") });
-    await expect(pickFiles({ accept: "image/png", multiple: true }, deps)).rejects.toThrow("100 files");
-    expect(readFile).not.toHaveBeenCalled();
+    deps.stat = async () => ({isFile:()=>true,size:1,mtimeMs:0});
+    readFile.mockResolvedValue(Buffer.from('x'));
+    expect((await pickFiles({ accept: "image/png", multiple: true }, deps)).files).toHaveLength(101);
+    expect(readFile).toHaveBeenCalledTimes(101);
   });
   it("reads one folder's own images and never walks into subfolders", async () => {
     const dialog = vi.fn().mockResolvedValue({ canceled: false, filePaths: ["C:\\shoot"] });
@@ -55,6 +57,15 @@ describe("fresh upload chooser", () => {
     await expect(pickFiles({ accept: "image/*", multiple: true, directory: true }, deps))
       .rejects.toThrow("no supported images");
     expect(deps.readFile).not.toHaveBeenCalled();
+  });
+  it("allows the canvas project and BMP formats declared by its chooser", async () => {
+    const showDialog = vi.fn(async () => ({ filePaths: ["C:\\painting.lawpaint", "C:\\layer.bmp"] }));
+    const result = await pickFiles({accept: ".lawpaint,image/bmp", multiple: true}, {
+      showDialog, home: "C:\\", stat: async () => ({isFile: () => true, size: 1, mtimeMs: 0}),
+      readFile: async () => Buffer.from('x'),
+    });
+    expect(result.files.map(file => file.type)).toEqual(['application/json', 'image/bmp']);
+    expect(showDialog.mock.calls[0][0].filters[0].extensions).toEqual(['bmp', 'lawpaint']);
   });
 });
 

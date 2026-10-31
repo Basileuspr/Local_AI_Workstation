@@ -5,7 +5,9 @@ from starlette.concurrency import run_in_threadpool
 import json
 from services import slicer
 
-router = APIRouter(prefix='/slicer', tags=['slicer'])
+from services.upload_routes import UploadRoute
+
+router = APIRouter(route_class=UploadRoute, prefix='/slicer', tags=['slicer'])
 
 class SliceOptions(BaseModel):
     machine: str = Field(default='fdmprinter', pattern=r'^[\w-]{1,100}$')
@@ -27,7 +29,7 @@ def status(): return slicer.status()
 async def start(file: UploadFile = File(...), options: str = Form('{}')):
     try:
         value = SliceOptions.model_validate_json(options).model_dump()
-        raw = await file.read(slicer.MAX_FILE + 1)
+        raw = await file.read()
         return await run_in_threadpool(slicer.start, raw, file.filename or '', value)
     except ValueError as exc: raise HTTPException(400, 'Invalid slicing options.' if not isinstance(exc, json.JSONDecodeError) and hasattr(exc, 'errors') else str(exc)) from exc
     finally: await file.close()

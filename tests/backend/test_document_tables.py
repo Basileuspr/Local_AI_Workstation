@@ -97,6 +97,14 @@ def test_wide_tables_scale_to_the_page_while_preserving_column_proportions():
     assert widths[0] / widths[1] == pytest.approx(2, abs=.002)
 
 
+@pytest.mark.parametrize('rows,columns', [(101, 1), (1, 13)])
+def test_large_table_dimensions_round_trip(rows, columns):
+    node = table(*[[cell(f'{row}:{column}') for column in range(columns)] for row in range(rows)])
+    result = import_docx(exported(node))['document']['content'][0]
+    assert len(result['content']) == rows
+    assert len(result['content'][0]['content']) == columns
+
+
 def test_nested_tables_are_flattened_with_notice_and_omitted_grid_cells_are_filled():
     doc = Document(); outer = doc.add_table(rows=2, cols=2)
     outer.cell(0, 0).add_table(rows=1, cols=1).cell(0, 0).text = 'Nested text'
@@ -111,7 +119,7 @@ def test_nested_tables_are_flattened_with_notice_and_omitted_grid_cells_are_fill
     exported(node)
 
 
-@pytest.mark.parametrize('patch', [{'colspan': 0}, {'colspan': True}, {'colspan': 13}, {'rowspan': 2},
+@pytest.mark.parametrize('patch', [{'colspan': 0}, {'colspan': True}, {'rowspan': 2},
     {'colwidth': [12]}, {'colwidth': [96, 96]}, {'colwidth': [float('nan')]},
     {'backgroundColor': 'url(secret)'}, {'verticalAlign': {}}, {'rowspan': '2'}])
 def test_bad_cell_geometry_and_formats_are_rejected(patch):

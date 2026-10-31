@@ -1,5 +1,5 @@
-export const MAX_PACKAGE_ENTRIES = 1000;
-export const MAX_PACKAGE_BYTES = 512 * 1024 ** 2;
+export const MAX_PACKAGE_ENTRIES = Infinity;
+export const MAX_PACKAGE_BYTES = Infinity;
 
 export function packageFilename(value) {
   let name = value.trim().replace(/[\\/<>:"|?*\x00-\x1f]/g, "_").slice(0, 120).replace(/[ .]+$/g, "").replace(/\.zip$/i, "").replace(/[ .]+$/g, "") || "Package";
@@ -60,8 +60,6 @@ export function addPackageEntries(current, incoming) {
     const added = { ...entry, path, id: crypto.randomUUID() };
     result.push(added); reserve(added); reserved.add(path.toLowerCase());
   }
-  if (result.length > MAX_PACKAGE_ENTRIES) throw new Error("Choose up to 1,000 files and folders per package.");
-  if (result.reduce((sum, entry) => sum + entry.file.size, 0) > MAX_PACKAGE_BYTES) throw new Error("Choose up to 512 MiB of files per package.");
   return result;
 }
 
@@ -82,12 +80,10 @@ export async function droppedPackageFiles(transfer) {
   const entries = [];
   let total = 0;
   async function visit(entry, prefix = "", depth = 0) {
-    if (depth > 32 || entries.length >= MAX_PACKAGE_ENTRIES) throw new Error("Choose up to 1,000 files and folders, with at most 32 folder levels.");
     const path = prefix + entry.name;
     if (entry.isFile) {
       const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
       total += file.size;
-      if (total > MAX_PACKAGE_BYTES) throw new Error("Choose up to 512 MiB of files per package.");
       entries.push({ file, path, directory: false });
     } else if (entry.isDirectory) {
       entries.push({ file: new File([], entry.name), path, directory: true });

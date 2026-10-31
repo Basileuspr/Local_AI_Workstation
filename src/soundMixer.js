@@ -1,4 +1,4 @@
-import {channelIsMuted, defaultMixerSettings, flatChannel, mixerChannelIds, normalizeMixerSettings, pcmMeter, trackIds} from './mixerSettings';
+import {channelIsMuted, defaultMixerSettings, flatChannel, validMixerChannel, normalizeMixerSettings, pcmMeter} from './mixerSettings';
 
 export const MIX_RECORD_LIMIT_MS=5*60*1000;
 export const MIX_RECORD_LIMIT_BYTES=32*1024*1024;
@@ -102,7 +102,7 @@ export function createSoundMixer(env=globalThis) {
     }catch {publish({error:'A player could not use mixer effects. Its volume and mute controls remain available.'});}
   }
   function bindMedia(media,channel='audio',changed) {
-    const entry={media,channel:mixerChannelIds.includes(channel)?channel:'audio',changed,connected:false,source:null};mediaEntries.add(entry);
+    const entry={media,channel:validMixerChannel(channel)?channel:'audio',changed,connected:false,source:null};mediaEntries.add(entry);
     entry.play=()=>{void enable().then(()=>{if(mediaEntries.has(entry))connectMedia(entry);}).catch(error=>publish({error:error.message}));};
     media.addEventListener?.('play',entry.play);
     if(!media.paused && media.src)entry.play();
@@ -121,10 +121,10 @@ export function createSoundMixer(env=globalThis) {
   function addFiles(files) {
     if(!registerPlayer)throw Error('The mixer playback connection is not ready.');
     const chosen=Array.from(files);
-    if(chosen.length+tracks.size>8)throw Error('The board holds up to 8 local tracks. Remove a track before adding more.');
-    for(const file of chosen)if(file.size>100*1024*1024 || (!file.type?.startsWith('audio/') && !/\.(wav|mp3|m4a|aac|ogg|opus|flac|webm)$/i.test(file.name)))throw Error('Choose audio files up to 100 MB each.');
+    for(const file of chosen)if((!file.type?.startsWith('audio/') && !/\.(wav|mp3|m4a|aac|ogg|opus|flac|webm)$/i.test(file.name)))throw Error('Choose supported audio files.');
     for(const file of chosen) {
-      const id=trackIds.find(value=>!tracks.has(value)), url=env.URL.createObjectURL(file), media=new env.Audio(url);
+      let index=1; while(tracks.has(`track-${index}`))index++;
+      const id=`track-${index}`, url=env.URL.createObjectURL(file), media=new env.Audio(url);
       media.preload='metadata';const handle=registerPlayer(media,id);
       const entry={id,name:file.name.slice(0,200),url,media,handle,error:'',version:0};
       entry.updated=()=>trackSnapshot();entry.failed=()=>{entry.error='This audio format could not be played. Try WAV, MP3 or OGG.';trackSnapshot();};

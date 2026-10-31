@@ -44,14 +44,16 @@ projection gizmos and UV unwrapping are outside this implementation.
 - Solid tools require closed, consistently oriented input; failures preserve the
   source objects. General edits allow up to 200,000 selected input triangles and
   1 million output triangles. Hollow is capped at 5,000 input triangles because
-  erosion can be expensive. The existing 8 million scene triangle ceiling remains.
+  erosion can be expensive. Imported scenes have no application triangle ceiling;
+  available memory and the geometry engine determine what can be processed.
 - Hollow creates an enclosed cavity with a faceted spherical inset. It does not
   create drain holes or guarantee printability. Extrude down fills the projected
   footprint beneath the lowest point, and is not arbitrary face extrusion. Emboss
   uses bundled Helvetiker glyphs on the top XY plane and requires contact with the
   selected mesh. Unsupported glyphs produce an error.
-- Project input/output and STL output are capped at 128 MB. Local textures accept
-  PNG/JPEG/WebP up to 12 MB and are resized to at most 2048 pixels on the longer side.
+- Model/project input, project/STL output and local PNG/JPEG/WebP texture files
+  have no application byte ceiling. Working textures are resized to at most
+  2048 pixels on the longer side. Large imports can still exceed available memory.
 - Camera access starts only after the Camera action and a native permission dialog.
   The trusted main window receives a 30-second video-only permission window; audio
   and remote/child frames are excluded. Capture, Cancel, leaving Paint, or unmounting

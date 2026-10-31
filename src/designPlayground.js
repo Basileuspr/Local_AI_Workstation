@@ -38,7 +38,6 @@ export function loadDesignPresets(storage = globalThis.localStorage) {
 }
 export function serializeDesign(design) { return JSON.stringify({ format: 'local-ai-workstation-design', version: 1, design: normalizeDesign(design) }, null, 2); }
 export function parseDesign(text) {
-  if (text.length > 100000) throw new Error('Choose a design file under 100 KB.');
   let value;
   try { value = JSON.parse(text); } catch { throw new Error('This file is not valid JSON.'); }
   if (value?.format !== 'local-ai-workstation-design' || value.version !== 1 || !value.design?.appearance || typeof value.design.appearance !== 'object')

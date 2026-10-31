@@ -16,9 +16,9 @@ class ReviewRequest(BaseModel):
     root: str = Field(min_length=1, max_length=4096)
     model: str = Field(default='', max_length=200)
     recursive: bool = True
-    max_entries: int = Field(default=2000, ge=1, le=10000)
-    max_bytes: int = Field(default=16 * 1024 * 1024, ge=1024, le=32 * 1024 * 1024)
-    max_chars: int = Field(default=200000, ge=1000, le=1000000)
+    max_entries: int = Field(default=0, ge=0)
+    max_bytes: int = Field(default=0, ge=0)
+    max_chars: int = Field(default=0, ge=0)
     batch_chars: int = Field(default=4000, ge=500, le=6000)
 
 

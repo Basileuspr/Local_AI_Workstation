@@ -58,7 +58,6 @@ export default function SoundMixer({active=true}) {
   function clearSolos() {update({...settings,channels:Object.fromEntries(Object.entries(settings.channels).map(([id,value])=>[id,{...value,solo:false}]))});}
   async function loadSettings(file) {
     if(!file)return;
-    if(file.size>65536)throw Error('Choose a mixer settings JSON file under 64 KB.');
     const value=JSON.parse(await file.text());
     if(value.format!=='law-sound-mixer' || value.version!==1 || !value.settings?.channels)throw Error('This is not a supported mixer settings file.');
     update(normalizeMixerSettings(value.settings));setNotice('Mixer settings loaded.');
@@ -100,14 +99,14 @@ export default function SoundMixer({active=true}) {
       </div>}
     </Channel>)}</div>
     <section className="sm-tracks-section" aria-label="Local mixer tracks">
-      <div className="sm-section-heading"><div><h3>Local tracks <span>{status.tracks.length} / 8</span></h3><p>Mix audio files directly from this computer.</p></div><div className="sm-track-actions">
-        <button type="button" className="sm-primary" disabled={status.tracks.length>=8} onClick={()=>files.current.click()}>Add audio tracks</button>
+      <div className="sm-section-heading"><div><h3>Local tracks <span>{status.tracks.length}</span></h3><p>Mix audio files directly from this computer.</p></div><div className="sm-track-actions">
+        <button type="button" className="sm-primary"  onClick={()=>files.current.click()}>Add audio tracks</button>
         <button type="button" disabled={!status.tracks.length} onClick={()=>run(async()=>{const results=await Promise.allSettled(status.tracks.map(track=>mixer.transport(track.id,'play')));const failed=results.find(result=>result.status==='rejected');if(failed)throw failed.reason;})}>Play all</button>
         <button type="button" disabled={!status.tracks.length} onClick={()=>run(()=>Promise.all(status.tracks.map(track=>mixer.transport(track.id,'pause'))))}>Pause all</button>
         <input ref={files} hidden type="file" accept="audio/*,.wav,.mp3,.m4a,.aac,.ogg,.opus,.flac,.webm" multiple onChange={event=>{const selected=Array.from(event.target.files);event.target.value='';void run(()=>mixer.addFiles(selected));}}/>
       </div></div>
-      {!status.tracks.length && <div className="sm-empty"><span aria-hidden="true">♫</span><div><strong>Your tracks go here</strong><p>Add up to eight audio files to blend music, speech or sound effects. Each gets its own fader, EQ and transport.</p></div></div>}
-      <div className="sm-channels">{status.tracks.map((track,index)=><Channel key={track.id} channel={{id:track.id,name:`Track ${Number(track.id.split('-')[1])}`,detail:track.name,color:['#60a5fa','#a78bfa','#34d399','#fbbf24'][index%4]}} value={settings.channels[track.id]} muted={channelIsMuted(settings,track.id)} level={levels.channels[track.id]} onChange={patch=>change(track.id,patch)}>
+      {!status.tracks.length && <div className="sm-empty"><span aria-hidden="true">♫</span><div><strong>Your tracks go here</strong><p>Add audio files to blend music, speech or sound effects. Each gets its own fader, EQ and transport.</p></div></div>}
+      <div className="sm-channels">{status.tracks.map((track,index)=><Channel key={track.id} channel={{id:track.id,name:`Track ${Number(track.id.split('-')[1])}`,detail:track.name,color:['#60a5fa','#a78bfa','#34d399','#fbbf24'][index%4]}} value={settings.channels[track.id] || flatChannel} muted={channelIsMuted(settings,track.id)} level={levels.channels[track.id]} onChange={patch=>change(track.id,patch)}>
         <div className="sm-transport"><button type="button" className={track.playing?'sm-playing':''} onClick={()=>run(()=>mixer.transport(track.id,track.playing?'pause':'play'))}>{track.playing?'Pause':'Play'}</button><button type="button" onClick={()=>run(()=>mixer.transport(track.id,'rewind'))}>Rewind</button></div>
         <label className="sm-seek"><span>{clock(track.time)} / {clock(track.duration)}</span><input aria-label={`Seek ${track.name}`} type="range" min="0" max={track.duration || 1} step=".1" value={Math.min(track.duration || 1,track.time)} disabled={!track.duration} onChange={event=>run(()=>mixer.transport(track.id,'seek',Number(event.target.value)))}/></label>
         <div className="sm-track-footer"><label><input type="checkbox" checked={track.loop} onChange={event=>run(()=>mixer.transport(track.id,'loop',event.target.checked))}/> Loop</label><button type="button" aria-label={`Remove ${track.name}`} onClick={()=>run(()=>mixer.removeTrack(track.id))}>Remove</button></div>{track.error && <small role="alert">{track.error}</small>}

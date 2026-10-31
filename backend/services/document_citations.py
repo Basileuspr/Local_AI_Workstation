@@ -37,7 +37,7 @@ def canonical_source(source):
     if source.get('url') and not re.fullmatch(r'https?://[^\s<>]+', source['url'], re.I): raise ValueError('Source URLs must use http or https.')
     if source.get('doi') and not re.fullmatch(r'10\.\d{4,9}/[^\s<>]+', source['doi']): raise ValueError('Invalid source DOI.')
     authors = source.get('authors')
-    if not isinstance(authors, list) or len(authors) > 20: raise ValueError('Sources support up to 20 authors.')
+    if not isinstance(authors, list): raise ValueError('Invalid source author list.')
     people = []
     for author in authors:
         if not isinstance(author, dict) or not all(printable(author.get(key, ''), 120) for key in ('family', 'given', 'literal')): raise ValueError('Invalid source author name.')
@@ -48,7 +48,7 @@ def canonical_source(source):
 
 def source_catalog(model):
     sources = (model.get('attrs') or {}).get('sources', [])
-    if not isinstance(sources, list) or len(sources) > 100: raise ValueError('A document supports up to 100 sources.')
+    if not isinstance(sources, list): raise ValueError('Invalid document sources.')
     result = [canonical_source(source) for source in sources]
     if len({source['id'] for source in result}) != len(result): raise ValueError('Source IDs must be unique.')
     return result
@@ -56,7 +56,7 @@ def source_catalog(model):
 
 def citation_attrs(attrs, require_id=True):
     ids = attrs.get('sourceIds')
-    if not isinstance(ids, list) or not 1 <= len(ids) <= 10 or any(not isinstance(value, str) or not SOURCE_ID.fullmatch(value) for value in ids) or len(set(ids)) != len(ids): raise ValueError('A citation needs 1–10 different source IDs.')
+    if not isinstance(ids, list) or not ids or any(not isinstance(value, str) or not SOURCE_ID.fullmatch(value) for value in ids) or len(set(ids)) != len(ids): raise ValueError('A citation needs distinct valid source IDs.')
     if require_id and (not isinstance(attrs.get('id'), str) or not re.fullmatch(r'cite-[0-9a-f]{32}', attrs['id'])): raise ValueError('Invalid citation ID.')
     if attrs.get('mode', 'parenthetical') not in ('parenthetical', 'narrative'): raise ValueError('Invalid citation display mode.')
     for key in ('locator', 'prefix', 'suffix'):
@@ -80,7 +80,7 @@ def validate_citations(model):
             if attrs['id'] in ids: raise ValueError('Citation IDs must be unique.')
             ids.add(attrs['id'])
         if node['type'] == 'documentBibliography': bibliography_attrs(node.get('attrs') or {}); bibliography += 1
-    if len(ids) > 1000 or bibliography > 1: raise ValueError('A document supports 1,000 citations and one bibliography.')
+    if bibliography > 1: raise ValueError('A document supports one bibliography.')
 
 
 def source_authors(source, reference=False, narrative=False):
@@ -221,8 +221,7 @@ class CitationReader:
             if rel.reltype != RT.CUSTOM_XML: continue
             if rel.is_external: warn('External custom source parts are not fetched.'); continue
             raw = rel.target_part.blob
-            if len(raw) > 1024 ** 2: continue
-            try: root = etree.fromstring(raw, etree.XMLParser(resolve_entities=False, load_dtd=False, no_network=True))
+            try: root = etree.fromstring(raw, etree.XMLParser(resolve_entities=False, load_dtd=False, no_network=True, huge_tree=True))
             except etree.XMLSyntaxError: continue
             if root.tag == '{' + B + '}Sources': native_roots.append(root)
             if root.tag == '{' + LAW + '}catalog':
@@ -256,7 +255,6 @@ class CitationReader:
                     if source['authors'] == encoded: source['authors'] = existing['authors']
                     if source != existing: warn('Native source edits were imported. Citations and bibliography were regenerated with the editor’s basic format.')
                     self.sources[self.sources.index(existing)] = source; self.tags[tag] = source['id']; continue
-                if len(self.sources) >= 100: raise ValueError('This document contains more than 100 bibliography sources.')
                 self.sources.append(source); self.tags[tag] = source['id']
         for source in self.sources: self.tags[source['id']] = source['id']
 
@@ -286,7 +284,7 @@ class CitationReader:
             if token.lower() == '\\m': tags.append(tokens[index + 1].strip('"'))
             if token.lower() == '\\p': locator = tokens[index + 1].strip('"')[:120]
         ids = []
-        for tag in tags[:10]:
+        for tag in tags:
             if tag not in self.tags:
                 identifier = tag if SOURCE_ID.fullmatch(tag) else 'LAW_S' + uuid4().hex; self.tags[tag] = identifier
                 self.warn('A citation source is missing. Use Manage sources and Edit citation to repair it.')

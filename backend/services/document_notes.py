@@ -40,8 +40,8 @@ def validate_note_node(attrs):
     if attrs.get('kind') not in ('footnote', 'endnote') or not isinstance(attrs.get('id'), str) or not re.fullmatch(r'note-[0-9a-f]{32}', attrs['id']):
         raise ValueError('Invalid note kind or reference ID.')
     body = attrs.get('body')
-    if not isinstance(body, dict) or body.get('type') != 'doc' or not isinstance(body.get('content'), list) or not 1 <= len(body['content']) <= 40:
-        raise ValueError('A note needs 1–40 paragraphs.')
+    if not isinstance(body, dict) or body.get('type') != 'doc' or not isinstance(body.get('content'), list) or not body['content']:
+        raise ValueError('A note needs paragraphs.')
     text_length = 0
     for paragraph in body['content']:
         if not isinstance(paragraph, dict) or paragraph.get('type') != 'paragraph' or not isinstance(paragraph.get('content', []), list):
@@ -59,13 +59,11 @@ def validate_note_node(attrs):
                 if not isinstance(mark, dict) or not isinstance(mark.get('attrs') or {}, dict): raise ValueError('Invalid note formatting attributes.')
                 if mark.get('type') == 'link' and str((mark.get('attrs') or {}).get('href', '')).startswith('#'):
                     raise ValueError('Note links must use http, https or mailto.')
-    if text_length > 10000: raise ValueError('A note can contain at most 10,000 characters.')
 
 
 def validate_notes(model):
     note_settings(model)
     notes = [node for node in walk(model) if node['type'] == 'documentNote']
-    if len(notes) > 200: raise ValueError('A document supports at most 200 notes.')
     if len({node['attrs']['id'] for node in notes}) != len(notes): raise ValueError('Note reference IDs must be unique.')
 
 
@@ -143,7 +141,6 @@ class NoteReader:
                 part = relation.target_part
                 root = parse_xml(part.blob)
                 if root.tag != qn('w:' + kind + 's'): raise ValueError('The document has an invalid notes part.')
-                if sum(1 for node in root.iter() if node.tag in (qn('w:p'), qn('w:r'))) > 20000: raise ValueError('The notes part exceeds 20,000 paragraphs/runs.')
                 self.parts[kind] = part
                 for note in root.findall(qn('w:' + kind)):
                     if note.get(qn('w:type'), 'normal') != 'normal': continue
@@ -163,12 +160,11 @@ class NoteReader:
         return {'type': 'documentNote', 'attrs': {'id': 'note-' + uuid4().hex, 'kind': kind, 'body': body}}
 
     def body(self, definition, part):
-        paragraphs, budget = [], 10000
+        paragraphs = []
         source = list(definition.iter(qn('w:p')))
-        if len(source) > 40: self.warn('Note text beyond 40 paragraphs was omitted.')
         if any(node.tag in {qn('w:' + tag) for tag in ('tbl', 'drawing', 'sdt', 'fldChar', 'fldSimple', 'ins', 'del')} for node in definition.iter()):
             self.warn('Notes were normalized to supported paragraphs and text formatting; tables/fields and other advanced note content are not retained.')
-        for paragraph in source[:40]:
+        for paragraph in source:
             content, attrs, prefix = [], {}, False
             properties = paragraph.find(qn('w:pPr'))
             if properties is not None and any(child.tag not in (qn('w:pStyle'), qn('w:jc')) for child in properties):
@@ -197,14 +193,7 @@ class NoteReader:
                             value = item.text or '' if item.tag == qn('w:t') else '\t'
                             if prefix and value.startswith(' '): value = value[1:]
                             prefix = False
-                            kept, units = [], 0
-                            for character in value:
-                                size = 2 if ord(character) > 0xFFFF else 1
-                                if units + size > budget: break
-                                kept.append(character); units += size
-                            if len(kept) != len(value): self.warn('Note text beyond 10,000 characters was omitted.')
-                            budget -= units
-                            if kept: content.append({'type': 'text', 'text': ''.join(kept), 'marks': marks})
+                            if value: content.append({'type': 'text', 'text': value, 'marks': marks})
                         elif item.tag in (qn('w:br'), qn('w:cr')): content.append({'type': 'hardBreak'})
                         elif item.tag not in (qn('w:rPr'), qn('w:lastRenderedPageBreak')): self.warn('Some unsupported note content was omitted. Review notes against the source.')
             paragraphs.append({'type': 'paragraph', **({'attrs': attrs} if attrs else {}), 'content': content})

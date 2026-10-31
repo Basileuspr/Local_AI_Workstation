@@ -38,12 +38,10 @@ MEDIA_VERSION = 2
 def media_type(source, suffix, fallback=None):
     """Inspect local bytes only; never follow playlists, URLs, or sidecar files."""
     if suffix in IMAGE_EXTENSIONS:
+        from services.upload_images import open_upload_image
         from PIL import Image, UnidentifiedImageError
-        from services.image_library import MAX_PIXELS
         try:
-            with Image.open(source) as image:
-                if image.width * image.height > MAX_PIXELS:
-                    raise ValueError("Choose an image up to 24 megapixels")
+            with open_upload_image(source) as image:
                 mime = IMAGE_TYPES.get(image.format)
                 if not mime:
                     raise ValueError("This raster image format is not supported")
@@ -202,8 +200,6 @@ def add(character_id, kind, target_id, note=""):
         if found:
             # Idempotent adds preserve the first annotation; edit it explicitly.
             return found
-        if len(data["resources"]) >= MAX_RESOURCES:
-            raise ValueError(f"A character holds up to {MAX_RESOURCES} linked resources")
         link = {"id": uuid.uuid4().hex, "kind": kind, "target_id": target_id,
                 "note": note, "added_at": store.now()}
         data["resources"].append(link)
@@ -236,8 +232,8 @@ def unlink(character_id, link_id):
 def save_asset(filename, payload):
     """Reuse the shared file library for explicit saves from other workspaces."""
     from services import image_vault
-    if not payload or len(payload) > MAX_FILE_BYTES:
-        raise ValueError("Choose a nonempty file up to 128 MiB")
+    if not payload:
+        raise ValueError("Choose a nonempty file")
     digest = hashlib.sha256(payload).hexdigest()
     image_vault.require_public(digest)
     name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", (filename or "File").replace("\\", "/").rsplit("/", 1)[-1])[:200].strip(" .") or "File"
@@ -255,9 +251,6 @@ def upload(character_id, filename, payload, note=""):
     digest = hashlib.sha256(payload).hexdigest()
     with bank.LOCK:
         data = bank._read(character_id)  # Reject deleted profiles before writing a copy.
-        if len(data["resources"]) >= MAX_RESOURCES and not any(
-                item["kind"] == "file" and item["target_id"] == digest for item in data["resources"]):
-            raise ValueError(f"A character holds up to {MAX_RESOURCES} linked resources")
         if len(note) > 4000:
             raise ValueError("Reference notes must be at most 4,000 characters")
         save_asset(filename, payload)

@@ -12,7 +12,9 @@ from starlette.concurrency import run_in_threadpool
 from services import voice_cloning as voices
 from services.audio import AudioError, EXTENSIONS
 
-router = APIRouter(prefix='/voices', tags=['audio'])
+from services.upload_routes import UploadRoute
+
+router = APIRouter(route_class=UploadRoute, prefix='/voices', tags=['audio'])
 
 
 @router.get('/status')
@@ -49,8 +51,6 @@ async def synthesize(request: Request, reference: UploadFile = File(...), engine
             with path.open('wb') as handle:
                 while block := await reference.read(1024 * 1024):
                     size += len(block)
-                    if size > voices.MAX_REFERENCE_BYTES:
-                        raise AudioError('Reference recordings must be 25 MB or smaller.', 413)
                     handle.write(block)
             if not size:
                 raise AudioError('Choose a nonempty reference recording.')
@@ -95,9 +95,9 @@ async def save_reference(reference: UploadFile = File(...)):
         suffix = Path(reference.filename or '').suffix.lower()
         if suffix not in EXTENSIONS:
             raise AudioError('Choose a supported reference audio file.')
-        payload = await reference.read(voices.MAX_REFERENCE_BYTES + 1)
-        if not payload or len(payload) > voices.MAX_REFERENCE_BYTES:
-            raise AudioError('Choose a nonempty reference recording up to 25 MB.', 413)
+        payload = await reference.read()
+        if not payload:
+            raise AudioError('Choose a nonempty reference recording.')
         with TemporaryDirectory(prefix='law-voice-reference-') as work:
             directory = Path(work)
             source = directory / ('input' + suffix)

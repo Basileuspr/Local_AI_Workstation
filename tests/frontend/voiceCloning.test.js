@@ -2,10 +2,10 @@ import {afterEach, expect, it, vi} from 'vitest';
 import {generateClonedVoice,validateVoiceReference} from '../../src/voiceCloning';
 afterEach(() => vi.unstubAllGlobals());
 
-it('requires a bounded reference audio file', () => {
+it('validates reference format without a byte ceiling', () => {
   expect(validateVoiceReference(null)).toMatch('nonempty');
   expect(validateVoiceReference({name:'voice.m4a',size:12})).toBe('');
-  expect(validateVoiceReference({name:'voice.m4a',size:26*1024*1024})).toMatch('25 MB');
+  expect(validateVoiceReference({name:'voice.m4a',size:26*1024*1024})).toBe('');
 });
 it('uploads the chosen engine and reference and returns playable audio',async()=>{
   const fetch=vi.fn(async()=>new Response(new Blob(['RIFF'],{type:'audio/wav'}),{headers:{'content-type':'audio/wav','x-voice-processing':'{"device":"cuda"}'}}));
