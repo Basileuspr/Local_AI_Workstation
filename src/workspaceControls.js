@@ -11,6 +11,14 @@ import {linkedToolHelp} from './help/linkedTools';
 import {webHelp} from './help/web';
 
 export const workspaceControls = {
+  'reverse-engineer': [['Tools and launchers', [
+    ['Search tools / Category / Linked only', 'Filter all ten tools by name, purpose or platform, analysis category, or whether you have saved a launcher. Clear filters restores the full list. Ghidra, IDA, Binary Ninja, Cutter and radare2 cover native code; x64dbg and Frida investigate running programs; ILSpy and dnSpyEx work with .NET; JADX reads Android bytecode.'],
+    ['Official downloads / Documentation', 'Open the project website or guide in your default browser. Installations and licenses are managed separately. IDA Free uses cloud decompilation; review its edition before sending code. No files are sent to an external tool simply by opening this workspace.'],
+    ['Setup & tool notes', 'Read each tool’s purpose, prerequisites and supported workflow. Ghidra and Java-based JADX launchers can use a Windows .lnk shortcut to their .bat file. For radare2 or Frida, prepare a terminal shortcut with the environment you need.'],
+    ['Choose program / Change program', 'In the Windows desktop app, select an installed .exe or .lnk using the native file picker. Your launcher choice is saved locally. Choosing a program does not launch it. Launcher linked means a saved selection, not a verified installation or working runtime.'],
+    ['Launch', 'Open the selected program or shortcut in its own window. Choose target files, processes and arguments there. The workstation does not embed these applications or run analysis commands. Launch failures are shown here; use Change program if a tool moved.'],
+    ['Unlink', 'Remove only this workspace’s saved association. The installed program and its projects remain on disk, and existing Functions buttons remain usable. Saved associations require local browser storage; read or write failures are shown without silently replacing existing settings.'],
+  ]]],
   'testing-lab': [['Testing Lab', [
     ['Set up a comparison', 'Choose a suite revision, local model and optional exact online model/version. Repetitions, context, output limit and timeout are captured in each run. Local requests use the shared Prompt Queue with temperature 0 and seed 42; results can still vary. Each response is an independent request using the case messages. These are text-only model tests, without normal chat memory, Knowledge retrieval or tool execution.'],
     ['Online responses', 'Copy the exact system and message prompt into a fresh online conversation. Turn tools off for a comparable text-only baseline; record provider, exact version, date, web/tool access and reasoning settings in Comparison conditions. Paste each answer once. Online model names and conditions are self-reported; no API calls, credentials, fees or online speed measurements are involved.'],

@@ -3,6 +3,10 @@ import {coordinatorOverview} from './help/coordinator';
 // Every workspace has an explicit guide. New routes must add one here too.
 // Keep instructions out of the work surface; WorkspaceInfo owns their presentation.
 const overview = {
+  'reverse-engineer': {
+    purpose: 'Compare ten reverse-engineering tools, open official downloads and guides, and save launch buttons for installed desktop programs.',
+    example: 'Find Ghidra, expand Setup & tool notes, and install its official release and required Java runtime. Create a Windows shortcut to ghidraRun.bat, choose that shortcut here, then select Launch. Open your target file inside Ghidra.',
+  },
   'testing-lab': {
     purpose: 'Compare local models with pasted online-model responses, review request and factual accuracy, and track saved evaluations over hours, days and weeks.',
     example: 'Choose Workstation essentials and a local model, enter the exact online model version, and start a comparison. Paste the online answers using the same prompts, review each answer against its reference, then compare the accuracy charts. Schedule daily local runs to track changes over a month.',

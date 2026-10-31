@@ -74,7 +74,7 @@ describe('app-based learning courses', () => {
     expect(html).toContain('Practice in the app');
     expect(html).toContain('Check your result');
     expect(html).toContain('Open Chat for this lesson');
-    expect(html).toContain('22 of 22 lessons');
+    expect(html).toContain('23 of 23 lessons');
     expect(openWorkspace).not.toHaveBeenCalled();
   });
 

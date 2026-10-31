@@ -20,6 +20,11 @@ Librarian harnesses. Its catalog entries open the interactive UI; action approva
 Knowledge saves and transfer confirmation remain explicit workspace controls.
 See [Coordinator](../workspace/COORDINATOR.md) for saved runs and recovery.
 
+Reverse Engineer's catalog entry describes its interactive tool hub and saved
+desktop launchers. Ghidra and the nine other listed applications require separate
+installation. They are not exposed as model-callable analysis or shell endpoints;
+opening a catalog entry does not launch a program.
+
 HTTP schemas derive from the actual route models. Arguments are grouped into
 path/query/body and other documented locations. Binary/upload contracts do not
 grant arbitrary filesystem access. Outputs can be asynchronous task snapshots or

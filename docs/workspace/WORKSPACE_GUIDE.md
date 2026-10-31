@@ -35,6 +35,34 @@ controls, storage and account boundaries; Info Center has the same Web category.
 Existing tool routes and side-pane selections remain available. Arrange remembers
 Web's position and its tool order; Find a tab searches all three destinations.
 
+## Reverse Engineer
+
+**Reverse Engineer** is a main-bar tab beside Dashboard and the other utilities.
+It includes **Ghidra**, **IDA / IDA Pro**, **Binary Ninja**, **Cutter**, **radare2**,
+**x64dbg**, **ILSpy**, **dnSpyEx**, **JADX**, and **Frida**. Search by name, purpose
+or platform, filter by analysis category, or show only linked launchers.
+The tab is also available through Find a tab, Functions, side panes, captures,
+and Info Center. Existing saved tab arrangements gain it without losing their order.
+
+Each card has a purpose, licensing summary, official download and documentation
+links, and expandable setup notes. Programs are installed separately and open
+in their own windows; this workspace does not embed their interfaces or analyze
+binaries itself. IDA Free uses cloud decompilation, so check the edition before
+sending code. Documentation links open in the default browser in the desktop app.
+
+After installing a tool, use **Choose program…** to select its `.exe` or Windows
+`.lnk` shortcut, then **Launch**. For Ghidra, create a shortcut to `ghidraRun.bat`;
+Java-based JADX can similarly use a shortcut to `jadx-gui.bat`. For radare2 and
+Frida, link a terminal shortcut configured for the required environment. Select
+analysis targets and arguments inside the external tool. **Launcher linked**
+indicates a saved selection, not a readiness check. A missing or moved launcher
+reports an error; use **Change program…** to replace it.
+
+Choices persist locally using the existing desktop program registry and a
+renderer association map. **Unlink** removes the association without uninstalling
+software, deleting projects, or changing existing Functions buttons. Browser-only
+views keep the catalog and links available but disable native selection/launch.
+
 ## Design & Programming
 
 ### UI Design Mirror (menu bar)

@@ -4,6 +4,33 @@ This is the consolidated evidence record, updated October 31, 2026.
 Current guides describe inspected source; dated tests below are not a certification
 of every feature, provider, installation or device.
 
+## October 31 Reverse Engineer workspace
+
+Added the main-bar **Reverse Engineer** tool hub with Ghidra, IDA / IDA Pro,
+Binary Ninja, Cutter, radare2, x64dbg, ILSpy, dnSpyEx, JADX and Frida. The workspace
+uses the existing picker-backed desktop program registry for explicit launches.
+Help, Info Center, the University lesson, Functions, side panes, captures and
+the discovery-only tool catalog include the new destination.
+
+- Full frontend suite: **1,667 passed, 3 existing skips across 209 files**.
+- Backend tool registry and portable Java-toolchain discovery: **10 passed**
+  with disposable data/model/log/catalog paths. Existing FastAPI lifecycle
+  deprecation warnings remain.
+- Revalidated after integrating the compatible-runtime update and installing
+  its lockfile with `npm ci`: Electron 44.10.1, Vite 6.4.5, React 19.3.1,
+  linkedom 0.18.14 and Tiptap 3.32.2. The install audit reported no vulnerabilities.
+  Media Manager checks passed: **124 Python and 23 JavaScript tests**.
+- `node scripts/qa-reverse-engineer.cjs` passed against the actual renderer in
+  a disposable Chromium profile. Checks cover all ten cards, navigation, search,
+  category/linked filters, empty results, picker cancellation, duplicate-click
+  serialization, opaque launch IDs, error reporting, reload persistence, browser
+  fallback, official-link destinations, storage failures, unlinking and damaged
+  settings preservation. Desktop and 420 px captures were visually inspected.
+- Launcher responses were simulated. Third-party programs were not downloaded,
+  licensed, installed or launched, and no binary analysis was performed. External
+  tool behavior, target-device setup, physical phones and GPU inference were not
+  acceptance-tested by this change.
+
 ## October 31 Dashboard GitHub pull
 
 Dashboard → GitHub update exposes **Pull from GitHub** and the exact

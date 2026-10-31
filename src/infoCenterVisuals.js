@@ -1,6 +1,7 @@
 // Small, local illustrations: no external images, user files, or model calls.
 // [input picture, result picture, input label, action, result label, motion]
 export const featureVisuals = {
+  'reverse-engineer': ['code', 'nodes', 'Compiled program', 'Choose a tool', 'Analysis workspace'],
   'testing-lab': ['sliders', 'check', 'Your test cases', 'Compare over time', 'Saved evidence'],
   coordinator: ['code', 'check', 'Task and harness', 'Plan and verify', 'Reviewed result'],
   'design-programming': ['sliders', 'code', 'Design choices', 'Mix', 'Your interface'],

@@ -1,0 +1,32 @@
+.reverse-engineer { flex: 1; min-width: 0; min-height: 0; overflow: auto; padding: 24px; color: var(--text); }
+.re-heading { display: flex; align-items: start; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-bottom: 20px; }
+.re-eyebrow { color: var(--accent); font: 10px var(--font-mono); letter-spacing: .13em; }
+.re-heading h1 { font-size: clamp(23px, 2.3vw, 30px); letter-spacing: -.025em; margin: 8px 0; }
+.re-heading p, .re-count, .re-note, .re-status { color: var(--text-muted); font-size: 12px; line-height: 1.6; }
+.re-total { border: 1px solid var(--border); border-radius: 20px; padding: 8px 12px; font-size: 12px; white-space: nowrap; }
+.re-total span { color: var(--text-muted); }
+.re-start { padding: 14px 16px; border: 1px solid var(--border-active); border-radius: 10px; background: var(--accent-dim); font-size: 12px; line-height: 1.6; margin-bottom: 18px; }
+.re-start strong { color: var(--accent); }.re-start p { margin-top: 4px; }
+.re-filters { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; }
+.re-filters label { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--text-dim); min-width: 0; }
+.re-filters label:first-child { flex: 1 1 240px; }
+.re-filters input[type="search"], .re-filters select { width: 100%; min-width: 0; padding: 9px 11px; border: 1px solid var(--border); border-radius: 7px; color: var(--text); background: var(--bg-input); font: inherit; }
+.re-filters .re-linked-filter { flex-direction: row; align-items: center; align-self: center; gap: 7px; }
+.re-count { margin: 14px 0 4px; }.re-status { min-height: 22px; margin-bottom: 8px; }.re-error { color: var(--danger, #ed8b8b); font-size: 13px; line-height: 1.6; }
+.re-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 16px; }
+.re-card { display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card); padding: 20px; overflow-wrap: anywhere; }
+.re-card-meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; color: var(--text-muted); font-size: 10px; margin-bottom: 12px; }
+.re-card-meta > span:first-child { color: var(--accent); }.re-card-meta .re-is-linked { color: var(--accent); }
+.re-card h2 { font-size: 20px; margin-bottom: 4px; letter-spacing: -.02em; }.re-card > p { line-height: 1.6; font-size: 13px; margin: 8px 0; }
+.re-card .re-kind { color: var(--text-muted); font-size: 11px; margin-top: 0; }.re-best { color: var(--text-dim); }.re-best strong { display: block; font-size: 11px; color: var(--text-muted); }
+.re-platforms { color: var(--text-muted); font-size: 11px; line-height: 1.7; margin: 8px 0 12px; }.re-platforms span { display: block; }
+.re-card details { font-size: 12px; line-height: 1.6; margin-bottom: 12px; }.re-card summary { cursor: pointer; color: var(--text-dim); }.re-card details p { margin-top: 10px; color: var(--text-muted); }
+.re-links { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; margin-top: auto; padding: 4px 0 16px; }.re-links a { color: var(--accent); text-decoration: none; }.re-links a:hover { text-decoration: underline; }
+.re-launcher { border-top: 1px solid var(--border); padding-top: 12px; }.re-launcher > span { display: block; color: var(--text-muted); font: 10px/1.6 var(--font-mono); margin-bottom: 10px; }
+.re-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.reverse-engineer button { border: 1px solid var(--border); border-radius: 7px; background: var(--bg-input); color: var(--text); padding: 8px 11px; font: 12px var(--font-body); cursor: pointer; }
+.reverse-engineer button:hover:not(:disabled) { border-color: var(--accent); }.reverse-engineer button:disabled { opacity: .45; cursor: not-allowed; }.reverse-engineer .re-launch { background: var(--accent-dim); color: var(--accent); border-color: var(--border-active); }
+.reverse-engineer :is(button, a, input, select, summary):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.re-empty { text-align: center; padding: 40px 16px; border: 1px dashed var(--border); border-radius: 12px; }.re-empty p { color: var(--text-muted); margin: 12px 0; }
+.re-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
+@media (max-width: 650px) { .reverse-engineer { padding: 16px 12px; }.re-card { padding: 16px; }.re-filters > label:not(.re-linked-filter) { flex: 1 1 100%; } }

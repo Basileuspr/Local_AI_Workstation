@@ -59,6 +59,16 @@ def test_query_path_and_multipart_arguments_retain_required_fields(client):
     assert not convert.is_valid({"body": {"file": "file", "target": "png", "quality": 101}})
 
 
+def test_reverse_engineer_discovery_is_interactive_not_model_execution(client):
+    tool = client.get("/tools/registry/reverse_engineer_ui").json()["tool"]
+    assert tool["workspace"] == "reverse-engineer"
+    assert tool["availability"] == "ui_only"
+    assert tool["llm_callable"] is False
+    assert tool["endpoint"] is None
+    for name in ("Ghidra", "IDA", "Binary Ninja", "Cutter", "radare2", "x64dbg", "ILSpy", "dnSpyEx", "JADX", "Frida"):
+        assert name in tool["description"]
+
+
 def test_nested_image_schema_is_self_contained_and_keeps_limits(client):
     schema = client.get("/tools/registry/image_submit").json()["tool"]["input_schema"]
     validator = Draft202012Validator(schema)

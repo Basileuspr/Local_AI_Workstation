@@ -16,6 +16,7 @@ export const FUNCTION_BUTTONS_STORAGE_KEY = "local-ai-workstation-function-butto
 export const functionTargets = [
   { id: 'coordinator', name: 'Coordinator' },
   { id: 'design-programming', name: 'Design & Programming' },
+  { id: 'reverse-engineer', name: 'Reverse Engineer' },
   { id: "info-center", name: "Info Center" },
   { id: "shortcuts", name: "Shortcut Registry" },
   { id: "audio", name: "Audio" },

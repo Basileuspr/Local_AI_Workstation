@@ -40,6 +40,7 @@ Keep environments, models and runtime data local to each computer.
 | `npm run test:android` | Run native JVM tests and release lint with the local Windows Android toolchain |
 | `npm run qa:android` | Check the native image adapter with synthetic Chromium content |
 | `node scripts/qa-testing-lab.cjs` | Verify Testing Lab controls, exports, saved history, scrolling and narrow layouts with a synthetic hidden Chromium fixture |
+| `node scripts/qa-reverse-engineer.cjs` | Verify the full renderer's Reverse Engineer navigation, filtering, saved launchers, error handling and narrow layout with simulated desktop actions |
 | `npm run build:android` | Check, build and sign the APK with this PC's private signing identity |
 | `npm run build:mobile` | Build only the hosted phone interface |
 | `npm run build` | Capture build identity, compile the desktop renderer, then build the phone interface |

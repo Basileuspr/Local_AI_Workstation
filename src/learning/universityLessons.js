@@ -316,4 +316,23 @@ export const universityAppLessons = [
     choices: ['It runs immediately', 'Its steps are stored; Run is a separate explicit action', 'It gives every chat model unrestricted desktop control'], answer: 1,
     explanation: 'Saving stores the ordered configuration. Execution begins only through its Run control.',
   },
+  {
+    id: 'reverse-engineering-tools', title: 'Choose a reverse-engineering tool', module: 'Files and workflows', minutes: 10,
+    workspaces: ['reverse-engineer', 'info-center'],
+    concepts: [
+      'Static analysis reads compiled code without running the target. A disassembler exposes machine instructions; a decompiler reconstructs source-like code. Runtime analysis observes a running process through a debugger or instrumentation tool.',
+      'The file type guides the choice: Ghidra and related native-code tools inspect machine code, ILSpy and dnSpyEx work with managed .NET assemblies, and JADX reads Android bytecode. A linked launcher records your choice; it does not verify the external tool or analyze a file.',
+    ],
+    steps: [
+      'Open Reverse Engineer and compare Ghidra with x64dbg. Write which tool you would use to read compiled functions and which to inspect a running Windows program.',
+      'Filter to .NET, then Android. Read the setup notes and identify one matching tool for a managed DLL and one for an APK.',
+      'If you already have a tool installed, choose its program or shortcut. Confirm that saving the launcher does not start it. Use Launch separately, or keep this exercise as a written tool-selection plan.',
+      'Use Linked only to find saved launchers. Unlink removes the saved association while leaving the program and its projects in place.',
+    ],
+    checkpoint: 'Your notes distinguish static and runtime analysis, identify tools for native, .NET and Android code, and explain why a saved launcher is not proof of a working installation.',
+    exercise: 'Choose a tool for reading a managed .NET library and another for observing a running Windows executable. Record their prerequisites and the next action you would take inside each tool.',
+    question: 'What does Launcher linked establish in Reverse Engineer?',
+    choices: ['The target program was analyzed successfully', 'A local program or shortcut has been selected and saved', 'The external tool is installed with every dependency verified'], answer: 1,
+    explanation: 'A saved association lets you request a launch. Installation readiness and analysis results must be checked separately in the external tool.',
+  },
 ];

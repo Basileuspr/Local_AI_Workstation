@@ -8,6 +8,7 @@ TAB_LABELS['info-center'] = 'Info Center';
 TAB_LABELS['design-programming'] = 'Design & Programming';
 TAB_LABELS.coordinator = 'Coordinator';
 TAB_LABELS['testing-lab'] = 'Testing Lab';
+TAB_LABELS['reverse-engineer'] = 'Reverse Engineer';
 Object.assign(TAB_LABELS, {'reels-analyzer': 'Reels Analyzer', 'web-system': 'Web Research & Sources'});
 
 Object.assign(TAB_LABELS, {slicer: '3D Slicer', integrations: 'Linked applications', 'styling-library': 'Styling Library', 'sound-mixer':'Sound Mixer'});

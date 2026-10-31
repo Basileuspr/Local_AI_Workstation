@@ -5,6 +5,7 @@ import { workspaceHelp } from './workspaceHelp';
 // Task-oriented examples complement the shared control guides. Keep one entry
 // per workspace so the directory cannot silently omit a newly added feature.
 export const featureUseCases = {
+  'reverse-engineer': ['Choose a native-code, .NET, Android or runtime-analysis tool for the program you want to understand.', 'Keep Ghidra and nine related tools together with official guides and saved local launchers.'],
   'testing-lab': ['Compare local responses with flagship online-model answers using your own prompts and verified references.', 'Schedule repeated evaluations and review accuracy, changing information, failures and local performance over days or weeks.'],
   coordinator: ['Choose Coding to fix a focused bug and inspect verified changes.', 'Research with citations, save selected evidence to Knowledge, or review Media Librarian organization proposals.'],
   'design-programming': ['Mix palettes, fonts, corners, spacing, surfaces, and buttons in a live preview before applying them to the app.', 'Save a design preset, compare library components, and inspect its HTML or CSS alongside the code viewers.'],
