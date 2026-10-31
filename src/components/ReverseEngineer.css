@@ -7,6 +7,14 @@
 .re-total span { color: var(--text-muted); }
 .re-start { padding: 14px 16px; border: 1px solid var(--border-active); border-radius: 10px; background: var(--accent-dim); font-size: 12px; line-height: 1.6; margin-bottom: 18px; }
 .re-start strong { color: var(--accent); }.re-start p { margin-top: 4px; }
+.re-tasks { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: 8px; margin-top: 12px; }
+.re-tasks button { text-align: left; line-height: 1.5; }.re-tasks strong { display: block; margin-top: 8px; }
+.re-tasks button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-dim); }
+.re-install-status { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; }
+.re-level { font-size: 10px; color: var(--accent); margin: 4px 0; }
+.re-guide ol { margin: 12px 0; padding-left: 20px; }.re-guide li { margin-bottom: 10px; }
+.re-card .re-launch-explainer { padding: 10px 12px; background: var(--bg-input); border-radius: 8px; color: var(--text-dim); font-size: 12px; }
+.re-card .re-launcher { margin-top: auto; }.re-card .re-manage { margin: 12px 0; }
 .re-filters { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; }
 .re-filters label { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--text-dim); min-width: 0; }
 .re-filters label:first-child { flex: 1 1 240px; }
@@ -21,7 +29,7 @@
 .re-card .re-kind { color: var(--text-muted); font-size: 11px; margin-top: 0; }.re-best { color: var(--text-dim); }.re-best strong { display: block; font-size: 11px; color: var(--text-muted); }
 .re-platforms { color: var(--text-muted); font-size: 11px; line-height: 1.7; margin: 8px 0 12px; }.re-platforms span { display: block; }
 .re-card details { font-size: 12px; line-height: 1.6; margin-bottom: 12px; }.re-card summary { cursor: pointer; color: var(--text-dim); }.re-card details p { margin-top: 10px; color: var(--text-muted); }
-.re-links { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; margin-top: auto; padding: 4px 0 16px; }.re-links a { color: var(--accent); text-decoration: none; }.re-links a:hover { text-decoration: underline; }
+.re-links { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; padding: 4px 0 0; }.re-links a { color: var(--accent); text-decoration: none; }.re-links a:hover { text-decoration: underline; }
 .re-launcher { border-top: 1px solid var(--border); padding-top: 12px; }.re-launcher > span { display: block; color: var(--text-muted); font: 10px/1.6 var(--font-mono); margin-bottom: 10px; }
 .re-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .reverse-engineer button { border: 1px solid var(--border); border-radius: 7px; background: var(--bg-input); color: var(--text); padding: 8px 11px; font: 12px var(--font-body); cursor: pointer; }

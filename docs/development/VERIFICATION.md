@@ -4,6 +4,39 @@ This is the consolidated evidence record, updated October 31, 2026.
 Current guides describe inspected source; dated tests below are not a certification
 of every feature, provider, installation or device.
 
+## October 31 Reverse Engineer installations and beginner guides
+
+Reduced the catalog to five free tools with distinct primary jobs: Ghidra,
+dnSpyEx, JADX, x64dbg and Frida. Added a task selector, examples, file types,
+first steps and launch explanations. A trusted desktop read checks local
+installation receipts and registered launchers; custom selections override
+installed defaults. Retired catalog choices no longer invalidate retained links.
+
+- Full frontend suite: **1,684 passed, 3 existing skips across 212 files**.
+- Backend tool registry: **10 passed**, with four existing FastAPI lifecycle
+  deprecation warnings. Desktop and mobile production builds passed with the
+  existing large-chunk, linkedom eval and manifold externalization warnings.
+- Updated `node scripts/qa-reverse-engineer.cjs` passed with a disposable profile:
+  five cards, task selection/expanded guidance, default detection, missing-file
+  recheck before launch, custom override/reset, filters, persistence, browser
+  fallback, storage errors and 420 px layout. Desktop/guided captures inspected.
+- Locally installed Ghidra 12.2 with private Temurin JDK 25.0.5, dnSpyEx 6.6.0,
+  JADX 1.5.6 with its bundled JRE, and x64dbg snapshot 2026.05.27. All five
+  downloaded archives (including the JDK) matched their published SHA-256 values.
+  Installed Frida 17.25.0 / frida-tools 14.11.0 in an isolated Python environment.
+  Installers, runtimes, shortcuts, receipts and backups remain outside Git.
+- The registered launch path opened the four graphical tools and Frida's
+  prepared terminal. Observed Ghidra's project manager, dnSpyEx's browser,
+  JADX's start page, and x64dbg after architecture selection. Frida attached
+  to an isolated test subprocess and executed a small architecture query.
+- A fresh desktop launch displayed all five installed versions and enabled their
+  launch buttons. The previously running app did not resolve its profile junction
+  to the installation receipt; a full close and fresh launch resolved the lookup.
+  Documentation validation: **58 Markdown files, 293 local links, 92 relocation
+  entries; zero errors**.
+- These checks do not establish decompilation accuracy for arbitrary files,
+  every debugger feature, Unity support or mobile tracing/device readiness.
+
 ## October 31 Phone workspace, phase 2
 
 Added **Workspace → Phone** with passive KDE Connect and scrcpy file discovery,

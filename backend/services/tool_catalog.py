@@ -280,7 +280,7 @@ TOOLS = (
          "Mix UI templates, palettes, fonts and control treatments in an isolated playground, compare library components and inspect source code.",
          "A locally saved design, exported preview or explicitly applied desktop appearance.", requirements=("Interactive workspace", "Explicit apply/export action")),
     Tool("reverse_engineer_ui", "Open reverse-engineering tools", "Reverse Engineer", "reverse-engineer",
-         "Compare Ghidra, IDA / IDA Pro, Binary Ninja, Cutter, radare2, x64dbg, ILSpy, dnSpyEx, JADX and Frida; open official guides and link installed programs.",
+         "Choose Ghidra, dnSpyEx, JADX, x64dbg or Frida by use case; follow beginner steps and launch detected local installations or custom programs.",
          "An external tool window opened by the user, or official documentation. Analysis runs in the selected tool, not through this catalog.",
          effects=("writes_app_data", "system_changes", "network"),
          requirements=("Interactive workspace", "Desktop app for local launchers", "Separately installed tools", "Explicit user action")),

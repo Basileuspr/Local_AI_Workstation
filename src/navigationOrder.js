@@ -59,7 +59,7 @@ export const navigationSections = [
   { id: 'design-code', label: 'Design & Programming', items: designTools },
 ];
 navigationSections[0].items.push({ id: 'testing-lab', label: 'Testing Lab', title: 'Testing Lab · model comparisons, request accuracy, factual accuracy and results over time' });
-navigationSections[0].items.push({ id: 'reverse-engineer', label: 'Reverse Engineer', title: 'Reverse Engineer · Ghidra, IDA, Binary Ninja, Cutter, radare2, x64dbg, ILSpy, dnSpyEx, JADX and Frida' });
+navigationSections[0].items.push({ id: 'reverse-engineer', label: 'Reverse Engineer', title: 'Reverse Engineer · Ghidra, dnSpyEx, JADX, x64dbg and Frida' });
 export const NAVIGATION_ORDER_KEY = 'local-ai-workstation-tab-order-v1';
 const complete = (saved, defaults) => [...new Set([...(Array.isArray(saved) ? saved.filter(id => defaults.includes(id)) : []), ...defaults])];
 export function normalizeNavigationOrder(value) {

@@ -62,30 +62,36 @@ Web's position and its tool order; Find a tab searches all three destinations.
 ## Reverse Engineer
 
 **Reverse Engineer** is a main-bar tab beside Dashboard and the other utilities.
-It includes **Ghidra**, **IDA / IDA Pro**, **Binary Ninja**, **Cutter**, **radare2**,
-**x64dbg**, **ILSpy**, **dnSpyEx**, **JADX**, and **Frida**. Search by name, purpose
-or platform, filter by analysis category, or show only linked launchers.
+It includes five free tools with distinct primary uses: **Ghidra** for reading
+native code, **dnSpyEx** for reading/debugging .NET, **JADX** for Android packages,
+**x64dbg** for stepping through Windows programs, and **Frida** for scripted live
+tracing. Overlapping alternatives were removed from the catalog. Choose a task
+under **What do you want to do?**, search, filter by category, or show linked tools.
 The tab is also available through Find a tab, Functions, side panes, captures,
 and Info Center. Existing saved tab arrangements gain it without losing their order.
 
-Each card has a purpose, licensing summary, official download and documentation
-links, and expandable setup notes. Programs are installed separately and open
-in their own windows; this workspace does not embed their interfaces or analyze
-binaries itself. IDA Free uses cloud decompilation, so check the edition before
-sending code. Documentation links open in the default browser in the desktop app.
+Each card explains the file types, a concrete example, what Launch opens, three
+first steps and the expected result. Ghidra, dnSpyEx and JADX can read files without
+running them; debugging and tracing execute or attach to your selected target.
+Programs open in their own windows. Official guides open in the default browser.
 
-After installing a tool, use **Choose program…** to select its `.exe` or Windows
-`.lnk` shortcut, then **Launch**. For Ghidra, create a shortcut to `ghidraRun.bat`;
-Java-based JADX can similarly use a shortcut to `jadx-gui.bat`. For radare2 and
-Frida, link a terminal shortcut configured for the required environment. Select
-analysis targets and arguments inside the external tool. **Launcher linked**
-indicates a saved selection, not a readiness check. A missing or moved launcher
-reports an error; use **Change program…** to replace it.
+The local installation setup links tools automatically. **Refresh installed tools**
+checks the profile's installation receipt, registered shortcut and required files;
+**Installed** does not prove every runtime feature or target analysis works.
+Missing files disable the default launcher. **Launcher settings → Change program…**
+can override it with an installed `.exe` or `.lnk`. **Use installed version** removes
+the override. If there is no installed default, **Unlink** removes the custom choice.
+Select analysis targets inside the external tool. Frida opens a prepared terminal
+without attaching to anything; mobile tracing requires separate device setup.
 
-Choices persist locally using the existing desktop program registry and a
-renderer association map. **Unlink** removes the association without uninstalling
-software, deleting projects, or changing existing Functions buttons. Browser-only
-views keep the catalog and links available but disable native selection/launch.
+The private desktop profile stores `reverse-engineer-installations.json` (schema
+version 1, per-tool registered UUID, version and required absolute file paths)
+beside `program-launchers.json`. The renderer receives only names, versions, IDs
+and availability. Custom choices use a local renderer map and take precedence.
+Old choices for retired tools are ignored without invalidating retained choices;
+their installed software and existing Functions buttons are unaffected. Runtime
+files and receipts stay outside the repository. Browser-only views keep guides
+available but disable native selection/launch.
 
 ## Design & Programming
 

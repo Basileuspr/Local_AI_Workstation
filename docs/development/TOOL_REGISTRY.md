@@ -21,8 +21,9 @@ Knowledge saves and transfer confirmation remain explicit workspace controls.
 See [Coordinator](../workspace/COORDINATOR.md) for saved runs and recovery.
 
 Reverse Engineer's catalog entry describes its interactive tool hub and saved
-desktop launchers. Ghidra and the nine other listed applications require separate
-installation. They are not exposed as model-callable analysis or shell endpoints;
+desktop launchers. Ghidra, dnSpyEx, JADX, x64dbg and Frida are external free tools.
+Local installation receipts link them automatically; custom selections remain available.
+They are not exposed as model-callable analysis or shell endpoints;
 opening a catalog entry does not launch a program.
 
 Phone is an interactive setup workspace. Its catalog entry does not expose

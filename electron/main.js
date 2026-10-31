@@ -39,6 +39,7 @@ const { mediaManagerPaths } = require("./mediaManagerPaths");
 const { createTabCapture } = require("./tabCapture");
 const { runDesktopAction, writeClipboardImage } = require("./desktopFunctions");
 const { createProgramLaunchers } = require("./programLaunchers");
+const { createReverseEngineerInstallations } = require('./reverseEngineerInstallations');
 const { createGitHubPublisher } = require("./githubPublisher");
 const { createFunctionWorkflows } = require('./functionWorkflows');
 const { backendFailure, pythonPreflight, desktopCapabilities } = require("./compatibility");
@@ -307,6 +308,9 @@ ipcMain.handle("functions:run-action", async (event, action) => {
     finally { desktopActionBusy = false; }
 });
 const programLaunchers = createProgramLaunchers({ file: path.join(app.getPath("userData"), "program-launchers.json"), dialog, shell, getWindow: () => mainWindow });
+const reverseEngineerInstallations = createReverseEngineerInstallations({ directory: app.getPath('userData') });
+ipcMain.handle('reverse-engineer:installations', event => trustedDesktop(event)
+    ? reverseEngineerInstallations() : { error: 'Desktop access required.' });
 const windowsUtilities = require('./windowsUtilities').createWindowsUtilities({
     file: path.join(app.getPath('userData'), 'windows-utilities.json'), shell, dialog, getWindow: () => mainWindow,
     desktopDirectory: app.getPath('desktop'),

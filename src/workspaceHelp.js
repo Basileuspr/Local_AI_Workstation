@@ -8,8 +8,8 @@ const overview = {
     example: 'Open Phone and refresh detection. If scrcpy is not found, choose the folder containing its extracted Windows release. Use Companion for existing pairing and remote chat controls. Core files found means installation files are present; it does not establish a phone connection.',
   },
   'reverse-engineer': {
-    purpose: 'Compare ten reverse-engineering tools, open official downloads and guides, and save launch buttons for installed desktop programs.',
-    example: 'Find Ghidra, expand Setup & tool notes, and install its official release and required Java runtime. Create a Windows shortcut to ghidraRun.bat, choose that shortcut here, then select Launch. Open your target file inside Ghidra.',
+    purpose: 'Choose among five free tools with distinct jobs, read beginner examples and first steps, and launch linked local installations.',
+    example: 'Choose Look inside an Android APK to focus on JADX. Read Your first steps, select Launch, then open your APK inside JADX. Installed tools are linked automatically on this desktop; Launcher settings can select a different program.',
   },
   'testing-lab': {
     purpose: 'Compare local models with pasted online-model responses, review request and factual accuracy, and track saved evaluations over hours, days and weeks.',

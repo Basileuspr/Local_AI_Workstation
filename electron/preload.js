@@ -64,6 +64,7 @@ contextBridge.exposeInMainWorld("workstationDesktop", {
     chooseWindowsUtility: id => ipcRenderer.invoke('functions:utility-choose', id),
     chooseProgram: () => ipcRenderer.invoke("functions:choose-program"),
     openProgram: (id) => ipcRenderer.invoke("functions:open-program", id),
+    reverseEngineerInstallations: () => ipcRenderer.invoke('reverse-engineer:installations'),
     captureTab: (tab) => ipcRenderer.invoke("functions:capture-tab", tab),
     chooseFunctionFolder: purpose => ipcRenderer.invoke('function-workflows:choose-folder', purpose),
     inspectFunctionWindow: request => ipcRenderer.invoke('function-workflows:inspect', request),

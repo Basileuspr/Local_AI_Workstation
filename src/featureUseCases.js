@@ -6,7 +6,7 @@ import { workspaceHelp } from './workspaceHelp';
 // per workspace so the directory cannot silently omit a newly added feature.
 export const featureUseCases = {
   phone: ['Detect KDE Connect and scrcpy installations or choose their local folders.', 'Set up phone tools and open existing Workstation Companion controls in one workspace.'],
-  'reverse-engineer': ['Choose a native-code, .NET, Android or runtime-analysis tool for the program you want to understand.', 'Keep Ghidra and nine related tools together with official guides and saved local launchers.'],
+  'reverse-engineer': ['Choose a native-code, .NET, Android or runtime-analysis tool using plain-language examples and first steps.', 'Launch Ghidra, dnSpyEx, JADX, x64dbg or Frida from their detected local installations or a custom launcher.'],
   'testing-lab': ['Compare local responses with flagship online-model answers using your own prompts and verified references.', 'Schedule repeated evaluations and review accuracy, changing information, failures and local performance over days or weeks.'],
   coordinator: ['Choose Coding to fix a focused bug and inspect verified changes.', 'Research with citations, save selected evidence to Knowledge, or review Media Librarian organization proposals.'],
   'design-programming': ['Mix palettes, fonts, corners, spacing, surfaces, and buttons in a live preview before applying them to the app.', 'Save a design preset, compare library components, and inspect its HTML or CSS alongside the code viewers.'],

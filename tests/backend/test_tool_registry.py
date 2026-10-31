@@ -73,7 +73,7 @@ def test_reverse_engineer_discovery_is_interactive_not_model_execution(client):
     assert tool["availability"] == "ui_only"
     assert tool["llm_callable"] is False
     assert tool["endpoint"] is None
-    for name in ("Ghidra", "IDA", "Binary Ninja", "Cutter", "radare2", "x64dbg", "ILSpy", "dnSpyEx", "JADX", "Frida"):
+    for name in ("Ghidra", "dnSpyEx", "JADX", "x64dbg", "Frida"):
         assert name in tool["description"]
 
 

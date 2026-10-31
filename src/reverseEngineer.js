@@ -1,104 +1,89 @@
 export const REVERSE_ENGINEER_KEY = 'local-ai-workstation-reverse-engineer-v1';
-export const reverseCategories = ['Native code', 'Runtime analysis', '.NET', 'Android'];
+export const reverseCategories = ['Native code', '.NET', 'Android', 'Runtime analysis'];
+const retiredTools = ['ida', 'binary-ninja', 'cutter', 'radare2', 'ilspy'];
 
 export const reverseTools = [
   {
-    id: 'ghidra', name: 'Ghidra', category: 'Native code', kind: 'Reverse-engineering framework',
-    description: 'Explore compiled programs with disassembly, C-like decompilation, function graphs and scripting.',
-    bestFor: 'Understanding native executables, libraries and firmware without their original source.',
+    id: 'ghidra', name: 'Ghidra', category: 'Native code', kind: 'Read compiled programs', level: 'Start here for native code',
+    task: 'Understand a Windows program or firmware',
+    description: 'Turns machine instructions into readable, C-like code so you can explore what a program does.',
+    bestFor: 'An EXE, DLL or firmware file when you do not have its source code.',
+    example: 'Find how your own C/C++ application reads a file or handles a particular message.',
+    files: 'Native EXE · DLL · firmware', outcome: 'A project with functions, strings and reconstructed code you can browse.',
+    launch: 'Opens the Ghidra project manager. No target program runs when you import it for analysis.',
+    steps: ['Choose File → New Project → Non-Shared Project, then pick a folder and name.',
+      'Choose File → Import File and select a copy of your EXE or DLL. Accept the detected format.',
+      'Double-click the imported file, choose Yes to analyze it, then select a function to read the Decompiler pane.'],
     platforms: 'Windows · macOS · Linux', license: 'Free · open source',
-    website: 'https://github.com/NationalSecurityAgency/ghidra/releases',
-    docs: 'https://github.com/NationalSecurityAgency/ghidra',
-    setup: 'Download the official release, extract it, and install the Java version required by that release. On Windows, create a shortcut to ghidraRun.bat and link that .lnk here.',
-    note: 'Decompiled code is a reconstruction; original comments and many names are not recovered.',
+    website: 'https://github.com/NationalSecurityAgency/ghidra/releases', docs: 'https://github.com/NationalSecurityAgency/ghidra',
+    note: 'Reconstructed code will not contain the original comments and may have unfamiliar names. Use dnSpyEx for managed .NET files.',
   },
   {
-    id: 'ida', name: 'IDA / IDA Pro', category: 'Native code', kind: 'Disassembler, debugger & decompiler suite',
-    description: 'Navigate assembly, cross-references and function graphs, with decompilation available by edition.',
-    bestFor: 'Detailed analysis of native applications across supported processor architectures.',
-    platforms: 'Windows · macOS · Linux', license: 'Free edition · paid editions',
-    website: 'https://hex-rays.com/ida-free', docs: 'https://docs.hex-rays.com/',
-    setup: 'Choose an edition from Hex-Rays, install it, then link its executable or Windows shortcut.',
-    note: 'IDA Free is for non-commercial use and uses cloud-based decompilation. Check the edition before sending code for decompilation.',
-  },
-  {
-    id: 'binary-ninja', name: 'Binary Ninja', category: 'Native code', kind: 'Binary analysis platform',
-    description: 'Read disassembly and decompiled code, debug applications, and automate analysis in supported editions.',
-    bestFor: 'Interactive native-code analysis and repeatable analysis scripts.',
-    platforms: 'Windows · macOS · Linux', license: 'Free edition · paid editions',
-    website: 'https://binary.ninja/free/', docs: 'https://binary.ninja/features/',
-    setup: 'Install the desktop edition you want to use and link its executable or Windows shortcut.',
-    note: 'The free desktop edition has architecture and API/plugin restrictions. Paid editions offer broader automation.',
-  },
-  {
-    id: 'cutter', name: 'Cutter', category: 'Native code', kind: 'Graphical reverse-engineering platform',
-    description: 'Inspect binaries through a graphical interface powered by the Rizin analysis engine.',
-    bestFor: 'Visual navigation of assembly, graphs and decompiled code in an open-source workspace.',
-    platforms: 'Windows · macOS · Linux', license: 'Free · open source',
-    website: 'https://cutter.re/', docs: 'https://cutter.re/docs/',
-    setup: 'Download the official release, extract the Windows archive, and link cutter.exe or its shortcut.',
-    note: 'Cutter uses Rizin. radare2 is a separate tool with its own commands and plugins.',
-  },
-  {
-    id: 'radare2', name: 'radare2', category: 'Native code', kind: 'Command-line reverse-engineering framework',
-    description: 'Disassemble, debug and edit binaries with terminal commands, scripts and plugins.',
-    bestFor: 'Terminal-based exploration and automated binary-analysis workflows.',
-    platforms: 'Windows · macOS · Linux', license: 'Free · open source',
-    website: 'https://github.com/radareorg/radare2/releases', docs: 'https://github.com/radareorg/radare2',
-    setup: 'Install an official release. Create a Windows terminal shortcut for your radare2 workflow and link the .lnk so the terminal stays open.',
-    note: 'Choose target files and arguments in your terminal. This workspace opens your saved launcher without constructing commands.',
-  },
-  {
-    id: 'x64dbg', name: 'x64dbg', category: 'Runtime analysis', kind: 'Windows debugger',
-    description: 'Pause a running program, step through instructions, and inspect memory, registers and threads.',
-    bestFor: 'Observing the runtime behavior of 32-bit and 64-bit Windows applications.',
-    platforms: 'Windows', license: 'Free · open source',
-    website: 'https://x64dbg.com/', docs: 'https://help.x64dbg.com/',
-    setup: 'Extract the official Windows release and link x96dbg.exe, x64dbg.exe, x32dbg.exe, or a shortcut.',
-    note: 'Debugging executes the selected application. Choose the application inside the debugger after launch.',
-  },
-  {
-    id: 'ilspy', name: 'ILSpy', category: '.NET', kind: '.NET assembly browser & decompiler',
-    description: 'Browse .NET classes and methods, reconstruct readable C#, and export decompiled projects.',
-    bestFor: 'Reading managed .NET executables and DLLs.',
-    platforms: 'See release-specific packages', license: 'Free · open source',
-    website: 'https://github.com/icsharpcode/ILSpy/releases', docs: 'https://github.com/icsharpcode/ILSpy',
-    setup: 'Install or extract an official desktop release and link ILSpy.exe or its Windows shortcut.',
-    note: 'Designed for managed .NET assemblies. Native machine-code binaries need a native-code analysis tool.',
-  },
-  {
-    id: 'dnspyex', name: 'dnSpyEx', category: '.NET', kind: '.NET debugger & assembly editor',
-    description: 'Inspect, debug and edit .NET assemblies, including supported Unity managed assemblies.',
-    bestFor: 'Following managed code while it runs and reviewing changes to .NET assemblies.',
+    id: 'dnspyex', name: 'dnSpyEx', category: '.NET', kind: 'Read and debug C# / .NET apps', level: 'Good first tool for .NET',
+    task: 'Read the C# code inside a .NET app',
+    description: 'Shows the classes and methods inside a .NET program as readable C#. It can also pause the program while it runs.',
+    bestFor: 'Managed .NET EXE and DLL files, including supported Unity Mono assemblies.',
+    example: 'Open your own .NET utility and find the method behind one of its buttons.',
+    files: 'Managed .NET EXE · DLL', outcome: 'A tree of namespaces, classes and methods with reconstructed C#.',
+    launch: 'Opens the dnSpyEx assembly browser. Opening a file for reading does not start that file.',
+    steps: ['Choose File → Open and select a copy of your .NET EXE or DLL.',
+      'Expand the assembly tree, choose a class, then click a method to read its C# code.',
+      'Start by reading only. For a program you trust, Debug → Start Debugging lets you use breakpoints to follow execution.'],
     platforms: 'Windows', license: 'Free · open source',
     website: 'https://github.com/dnSpyEx/dnSpy/releases', docs: 'https://github.com/dnSpyEx/dnSpy',
-    setup: 'Extract the official dnSpyEx release and link dnSpy.exe or its shortcut.',
-    note: 'A continuation of dnSpy. Unity debugging needs the documented Mono support; native IL2CPP builds require a different workflow.',
+    note: 'Native C/C++ and Unity IL2CPP builds need a native-code workflow such as Ghidra. Editing assemblies changes the file when you save.',
   },
   {
-    id: 'jadx', name: 'JADX', category: 'Android', kind: 'Android / Java decompiler',
-    description: 'Inspect APK and DEX bytecode as Java-like source alongside the manifest and application resources.',
-    bestFor: 'Understanding Android application code and resources.',
+    id: 'jadx', name: 'JADX', category: 'Android', kind: 'Read Android app packages', level: 'Good first tool for Android',
+    task: 'Look inside an Android APK',
+    description: 'Opens an Android app package and shows Java-like code, its manifest and packaged resources.',
+    bestFor: 'An APK or DEX file you want to understand without installing the app on a phone.',
+    example: 'Inspect your own APK to see its declared permissions, screens and bundled images.',
+    files: 'APK · DEX · Java archives', outcome: 'Browsable code and resources, including AndroidManifest.xml.',
+    launch: 'Opens the graphical JADX window. Opening an APK here does not install or run the app.',
+    steps: ['Choose File → Open and select your APK.',
+      'Expand Resources and open AndroidManifest.xml to see the app entry points and requested permissions.',
+      'Expand Source code to browse classes. Use search to locate text or a class name that interests you.'],
     platforms: 'Windows · macOS · Linux', license: 'Free · open source',
     website: 'https://github.com/skylot/jadx/releases', docs: 'https://github.com/skylot/jadx',
-    setup: 'Use an official Windows bundle or the Java-based release. Link jadx-gui.exe, or create and link a shortcut to jadx-gui.bat.',
-    note: 'Some methods cannot be fully decompiled. Native libraries inside an APK need a native-code tool such as Ghidra.',
+    note: 'Some code cannot be fully reconstructed. Native .so libraries inside an APK are a job for Ghidra.',
   },
   {
-    id: 'frida', name: 'Frida', category: 'Runtime analysis', kind: 'Dynamic instrumentation toolkit',
-    description: 'Use scripts to trace function calls, inspect values and change behavior while an application runs.',
-    bestFor: 'Scripted runtime investigation of desktop and mobile applications.',
-    platforms: 'Desktop · Android · iOS', license: 'Free · open source',
+    id: 'x64dbg', name: 'x64dbg', category: 'Runtime analysis', kind: 'Step through a Windows program', level: 'Intermediate · runs your target',
+    task: 'Pause a Windows program and inspect it',
+    description: 'A Windows debugger: pause a program, step through its instructions and inspect memory as it runs.',
+    bestFor: 'Finding what a native Windows EXE does at a particular moment, such as just before a crash.',
+    example: 'Run your own small Windows program, pause it and inspect the instruction where it stops.',
+    files: '32-bit or 64-bit Windows EXE', outcome: 'A live view of instructions, registers, memory and the call stack.',
+    launch: 'Opens the architecture chooser. Choose x64dbg for a 64-bit target or x32dbg for a 32-bit target.',
+    steps: ['Choose the debugger matching your program: x64dbg (64-bit) or x32dbg (32-bit).',
+      'Choose File → Open and select an EXE you trust. The debugger starts it in a paused state.',
+      'Use Debug → Run to continue, Pause to stop, or Step over to advance one instruction. Stop debugging when finished.'],
+    platforms: 'Windows', license: 'Free · open source',
+    website: 'https://x64dbg.com/', docs: 'https://help.x64dbg.com/',
+    note: 'Debugging executes the target. Start with your own test program; use Ghidra first if you only want to read a file.',
+  },
+  {
+    id: 'frida', name: 'Frida', category: 'Runtime analysis', kind: 'Trace live behavior with scripts', level: 'Advanced · scripting',
+    task: 'Record function calls with a script',
+    description: 'Runs your JavaScript probes inside a selected process to observe function calls and values while it runs.',
+    bestFor: 'Repeatable tracing across many calls, after you know what part of a program you want to observe.',
+    example: 'Write a probe that logs each call to a known function in your own test application.',
+    files: 'Running processes · JavaScript probes', outcome: 'A terminal showing process information or the output of your tracing script.',
+    launch: 'Opens a prepared terminal with Frida commands and a small help menu. It does not attach to a process automatically.',
+    steps: ['In the Frida terminal, enter frida-ps to list local processes and note the ID of your own test app.',
+      'Follow the official JavaScript API guide to create a probe for a function you understand.',
+      'Load your probe with frida -p <PID> -l <script.js>, replacing both placeholders. Enter exit to leave the session.'],
+    platforms: 'Windows desktop · Android / iOS with extra setup', license: 'Free · open source',
     website: 'https://frida.re/', docs: 'https://frida.re/docs/home/',
-    setup: 'Follow the official installation guide for frida-tools and your target platform. Link a Windows terminal shortcut prepared for your Frida environment.',
-    note: 'Device setup and compatible target components may be required. Select processes and scripts in your Frida session.',
+    note: 'The local desktop tools are sufficient for Windows tracing. Phone tracing needs separate device setup; this launcher does not configure a phone.',
   },
 ];
 
 export function filterReverseTools(query = '', category = '', linkedOnly = false, links = {}) {
   const terms = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
   return reverseTools.filter(tool => (!category || tool.category === category) && (!linkedOnly || links[tool.id])
-    && terms.every(term => [tool.name, tool.category, tool.kind, tool.description, tool.bestFor, tool.platforms, tool.setup]
+    && terms.every(term => [tool.name, tool.category, tool.kind, tool.description, tool.bestFor, tool.platforms, tool.task, tool.example, tool.files]
       .join(' ').toLocaleLowerCase().includes(term)));
 }
 
@@ -106,12 +91,12 @@ export function validateReverseLinks(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Saved tool launchers could not be read.');
   const clean = {};
   for (const [key, entry] of Object.entries(value)) {
-    if (!reverseTools.some(tool => tool.id === key) || !entry || typeof entry.id !== 'string'
+    if ((!reverseTools.some(tool => tool.id === key) && !retiredTools.includes(key)) || !entry || typeof entry.id !== 'string'
       || !/^[a-f\d]{8}(?:-[a-f\d]{4}){3}-[a-f\d]{12}$/i.test(entry.id)
       || typeof entry.name !== 'string' || !entry.name.trim() || entry.name.length > 260) {
       throw new Error('Saved tool launchers could not be read.');
     }
-    clean[key] = { id: entry.id, name: entry.name };
+    if (!retiredTools.includes(key)) clean[key] = { id: entry.id, name: entry.name };
   }
   return clean;
 }

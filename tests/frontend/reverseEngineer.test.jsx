@@ -32,9 +32,16 @@ describe('reverse-engineering launchers', () => {
     expect(() => saveReverseLinks({ ghidra: choice }, blocked)).toThrow('Storage full');
   });
 
+  it('ignores retired tools without invalidating retained links or rewriting storage on read', () => {
+    const storage = memory(), raw = JSON.stringify({ ghidra: choice, ilspy: choice, ida: choice });
+    storage.setItem(REVERSE_ENGINEER_KEY, raw);
+    expect(loadReverseLinks(storage)).toEqual({ links: { ghidra: choice }, error: '' });
+    expect(storage.getItem(REVERSE_ENGINEER_KEY)).toBe(raw);
+  });
+
   it('combines search, category and linked filters, including empty results', () => {
     expect(filterReverseTools('  WINDOWS debugger ', 'Runtime analysis').map(tool => tool.id)).toEqual(['x64dbg']);
-    expect(filterReverseTools('', '.NET').map(tool => tool.id)).toEqual(['ilspy', 'dnspyex']);
+    expect(filterReverseTools('', '.NET').map(tool => tool.id)).toEqual(['dnspyex']);
     expect(filterReverseTools('', '', true, { ghidra: choice }).map(tool => tool.id)).toEqual(['ghidra']);
     expect(filterReverseTools('ghidra', 'Android')).toEqual([]);
     expect(filterReverseTools('', '', true, {})).toEqual([]);
@@ -44,9 +51,10 @@ describe('reverse-engineering launchers', () => {
     vi.stubGlobal('localStorage', memory());
     const { document } = parseHTML(renderToStaticMarkup(<ReverseEngineer />));
     expect([...document.querySelectorAll('article h2')].map(node => node.textContent)).toEqual([
-      'Ghidra', 'IDA / IDA Pro', 'Binary Ninja', 'Cutter', 'radare2', 'x64dbg', 'ILSpy', 'dnSpyEx', 'JADX', 'Frida',
+      'Ghidra', 'dnSpyEx', 'JADX', 'x64dbg', 'Frida',
     ]);
-    expect(document.querySelectorAll('button[disabled]')).toHaveLength(20);
+    expect(document.querySelectorAll('button[disabled]')).toHaveLength(11);
+    expect(document.querySelectorAll('.re-guide li')).toHaveLength(15);
     for (const link of document.querySelectorAll('a')) {
       expect(new URL(link.href).protocol).toBe('https:');
       expect(link.getAttribute('rel')).toBe('noopener noreferrer');
