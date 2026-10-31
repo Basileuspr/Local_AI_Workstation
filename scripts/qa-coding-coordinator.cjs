@@ -26,7 +26,8 @@ if (!process.versions.electron) {
     assert(await js("[...document.querySelectorAll('button')].find(b=>b.textContent==='Start coding task').disabled"));
     await button('Choose project…'); await until("document.querySelector('.verification-environment')?.textContent.includes('Python')");
     assert.equal(await js("window.codingCalls.filter(c=>c.action==='start').length"), 0);
-    assert.equal(await js("document.querySelectorAll('.verification-check').length"), 3);
+    assert.equal(await js("document.querySelectorAll('.verification-check').length"), 4);
+    assert(await js("document.querySelector('.coding-verification').textContent.includes('no database execution') && document.querySelector('.coding-verification').textContent.includes('javac -proc:none')"));
     assert(await js("!document.querySelector('.verification-custom').open"));
     await js(`(()=>{const e=document.querySelector('textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(e,'Fix add so it returns the sum, preserving user notes.');e.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('.coding-consent input').click();const p=document.querySelector('input[placeholder="For example: frontend changes"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(p,'Daily checks');p.dispatchEvent(new Event('input',{bubbles:true}));})()`);
     await button('Save profile'); await until("document.querySelector('[aria-label=\"Saved verification profile\"]').options.length===2");

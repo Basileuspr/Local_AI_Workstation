@@ -4,6 +4,49 @@ This is the consolidated evidence record, updated October 30, 2026.
 Current guides describe inspected source; dated tests below are not a certification
 of every feature, provider, installation or device.
 
+## October 30 Coding Coordinator language runners
+
+The [Coding verification guide](../workspace/CODING_COORDINATOR.md#language-runners)
+documents SQL, Java/JVM, JavaScript/JSX, HTML/CSS, C/C++, TypeScript, Python and
+.NET recipes alongside the retained Rust/Go checks. These replace the earlier
+Java detection-only limitation. Runners remain independent of the selected model.
+
+- Frontend: **1,634 passed, 3 existing skips across 204 files**. Selected backend
+  language/coordinator, approval, tool execution/registry, maintenance, queue,
+  model-runtime and session-guard suites: **148 passed**, with four existing
+  FastAPI deprecation warnings. Runtime data was disposable.
+- Actual positive and negative source checks passed for SQL, HTML, CSS, JSX,
+  TypeScript, Java, C, C++ and Python. Tests also cover an oversized ignored SQL
+  file being parsed instead of silently skipped, wrapper-version mismatches,
+  missing tools, stable selection when source files are added, distinct .NET
+  project names, changed-dialect grant invalidation and protected user drafts.
+- Actual CMake/CTest builds accepted a working C program and rejected a failing
+  test. Additional disposable Git fixtures exercised Maven/Gradle JUnit tests,
+  C# compilation and .NET xUnit tests through the coordinator's contained runner:
+  valid code passed and deliberate failures failed. Empty Gradle/.NET test suites
+  failed. Cache activity did not invalidate otherwise unchanged JVM approvals.
+  A deterministic Java coding task waited for permission, compiled the edit and
+  preserved an existing user draft.
+- Both isolated Electron walkthroughs passed, including the SQL/Java recipe
+  descriptions, execution evidence, approvals and narrow layout. Screenshots were
+  inspected. The shared Coordinator fixture now waits for its asynchronous action
+  lock after cancellation before reopening the transfer confirmation; application
+  transfer behavior is unchanged.
+- Optional validators were installed outside the checkout and application venv:
+  SQLFluff 4.5.0, HTML-validate 10.17.0, Stylelint 17.16.0, TypeScript 6.0.3,
+  Babel parser 7.29.8, CMake 4.4.4, Ninja 1.13.0, Maven 3.10.0 and Zig 0.17.0.
+  Native archives passed their pinned checksums; the separate Python environment
+  passed `pip check` and the validator npm dependency audit reported zero findings.
+  Installed JDK 21, Gradle 8.13 and .NET SDK 9 were used for the live fixtures.
+  Dependency preparation was explicit; coordinator checks never install packages.
+- SQL acceptance establishes dialect grammar, not schema/data correctness or
+  successful database execution. Web validators establish static checks, not
+  browser behavior. Kotlin/Scala/Groovy and F#/Visual Basic project discovery is
+  covered; their compilers were not live-tested. Rust/Go toolchains were unavailable
+  for live acceptance. Non-Windows execution and fresh tool installation on a
+  clean OS were not tested. GPT-OSS/Qwen inference and physical-phone behavior were
+  not rerun. Desktop assets use separate build output; the live app is not restarted.
+
 ## October 30 Coordinator harness workspace
 
 [Coordinator](../workspace/COORDINATOR.md) is a main tab with Coding,

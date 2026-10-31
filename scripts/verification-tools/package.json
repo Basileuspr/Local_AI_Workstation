@@ -1,0 +1,9 @@
+{
+  "dependencies": {
+    "@babel/parser": "7.29.8",
+    "html-validate": "10.17.0",
+    "stylelint": "17.16.0",
+    "stylelint-config-standard": "40.0.0",
+    "typescript": "6.0.3"
+  }
+}

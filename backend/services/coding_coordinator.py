@@ -414,6 +414,7 @@ class CodingCoordinator:
         self.event(run, 'check', 'Running ' + name)
         record = {'name': name, 'revision': run['revision'], 'passed': False, 'output': '', 'running': True,
                   'status': 'running', 'argv': check['argv'], 'cwd': str(cwd), 'exit_code': None,
+                  'display_command': check.get('display_command', ''),
                   'category': check.get('category', 'custom'), 'reason': 'Final verification of matching changed files' if final else 'Requested by the coding model'}
         run['check_results'].append(record)
         def output(text):

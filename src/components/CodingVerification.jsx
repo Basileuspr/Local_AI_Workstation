@@ -3,6 +3,7 @@ import { checkStatus, displayCommand } from '../codingCoordinator';
 
 export function CheckEvidence({ check }) {
   return <dl className="verification-evidence">
+    {check.display_command && <><dt>Verification</dt><dd>{check.display_command}</dd></>}
     <dt>Command</dt><dd><code>{displayCommand(check.argv)}</code></dd>
     <dt>Working directory</dt><dd>{check.cwd || '.'}</dd>
     {check.source && <><dt>Detected from</dt><dd>{check.source}</dd></>}
@@ -56,7 +57,7 @@ export default function CodingVerification({ catalog, selected, onSelected, mode
       return checks.length > 0 && <fieldset className="verification-group" key={category}><legend>{({ tests: 'Tests', types: 'Type checks', lint: 'Lint / static analysis', build: 'Build', security: 'Security checks' })[category]}</legend>
         {checks.map(check => <div className={`verification-check ${check.unavailable ? 'unavailable' : ''}`} key={check.id}>
           <label className="verification-check-title"><input type="checkbox" checked={selected.includes(check.id)} disabled={busy || !!check.unavailable} onChange={event => onSelected(event.target.checked ? [...selected, check.id] : selected.filter(id => id !== check.id))}/><strong>{check.name}</strong><span className="verification-badge">{check.approved ? 'approved definition' : 'approval needed'}</span></label>
-          <code className="verification-command">{displayCommand(check.argv) || 'Required tool unavailable'}</code>
+          <code className="verification-command">{check.display_command || displayCommand(check.argv) || 'Required tool unavailable'}</code>
           <span className="coding-hint">From {check.source} · {check.language} files · {check.timeout_seconds}s limit</span>
           {check.unavailable ? <p role="note">{check.unavailable}</p> : <details><summary>Command details and execution scope</summary><CheckEvidence check={check}/><p>{check.risk}</p></details>}
         </div>)}

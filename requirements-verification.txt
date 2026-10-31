@@ -1,0 +1,4 @@
+# Optional verification environment; install separately from the application venv.
+sqlfluff==4.5.0
+cmake==4.4.4
+ninja==1.13.0

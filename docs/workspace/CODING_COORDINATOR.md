@@ -16,13 +16,13 @@ contexts on the selected model, taking turns through the existing GPU queue.
 ## Verification Manager
 
 Choosing a project inspects its configuration files without executing scripts.
-Python, Node.js, TypeScript, Rust and Go projects can supply checks grouped into
-tests, lint/static analysis, type checks, build and security. Discovery reads
+Projects can supply checks grouped into tests, lint/static analysis, type checks,
+build and security. Discovery reads
 bounded configuration files in the repository and nested packages. It shows the
 command, working directory, source configuration and any npm script definitions,
 including pre/post hooks. Missing runners and watch commands cannot be selected.
-Recognized Gradle/Maven projects currently need a supported custom or existing
-package-script check; there is no direct Java/Android runner recipe.
+Language recipes describe their purpose alongside the actual launcher. Execution
+output includes the compiler/validator commands and exit statuses.
 
 Review the detected selection before starting. Routine root-level tests, lint and
 type checks are preferred; builds and specialized scripts are optional. The final
@@ -56,9 +56,78 @@ without deleting profiles.
 `node node_modules/vitest/vitest.mjs run`. Quote paths containing spaces. An
 absolute virtual-environment Python path selects that environment. Custom checks
 accept Python or Node executables from the project root; batch files and shell
-pipelines are unsupported. Up to 12 checks can be selected, with a two-minute
-timeout per check. Detected Rust/Go checks use fixed runner recipes with dependency
+pipelines are unsupported. Up to 12 checks can be selected. Custom and existing
+package checks have a two-minute limit; the language recipes below have a
+five-minute limit. Detected Rust/Go checks use fixed runner recipes with dependency
 downloads disabled. Dependencies are never installed by the coordinator.
+
+### Language runners
+
+A **runner** is the program that actually performs a check, such as a compiler,
+test framework or validator. It is separate from the model that edits the code.
+The same checks work with GPT-OSS 20B and other supported coding models.
+
+| Language / project | Detected verification | Coverage boundary |
+|---|---|---|
+| SQL | SQLFluff parser with an explicit dialect | Grammar only; never connects to a database, runs queries, or validates schemas/data |
+| Java | `javac` for standalone sources; Maven `test`/`verify` or Gradle `test`/`build` for projects | Standalone compilation disables annotation processors and uses the default classpath; project dependencies/plugins must already be installed |
+| JavaScript / JSX | Babel syntax parser and existing npm test/lint/build scripts | Parsing does not execute application behavior; choose project tests too |
+| HTML | HTML-validate | Markup validation using project rules or the recommended preset; not a browser/rendering test |
+| CSS | Stylelint with project configuration or the standard rules | Static validation without auto-fixing; not visual/layout verification |
+| C / C++ | Compiler object generation; CMake build and CTest | Standalone compilation does not link or execute; CTest runs the project's registered tests |
+| TypeScript / TSX | `tsc --noEmit`, using `tsconfig.json` when present | Type checking; project tests remain separate |
+| Python | Source compilation, existing pytest/Ruff/mypy recipes and package scripts | Source compilation does not import or execute the files |
+| C# / F# / Visual Basic | `.NET build`; `.NET test` with VSTest reports for recognized test projects | Requires an installed matching SDK and previously restored dependencies; other test platforms need a project-specific check |
+| Kotlin / Scala / Groovy | Maven/Gradle project build/test recipes | Requires that project's language compiler plugin and dependencies; no standalone interpreter recipe |
+| Rust / Go | Existing Cargo test/check/build and Go test/vet/build | Requires an installed toolchain and cached dependencies |
+
+C++ is the language intended by “C+”. Native checks prefer installed Clang/GCC,
+with a separately installed portable Zig compiler as fallback. CMake can use that
+compiler with Ninja. Maven/Gradle wrapper declarations must match an installed
+distribution; inspection never executes or downloads a wrapper. Gradle test checks
+rerun tasks and reject a run with no executed tests; CTest uses `--no-tests=error`,
+Maven requests `failIfNoTests`, and .NET tests require fresh reports with executed
+tests. Project configurations can still narrow test
+selection, so inspect the reported tests and output.
+
+Prepare the optional validators explicitly from the Workstation checkout:
+
+```powershell
+venv\Scripts\python.exe scripts/prepare-coding-verification.py --native
+```
+
+This installs pinned SQL/web validators, TypeScript, CMake and Ninja in a separate
+environment under `~/.local-ai-workstation/verification-tools`. On Windows x64,
+`--native` also installs checksum-verified Maven and Zig archives. Omit `--native`
+to install only the Python/Node validators. Set `LAW_VERIFICATION_TOOLS` to use a
+different tool root. The setup requires Python and Node/npm and does not install a
+JDK, Gradle, .NET SDK, Rust or Go. Discovery can use installed JDK/Gradle paths from
+the local Android toolchain configuration. It reports missing tools visibly.
+Refresh project inspection after installing tools.
+
+Maven and Gradle verification runs offline, using `maven-cache` and `gradle-cache`
+under that tool root. Prepare trusted project dependencies there before starting
+a task (Maven's `-Dmaven.repo.local=...` or Gradle's `--gradle-user-home ...`).
+.NET uses `--no-restore`; restore its project separately first. Build tools can
+create normal output directories in the project. Configure the project's Git
+ignore rules for generated outputs before a task; unexpected unignored changes
+stop the coordinator for review. These offline options are not a network sandbox
+for project code or plugins.
+
+At the project root, optional `.law-verification.json` settings select the SQL
+dialect and native compiler standards:
+
+```json
+{"sql_dialect": "postgres", "c_standard": "c17", "cpp_standard": "c++20"}
+```
+
+SQL falls back to the root `.sqlfluff` or `pyproject.toml` dialect, then ANSI.
+The parser processes raw SQL without templating, ignored-file skipping or
+inline SQLFluff setting overrides. Templated SQL needs its own trusted project
+check. CSS/HTML follow their validator's configured rules and ignores. Standalone
+source recipes are limited to 1,000 files of at most 2 MB each; use project checks
+for larger or specialized builds. Source and configuration edits can require
+refreshed approval; installing/updating a runner can also invalidate its grant.
 
 Only run checks in projects you trust. Checks execute project code with your local
 account's permissions. Project-path validation is **not an operating-system

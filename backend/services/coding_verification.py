@@ -13,6 +13,7 @@ import time
 import tomllib
 
 from services.coding_project import Project, check_arguments, digest
+from services.coding_language_checks import extend, CONFIG_NAMES, EXTENSIONS
 
 MODES = {'ask', 'approved', 'manual'}
 CONFIGS = {'package.json', 'package-lock.json', 'npm-shrinkwrap.json', '.npmrc',
@@ -20,8 +21,10 @@ CONFIGS = {'package.json', 'package-lock.json', 'npm-shrinkwrap.json', '.npmrc',
            'setup.cfg', 'tox.ini', 'requirements.txt', 'Cargo.toml', 'Cargo.lock',
            'go.mod', 'go.sum', 'tsconfig.json', 'vitest.config.js', 'vitest.config.mjs',
            'vitest.config.ts', 'vite.config.js', 'vite.config.mjs', 'vite.config.ts'}
-LANGUAGES = {'python': {'.py', '.pyi'}, 'javascript': {'.js', '.jsx', '.mjs', '.cjs', '.ts', '.tsx', '.css', '.html', '.json'},
+LANGUAGES = {'python': {'.py', '.pyi'}, 'javascript': {'.js', '.jsx', '.mjs', '.cjs', '.ts', '.tsx', '.css', '.scss', '.less', '.html', '.htm', '.json'},
              'rust': {'.rs', '.toml'}, 'go': {'.go', '.mod', '.sum'}}
+CONFIGS |= CONFIG_NAMES
+LANGUAGES.update(EXTENSIONS)
 
 
 def command_category(name):
@@ -70,11 +73,13 @@ def _fingerprint(project, check):
         except (OSError, ValueError):
             inputs[name] = 'unavailable'
     tools = {}
-    for arg in check['argv'][:2]:
+    for arg in [*check['argv'][:2], *check.get('tool_inputs', [])]:
         path = Path(arg)
         if path.is_absolute() and path.is_file():
             stat = path.stat()
-            tools[str(path)] = [stat.st_size, stat.st_mtime_ns]
+            tools[str(path)] = digest(path.read_bytes()) if stat.st_size <= 128000 else [stat.st_size, stat.st_mtime_ns]
+        elif path.is_absolute() and path.is_dir():
+            tools[str(path)] = path.stat().st_mtime_ns
     return digest(json.dumps({'policy_version': 1, 'argv': check['argv'], 'cwd': check['cwd'], 'timeout': check['timeout_seconds'],
                               'inputs': inputs, 'tools': tools}, sort_keys=True).encode())
 
@@ -90,13 +95,15 @@ def discover(root):
     configs = set(manifests)
     npm, npm_error = _npm()
 
-    def add(source, key, title, category, argv, language, *, definition='', unavailable='', runner=None, risk=''):
-        cwd = str(PurePosixPath(source).parent)
-        inputs = sorted(p for p in configs if str(PurePosixPath(p).parent) in {'.', cwd})
-        row = {'id': digest((source + ':' + key).encode())[:24], 'name': f'{title} · {cwd}',
+    def add(source, key, title, category, argv, language, *, definition='', unavailable='', runner=None, risk='',
+            cwd=None, extra_inputs=(), tool_inputs=(), display_command='', recommended=None, timeout_seconds=120, identity=None):
+        cwd = cwd if cwd is not None else str(PurePosixPath(source).parent)
+        inputs = sorted(set(p for p in configs if str(PurePosixPath(p).parent) in {'.', cwd}) | set(extra_inputs))
+        row = {'id': digest((identity or source + ':' + key).encode())[:24], 'name': f'{title} · {cwd}',
                'category': category, 'argv': argv, 'cwd': cwd, 'source': source, 'definition': definition,
-               'language': language, 'inputs': inputs, 'timeout_seconds': 120, 'kind': 'detected',
-               'runner': runner, 'recommended': category in {'tests', 'lint', 'types'} and key in {'test', 'tests', 'pytest', 'check', 'lint', 'typecheck', 'type-check', 'ruff', 'mypy'},
+               'language': language, 'inputs': inputs, 'timeout_seconds': timeout_seconds, 'kind': 'detected',
+               'tool_inputs': list(tool_inputs), 'display_command': display_command,
+               'runner': runner, 'recommended': recommended if recommended is not None else category in {'tests', 'lint', 'types'} and key in {'test', 'tests', 'pytest', 'check', 'lint', 'typecheck', 'type-check', 'ruff', 'mypy'},
                'risk': risk or 'Executes project code with your account permissions.', 'unavailable': unavailable}
         try:
             if not argv:
@@ -106,6 +113,7 @@ def discover(root):
             row['unavailable'] = str(error)
         row['fingerprint'] = _fingerprint(project, row)
         checks.append(row)
+        return row
 
     python_roots = set()
     for name in manifests:
@@ -130,6 +138,8 @@ def discover(root):
                     if re.search(r'\b(watch|serve|dev|start)\b', script) or re.search(r'--watch\b|\b(vite|webpack)\s+serve\b', command):
                         unavailable = 'Interactive/watch commands are not eligible for automatic verification.'
                     language = 'python' if 'backend' in script or 'pytest' in command else 'javascript'
+                    if re.search(r'android|gradle|mvn|javac', script + ' ' + command, re.I): language = 'jvm'
+                    elif re.search(r'sqlfluff|(^|:)sql($|:)', script + ' ' + command, re.I): language = 'sql'
                     add(name, script, script, category, npm + ['run', script] if npm else [], language,
                         definition=json.dumps(lifecycle, ensure_ascii=False), unavailable=unavailable,
                         risk='npm scripts include pre/post lifecycle scripts and may run arbitrary project commands.')
@@ -174,12 +184,7 @@ def discover(root):
         checks[-1]['cwd'] = '.'
         checks[-1]['fingerprint'] = _fingerprint(project, checks[-1])
         environments.add('Python')
-    unsupported = {'pom.xml': 'Java / Maven', 'build.gradle': 'Java / Gradle', 'build.gradle.kts': 'Java / Gradle'}
-    for path in paths:
-        label = unsupported.get(PurePosixPath(path).name)
-        if label:
-            environments.add(label)
-            warnings.append(f'{path}: environment detected; this coordinator has no automatic recipe for it.')
+    extend(project, paths, add, warnings, environments)
     if len(checks) > 80:
         warnings.append('Only the first 80 detected checks are shown.')
     checks.sort(key=lambda c: (c['cwd'] != '.', c['cwd'], not c['recommended'], c['category'], c['name']))

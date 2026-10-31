@@ -53,6 +53,8 @@ if (!process.versions.electron) {
     await button('Confirm displayed copy plan'); await until("document.querySelector('dialog.action-confirmation[open]')");
     await button('Cancel');
     assert.equal(await js("window.coordinatorCalls.filter(c=>c.path.endsWith('/transfer')).length"), 0);
+    // Cancellation resolves asynchronously; wait for the action lock to clear.
+    await until("[...document.querySelectorAll('button')].some(b=>b.textContent==='Confirm displayed copy plan' && !b.disabled)");
     await button('Confirm displayed copy plan'); await until("document.querySelector('dialog.action-confirmation[open]')");
     await button('Confirm'); await until("document.querySelector('.coordinator-transfer h4').textContent.includes('complete')");
     assert.equal(await js("window.coordinatorCalls.filter(c=>c.path.endsWith('/transfer')).length"), 1);

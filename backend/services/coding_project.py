@@ -239,6 +239,7 @@ def run_check(root, check, cancel, emit):
     env = {key: value for key, value in os.environ.items() if key.upper() in allowed}
     env.update(PYTHONIOENCODING='utf-8', PYTHONDONTWRITEBYTECODE='1', PYTHONNOUSERSITE='1', CI='1', NO_COLOR='1')
     runtime = Path(tempfile.mkdtemp(prefix='law-verification-'))
+    env['LAW_VERIFICATION_RUNTIME'] = str(runtime)
     # Workstation tests must not inherit the live application's storage defaults.
     env.update({key: str(runtime / folder) for key, folder in {
         'LAW_DATA_DIR': 'data', 'LAW_LOG_DIR': 'logs', 'LAW_MODELS_DIR': 'models',

@@ -8,8 +8,11 @@ const id = 'a'.repeat(32);
 window.codingCalls = [];
 const python = { id: 'python', name: 'Python tests', category: 'tests', argv: ['python', '-m', 'pytest', '-q'], cwd: '.', source: 'pytest.ini', language: 'python', timeout_seconds: 120, recommended: true, fingerprint: 'python-v1', risk: 'Runs project code with your account permissions.' };
 const frontend = { ...python, id: 'frontend', name: 'Frontend tests', argv: ['node', 'node_modules/vitest/vitest.mjs', 'run'], source: 'package.json', language: 'javascript', fingerprint: 'frontend-v1' };
-const build = { ...frontend, id: 'build', name: 'Build verification', category: 'build', argv: ['node', 'build.js'], recommended: false, fingerprint: 'build-v1' };
-const catalog = { environments: ['Python', 'JavaScript / TypeScript'], checks: [python, frontend, build], warnings: [], profiles: [], inspection: 'Configuration files only; no project commands were executed.' };
+const build = { ...python, id: 'build', name: 'Java compilation', category: 'build', language: 'jvm', source: 'Example.java',
+  argv: ['python', '-I', 'coding_runner.py', 'java'], display_command: 'javac -proc:none -d <temporary classes> (Java sources; default classpath)', timeout_seconds: 300, recommended: false, fingerprint: 'build-v1' };
+const sql = { ...build, id: 'sql', name: 'SQL syntax', category: 'lint', language: 'sql', source: 'query.sql',
+  argv: ['python', '-I', 'coding_runner.py', 'sql'], display_command: 'SQLFluff parser: postgres dialect, raw SQL (grammar only, no database execution)', fingerprint: 'sql-v1' };
+const catalog = { environments: ['Python', 'JavaScript / TypeScript', 'Java', 'SQL'], checks: [python, frontend, build, sql], warnings: [], profiles: [], inspection: 'Configuration files only; no project commands were executed.' };
 
 window.workstationDesktop = {
   chooseCodingProject: async () => ({ id: 'fixture-project', root: 'C:\\Projects\\Arithmetic' }),

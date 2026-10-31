@@ -51,6 +51,14 @@ it('shows the exact pending command and a manual action without implying executi
   expect(html).toContain('python check.py'); expect(html).not.toContain('Save approval');
 });
 
+it('keeps a language recipe description beside its actual launcher and execution evidence', () => {
+  const html = renderToStaticMarkup(<VerificationHistory checks={[{ name: 'Java compilation', status: 'passed',
+    display_command: 'javac -proc:none (temporary classes)', argv: ['python', '-I', 'coding_runner.py', 'java'],
+    cwd: 'C:\\Project', exit_code: 0, output: 'Command: javac Example.java\nExit status: 0' }]}/>);
+  expect(html).toContain('javac -proc:none'); expect(html).toContain('python -I coding_runner.py java');
+  expect(html).toContain('Command: javac Example.java'); expect(html).toContain('Exit status');
+});
+
 it('shows failed checks, source diffs and preserved files without rendering source HTML', () => {
   const html = renderToStaticMarkup(<CodingResult run={{ status: 'needs_review', phase: 'Check failed', error: '', model: 'other', rounds: 3,
     plan: ['Fix'], summary: 'Ready for review', review: { approved: false, summary: 'Missing edge case' }, changes: [{ path: 'a.py', diff: '<script>bad()</script>' }],
