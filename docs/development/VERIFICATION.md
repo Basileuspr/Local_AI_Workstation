@@ -1,8 +1,25 @@
 # Verification record and open findings
 
-This is the consolidated evidence record, updated October 31, 2026.
+This is the consolidated evidence record, updated November 1, 2026.
 Current guides describe inspected source; dated tests below are not a certification
 of every feature, provider, installation or device.
+
+## November 1 button-only reset confirmation
+
+Removed the typed RESET field reintroduced with selective sanitization. Review
+the selected scope, then click **Permanently sanitize selected data**; interrupted
+resets use **Retry reset**. Updated Dashboard help and the storage/reset guide.
+The desktop review ticket, section validation and recovery scope lock remain.
+
+- Dashboard, desktop maintenance, workspace help and Info Center: **95 passed**.
+- Backend maintenance, section reset and Image Manager retention: **53 passed**
+  with temporary data, model, log and catalog locations. No skips in these runs.
+- `scripts/qa-reset-controls.cjs` passed 14 checks in isolated Chromium, including
+  confirmation without typing, no deletion on review/cancel/scope changes,
+  empty-selection blocking, exact selected scope, both recovery paths and narrow
+  layout. The narrow reset screenshot was inspected.
+- UI requests were synthetic; no live app data was reset. Full-suite, GPU and
+  physical-phone acceptance were outside this UI correction.
 
 ## October 31 Reverse Engineer installations and beginner guides
 

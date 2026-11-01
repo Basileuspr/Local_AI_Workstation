@@ -20,7 +20,7 @@ window.workstationDesktop = {
   exportResetInventory: async () => ({canceled:true}),
   prepareBackupImport: async () => ({canceled:true}),
   backupImportStatus: async () => ({pending:false}),
-  prepareAppReset: async () => ({ticket:'fixture-ticket',report:{inventory:{},reset_sections:sections,...(window.fixture.recovery ? {reset_pending:true,reset_options:window.fixture.recovery} : {})}}),
+  prepareAppReset: async () => ({ticket:'fixture-ticket',report:{inventory:{},reset_sections:sections,...(window.fixture.legacyRecovery ? {reset_pending:true} : window.fixture.recovery ? {reset_pending:true,reset_options:window.fixture.recovery} : {})}}),
   resetAppData: async (...args) => {window.fixture.calls.push(args);return {error:'Fixture captured the request; no files were deleted.',backendStopped:Boolean(window.fixture.failStopped)};},
 };
 window.fetch = async (url,options={}) => {

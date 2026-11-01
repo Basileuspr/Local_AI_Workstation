@@ -28,8 +28,8 @@ backup. Metadata-only inventory describes the original app-data folder.
 |---|---|
 | SAVE METADATA | Aggregate counts/bytes and basic numeric configuration; no content, filenames or paths; cannot restore data |
 | EXPORT BACK-UP | Private app-data content plus desktop localStorage and managed-library files |
-| IMPORT BACK-UP | Validates a supported backup, then replaces current data/preferences after typed IMPORT confirmation |
-| RESET APP DATA & SANITIZE APPLICATION | Choose all app data, retain phone setup, or select individual sections; review and type RESET |
+| IMPORT BACK-UP | Validates a supported backup, then replaces current data/preferences after clicking Import and replace app data in the review dialog |
+| RESET APP DATA & SANITIZE APPLICATION | Choose all app data, retain phone setup, or select individual sections; review and click Permanently sanitize selected data |
 
 Backup includes managed media, locked images, databases/sidecars, LoRA artifacts
 and personal settings/buttons. It excludes installed application/dependencies,
@@ -77,6 +77,10 @@ The reset dialog offers three modes:
   logs/Trash/recovery copies, phone access/jobs, PC bridge, library registrations,
   desktop settings/storage, or remaining app data. Nothing is selected initially.
   Phone setup retention is optional when phone access is selected.
+
+Confirmation uses the final action button; no typed word is required. Opening
+the dialog or changing sections does not start deletion. **Keep app data** cancels
+the review, and selecting no sections disables the final action.
 
 Counts describe app-data files at review time; desktop storage is additional.
 Unselected app-data files and unrelated desktop preferences remain. Selecting
