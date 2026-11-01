@@ -1,15 +1,12 @@
 const DEFAULT_CONTEXT_WINDOW = 8192;
 const MIN_CONTEXT_WINDOW = 1;
-const DEFAULT_UNLIMITED_OUTPUT_RESERVE = 2048;
-const CONTEXT_SAFETY_RESERVE = 512;
-const DURABLE_MEMORY_RESERVE = 1200;
-const KNOWLEDGE_BASE_RESERVE = 2000;
-const COMPACTION_TRIGGER_RATIO = 0.60;
-const HARD_COMPACTION_RATIO = 0.86;
-const TARGET_CONTEXT_RATIO = 0.56;
+const COMPACTION_TRIGGER_RATIO = 0.90;
+const HARD_COMPACTION_RATIO = 1;
+const TARGET_CONTEXT_RATIO = 0.75;
 const SUMMARY_TARGET_TOKENS = 700;
 
 import { latestDocumentContextMessages } from './chatDocuments';
+import { requestBudget } from './responseBudget';
 
 function textTokenEstimate(value) {
   const text = String(value || "");
@@ -31,12 +28,6 @@ function normalizeContextWindow(contextWindow) {
   return Number.isFinite(parsed) && parsed >= MIN_CONTEXT_WINDOW
     ? Math.floor(parsed)
     : DEFAULT_CONTEXT_WINDOW;
-}
-
-function normalizeOutputReserve(responseLength, contextWindow) {
-  const parsed = Number(responseLength);
-  if (Number.isFinite(parsed) && parsed > 0) return Math.min(Math.floor(parsed), Math.max(128, Math.floor(contextWindow / 2)));
-  return Math.min(DEFAULT_UNLIMITED_OUTPUT_RESERVE, Math.max(128, Math.floor(contextWindow / 2)));
 }
 
 function stripRuntimeOnlyFields(message) {
@@ -102,19 +93,17 @@ export function getContextUsage({
   useKnowledgeBase,
   useDurableMemory = true,
   model = "",
+  restoreHistory = false,
 }) {
   const windowTokens = normalizeContextWindow(contextWindow);
-  const outputReserve = normalizeOutputReserve(responseLength, windowTokens);
-  const fixedReserve =
-    outputReserve +
-    CONTEXT_SAFETY_RESERVE +
-    (useDurableMemory ? DURABLE_MEMORY_RESERVE : 0) +
-    (useKnowledgeBase ? KNOWLEDGE_BASE_RESERVE : 0);
-  const usableInputTokens = Math.max(0, windowTokens - fixedReserve);
-  const summaryMessage = memorySummary?.trim() ? buildContextMessages([], memorySummary, 0)[0] : null;
+  const { outputReserve, safetyReserve, fixedReserve, usableInputTokens } = requestBudget(windowTokens, responseLength);
+  const history = contextHistory(messages);
+  const fullHistoryTokens = history.reduce((total, message) => total + messageTokenEstimate(message), 0);
+  const restoredHistory = restoreHistory && summarizedMessageCount > 0 && fullHistoryTokens + textTokenEstimate(systemPrompt) < usableInputTokens * COMPACTION_TRIGGER_RATIO;
+  const summaryMessage = !restoredHistory && memorySummary?.trim() ? buildContextMessages([], memorySummary, 0)[0] : null;
   const summaryTokens = summaryMessage ? messageTokenEstimate(summaryMessage) : 0;
   const systemTokens = textTokenEstimate(systemPrompt);
-  const unsummarizedMessages = contextHistory(messages).slice(summarizedMessageCount || 0);
+  const unsummarizedMessages = history.slice(restoredHistory ? 0 : summarizedMessageCount || 0);
   const unsummarizedTokens = unsummarizedMessages.reduce(
     (total, message) => total + messageTokenEstimate(message),
     0
@@ -126,16 +115,19 @@ export function getContextUsage({
     countKind: "estimate",
     estimationMethod: "Character, message and image heuristic; tokenizer varies by model",
     configuredContextLimit: windowTokens,
-    contextLimitSource: contextWindow ? "model_catalog" : "fallback_model_limit_unknown",
+    contextLimitSource: contextWindow ? "selected_model_profile" : "fallback_model_limit_unknown",
     remainingTokens: Math.max(0, windowTokens - promptTokens),
     inputBudgetRemaining: Math.max(0, usableInputTokens - promptTokens),
-    summarizationOccurred: Boolean(memorySummary?.trim()) || (summarizedMessageCount || 0) > 0,
+    summarizationOccurred: !restoredHistory && (Boolean(memorySummary?.trim()) || (summarizedMessageCount || 0) > 0),
     summarizedMessageCount: summarizedMessageCount || 0,
     applicationTrimming: false,
     providerTrimming: "unknown",
     windowTokens,
     outputReserve,
     fixedReserve,
+    safetyReserve,
+    restoredHistory,
+    retrievalPending: useKnowledgeBase || useDurableMemory,
     usableInputTokens,
     promptTokens,
     summaryTokens,
@@ -151,7 +143,7 @@ export function formatTokenEstimate(tokens) {
 }
 
 export function getContextStatus(usage) {
-  if (usage.ratio >= 0.9) return { className: "critical", label: "near limit" };
+  if (usage.ratio >= 1) return { className: "critical", label: "near limit" };
   if (usage.ratio >= COMPACTION_TRIGGER_RATIO) return { className: "warning", label: "compact soon" };
   return { className: "healthy", label: "within budget" };
 }
@@ -172,6 +164,7 @@ export async function rotateContextMemory({
   requestId,
   sessionId,
   signal,
+  restoreHistory = false,
 }) {
   let nextSummary = memorySummary || "";
   let nextSummarizedCount = summarizedMessageCount || 0;
@@ -184,6 +177,7 @@ export async function rotateContextMemory({
     systemPrompt,
     useKnowledgeBase,
     useDurableMemory,
+    restoreHistory,
   });
 
   const hasUnsummarizedHistory = recentTurnStart(messages) > nextSummarizedCount;
@@ -221,7 +215,7 @@ export async function rotateContextMemory({
   return {
     memorySummary: nextSummary,
     summarizedMessageCount: nextSummarizedCount,
-    contextMessages: buildContextMessages(messages, nextSummary, nextSummarizedCount),
+    contextMessages: buildContextMessages(messages, nextSummary, nextSummarizedCount, { contextWindow, responseLength, systemPrompt, restoreHistory }),
     usage: getContextUsage({
       messages,
       memorySummary: nextSummary,
@@ -231,11 +225,14 @@ export async function rotateContextMemory({
       systemPrompt,
       useKnowledgeBase,
       useDurableMemory,
+      restoreHistory,
     }),
   };
 }
 
-export function buildContextMessages(messages, memorySummary, summarizedMessageCount) {
+export function buildContextMessages(messages, memorySummary, summarizedMessageCount, options = {}) {
+  if (options.restoreHistory && getContextUsage({ ...options, messages, memorySummary, summarizedMessageCount }).restoredHistory)
+    return contextHistory(messages).map(stripRuntimeOnlyFields);
   const recent = contextHistory(messages)
     .slice(summarizedMessageCount || 0)
     .map(stripRuntimeOnlyFields);

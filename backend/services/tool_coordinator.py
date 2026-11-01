@@ -57,6 +57,7 @@ async def stream_tools(client, base_url, payload, request, client_request, trace
                     content.append(token)
                     yield event({'token': token, 'done': False})
                 if thought:
+                    current['_context_thinking_emitted'] = True
                     thinking.append(thought)
                     yield event({'thinking': thought, 'done': False})
                 calls.extend(message.get('tool_calls') or [])

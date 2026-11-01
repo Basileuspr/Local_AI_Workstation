@@ -4,6 +4,39 @@ This is the consolidated evidence record, updated November 1, 2026.
 Current guides describe inspected source; dated tests below are not a certification
 of every feature, provider, installation or device.
 
+## November 1 per-model chat profiles and context status
+
+Desktop Chat A and Chat B now persist generation profiles by installed model name
+and digest. Model/session switches apply that model's context, supported thinking
+mode, output and sampling settings. Metadata ceilings are separate from conservative
+starting windows; explicit requests may exceed the host default within model and
+recent provider limits. Replacing weights starts a fresh profile.
+
+The always-visible text distinguishes next-request budgets, advertised capabilities,
+installed file size and matching-model receipts. Receipts identify provider versus
+estimated counts, submitted context, generation speed, trimming and thinking emitted
+despite an Off request. Tool speed describes the final inference round. These values
+do not certify model quality or a sustainable maximum context on particular hardware.
+
+Frontend and backend reserve output plus safety once. The backend budgets assembled
+memory, retrieval and tool content and shortens optional context only under pressure.
+Automatic rolling compaction starts near 90% of usable estimated input; a larger
+profile can include original earlier turns again when they fit, retaining the summary.
+
+- Frontend: **1,697 passed, 3 skips** across 214 files with four workers. Updated
+  the old assertion that expected fixed reserves to consume a tiny context entirely.
+- Backend, including companion regressions: **2,422 passed, 3 skips** with temporary
+  data/model/log/catalog directories. There were 26 dependency/lifecycle deprecation
+  warnings. Targeted tests also cover metadata defaults, thinking aliases, explicit
+  request settings, provider clamping notices and pressure-only retrieval trimming.
+- `node scripts/qa-model-profiles.cjs`: five full-renderer walkthrough groups passed
+  with synthetic models and isolated browser storage. Checked submitted settings,
+  visible receipts, two independent panes, reload persistence and narrow layouts.
+  Desktop and narrow screenshots were inspected.
+- Documentation links passed. These checks do not include new real-GPU throughput
+  or long-context stress benchmarks, fresh-install acceptance or physical-phone UI
+  acceptance. Older clients omitting profiles retain the backend default behavior.
+
 ## November 1 durable memory workspace
 
 Added **Workspace → Memory** and direct Chat options/settings links. The library

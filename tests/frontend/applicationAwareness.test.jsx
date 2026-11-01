@@ -27,7 +27,7 @@ it('context reports estimates, reserves, summary and selected model', () => {
   expect(usage.summarizationOccurred).toBe(true);
   expect(usage.inputBudgetRemaining).toBe(4096-usage.fixedReserve-usage.promptTokens);
   const small = getContextUsage({messages:[],contextWindow:1024,responseLength:4096});
-  expect(small.windowTokens).toBe(1024); expect(small.inputBudgetRemaining).toBe(0);
+  expect(small.windowTokens).toBe(1024); expect(small.inputBudgetRemaining).toBe(256);
 });
 
 it('fresh startup and resume preference preserve history selection without creating chats', () => {

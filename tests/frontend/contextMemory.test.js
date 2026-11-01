@@ -18,8 +18,6 @@ import {
 } from "../../src/contextMemory.js";
 
 const CONTEXT_SAFETY_RESERVE = 512;
-const DURABLE_MEMORY_RESERVE = 1200;
-const KNOWLEDGE_BASE_RESERVE = 2000;
 
 function usageFor(overrides = {}) {
   return getContextUsage({
@@ -93,26 +91,26 @@ describe("getContextUsage — output reserve", () => {
 });
 
 describe("getContextUsage — usable budget", () => {
-  it("subtracts output, safety, and durable-memory reserves", () => {
+  it("subtracts only output and safety before retrieval is known", () => {
     const usage = usageFor({ contextWindow: 8192, responseLength: 1024 });
 
-    const expected = 1024 + CONTEXT_SAFETY_RESERVE + DURABLE_MEMORY_RESERVE;
+    const expected = 1024 + CONTEXT_SAFETY_RESERVE;
     expect(usage.fixedReserve).toBe(expected);
     expect(usage.usableInputTokens).toBe(8192 - expected);
   });
 
-  it("reserves additional room only when the knowledge base is on", () => {
+  it("does not reserve unused Knowledge space", () => {
     const off = usageFor({ useKnowledgeBase: false });
     const on = usageFor({ useKnowledgeBase: true });
 
-    expect(on.fixedReserve - off.fixedReserve).toBe(KNOWLEDGE_BASE_RESERVE);
-    expect(on.usableInputTokens).toBeLessThan(off.usableInputTokens);
+    expect(on.fixedReserve).toBe(off.fixedReserve);
+    expect(on.usableInputTokens).toBe(off.usableInputTokens);
   });
 
-  it("reports no usable input budget when reserves exceed the context window", () => {
+  it("leaves useful input space even for a small window with Knowledge enabled", () => {
     const usage = usageFor({ contextWindow: 2048, responseLength: 4096, useKnowledgeBase: true });
 
-    expect(usage.usableInputTokens).toBe(0);
+    expect(usage.usableInputTokens).toBe(512);
   });
 });
 
@@ -180,8 +178,8 @@ describe("getContextStatus", () => {
     );
   });
 
-  it("escalates to critical at 90 percent", () => {
-    expect(getContextStatus({ ratio: 0.9 }).className).toBe("critical");
+  it("escalates to critical at the full input allowance", () => {
+    expect(getContextStatus({ ratio: 1 }).className).toBe("critical");
   });
 
   it("stays critical when over budget", () => {

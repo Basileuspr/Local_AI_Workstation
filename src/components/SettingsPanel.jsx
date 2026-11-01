@@ -391,7 +391,7 @@ export default function SettingsPanel() {
           </div>
 
           <ResponseLengthControl value={responseLength}
-            contextWindow={models.find(model => model.name === state.selectedModel)?.contextLength}
+            contextWindow={state.contextWindow || models.find(model => model.name === state.selectedModel)?.contextLength}
             onChange={value => dispatch({ type: "SET_RESPONSE_LENGTH", payload: value })} />
 
           {/* System Prompt */}

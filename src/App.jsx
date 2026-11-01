@@ -14,6 +14,7 @@ import ChatActivityNotice from "./components/ChatActivityNotice";
 import { DualChatProvider, ChatPaneProvider, useDualChat } from "./ChatPane";
 import { chatModelChoice } from "./chatModelChoices";
 import { recentTurnStart } from './contextMemory';
+import { profileForModel } from './modelProfiles';
 import { useMobileSync } from '../mobile-companion/desktop/useMobileSync';
 
 import { ImageGenerationProvider } from "./ImageGenerationContext";
@@ -158,6 +159,7 @@ function AppInner() {
     state.systemPrompt,
     state.responseStyle,
     state.selectedModel,
+    state.modelProfiles,
     state.modelOrder,
     state.knowledgeScopes,
     state.summaryModel,
@@ -389,6 +391,7 @@ function AppInner() {
       const result = await api.compactMemory({
         sessionId: state.currentSessionId,
         model: state.summaryModel || state.selectedModel,
+        contextWindow: profileForModel(state, state.summaryModel || state.selectedModel).contextWindow,
         previousSummary: state.memorySummary,
         messages,
         targetTokens: 700,

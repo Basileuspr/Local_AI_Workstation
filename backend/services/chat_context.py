@@ -13,7 +13,7 @@ import re
 
 from services.upload_images import open_upload_image
 from PIL import Image, ImageOps
-from services.context_awareness import estimate_text, payload_usage, remember_runtime_limit
+from services.context_awareness import estimate_text, payload_usage, remember_runtime_limit, request_budget
 
 OPTIONAL_CONTEXT = ('Rolling session context', 'The following are durable memories',
                     "The following are relevant excerpts from the user's knowledge base.")
@@ -65,14 +65,16 @@ def image_copy(value, edge=768):
         raise ValueError('An attached image could not be prepared for this request. The saved upload is unchanged.') from None
 
 
-def fit_payload(payload, *, ratio=.72):
+def fit_payload(payload, *, ratio=1):
     current = deepcopy(payload)
     options = current.setdefault('options', {})
     limit = max(512, int(options.get('num_ctx') or 8192))
     requested = options.get('num_predict', -1)
-    reserve = min(requested if isinstance(requested, int) and requested > 0 else 2048, max(128, limit // 2))
+    allocation = request_budget(limit, requested)
+    reserve = allocation['output_reserve']
+    safety = allocation['safety_reserve']
     options['num_predict'] = reserve
-    budget = max(128, min(int(limit * ratio), limit - reserve - 512))
+    budget = max(0, min(int(limit * ratio), allocation['input_target']))
     token_scale = max(1, current.get('_context_token_scale', 1))
     messages, omitted_images = recent_image_messages(current.get('messages') or [])
     current['messages'] = messages
@@ -80,12 +82,17 @@ def fit_payload(payload, *, ratio=.72):
     if isinstance(requested, int) and requested > reserve:
         changes.append(f'Requested maximum of {requested} output tokens was reduced to {reserve} for this model context window.')
     if omitted_images: changes.append(f'{omitted_images} earlier image(s) use saved conversation text instead of resending pixels.')
-    for message in messages:
-        if message.get('role') == 'system' and str(message.get('content', '')).startswith(OPTIONAL_CONTEXT):
-            original = message['content']
-            message['content'] = clip_text(original, max(32, int(budget / 8 / token_scale)))
-            if original != message['content']: changes.append('Working memory or retrieved context was shortened for this request.')
     def cost(): return payload_usage(current)['estimated_prompt_tokens']
+    for message in messages:
+        if message.get('role') != 'system' or not str(message.get('content', '')).startswith(OPTIONAL_CONTEXT):
+            continue
+        excess = cost() - budget
+        if excess <= 0:
+            break
+        original = message['content']
+        allowance = max(32, estimate_text(original) - int(excess / token_scale) - 16)
+        message['content'] = clip_text(original, allowance)
+        if original != message['content']: changes.append('Working memory or retrieved context was shortened for this request.')
     # Protect the current user turn, pending attachment messages and tool results.
     last_user = next((i for i in range(len(messages) - 1, -1, -1) if messages[i].get('role') == 'user'), len(messages))
     protected = last_user
@@ -117,9 +124,9 @@ def fit_payload(payload, *, ratio=.72):
         message['content'] = clip_text(original, allowance)
         if original != message['content']: changes.append('An attachment text excerpt was shortened; the original remains saved.')
     if cost() > budget and reserve > 512:
-        reserve = max(128, min(reserve, limit - cost() - 512))
+        reserve = max(128, min(reserve, limit - cost() - safety))
         options['num_predict'] = reserve
-        budget = max(128, min(int(limit * ratio), limit - reserve - 512))
+        budget = max(0, min(int(limit * ratio), limit - reserve - safety))
         changes.append('Reply length was reduced to leave room for the current request.')
     if cost() > budget:
         # Never silently discard the latest question or the explicit instructions.
@@ -205,7 +212,9 @@ async def open_chat_stream(client, base_url, payload, disconnected=None, progres
     current = deepcopy(payload)
     current.setdefault('options', {}).setdefault('num_ctx', 8192)
     current['messages'], omitted = recent_image_messages(current['messages'])
-    current['_context_notices'] = [f'{omitted} earlier image(s) omitted from this request; originals remain saved.'] if omitted else []
+    current['_context_notices'] = list(current.get('_context_notices', []))
+    if omitted:
+        current['_context_notices'].append(f'{omitted} earlier image(s) omitted from this request; originals remain saved.')
     images = [image for message in current['messages'] for image in message.get('images', [])]
     if images:
         current['_context_notices'].append('Image inference uses resized previews; original uploads are preserved. Small text or fine details may need a closer crop.')
@@ -226,7 +235,7 @@ async def open_chat_stream(client, base_url, payload, disconnected=None, progres
         for message in current['messages']:
             if message.get('images'):
                 message['images'] = [await asyncio.to_thread(image_copy, image, edge) for image in message['images']]
-        fitted = fit_payload(current, ratio=.72 if not attempt else .52)
+        fitted = fit_payload(current, ratio=1 if not attempt else .72)
         if progress: progress('Preparing answer with bounded context' if not attempt else 'Retrying with reduced context')
         async with client.stream('POST', f'{base_url}/api/chat', json=wire_payload(fitted)) as response:
             if response.is_error:

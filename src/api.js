@@ -342,6 +342,7 @@ export async function streamChat({
   useDurableMemory = true,
   systemPrompt,
   options,
+  think,
   sessionId,
   requestId,
   username = "local-user",
@@ -361,6 +362,7 @@ export async function streamChat({
       use_durable_memory:useDurableMemory,
       system_prompt: systemPrompt,
       options,
+      think,
       session_id: sessionId,
       request_id: requestId,
       username,
@@ -405,7 +407,7 @@ export function getThinkingExportUrl() {
   return apiUrl(`/thinking/export`);
 }
 
-export async function compactMemory({ model, previousSummary, messages, targetTokens, requestId, sessionId, signal, exclusiveModel = false }) {
+export async function compactMemory({ model, previousSummary, messages, targetTokens, contextWindow, requestId, sessionId, signal, exclusiveModel = false }) {
   const res = await fetchWorkload(apiUrl(`/memory/compact`), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -415,6 +417,7 @@ export async function compactMemory({ model, previousSummary, messages, targetTo
       session_id: sessionId,
       messages,
       target_tokens: targetTokens,
+      num_ctx: contextWindow,
       request_id: requestId,
       exclusive_model: exclusiveModel,
     }),

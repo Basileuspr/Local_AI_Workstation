@@ -7,7 +7,7 @@ This is the PYTHON side of the wall. It handles all AI logic.
 from fastapi import FastAPI, HTTPException, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictBool
 from services.chat_canvas import CanvasContext
 from services import thinking_trace
 from starlette.concurrency import run_in_threadpool
@@ -241,11 +241,6 @@ initialize_database()
 
 # --- Data Models ---
 
-def _ollama_think_setting(model: str) -> bool | str:
-    # Ollama's GPT-OSS models require a reasoning level and cannot disable
-    # thinking entirely. Other supported models accept False for direct chat.
-    return "low" if model.lower().startswith("gpt-oss") else False
-
 class ChatMessage(BaseModel):
     role: str
     content: str
@@ -263,6 +258,7 @@ class ModelOptions(BaseModel):
     top_k: int | None = None
     repeat_penalty: float | None = None
     num_predict: int | None = None
+    num_ctx: int | None = Field(default=None, ge=512, le=262144)
 
 
 class ChatRequest(BaseModel):
@@ -277,6 +273,7 @@ class ChatRequest(BaseModel):
     use_durable_memory: bool = True
     system_prompt: str | None = None
     options: ModelOptions | None = None
+    think: StrictBool | str | None = None
     username: str = "local-user"
     session_id: str | None = None
     project_name: str | None = None
@@ -294,6 +291,7 @@ class CompactMemoryRequest(BaseModel):
     previous_summary: str | None = None
     messages: list[ChatMessage]
     target_tokens: int = 700
+    num_ctx: int | None = Field(default=None, ge=512, le=262144)
     request_id: str | None = None
     exclusive_model: bool = False
 
@@ -604,6 +602,7 @@ async def list_models():
                 seen_model_names.add(name)
                 model_info = {
                     "name": name,
+                    "digest": model.get("digest", ""),
                     "size": model.get("size", 0),
                     "modified": model.get("modified_at", ""),
                 }
@@ -618,6 +617,11 @@ async def list_models():
                     capabilities = show_data.get("capabilities", [])
                     model_info["capabilities"] = capabilities
                     model_info["thinking"] = show_data.get("thinking")
+                    details = show_data.get("details") or {}
+                    model_info["parameter_size"] = details.get("parameter_size")
+                    model_info["quantization_level"] = details.get("quantization_level")
+                    from services.model_profiles import default_profile
+                    model_info["chat_profile"] = default_profile(show_data)
                     context_lengths = [
                         value
                         for key, value in (show_data.get("model_info") or {}).items()
@@ -626,10 +630,8 @@ async def list_models():
                         and value >= 2048
                     ]
                     if context_lengths:
-                        # Report what the model will actually run with, not what
-                        # it was trained for: the interface sizes its context
-                        # meter and its compaction thresholds from this number,
-                        # and /chat caps the window at settings.num_ctx.
+                        # Keep the advertised ceiling separate from the starting
+                        # profile. A request can select its own bounded window.
                         trained = max(context_lengths)
                         model_info["trained_context_length"] = trained
                         model_info["context_length"] = min(trained, settings.num_ctx)
@@ -756,7 +758,7 @@ async def compact_memory(request: CompactMemoryRequest, client_request: Request)
         if request.exclusive_model:
             from services.context_awareness import model_limit
             async for _ in prepare_chat_model(job, request.model, OLLAMA_BASE_URL,
-                                               options={"num_ctx": await model_limit(request.model)}, request_queue=queue):
+                                               options={"num_ctx": await model_limit(request.model, request.num_ctx) if request.num_ctx is not None else await model_limit(request.model)}, request_queue=queue):
                 pass
         queue.set_stage(job, "compacting", "Compacting conversation context")
         return await _compact_memory(request)
@@ -773,7 +775,7 @@ async def compact_memory(request: CompactMemoryRequest, client_request: Request)
 
 async def _compact_memory(request: CompactMemoryRequest):
     from services.context_awareness import model_limit
-    context_limit = await model_limit(request.model)
+    context_limit = await model_limit(request.model, request.num_ctx) if request.num_ctx is not None else await model_limit(request.model)
     task = asyncio.current_task()
     if request.request_id and request.request_id in cancelled_generation_ids:
         cancelled_generation_ids.discard(request.request_id)
@@ -783,10 +785,11 @@ async def _compact_memory(request: CompactMemoryRequest):
     from services.chat_context import compact_history
     try:
         async with httpx.AsyncClient(timeout=90.0, trust_env=False) as client:
+            think = await thinking_trace.resolve_thinking(client, OLLAMA_BASE_URL, request.model, prefer_brief=True)
             return await compact_history(client, OLLAMA_BASE_URL, model=request.model,
                 previous=(request.previous_summary or "").strip(), messages=request.messages,
                 target=max(80, min(int(request.target_tokens or 700), 1200)), limit=context_limit,
-                keep_alive=settings.ollama_keep_alive_seconds, think=_ollama_think_setting(request.model))
+                keep_alive=settings.ollama_keep_alive_seconds, think=think)
     finally:
         if request.request_id and active_generation_tasks.get(request.request_id) is task:
             active_generation_tasks.pop(request.request_id, None)
@@ -1114,7 +1117,8 @@ async def _chat(request: ChatRequest, client_request: Request):
     # while the interface budgeted against the model's trained size, so
     # compaction could not fire until long after the real window had overflowed.
     from services.context_awareness import model_limit, payload_usage
-    ollama_options = {"num_ctx": await model_limit(request.model)}
+    requested_context = request.options.num_ctx if request.options else None
+    ollama_options = {"num_ctx": await model_limit(request.model, requested_context) if requested_context is not None else await model_limit(request.model)}
     if request.options:
         if request.options.temperature is not None:
             ollama_options["temperature"] = request.options.temperature
@@ -1136,6 +1140,10 @@ async def _chat(request: ChatRequest, client_request: Request):
 
     if ollama_options:
         ollama_payload["options"] = ollama_options
+    if requested_context is not None and requested_context != ollama_options['num_ctx']:
+        ollama_payload['_context_notices'] = [
+            f"Selected context of {requested_context} tokens was limited to {ollama_options['num_ctx']} by model metadata or a recent provider limit."
+        ]
 
     influence_context = {
         "durable_memory": {"enabled": request.use_memory and request.use_durable_memory,
@@ -1187,7 +1195,7 @@ async def _chat(request: ChatRequest, client_request: Request):
             async with httpx.AsyncClient(
                 timeout=httpx.Timeout(600.0, connect=10.0)
             ) as client:
-                think = await thinking_trace.resolve_thinking(client, OLLAMA_BASE_URL, request.model)
+                think = await thinking_trace.resolve_thinking(client, OLLAMA_BASE_URL, request.model, request.think) if request.think is not None else await thinking_trace.resolve_thinking(client, OLLAMA_BASE_URL, request.model)
                 if think is not None:
                     ollama_payload["think"] = think
                 if not (edit_canvas or create_word):
@@ -1251,6 +1259,8 @@ async def _chat(request: ChatRequest, client_request: Request):
                             if chunk.get("error"):
                                 raise ValueError(str(chunk["error"]))
                             token, thinking_token = trace.chunk(chunk)
+                            if thinking_token:
+                                ollama_payload['_context_thinking_emitted'] = True
                             if token:
                                 full_response_parts.append(token)
                             done = chunk.get("done", False)

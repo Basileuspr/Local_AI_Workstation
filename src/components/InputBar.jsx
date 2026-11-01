@@ -13,6 +13,7 @@ import { useStore, useDispatch, useRefs } from "../useStore.jsx";
 import * as api from "../api";
 import { persistSessionSummary } from "../sessionPersistence";
 import { contextDefaults, rotateContextMemory, buildContextMessages } from "../contextMemory";
+import { profileForModel } from '../modelProfiles';
 import {chatInfluences} from '../chatInfluences';
 import { createMessageId } from "../messageIds";
 import { useChatUploads } from "../useChatUploads";
@@ -233,6 +234,7 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
       top_k: topK,
       repeat_penalty: repeatPenalty,
       num_predict: parseInt(responseLength),
+      num_ctx: getSelectedContextWindow(),
     };
   }
 
@@ -241,7 +243,7 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
   }
 
   function getSelectedContextWindow() {
-    return models.find((model) => model.name === selectedModel)?.contextLength || 8192;
+    return state.contextWindow || models.find((model) => model.name === selectedModel)?.contextLength || 8192;
   }
 
   // Presentation for this surface: toasts, then focus returns to the message box.
@@ -339,7 +341,7 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
     let savingReply = false;
     const requestApi = { ...api, compactMemory: async options => {
       progress("compacting", "Compacting conversation context");
-      const result = await api.compactMemory({ ...options, exclusiveModel: pane.dual });
+      const result = await api.compactMemory({ ...options, contextWindow: profileForModel(state, options.model).contextWindow, exclusiveModel: pane.dual });
       progress(savingReply ? "saving" : "preparing", savingReply ? "Saving conversation context" : "Preparing chat");
       return result;
     } };
@@ -399,13 +401,15 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
       const systemPromptValue = getSystemPromptValue();
       const budgetPrompt = systemPromptValue;
       const effectiveSummaryModel = summaryModel || selectedModel;
-      let contextMessages = buildContextMessages(updatedHistory, nextMemorySummary, nextSummarizedMessageCount);
+      const contextOptions = { contextWindow, responseLength, systemPrompt: budgetPrompt, restoreHistory: state.contextRestoreRequested };
+      let contextMessages = buildContextMessages(updatedHistory, nextMemorySummary, nextSummarizedMessageCount, contextOptions);
       try {
         const rotatedMemory = await rotateContextMemory({
           api: requestApi, sessionId, model: effectiveSummaryModel, messages: updatedHistory,
           useDurableMemory: influencePlan.useDurableMemory,
           memorySummary: nextMemorySummary, summarizedMessageCount: nextSummarizedMessageCount,
           contextWindow, responseLength, systemPrompt: budgetPrompt, useKnowledgeBase,
+          restoreHistory: state.contextRestoreRequested,
           triggerRatio: contextDefaults.normalTriggerRatio, requestId, signal: abortController.signal,
         });
         saved = await persistSessionSummary(api, saved, rotatedMemory.memorySummary, rotatedMemory.summarizedMessageCount);
@@ -428,7 +432,7 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
           ...saved.messages.slice(0, nextSummarizedMessageCount),
           ...saved.messages.slice(nextSummarizedMessageCount).filter(message => !ids.has(message.id)),
           ...attachments,
-        ], nextMemorySummary, nextSummarizedMessageCount);
+        ], nextMemorySummary, nextSummarizedMessageCount, contextOptions);
       }
       if (wasStopped()) return;
       progress("queued", "Waiting for the shared model queue");
@@ -438,6 +442,7 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
         model: selectedModel, messages: contextMessages, useKnowledgeBase,
         knowledgeDocIds,
         systemPrompt: systemPromptValue, options: getModelOptions(), sessionId, requestId,
+        think: state.thinking,
         useDurableMemory:influencePlan.useDurableMemory,
         signal: abortController.signal,
         replyMessageId: assistantMsg.id,
@@ -523,6 +528,7 @@ export default function InputBar({ active = true, onNewChat, onSessionSaved, onO
                 api: requestApi, sessionId, model: summaryModel || selectedModel, messages: saved.messages,
                 memorySummary: nextMemorySummary, summarizedMessageCount: nextSummarizedMessageCount,
                 contextWindow: getSelectedContextWindow(), responseLength, systemPrompt: getSystemPromptValue(),
+                restoreHistory: state.contextRestoreRequested,
                 useKnowledgeBase, useDurableMemory: influencePlan.useDurableMemory, triggerRatio: contextDefaults.normalTriggerRatio, requestId, signal: abortController.signal,
               });
               if (!wasStopped() && (rotated.memorySummary !== nextMemorySummary || rotated.summarizedMessageCount !== nextSummarizedMessageCount)) {

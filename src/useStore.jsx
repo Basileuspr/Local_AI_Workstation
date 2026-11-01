@@ -11,6 +11,7 @@ import { CHAT_WIDTH, normalizeChatWidth } from './chatLayout';
 
 import { normalizeResponseLength, validResponseLength } from './responseBudget';
 import { imageProfileSettings } from "./imageProfiles";
+import { activateModelProfile, rememberModelProfile, modelProfileFields, modelProfileKey } from './modelProfiles';
 
 const StoreContext = createContext(null);
 const DispatchContext = createContext(null);
@@ -142,6 +143,21 @@ const profiles = {
 };
 
 export function reducer(state, action) {
+  let next = reduceState(state, action);
+  if (next === state) return state;
+  const model = next.models?.find(item => item.name === next.selectedModel);
+  if (next.summarizedMessageCount !== state.summarizedMessageCount) next = { ...next, contextRestoreRequested: false };
+  if (next.selectedModel !== state.selectedModel || (model && (modelProfileKey(model) !== next.activeModelProfileKey || action.type === 'SET_MODELS'))) {
+    return activateModelProfile({ ...next, contextRestoreRequested: next.selectedModel !== state.selectedModel || next.contextRestoreRequested });
+  }
+  if (action.type === 'RESET_MODEL_PROFILE') return activateModelProfile({ ...next,
+    modelProfiles: Object.fromEntries(Object.entries(next.modelProfiles || {}).filter(([key]) => key !== next.activeModelProfileKey)) });
+  if (modelProfileFields.some(field => next[field] !== state[field])) return rememberModelProfile({ ...next,
+    contextRestoreRequested: next.contextWindow > state.contextWindow || next.contextRestoreRequested });
+  return next;
+}
+
+function reduceState(state, action) {
   switch (action.type) {
     case "OPEN_IMAGE_WORKFLOW":
       return { ...state, activeSidebarTab: "workflows", workflowToOpen: action.payload };
@@ -167,6 +183,8 @@ export function reducer(state, action) {
 
     case "SET_SELECTED_MODEL":
       return ({ ...state, selectedModel: action.payload });
+    case 'RESET_MODEL_PROFILE':
+      return { ...state };
     case "SET_STARTUP_BEHAVIOR":
       return { ...state, startupBehavior: action.payload === "resume" ? "resume" : "new" };
 
@@ -544,9 +562,12 @@ export function StoreProvider({ children }) {
 // Connection/catalog data and application navigation remain shared.
 export function ChatStoreProvider({ children }) {
   const parent = useStore(), parentDispatch = useDispatch();
-  const [local, localDispatch] = useReducer(reducer, null, () => ({ ...createInitialState(),
+  const [local, localDispatch] = useReducer(reducer, null, () => activateModelProfile({ ...createInitialState(), models: parent.models,
+    modelProfiles: (() => { try { return JSON.parse(localStorage.getItem('local-ai-workstation-secondary-model-profiles-v1')) || parent.modelProfiles || {}; } catch { return parent.modelProfiles || {}; } })(),
     selectedModel: parent.selectedModel, activeSidebarTab: "chats", currentSessionId: null,
     conversationHistory: [], sessionTitle: "New Chat", memorySummary: "", summarizedMessageCount: 0 }));
+  useLayoutEffect(() => { localDispatch({ type: 'SET_MODELS', payload: parent.models }); }, [parent.models]);
+  useLayoutEffect(() => { try { localStorage.setItem('local-ai-workstation-secondary-model-profiles-v1', JSON.stringify(local.modelProfiles || {})); } catch { /* In-memory profiles still work. */ } }, [local.modelProfiles]);
   const dispatch = useCallback(action => {
     if(action.type === 'RESET_PREFERENCES') {
       parentDispatch({type:'SET_SOUND_OUTPUT',payload:defaultSoundOutput});

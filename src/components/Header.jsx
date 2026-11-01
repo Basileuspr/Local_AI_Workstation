@@ -9,6 +9,8 @@ import { useChatPane } from "../ChatPane";
 import { useChatActivities } from "./ChatActivityNotice";
 import { saveChatModelChoice } from "../chatModelChoices";
 import ResponseLengthControl from './ResponseLengthControl';
+import ModelProfileControls from './ModelProfileControls';
+import ModelStatus from './ModelStatus';
 import ChatWidthControl from './ChatWidthControl';
 import ModelOrder from "./ModelOrder";
 import KnowledgeContext from "./KnowledgeContext";
@@ -68,7 +70,8 @@ export default function Header({ onSessionRenamed, onCompactMemory }) {
     messages: conversationHistory,
     memorySummary,
     summarizedMessageCount,
-    contextWindow: selectedModelInfo?.contextLength,
+    contextWindow: state.contextWindow || selectedModelInfo?.contextLength,
+    restoreHistory: state.contextRestoreRequested,
     responseLength,
     systemPrompt: contextSystemPrompt,
     useKnowledgeBase,
@@ -153,8 +156,9 @@ export default function Header({ onSessionRenamed, onCompactMemory }) {
           <div className="chat-options-grid">
             <section className="chat-option-group" aria-label="Response options">
               <h3>Response</h3>
+              <ModelProfileControls />
               <ResponseLengthControl id={pane.domId("response-length")} value={responseLength}
-                contextWindow={selectedModelInfo?.contextLength}
+                contextWindow={state.contextWindow || selectedModelInfo?.contextLength}
                 onChange={value => dispatch({ type: "SET_RESPONSE_LENGTH", payload: value })} />
               <KnowledgeContext />
               <ModelOrder />
@@ -177,7 +181,7 @@ export default function Header({ onSessionRenamed, onCompactMemory }) {
               <details><summary>Context budget details</summary>
                 <p>Effective request window: {contextUsage.windowTokens.toLocaleString()} tokens.
                   {selectedModelInfo?.trained_context_length ? ` Model metadata limit: ${selectedModelInfo.trained_context_length.toLocaleString()} tokens.` : ' Model metadata limit is unknown; the application fallback applies.'}
-                  {' '}The smaller of the configured application limit and known model limit is used. Counts before a reply are estimates.</p>
+                  {' '}This model’s saved profile selects the request window, bounded by known model limits. Counts before a reply exclude retrieved memories, Knowledge and tools; the backend counts these when preparing the request.</p>
                 <dl>{[["Configured window",contextUsage.windowTokens],["System estimate",contextUsage.systemTokens],["Summary estimate",contextUsage.summaryTokens],["Recent messages estimate",contextUsage.unsummarizedTokens],["Output reserve",contextUsage.outputReserve],["Other reserves",contextUsage.fixedReserve-contextUsage.outputReserve]].map(([name,value])=><div key={name}><dt>{name}</dt><dd>{value} tokens</dd></div>)}</dl>
                 {(() => { const record = [...conversationHistory].reverse().find(message => message.context_usage || message.influence_receipt?.context_usage);
                   const usage = record?.context_usage || record?.influence_receipt?.context_usage;
@@ -204,6 +208,7 @@ export default function Header({ onSessionRenamed, onCompactMemory }) {
           <ChatInfluences onOpenSettings={close} />
         </>}
       </DisclosurePanel>
+      <ModelStatus model={selectedModelInfo} usage={contextUsage} thinking={state.thinking} messages={conversationHistory} />
       {thinkingOpen && <ThinkingTrace onClose={() => setThinkingOpen(false)} />}
     </div>
   );

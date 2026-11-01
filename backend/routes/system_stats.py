@@ -42,13 +42,14 @@ class ContextQuery(BaseModel):
     model: str = Field(min_length=1, max_length=200)
     messages: list[dict] = Field(default_factory=list, max_length=10000)
     output_tokens: int = Field(default=1024, ge=-1, le=1000000)
+    context_tokens: int | None = Field(default=None, ge=512, le=262144)
 
 
 @router.post("/context")
 async def context(query: ContextQuery):
     from services.context_awareness import model_limit, payload_usage
     return payload_usage({"model": query.model, "messages": query.messages,
-                          "options": {"num_ctx": await model_limit(query.model), "num_predict": query.output_tokens}})
+                          "options": {"num_ctx": await model_limit(query.model, query.context_tokens) if query.context_tokens is not None else await model_limit(query.model), "num_predict": query.output_tokens}})
 
 
 @router.get("/stats")

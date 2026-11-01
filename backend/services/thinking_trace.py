@@ -35,19 +35,43 @@ def thinking_setting(info: dict) -> bool | str | None:
     return None
 
 
-async def resolve_thinking(client, base_url: str, model: str) -> bool | str | None:
+def thinking_options(info: dict) -> list:
+    values = (info.get('thinking') or {}).get('values')
+    if values is not None:
+        return [v for v in values if type(v) is bool or isinstance(v, str)]
+    selected = thinking_setting(info)
+    if isinstance(selected, str):
+        return ['low', 'medium', 'high']
+    return [False, True] if selected is True else [False] if selected is False else []
+
+
+def selected_thinking(info, requested=None, prefer_brief=False):
+    if requested is None:
+        if prefer_brief:
+            choices = thinking_options(info)
+            if any(value is False for value in choices): return False
+            if 'low' in choices: return 'low'
+        return thinking_setting(info)
+    if not any(type(requested) is type(v) and requested == v for v in thinking_options(info)):
+        raise ValueError('This model does not support the requested thinking setting. Refresh its model profile and choose a supported setting.')
+    return requested
+
+
+async def resolve_thinking(client, base_url: str, model: str, requested=None, *, prefer_brief=False) -> bool | str | None:
     cached = _models.get(model)
     if cached and time.monotonic() - cached[0] < 300:
-        return thinking_setting(cached[1])
+        return selected_thinking(cached[1], requested, prefer_brief)
     try:
         response = await client.post(f"{base_url}/api/show", json={"model": model}, timeout=10.0)
         response.raise_for_status()
         info = response.json()
         remember_model(model, info)
-        return thinking_setting(info)
     except (httpx.HTTPError, ValueError):
         # Discovery failure must not prevent a normal chat request.
+        if requested is not None:
+            raise ValueError('Could not verify this model’s thinking settings. Refresh the model list and retry.') from None
         return None
+    return selected_thinking(info, requested, prefer_brief)
 
 
 def reserve_thinking_budget(options: dict, think) -> dict:

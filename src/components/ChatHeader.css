@@ -1,5 +1,9 @@
 .chat-pane { container-type: inline-size; container-name: chat-pane; }
-:is(#header, #header-secondary).chat-header { flex-wrap: nowrap; gap: 12px; padding: 10px 16px; min-height: 56px; }
+:is(#header, #header-secondary).chat-header { flex-wrap: wrap; gap: 12px; padding: 10px 16px; min-height: 56px; }
+.model-status-text { order: 4; flex: 1 0 100%; min-width: 0; font-size: 12px; line-height: 1.5; color: var(--text-dim); overflow-wrap: anywhere; }
+.model-status-text p { margin: 2px 0; }
+.model-profile-controls { display: grid; gap: 8px; min-width: 0; }
+.model-profile-controls select { min-width: 0; max-width: 100%; }
 .chat-header .header-title-group { flex: 1 1 120px; }
 .chat-header .chat-model-picker { display: flex; gap: 8px; align-items: center; min-width: 0; flex: 0 1 340px; }
 .chat-header :is(#model-select, #model-select-secondary) { width: 100%; max-width: 300px; flex: 1; padding: 7px 10px; font-family: var(--font-body); font-size: 12px; }

@@ -51,6 +51,7 @@ const DEFAULT_PREFERENCES = {
   systemPrompt: "",
   responseStyle: "default",
   selectedModel: "",
+  modelProfiles: {},
   modelOrder: [],
   knowledgeScopes: {},
   summaryModel: "",
@@ -81,6 +82,7 @@ export function loadPreferences() {
       return {
         ...DEFAULT_PREFERENCES,
         ...saved,
+        modelProfiles: saved.modelProfiles && typeof saved.modelProfiles === 'object' && !Array.isArray(saved.modelProfiles) ? saved.modelProfiles : {},
         responseLength: normalizeResponseLength(saved.responseLength ?? saved.numPredict),
         numPredict: normalizeResponseLength(saved.responseLength ?? saved.numPredict),
         appearance: normalizeAppearance(saved.appearance),
@@ -128,6 +130,7 @@ export function pickPreferences(state) {
     systemPrompt: state.systemPrompt,
     responseStyle: state.responseStyle,
     selectedModel: state.selectedModel,
+    modelProfiles: state.modelProfiles || {},
     modelOrder: state.modelOrder,
     knowledgeScopes: state.knowledgeScopes,
     summaryModel: state.summaryModel,
@@ -154,4 +157,5 @@ export function clearPreferences() {
   if (!storageAvailable()) return;
   localStorage.removeItem(PREFERENCES_STORAGE_KEY);
   localStorage.removeItem(LEGACY_ROLEPLAY_STORAGE_KEY);
+  localStorage.removeItem('local-ai-workstation-secondary-model-profiles-v1');
 }

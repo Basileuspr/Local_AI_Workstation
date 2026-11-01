@@ -22,6 +22,17 @@ session. Typing alone does not. Startup normally opens a blank workspace;
   the reported cap rather than assuming the requested number was available.
 - Model, prompt, context and generation settings are captured when a request is
   submitted. Changing controls afterward affects later requests.
+- **Chat options → Session context / Thinking** and **Response length** belong to
+  the selected installed model. Switching models restores its saved context,
+  thinking, output and sampling settings. Chat A and Chat B remember these
+  independently. **Reset this model’s settings** restores metadata-based starting
+  values for that model; replacing its installed version starts a fresh profile.
+- Plain text beneath the chat header shows the next request’s limits, advertised
+  model limit, image/tool capabilities and installed file size. After a reply it
+  also shows that model’s recorded prompt/output counts, request context, generation
+  speed and context adjustments. Prompt counts identify provider counts versus
+  estimates. Generation speed excludes loading/prompt processing and describes the
+  final inference round when tools run. Thinking and answer tokens share one cap.
 - Prompt Queue coordinates model work. Stop requests cancellation; GPU ownership
   remains with the task until cleanup finishes. Hiding a notice does not cancel it.
 - Code blocks keep source whitespace and expose **Copy code**, including on narrow
@@ -52,6 +63,22 @@ retrieval have distinct owners. Review the active context controls when answers
 include unexpected information. [Knowledge](../workspace/KNOWLEDGE_VAULT.md) is
 explicitly ingested; uploading a chat attachment does not automatically create a
 Knowledge library.
+
+The model’s advertised context ceiling, its installed file size and the selected
+request window describe different things. A larger file does not automatically
+mean a larger context. New profiles start conservatively at the smaller of the
+host default and known model limit. Larger selectable windows can require more
+memory and run slower; the advertised maximum is not a hardware performance
+guarantee. Thinking controls expose only settings reported for that model. If a
+provider emits thinking despite an Off request, the next status records it.
+
+The input allowance is the selected context minus output and a small safety
+reserve. The conversation estimate excludes memories, Knowledge excerpts and tool
+definitions that the backend adds later; the backend budgets their actual content
+together and shortens optional context only when needed. Earlier turns compact
+near 90% of the estimated input allowance. Selecting a larger profile can reuse
+original earlier messages when the full conversation fits; the saved summary and
+full transcript remain available.
 
 ## Durable memory
 

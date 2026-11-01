@@ -13,6 +13,15 @@ export function normalizeResponseLength(value, fallback = DEFAULT_RESPONSE_TOKEN
 }
 
 export function effectiveOutputBudget(value, contextWindow) {
-  const context = Number.isFinite(Number(contextWindow)) && Number(contextWindow) >= 512 ? Number(contextWindow) : 8192;
+  const context = Number.isFinite(Number(contextWindow)) && Number(contextWindow) >= 1 ? Math.floor(Number(contextWindow)) : 8192;
   return Math.min(value > 0 ? value : 2048, Math.max(128, Math.floor(context / 2)));
+}
+
+// Same allocation as backend context_awareness.request_budget. Retrieval and
+// tools are counted when the backend assembles the real request, not reserved twice.
+export function requestBudget(contextWindow, responseLength) {
+  const outputReserve = effectiveOutputBudget(responseLength, contextWindow);
+  const safetyReserve = Math.min(512, Math.floor(contextWindow / 4));
+  return { outputReserve, safetyReserve, fixedReserve: outputReserve + safetyReserve,
+    usableInputTokens: Math.max(0, contextWindow - outputReserve - safetyReserve) };
 }
