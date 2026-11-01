@@ -5,6 +5,7 @@ import { workspaceHelp } from './workspaceHelp';
 // Task-oriented examples complement the shared control guides. Keep one entry
 // per workspace so the directory cannot silently omit a newly added feature.
 export const featureUseCases = {
+  memory: ['See, correct and organize the lasting facts and preferences saved for your assistant.', 'Pause outdated context, adjust priorities and export a filtered memory library.'],
   phone: ['Detect KDE Connect and scrcpy installations or choose their local folders.', 'Set up phone tools and open existing Workstation Companion controls in one workspace.'],
   'reverse-engineer': ['Choose a native-code, .NET, Android or runtime-analysis tool using plain-language examples and first steps.', 'Launch Ghidra, dnSpyEx, JADX, x64dbg or Frida from their detected local installations or a custom launcher.'],
   'testing-lab': ['Compare local responses with flagship online-model answers using your own prompts and verified references.', 'Schedule repeated evaluations and review accuracy, changing information, failures and local performance over days or weeks.'],

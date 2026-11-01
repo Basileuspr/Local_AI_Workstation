@@ -4,6 +4,37 @@ This is the consolidated evidence record, updated November 1, 2026.
 Current guides describe inspected source; dated tests below are not a certification
 of every feature, provider, installation or device.
 
+## November 1 durable memory workspace
+
+Added **Workspace → Memory** and direct Chat options/settings links. The library
+supports search, category/status filters, priority and edit-time sorting, pages,
+editable text/custom categories/priorities, pause/resume, confirmed deletion and
+filtered JSON export. Candidate badges explain the current ordinary-chat
+shortlist without claiming a model used every entry. Existing chat and project
+associations are preserved and displayed.
+
+The database upgrade adds active/version fields while retaining existing data.
+Paused entries are excluded from memory selection. Updates/deletes require the
+reviewed version and user ownership; stale actions return a conflict. Normal app
+authentication covers the endpoints. No automatic extraction or model invocation
+was added. Help, Info Center, University, Functions and captures include Memory.
+
+- Frontend suite with four workers: **1,690 passed, 3 existing skips** across 213
+  files. An additional older-backend compatibility case brought the focused
+  Memory suite to **5 passed**. The initial unrestricted run hit four unrelated
+  I/O timeouts; the four-worker run passed those tests without changing them.
+- **51 distinct focused backend tests passed**, covering memory migration and
+  CRUD/ownership/versioning, paused selection, project selection, transcript
+  preservation, authentication, chat context/influences, session revisions and
+  tool registry. Four existing FastAPI lifecycle deprecation warnings remain.
+- `node scripts/qa-durable-memory.cjs` passed eight walkthrough groups using the
+  full renderer, synthetic API and disposable profile. Covered navigation,
+  pagination, edit focus, custom categories, priorities, pause/resume, draft
+  preservation, failure/conflict recovery, cancel/confirm deletion, filtered
+  export and narrow windows/panes. Desktop and narrow captures were inspected.
+- No live memory content was read or changed for testing. Full backend-suite,
+  real model inference and physical-phone acceptance were not rerun.
+
 ## November 1 button-only reset confirmation
 
 Removed the typed RESET field reintroduced with selective sanitization. Review

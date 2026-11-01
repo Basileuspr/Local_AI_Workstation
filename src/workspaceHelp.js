@@ -3,6 +3,10 @@ import {coordinatorOverview} from './help/coordinator';
 // Every workspace has an explicit guide. New routes must add one here too.
 // Keep instructions out of the work surface; WorkspaceInfo owns their presentation.
 const overview = {
+  memory: {
+    purpose: 'Inspect and manage lasting facts and preferences used by the assistant, with categories, priorities and reversible pause controls.',
+    example: 'Add “Use metric units in recipes,” choose preference and priority 4, then save. Search for recipes later to edit it or pause it. Next candidate marks a memory on the current ordinary-chat shortlist, not proof that it was used in a reply.',
+  },
   phone: {
     purpose: 'Find KDE Connect and scrcpy installations on Windows, follow official setup guides, and use existing Workstation Companion controls.',
     example: 'Open Phone and refresh detection. If scrcpy is not found, choose the folder containing its extracted Windows release. Use Companion for existing pairing and remote chat controls. Core files found means installation files are present; it does not establish a phone connection.',

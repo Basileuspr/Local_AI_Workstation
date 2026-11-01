@@ -13,6 +13,8 @@ appTabs.push('coordinator');
 appTabs.push('testing-lab');
 appTabs.push('reverse-engineer');
 appTabs.push('phone');
+appTabs.push('memory');
+appTabLabels.memory = 'Memory';
 appTabLabels.phone = 'Phone';
 appTabLabels['reverse-engineer'] = 'Reverse Engineer';
 appTabLabels['testing-lab'] = 'Testing Lab';

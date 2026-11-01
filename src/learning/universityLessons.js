@@ -23,7 +23,7 @@ export const universityAppLessons = [
   },
   {
     id: 'chat-controls', title: 'Choose a model and manage a chat', module: 'Workspace basics', minutes: 10,
-    workspaces: ['chats', 'dashboard', 'queue'],
+    workspaces: ['chats', 'dashboard', 'queue', 'memory'],
     concepts: [
       'The chat model selector chooses the installed Ollama model for your next message. A vision model can inspect an attached image; a text-only model works with text. Image generation has a separate model selector in Generate.',
       'Response length reserves reply tokens. Temperature, Top P and Top K affect how the model chooses wording; they do not supply facts. Stop interrupts an active reply, while Cancel waiting prompt removes work that has not started. Saved chat history and the context supplied with one request are different things.',
@@ -33,6 +33,7 @@ export const universityAppLessons = [
       'Open Chat and its information guide. Find Chat model, Response length and Temperature; write what each one changes.',
       'Start a new practice chat. Ask for three names for a fictional workshop, then compare two response-length settings with the same request.',
       'Inspect Response influences and the context estimate. Note which source or memory settings are enabled before interpreting the reply.',
+      'Open Memory from Chat options. Review the saved library, then add a practice preference if desired. Give it a category, pause it, and observe that it is no longer a Next candidate. Resume or delete the practice entry when finished.',
       'Open Prompt Queue to distinguish waiting, running and completed requests. Rename the practice chat so you can find the comparison later.',
     ],
     checkpoint: 'Your notes name the selected model, the one setting you changed, and an observable difference in the two replies. A confident reply is still checked against its sources.',

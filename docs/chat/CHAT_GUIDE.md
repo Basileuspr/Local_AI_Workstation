@@ -53,6 +53,38 @@ include unexpected information. [Knowledge](../workspace/KNOWLEDGE_VAULT.md) is
 explicitly ingested; uploading a chat attachment does not automatically create a
 Knowledge library.
 
+## Durable memory
+
+Open **Workspace → Memory**, **Chat options → Manage saved memories**, or
+**Browse and organize memories** beside the quick-save field in model settings.
+The library shows the saved text, category, priority, active/paused state, creation
+and edit times, and existing project/chat associations. Nothing is saved merely
+by opening the workspace.
+
+Use **Add memory** for a lasting preference, fact or constraint. Categories accept
+custom names; priority ranges from 1 (low) to 5 (high). Search text and category or
+project names, filter by category/status, and sort by priority or edit time.
+**Save memory** commits edits. Switching workspaces retains an open draft; closing
+it or opening a different entry asks before discarding unsaved changes.
+
+**Pause** excludes an entry from future model requests while retaining it for
+review; **Resume** makes it eligible again. **Delete memory** asks for a button
+confirmation, with no typing requirement. Version checks reject stale edits or
+deletions; refresh the library and reopen the entry to reconcile.
+
+The current selection considers up to ten active memories, ordered by descending
+priority and most recent edit. **Next candidate** identifies the ordinary-chat
+shortlist, not confirmed use. Project requests can narrow the list; context limits
+can shorten or omit content. Categories are organization labels, not chat scope
+boundaries. Roleplay can separately disable saved user memory in **Response
+influences**. Inspect a reply’s recorded influences for its actual supplied context.
+
+**Export filtered memories · JSON** saves a readable copy of every matching entry
+across pages, including full text. It does not replace **EXPORT BACK-UP** or provide
+an import workflow. The library is distinct from chat rolling summaries and
+Knowledge documents. Editing, pausing or deleting an entry does not erase copies
+already present in chat replies, summaries or backups.
+
 ## Second chat
 
 Open the second chat through Workspace options / the side pane. It has its own

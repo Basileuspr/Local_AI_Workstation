@@ -10,6 +10,7 @@ TAB_LABELS.coordinator = 'Coordinator';
 TAB_LABELS['testing-lab'] = 'Testing Lab';
 TAB_LABELS['reverse-engineer'] = 'Reverse Engineer';
 TAB_LABELS.phone = 'Phone';
+TAB_LABELS.memory = 'Memory';
 Object.assign(TAB_LABELS, {'reels-analyzer': 'Reels Analyzer', 'web-system': 'Web Research & Sources'});
 
 Object.assign(TAB_LABELS, {slicer: '3D Slicer', integrations: 'Linked applications', 'styling-library': 'Styling Library', 'sound-mixer':'Sound Mixer'});

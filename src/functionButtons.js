@@ -41,6 +41,7 @@ export const functionTargets = [
   { id: "chats", name: "Chats" },
   { id: "library", name: "Index" },
   { id: "knowledge", name: "Knowledge" },
+  { id: "memory", name: "Memory" },
   { id: "images", name: "Image Gallery" },
   { id: "image-manager", name: "Image Manager" },
   { id: "generate", name: "Generate Images" },

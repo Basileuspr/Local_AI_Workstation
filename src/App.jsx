@@ -49,6 +49,7 @@ import DesignWorkspace from './components/DesignWorkspace';
 const DesignPlayground = lazy(() => import('./components/DesignPlayground'));
 const Coordinator = lazy(() => import('./components/Coordinator'));
 const TestingLab = lazy(() => import('./components/TestingLab'));
+const DurableMemory = lazy(() => import('./components/DurableMemory'));
 const ReverseEngineer = lazy(() => import('./components/ReverseEngineer'));
 const PhoneWorkspace = lazy(() => import('../mobile-companion/desktop/PhoneWorkspace'));
 import ViewerBrowser from './components/ViewerBrowser';
@@ -449,6 +450,7 @@ function AppInner() {
           <div className="pane" data-capture-tab="media-manager" hidden={!visible("media-manager")}><MediaManager active={visible("media-manager")} /></div>
           <div className="pane" data-capture-tab="image-manager" hidden={!visible("image-manager")}><ImageManager active={visible("image-manager")} /></div>
           <div className="pane" data-capture-tab="knowledge" hidden={!visible("knowledge")}><KnowledgeVault active={visible("knowledge")} /></div>
+          <div className="pane" data-capture-tab="memory" hidden={!visible('memory')}><Suspense fallback={<p>Opening Memory…</p>}><DurableMemory active={visible('memory')} /></Suspense></div>
           <div className="pane" data-capture-tab="tools" hidden={!visible("tools")}><Tools /></div>
           <div className="pane" data-capture-tab="shortcuts" hidden={!visible("shortcuts")}><ShortcutRegistry /></div>
           {designPane('design-programming', (designVisible || designUsed) && <Suspense fallback={<p>Opening UI Playground…</p>}><DesignPlayground active={designVisible} incomingExample={designExample} onEdit={openBrowserSource} /></Suspense>)}

@@ -5,6 +5,7 @@ const groups = [
     { id: "chats", label: "Chats" },
     { id: "library", label: "Index" },
     { id: "knowledge", label: "Knowledge" },
+    { id: "memory", label: "Memory", title: "Durable Memory · saved facts, preferences, categories and priorities" },
     { id: "canvas", label: "Canvas" },
     { id: "converter", label: "File Converter" },
     { id: "local-files", label: "Local Files" },

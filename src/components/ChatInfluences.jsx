@@ -24,6 +24,7 @@ export default function ChatInfluences({onOpenSettings}){
       <dt>Response style</dt><dd>{plan.summary.responseStyle||'Not included'}</dd>
       <dt>Knowledge retrieval</dt><dd>{plan.summary.knowledge==='selected'?`${state.knowledgeDocIds?.length||0} selected documents`:plan.summary.knowledge}. Retrieved excerpts are confirmed per reply.</dd>
       <dt>Conversation</dt><dd>Recent messages{state.memorySummary?' and rolling summary':''}</dd>
+      <dt>Durable memory library</dt><dd><button type="button" onClick={() => { onOpenSettings?.(); dispatch({ type: 'SET_SIDEBAR_TAB', payload: 'memory' }); }}>Browse saved memories</button></dd>
     </dl>
     {workspace?.selected&&<div className="influence-controls"><span>Character Creator: <strong>{workspace.selected.name}</strong></span><button type="button" disabled={busy} onClick={loadSelected}>Load {workspace.selected.name} into roleplay</button></div>}
 

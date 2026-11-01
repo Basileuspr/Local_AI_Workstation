@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import uuid
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, create_engine, or_
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, create_engine, inspect, or_, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
 
@@ -87,6 +87,8 @@ class Memory(Base):
     memory_type: Mapped[str] = mapped_column(String(100), default="general")
     memory_text: Mapped[str] = mapped_column(Text)
     importance: Mapped[int] = mapped_column(Integer, default=3)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_utc_now, onupdate=_utc_now)
 
@@ -95,6 +97,13 @@ def initialize_database() -> None:
     """Create the SQLite file and tables when the backend starts."""
     DATABASE_PATH.parent.mkdir(parents=True, exist_ok=True)
     Base.metadata.create_all(bind=engine)
+    # Additive upgrade: existing memories retain their text, ownership and priority.
+    with engine.begin() as connection:
+        columns = {column['name'] for column in inspect(connection).get_columns('memories')}
+        if 'is_active' not in columns:
+            connection.execute(text('ALTER TABLE memories ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT 1'))
+        if 'version' not in columns:
+            connection.execute(text('ALTER TABLE memories ADD COLUMN version INTEGER NOT NULL DEFAULT 1'))
 
 
 def create_user_if_missing(username: str) -> User:
@@ -214,6 +223,7 @@ def save_memory(
     project_id: int | None = None,
     session_id: str | None = None,
     importance: int = 3,
+    is_active: bool = True,
 ) -> Memory:
     memory_text = memory_text.strip()
     if not memory_text:
@@ -229,6 +239,7 @@ def save_memory(
             memory_type=memory_type.strip() or "general",
             memory_text=memory_text,
             importance=importance,
+            is_active=is_active,
         )
         db.add(memory)
         db.commit()
@@ -238,13 +249,13 @@ def save_memory(
 
 def get_relevant_memories(user_id: int, project_id: int | None = None, limit: int = 10) -> list[Memory]:
     with SessionLocal() as db:
-        query = db.query(Memory).filter(Memory.user_id == user_id)
+        query = db.query(Memory).filter(Memory.user_id == user_id, Memory.is_active.is_(True))
 
         # Project chats receive project-specific memories plus general user memories.
         if project_id is not None:
             query = query.filter(or_(Memory.project_id == project_id, Memory.project_id.is_(None)))
 
-        return query.order_by(Memory.importance.desc(), Memory.updated_at.desc()).limit(limit).all()
+        return query.order_by(Memory.importance.desc(), Memory.updated_at.desc(), Memory.id.desc()).limit(limit).all()
 
 
 def get_user_by_username(username: str) -> User | None:
@@ -257,7 +268,7 @@ def list_memories(user_id: int) -> list[Memory]:
         return (
             db.query(Memory)
             .filter(Memory.user_id == user_id)
-            .order_by(Memory.importance.desc(), Memory.updated_at.desc())
+            .order_by(Memory.importance.desc(), Memory.updated_at.desc(), Memory.id.desc())
             .all()
         )
 
@@ -271,6 +282,35 @@ def memory_to_dict(memory: Memory) -> dict:
         "memory_type": memory.memory_type,
         "memory_text": memory.memory_text,
         "importance": memory.importance,
+        "is_active": memory.is_active,
+        "version": memory.version,
         "created_at": memory.created_at.isoformat(),
         "updated_at": memory.updated_at.isoformat(),
     }
+
+
+class MemoryConflict(ValueError):
+    pass
+
+
+def change_memory(user_id: int, memory_id: int, version: int, changes: dict | None = None) -> Memory | None:
+    """Edit or delete a reviewed version without overwriting another editor."""
+    with SessionLocal() as db:
+        query = db.query(Memory).filter(Memory.user_id == user_id, Memory.id == memory_id)
+        if not query.first():
+            raise LookupError('Memory no longer exists. Refresh the library.')
+        reviewed = query.filter(Memory.version == version)
+        if changes is None:
+            changed = reviewed.delete(synchronize_session=False)
+        else:
+            changed = reviewed.update({**changes, 'version': Memory.version + 1, 'updated_at': _utc_now()}, synchronize_session=False)
+        if changed != 1:
+            raise MemoryConflict('This memory changed elsewhere. Refresh and review it before saving again.')
+        db.commit()
+        db.expire_all()
+        return db.get(Memory, memory_id) if changes is not None else None
+
+
+def memory_project_names(user_id: int) -> dict:
+    with SessionLocal() as db:
+        return {project.id: project.name for project in db.query(Project).filter(Project.user_id == user_id)}

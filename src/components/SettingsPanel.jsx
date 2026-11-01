@@ -89,6 +89,7 @@ export default function SettingsPanel() {
     try {
       setSavingDurableMemory(true);
       await api.saveDurableMemory({ memoryText });
+      window.dispatchEvent(new Event('durable-memory-changed'));
       setDurableMemoryDraft("");
       showToast("Durable memory saved", "success");
     } catch (error) {
@@ -432,12 +433,14 @@ export default function SettingsPanel() {
             <div className="system-prompt-label">Durable Memory</div>
             <textarea
               aria-label="Durable Memory" value={durableMemoryDraft}
+              maxLength={8000}
               onChange={(e) => setDurableMemoryDraft(e.target.value)}
               placeholder="A lasting preference, project fact, or constraint"
             />
             <button type="button" onClick={saveDurableMemory} disabled={savingDurableMemory}>
               {savingDurableMemory ? "Saving..." : "Save durable memory"}
             </button>
+            <button type="button" onClick={() => dispatch({ type: 'SET_SIDEBAR_TAB', payload: 'memory' })}>Browse and organize memories</button>
           </div>
         </div>
       </div>

@@ -11,6 +11,16 @@ import {linkedToolHelp} from './help/linkedTools';
 import {webHelp} from './help/web';
 
 export const workspaceControls = {
+  memory: [['Durable memory library', [
+    ['Add memory / Edit', 'Create or correct an explicitly saved fact, preference or constraint. Save memory persists it locally. Unsaved edits remain when switching workspaces; opening another entry or closing its editor asks before discarding changes.'],
+    ['Search / Category / Status / Sort', 'Search text, category and project names. Filter active or paused entries, choose a category, and order by priority or last edit. Clear filters restores the full library. Results use pages of 30 memories.'],
+    ['Category / Priority', 'Choose a category or type your own to organize entries. Categories do not restrict use to particular chats. Priority 1–5 affects selection; higher priority and recent edits come first. Existing project and chat associations are shown in the editor.'],
+    ['Active / Pause / Resume', 'Paused memories remain in the library but are excluded from future requests. Resuming makes them eligible again. Roleplay can separately disable saved memories through Response influences.'],
+    ['Next candidate', 'Marks the current shortlist of up to ten active memories for ordinary chat. Project requests can narrow this list and the context budget can shorten content. Check each reply’s Response influences to inspect its supplied context; a candidate badge does not prove use.'],
+    ['Delete memory', 'Review the confirmation and click Confirm; no typed word is required. Deletes only that library entry. Existing replies, working summaries and backups can retain copies. Use Pause when you may want the entry again.'],
+    ['Refresh', 'Reload current saved entries without discarding editor text. If an entry changed elsewhere, refresh and reopen it before saving; stale edits are rejected.'],
+    ['Export filtered memories', 'Save a JSON copy of the entries matching the current filters, including their full text. This is a readable export, not a full app backup or automatic import.'],
+  ]]],
   phone: [['Phone tools and Companion', [
     ['Refresh detection', 'Inspect local Windows installation folders without starting tools, ADB, device connections or notification tests. Core files found checks the main executables and scrcpy server; it does not verify signatures, runtime dependencies or phone connectivity. Results refresh when you return to Phone.'],
     ['Choose folder / Use automatic detection', 'Choose a local KDE Connect installation or extracted scrcpy release folder. KDE Connect can be selected at its root or bin folder; scrcpy supports nested release folders. Choices are saved in the local desktop profile. Automatic detection checks standard KDE Connect locations, extracted scrcpy releases in Downloads and local PATH folders. Store-only or custom packages may require manual selection. An incomplete or missing selected folder remains visible until changed or reset.'],

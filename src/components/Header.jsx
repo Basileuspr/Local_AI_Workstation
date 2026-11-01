@@ -166,6 +166,7 @@ export default function Header({ onSessionRenamed, onCompactMemory }) {
             </section>
             <section className="chat-option-group" aria-label="Conversation options">
               <h3>Conversation</h3>
+              <button type="button" onClick={() => { close(); dispatch({ type: 'SET_SIDEBAR_TAB', payload: 'memory' }); }}>Manage saved memories</button>
               <ChatWidthControl />
               <div className={`context-meter ${contextStatus.className}`}
                 title={`Estimated prompt context: ${Math.round(contextUsage.promptTokens)} of ${Math.round(contextUsage.usableInputTokens)} usable tokens. ${contextStatus.label}.`}>
