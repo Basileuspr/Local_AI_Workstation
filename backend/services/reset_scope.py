@@ -4,7 +4,7 @@ SECTIONS = {
     'chats': ('Chats', 'Saved conversations. Copies in memory, recovery history and phone/PC jobs are separate sections.', ('sessions',)),
     'memory': ('Durable memory', 'Remembered facts and their database sidecars.', ('memory.db', 'memory.db-wal', 'memory.db-shm', 'memory.db-journal')),
     'knowledge': ('Knowledge and Index', 'Indexed documents, graph, saved Index entries and drafts.', ('knowledge_base', 'prompt_index.json', 'prompt_index_draft.json')),
-    'media': ('App media and documents', 'App-data images, blobs, Hidden/Locked images, documents, canvas and reels. Saved chats may reference these files.', ('artifacts', 'blobs', 'generated_images', 'image_library', 'locked_images', 'reels')),
+    'media': ('App media and documents', 'App-data images, generated videos, blobs, Hidden/Locked images, documents, canvas and reels. Saved chats may reference these files.', ('artifacts', 'blobs', 'generated_images', 'generated_media', 'image_library', 'locked_images', 'reels')),
     'workflows': ('Image workflows', 'Saved workflows and their app-data assets and results.', ('image_workflows',)),
     'training': ('Characters, faces and LoRAs', 'Character/face datasets, training projects and trained adapters inside app data.', ('lora', 'face_bank', 'face_datasets', 'character_datasets')),
     'web': ('Web research', 'Saved web research, sources and background-monitor settings inside app data. Separate browser profiles remain.', ('web', 'web-system')),

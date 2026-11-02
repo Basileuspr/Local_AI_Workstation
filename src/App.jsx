@@ -33,7 +33,7 @@ import SettingsPanel from "./components/SettingsPanel";
 import MessageList from "./components/MessageList";
 import InputBar from "./components/InputBar";
 import PromptIndex from "./components/PromptIndex";
-import ImageStudio from "./components/ImageStudio";
+import ImageStudio from "./components/GenerationWorkspace";
 import LoraStudio from "./components/LoraStudio";
 import ImageWorkflows from "./components/ImageWorkflows";
 import FaceStudio from "./components/FaceStudio";

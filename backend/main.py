@@ -126,6 +126,10 @@ app.add_event_handler('shutdown', web_research_manager.close)
 app.add_event_handler('startup', web_lookup_manager.startup)
 app.add_event_handler('shutdown', web_lookup_manager.close)
 app.include_router(browser_media_router)
+from routes.media_generation import router as media_generation_router
+from services.media_generation import jobs as media_generation_jobs
+app.include_router(media_generation_router)
+app.add_event_handler('shutdown', media_generation_jobs.shutdown)
 from routes.reels import router as reels_router
 app.include_router(reels_router)
 from services import reels_store

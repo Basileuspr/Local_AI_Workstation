@@ -1,0 +1,129 @@
+{
+  "runtime": {
+    "repository": "leejet/stable-diffusion.cpp",
+    "release": "master-1030-0a06712",
+    "assets": [
+      {
+        "url": "https://github.com/leejet/stable-diffusion.cpp/releases/download/master-1030-0a06712/cudart-sd-bin-win-cu12-x64.zip",
+        "file": "cudart-sd-bin-win-cu12-x64.zip",
+        "size": 563452046,
+        "sha256": "fe20366827d357c00797eebb58244dddab7fd9a348d70090c3871004c320f38d"
+      },
+      {
+        "url": "https://github.com/leejet/stable-diffusion.cpp/releases/download/master-1030-0a06712/sd-master-0a06712-bin-win-cuda12-x64.zip",
+        "file": "sd-master-0a06712-bin-win-cuda12-x64.zip",
+        "size": 354211822,
+        "sha256": "916c6f4b1a98e94de627d9901d0229d60fd3fc05266be8be57f2280b2548b5c4"
+      }
+    ]
+  },
+  "models": {
+    "qwen-image-2.1-uncensored-q4": {
+      "name": "Qwen Image 2.1 Uncensored Q4",
+      "family": "qwen-image-2.1",
+      "kind": "image",
+      "reference_mode": "edit",
+      "steps": 30,
+      "guidance": 6,
+      "files": {
+        "diffusion": {
+          "repo": "abenzerps/Qwen-Image-2.1-Uncensored-Quantized",
+          "revision": "7959e658915f52274897fb573ffeda49de8dc16b",
+          "file": "qwen-image-2.1-UC-Q4_K_M.gguf",
+          "size": 4604558112,
+          "sha256": "e79c8a009f2ecbdb6c70fd663d9aea9ee304a0d91f347e4169a756b8ad141b41"
+        },
+        "vae": {
+          "repo": "abenzerps/Qwen-Image-2.1-Uncensored-Quantized",
+          "revision": "7959e658915f52274897fb573ffeda49de8dc16b",
+          "file": "vae/qwen_image_2.1_vae_bf16.safetensors",
+          "size": 675509688,
+          "sha256": "bb21f7473051e1ac368515dd3f2e15cd44d7a11748ee8823e1ddca3e4876b7c9"
+        },
+        "llm": {
+          "repo": "Qwen/Qwen3-VL-8B-Instruct-GGUF",
+          "revision": "f982a07559d4a2f6c8744d840bf6fccab30eea96",
+          "file": "Qwen3VL-8B-Instruct-Q4_K_M.gguf",
+          "size": 5027784800,
+          "sha256": "67d1659bfe71b89d50b45a4ad1a9e5b997e5bb16ce5da66a6a6167abd569e9e2"
+        },
+        "vision": {
+          "repo": "Qwen/Qwen3-VL-8B-Instruct-GGUF",
+          "revision": "f982a07559d4a2f6c8744d840bf6fccab30eea96",
+          "file": "mmproj-Qwen3VL-8B-Instruct-F16.gguf",
+          "size": 1159029824,
+          "sha256": "ca524100ebf825c9a870db1c580d03879e0da0ab2541697e2458e64891cf9d38"
+        }
+      }
+    },
+    "wan2.2-ti2v-5b-q4": {
+      "name": "Wan 2.2 TI2V 5B Q4",
+      "family": "wan2.2-5b",
+      "kind": "video",
+      "reference_mode": "optional",
+      "steps": 20,
+      "guidance": 5,
+      "files": {
+        "diffusion": {
+          "repo": "QuantStack/Wan2.2-TI2V-5B-GGUF",
+          "revision": "57437632ddd08bdcbd1508c866aa22e126ed51d2",
+          "file": "Wan2.2-TI2V-5B-Q4_K_M.gguf",
+          "size": 3433116000,
+          "sha256": "95b19697b7f98e65b0a543640e9ca7b4dfec32e2a6e3731e8e10708be52655e2"
+        },
+        "vae": {
+          "repo": "QuantStack/Wan2.2-TI2V-5B-GGUF",
+          "revision": "57437632ddd08bdcbd1508c866aa22e126ed51d2",
+          "file": "VAE/Wan2.2_VAE.safetensors",
+          "size": 1409400960,
+          "sha256": "e40321bd36b9709991dae2530eb4ac303dd168276980d3e9bc4b6e2b75fed156"
+        },
+        "t5": {
+          "repo": "city96/umt5-xxl-encoder-gguf",
+          "revision": "b535255bee98c2b0a59ea7c0ae2dcd0c6657b3b7",
+          "file": "umt5-xxl-encoder-Q4_K_M.gguf",
+          "size": 3655145312,
+          "sha256": "17cf97a5bbbc60a646d6105b832b6f657ce904a8a1ad970e4b59df0c67584a40"
+        }
+      }
+    },
+    "wan2.2-i2v-14b-uncensored": {
+      "name": "Wan 2.2 I2V 14B Uncensored",
+      "family": "wan2.2-14b",
+      "kind": "video",
+      "reference_mode": "required",
+      "steps": 20,
+      "guidance": 3.5,
+      "files": {
+        "diffusion": {
+          "repo": "rzgar/wan2.2-i2v-A14B-Uncensored-base",
+          "revision": "44bd071cc0917cd6350d4592c291214dd8f60d19",
+          "file": "Wan2.2_I2V_Low_R1.safetensors",
+          "size": 14548610448,
+          "sha256": "0aca667baee6778177c61b9a4e48b484cfcfabd53f8135aab746b1ab8a6505ea"
+        },
+        "high_noise": {
+          "repo": "rzgar/wan2.2-i2v-A14B-Uncensored-base",
+          "revision": "44bd071cc0917cd6350d4592c291214dd8f60d19",
+          "file": "Wan2.2_I2V_High_R1.safetensors",
+          "size": 14548610448,
+          "sha256": "f0d7e6ace6b16d945588124bd384afa9b74f004c8f537d7176ac86a62a370cd1"
+        },
+        "vae": {
+          "repo": "Comfy-Org/Wan_2.1_ComfyUI_repackaged",
+          "revision": "123acf1cc74bccbb9bfff8ac1ee72edc08c2341d",
+          "file": "split_files/vae/wan_2.1_vae.safetensors",
+          "size": 253815318,
+          "sha256": "2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b"
+        },
+        "t5": {
+          "repo": "city96/umt5-xxl-encoder-gguf",
+          "revision": "b535255bee98c2b0a59ea7c0ae2dcd0c6657b3b7",
+          "file": "umt5-xxl-encoder-Q4_K_M.gguf",
+          "size": 3655145312,
+          "sha256": "17cf97a5bbbc60a646d6105b832b6f657ce904a8a1ad970e4b59df0c67584a40"
+        }
+      }
+    }
+  }
+}

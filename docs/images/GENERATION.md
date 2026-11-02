@@ -48,6 +48,58 @@ use and integration need separate evaluation.
 
 ## Generate
 
+### Qwen image editing and Wan video
+
+The **Qwen images & Wan video** tab inside Generate uses a separate local
+`stable-diffusion.cpp` CUDA runtime. Install its pinned runtime and models on each PC:
+
+```powershell
+venv\Scripts\python.exe scripts/install-media-models.py --runtime --all
+```
+
+Wan output validation also uses the optional local video decoder installed by
+`venv\Scripts\python.exe -m pip install -r requirements-audio.txt`. Missing decoder
+support is reported before a video job is accepted.
+
+Individual model IDs can replace `--all`. The installer verifies published file
+sizes and SHA-256 hashes, shares companion files between models, resumes partial
+downloads and writes a completed installation manifest only after verification.
+The catalog is in `scripts/media-model-catalog.json`; binaries and weights stay
+under the local `models` directory and are excluded from Git.
+
+| Model ID | Purpose | References |
+|---|---|---|
+| `qwen-image-2.1-uncensored-q4` | [Qwen Image 2.1 Uncensored Q4](https://huggingface.co/abenzerps/Qwen-Image-2.1-Uncensored-Quantized), with the official quantized [Qwen3 VL encoder](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct-GGUF) | Up to four ordered images; describe what to change and preserve |
+| `wan2.2-ti2v-5b-q4` | [Wan 2.2 TI2V 5B Q4](https://huggingface.co/QuantStack/Wan2.2-TI2V-5B-GGUF), standard text/image-to-video | Optional first image |
+| `wan2.2-i2v-14b-uncensored` | [Wan 2.2 I2V 14B Uncensored](https://huggingface.co/rzgar/wan2.2-i2v-A14B-Uncensored-base), two-expert video model | One first image required |
+
+The Wan checkpoints above are alternatives to the WAMU checkpoint used by the
+`kulkas2pintu/wan777` hosted Space, not copies of that Space's deployment. The
+uncensored labels come from the checkpoint publishers. No unrestricted-behavior
+guarantee or independent abliteration claim is made.
+
+Choose a model, enter a prompt, optionally upload reference images, then submit.
+For Wan, select the frame count and frame rate. The 14B model's Steps setting
+applies separately to its high-noise and low-noise experts. Results stay in this
+tab's generation history; save images as PNG and videos as WebM. These jobs are
+not attached to a chat automatically. Restarting the backend marks unfinished
+jobs as interrupted; it does not silently replay them.
+
+Jobs use the same GPU admission queue as other workstation tasks. The provider
+unloads the idle image pipeline before starting its subprocess. Memory mapping,
+automatic GPU/RAM/disk placement, a 6 GiB managed VRAM budget, sequential CFG and
+tiled VAE decoding reduce memory demand. Disk offloading can be very slow.
+Stop terminates the subprocess even while it is loading. Failed requests are
+not automatically retried with changed dimensions or models.
+
+Private recipes, outputs and bounded diagnostic logs live in
+`data/generated_media/<job-id>`. Reference-image access is checked again when
+the queued job starts, and temporary reference files are removed afterward.
+The **App media and documents** reset section includes these jobs and outputs.
+Existing SDXL close-variation controls remain in the **Image generation** tab.
+
+### SDXL and Verboa controls
+
 1. Choose the image model, prompt and supported dimensions.
 2. Set steps, guidance, seed and any compatible LoRA explicitly.
 3. Review the settings and submit. The job captures those inputs and its

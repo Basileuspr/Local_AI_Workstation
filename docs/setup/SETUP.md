@@ -51,6 +51,11 @@ out-of-memory errors do not silently change generation settings and retry.
 
 ## Optional Verboa runtime
 
+For Qwen image editing and Wan video, see the separate
+[Qwen and Wan installation and workflow](../images/GENERATION.md#qwen-image-editing-and-wan-video).
+It installs a pinned Windows CUDA executable and model files without upgrading
+the existing Python generation runtime.
+
 Verboa Image 1.0 NF4 uses the ERNIE Image text-to-image pipeline. In the existing
 CUDA environment:
 

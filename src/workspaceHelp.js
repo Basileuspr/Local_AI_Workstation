@@ -97,8 +97,8 @@ const overview = {
     example: "Open a generated image and Add to stitcher. Browse past unsuitable attempts, add the next useful scene, then Preview stitch, adjust the order and Save stitched image.",
   },
   generate: {
-    purpose: "Generate images with a local image model, with optional references and a compatible LoRA adapter.",
-    example: "Use a fixed seed such as 42 and keep the model, prompt, dimensions, and steps the same while comparing two guidance values. The detailed scales below explain each setting.",
+    purpose: "Generate images with a local image model, with optional references and a compatible LoRA adapter. The Qwen images & Wan video tab adds ordered image editing references and local video generation with separately installed models.",
+    example: "Use a fixed seed such as 42 while comparing guidance values. For Qwen, describe what to change and preserve in up to four reference images. For Wan, choose frames and frame rate; the 14B model requires one reference and applies Steps per expert. Save results from that tab’s history; Stop works during model loading.",
   },
   review: {
     purpose: "Classify images with ratings, tags, captions, local face grouping, and optional scene analysis, then file them into Gallery folders.",

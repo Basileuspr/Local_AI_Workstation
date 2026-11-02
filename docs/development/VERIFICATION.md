@@ -1,8 +1,48 @@
 # Verification record and open findings
 
-This is the consolidated evidence record, updated November 1, 2026.
+This is the consolidated evidence record, updated November 2, 2026.
 Current guides describe inspected source; dated tests below are not a certification
 of every feature, provider, installation or device.
+
+## November 2 local Qwen/Wan generation and main synchronization
+
+Added Generate's **Qwen images & Wan video** workspace, a pinned Windows CUDA
+runtime/model installer, authenticated job/history/output routes and shared GPU
+queue admission. Ordered Qwen references, Wan frame settings, progress, Stop,
+PNG/WebM downloads and restart interruption reporting use private local storage.
+Jobs and outputs belong to the **App media and documents** reset section.
+
+Runtime readiness checks the completed receipt and all recorded file sizes.
+Installer writes are atomic and recover interrupted pending files without replacing
+different installed files. Regression checks cover incomplete installations,
+malformed history, session protection, reference access, bounded logs, silent-load
+cancellation and cancellation arriving just as the provider finishes. Missing video
+decoder support is rejected before generation begins.
+
+The existing local generation work was preserved outside the checkout and in
+retained local Git recovery records before fast-forwarding main through `1602ed0`.
+Reapplying it retained the incoming reset, durable-memory and model-profile work;
+only intended source and documentation are included in publication.
+
+- Before synchronization, the full backend suite passed **2,428 tests, 3 skips**
+  with 26 deprecation warnings and temporary data/model/log/catalog directories.
+- After synchronization, **235 focused backend tests passed**, including the final
+  25 generation tests plus reset, memory, profiles, context budgeting, chat runtime,
+  thinking, queue, tools, authentication, API smoke and system status. Four existing
+  FastAPI lifecycle warnings remain; no skips in this focused run.
+- The integrated frontend suite passed **1,697 tests, 3 skips** across 214 files.
+- Isolated Chromium passed four generation checks, five model-profile walkthrough
+  groups and eight durable-memory walkthrough groups. Generation desktop/narrow
+  screenshots were inspected. Synthetic jobs never accessed live app data or GPUs.
+- Media Manager passed **109 Python tests with 3 skips**, plus **23 JavaScript tests**.
+- Desktop and phone production builds passed in temporary output folders. Existing
+  large-chunk, linkedom eval and manifold externalization warnings remain. Deployed
+  assets and their prior build identity were preserved; no app restart was performed.
+  Documentation links and the source publication/privacy scan passed.
+- The installed pinned runtime's command help was inspected. Local installation
+  receipts report Qwen and Wan 5B available; Wan 14B is not installed on this PC.
+  No new real-GPU generation, performance/quality evaluation, fresh installation,
+  native Android checks or physical-phone acceptance was performed.
 
 ## November 1 per-model chat profiles and context status
 
