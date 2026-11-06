@@ -30,7 +30,7 @@ def preflight(workflow: Workflow) -> dict:
 
         for field, required, code in (
             (stage.mask_asset_id, stage.operation == "inpaint", "mask"),
-            (stage.control_asset_id, stage.operation == "controlnet", "control"),
+            (stage.control_asset_id, stage.operation == "controlnet" and stage.control_input == 'map', "control"),
         ):
             if required and not field:
                 issue(f"{code}_required", f"Stage {number}: choose a {code} image.", stage.id)
@@ -42,6 +42,10 @@ def preflight(workflow: Workflow) -> dict:
                 issue("mask_size_mismatch", f"Stage {number}: mask and source dimensions must match.", stage.id)
         if stage.operation == "multi_reference" and not stage.reference_asset_ids:
             issue("references_required", f"Stage {number}: add at least one reference image.", stage.id)
+        if stage.operation == 'controlnet' and stage.control_kind != 'edges':
+            issue('control_kind_unsupported', f'Stage {number}: the installed ControlNet adapter supports Canny edges only.', stage.id)
+        if len(set(stage.reference_asset_ids)) != len(stage.reference_asset_ids):
+            issue('references_duplicate', f'Stage {number}: choose each reference only once.', stage.id)
         if any(ref not in assets for ref in stage.reference_asset_ids):
             issue("references_invalid", f"Stage {number}: a reference image is missing.", stage.id)
         if stage.operation != "describe":

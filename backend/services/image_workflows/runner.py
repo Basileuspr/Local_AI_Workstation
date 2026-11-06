@@ -70,21 +70,23 @@ def preflight(workflow):
         source_size = None
         if stage.source:
             source_size = (sizes if stage.source.kind == "asset" else output_sizes).get(stage.source.id)
-        if stage.operation in {"txt2img", "img2img", "inpaint"}:
+        if stage.operation in {"txt2img", "img2img", "inpaint", "outpaint", "controlnet", "multi_reference"}:
             output_sizes[stage.id] = (stage.width, stage.height)
             prompts = workflow.prompt_settings
             if not prompts.prompt.strip():
                 issue("prompt_required", f"Stage {number}: enter a positive prompt.", stage.id)
-            if prompts.steps > MAX_IMAGE_STEPS or (stage.operation != "txt2img" and stage.strength > 0 and int(prompts.steps * stage.strength) < 1):
+            if prompts.steps > MAX_IMAGE_STEPS or (stage.operation not in {"txt2img", "outpaint"} and stage.strength > 0 and int(prompts.steps * stage.strength) < 1):
                 issue("steps_unsupported", f"Stage {number}: use at most {MAX_IMAGE_STEPS} steps and steps \u00d7 strength \u2265 1 (or strength 0 to preserve the source).", stage.id)
             if prompts.guidance <= 1 and prompts.negative_prompt.strip():
                 issue("negative_prompt_unsupported", f"Stage {number}: set guidance above 1 to use a negative prompt with SDXL.", stage.id)
-            if provider and provider.get("available", True) and stage.provider_slot == "local-sdxl" and stage.model_id in {m["id"] for m in provider["models"]}:
+            if provider and provider.get("available", True) and stage.provider_slot.startswith("local-sdxl") and stage.model_id in {m["id"] for m in provider["models"]}:
                 try:
                     from services.image_generation import prompt_token_status
                     tokens = prompt_token_status(stage.model_id, prompts.prompt, prompts.negative_prompt)
-                    if max(tokens["prompt"]["chunks_required"], tokens["negative_prompt"]["chunks_required"]) > 4:
-                        issue("prompt_too_long", f"Stage {number}: shorten the prompt to at most four CLIP chunks.", stage.id)
+                    chunks = max(tokens["prompt"]["chunks_required"], tokens["negative_prompt"]["chunks_required"])
+                    limit = 1 if stage.operation in {'controlnet', 'multi_reference'} else 4
+                    if chunks > limit:
+                        issue("prompt_too_long", f"Stage {number}: shorten the prompt to at most {limit} CLIP chunk(s) for this adapter.", stage.id)
                 except Exception as exc:
                     issue("tokenizer_unavailable", f"Stage {number}: {exc}", stage.id)
             if stage.operation == "inpaint" and source_size and stage.mask_asset_id in sizes and sizes[stage.mask_asset_id] != source_size:
@@ -257,7 +259,7 @@ class Runner:
                 provider = registry.get(stage.provider_slot)
                 if provider is None or stage.operation not in provider.operations:
                     raise ValueError("Stage provider is no longer available")
-                if stage.provider_slot in {"local-sdxl", "ollama-vision"}:
+                if stage.provider_slot.startswith('local-sdxl') or stage.provider_slot in {"ollama-vision", "local-realesrgan"}:
                     from services.image_generation import manager as image_manager
                     from .adapters import thread_work
                     if stage.provider_slot == "ollama-vision":
@@ -279,7 +281,7 @@ class Runner:
                     if not path.is_relative_to(directory) or path.suffix != ".png":
                         raise ValueError("Provider output escaped its assigned stage directory")
                     image = store._inspect_image(path.name, path.read_bytes())
-                    if stage.operation in {"txt2img", "img2img", "inpaint"}:
+                    if stage.operation in {"txt2img", "img2img", "inpaint", "outpaint", "controlnet", "multi_reference"}:
                         expected_size = (stage.width, stage.height)
                     else:
                         expected_size = tuple(d * stage.upscale_factor for d in _image_size(source))

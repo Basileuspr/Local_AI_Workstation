@@ -1,8 +1,43 @@
 # Verification record and open findings
 
-This is the consolidated evidence record, updated November 2, 2026.
+This is the consolidated evidence record, updated November 6, 2026.
 Current guides describe inspected source; dated tests below are not a certification
 of every feature, provider, installation or device.
+
+## November 6 local conditioning, outpainting and trained upscaling
+
+Image Workflows now executes optional SDXL Canny ControlNet, pooled IP-Adapter Plus
+references, source-preserving outpainting and tiled Real-ESRGAN reconstruction.
+Pinned model installation is explicit; normal discovery and inference are offline.
+Private sample photos, model files, output images and run receipts stay outside Git.
+
+- The frontend suite passed **1,697 tests, 3 existing skips** across 214 files.
+- **216 focused backend tests passed**, covering workflow execution, exports,
+  deletion, ownership/session guards, the shared queue, cancellation and model
+  cleanup. Seven additional installer checks passed for resumed/restarted downloads,
+  hashes, invalid responses, size bounds and preservation of existing files; the
+  final advanced-adapter test file passed all 21 checks. Dependency deprecation
+  warnings remain. This was not a new full-backend certification.
+- The isolated Chromium walkthrough passed five control/layout groups, including
+  submitted settings, both references, provider choice and a 430-pixel layout.
+  Desktop and narrow screenshots were inspected.
+- Nine selected real-GPU cases completed through the normal workflow runner on
+  an RTX 3070 with 8 GiB VRAM: two Canny, two outpaint, two trained 2x upscale,
+  and three fixed-seed reference comparisons (both/first/second). Additional
+  checkpoint and strength comparisons were retained privately. SDXL examples
+  use working copies at up to 512 pixels; upscaling uses the full-size originals.
+- Original-file hashes were unchanged. Outpainted fitted interiors matched
+  pixel-for-pixel. Neural upscales differed from Lanczos at the expected sizes.
+  Every selected run released its GPU lease. All selected references entered the
+  adapter; same-seed comparisons produced different outputs.
+- Visual review found useful structural guidance and sharpening, but also changed
+  facial/phone details, invented border objects and seams. Pooled reference
+  conditioning is not FaceID or an exact identity/clothing guarantee. These samples
+  establish execution and illustrate limits; they are not a quality benchmark.
+
+See [Image Workflows](../images/IMAGE_WORKFLOWS.md) for installation, controls and
+the private acceptance helper. Depth/pose models, automatic subject masks and
+trained relighting remain outside this implementation.
 
 ## November 2 local Qwen/Wan generation and main synchronization
 

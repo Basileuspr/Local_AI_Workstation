@@ -1,0 +1,6 @@
+# Optional Image Workflows adapters; install after the CUDA/SDXL profile.
+opencv-python-headless==5.0.0.93
+spandrel==0.4.2
+einops==0.8.2
+# Used by the private photo acceptance helper to decode HEIC originals.
+pillow-heif==1.8.1

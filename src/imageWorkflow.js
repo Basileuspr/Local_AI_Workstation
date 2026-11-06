@@ -74,6 +74,14 @@ export function newStage(workflow, operation) {
     strength: 0.55,
     control_scale: 1,
     control_kind: "edges",
+    control_input: "source",
+    canny_low: 100,
+    canny_high: 200,
+    reference_scale: 0.6,
+    outpaint_left: 64,
+    outpaint_right: 64,
+    outpaint_top: 64,
+    outpaint_bottom: 64,
     upscale_factor: 2,
   };
 }

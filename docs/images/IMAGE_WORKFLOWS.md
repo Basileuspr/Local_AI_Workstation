@@ -10,8 +10,9 @@ action while keeping the scene/stage editor visible.
 
 ## Processing stages
 
-Supported providers include SDXL text-to-image, image-to-image and inpainting;
-Ollama vision description/OCR; and Pillow resizing. Choose a previous image stage
+Supported providers include SDXL text-to-image, image-to-image, inpainting and
+outpainting; optional Canny ControlNet and IP-Adapter Plus; Ollama vision
+description/OCR; Pillow resizing; and trained Real-ESRGAN upscaling. Choose a previous image stage
 as an input when needed. It resolves after reordering and skips intervening
 text-only stages.
 
@@ -28,8 +29,7 @@ It applies image orientation before resizing and writes a new PNG, preserving
 alpha-channel, palette and color-key transparency. Opaque sources remain RGB;
 source bytes stay unchanged. Each 2×, 3× or 4× output must fit within 24 megapixels.
 This transparency guarantee applies to the Lanczos stage; SDXL processing uses RGB.
-ControlNet and multiple-reference conditioning are not implemented here. The
-workflow SDXL provider does not apply Generate’s LoRA selection.
+The workflow SDXL providers do not apply Generate's LoRA selection.
 
 Workflow processing dimensions are restricted separately from Generate. Uploads
 accept single-frame PNG/JPEG/WebP and stream to local storage without a 20 MiB /
@@ -43,19 +43,53 @@ providers also acquire shared runtime admission. Cancel stops at supported
 checkpoints. A backend restart interrupts a run without automatically replaying
 completed stages; completed artifacts remain inspectable.
 
-## Proposed extensions
+## Optional conditioning and trained upscaling
 
-Direct reference conditioning (such as IP-Adapter), ControlNet execution and
-preprocessing, explicit workflow/Magic Edit LoRA selection, improved masks,
-durable editing projects, per-stage recipes and outpainting remain proposals.
-Saved references and reviewed vision descriptions do not enable those adapters.
+Install the optional packages after preparing the existing SDXL/CUDA runtime:
 
-Qwen editing, ComfyUI, OneTrainer, Real-ESRGAN and IC-Light are evaluation
-candidates, not installed workflow providers. Any integration needs compatibility,
-memory, shared-queue, cancellation and original-preservation checks first.
-Trained enhancement/relighting is distinct from Lanczos resizing or generative
-refinement. Full training-state resume also remains separate from the existing
-interrupted-job handling described in [generation and training](GENERATION.md#lora-dataset-and-training).
+```powershell
+venv\Scripts\python.exe -m pip install -r requirements-workflows.txt
+venv\Scripts\python.exe scripts/install-workflow-models.py --all
+```
+
+Choose individual IDs instead of `--all`: `controlnet-canny-sdxl`,
+`ip-adapter-plus-sdxl`, or `realesrgan-x4plus`. Downloads use the pinned revisions,
+sizes and SHA-256 values in `scripts/workflow-model-catalog.json`. Existing
+different files are preserved; interrupted downloads resume. Assets remain under
+the local models folder. Ordinary discovery and generation never download them.
+Restart the backend after installing packages and refresh providers. A receipt
+and file-size check establishes installation readiness, not generation quality.
+
+| Stage | Controls and actual behavior |
+|---|---|
+| ControlNet guidance | Choose an SDXL base and SDXL + Canny ControlNet. Extract edges from the source using low/high thresholds, or upload a prepared edge map. Control influence guides structure; change strength permits redesign. Only Canny edges are supported, not depth or pose. |
+| Multi-reference editing | Choose an SDXL base and SDXL + IP-Adapter Plus. Select one to eight reference images and reference influence. Every selected image enters the adapter; the references are pooled rather than assigned independent semantic roles. Source change strength remains separate. This is visual conditioning, not FaceID or an identity guarantee. |
+| Outpaint / extend canvas | Choose the local SDXL outpainting provider, final canvas dimensions and four new border widths. The source is resized to the remaining interior. Generated borders are composited around that exact fitted source. New objects, seams and inconsistent surroundings are possible; review the result. |
+| Upscale | Select Real-ESRGAN trained upscale for tiled 4× neural reconstruction, optionally downsampled to 2× or 3×. Lanczos remains a separate CPU choice. Alpha is conventionally resized; sources stay unchanged. Trained texture is inferred, not proof of lost detail. |
+
+Conditioning prompts are limited to one CLIP chunk to avoid silent truncation;
+ordinary SDXL/outpainting retain their existing longer-prompt support. A zero
+change strength preserves the resized source and does not apply conditioning.
+All adapters use the existing queue, cancellation, owned-input validation and
+immutable run records. Conditioning pipelines are unloaded after each run to
+prevent adapter leakage into ordinary Generate. Real-ESRGAN uses bounded tiles
+and reports its CUDA/CPU execution device. Outpainting needs no extra model beyond
+the installed SDXL base.
+
+The private acceptance helper accepts two explicitly supplied photos:
+`scripts/qa-workflow-photos.py --photos <first> <second> --output <external-folder> --model <installed-sdxl-id>`.
+It creates PNG copies (including HEIC decoding when installed), executes the real
+workflow runner, checks output dimensions/source preservation, and saves private
+receipts. It is a GPU workload, not part of ordinary unit tests.
+
+## Remaining extensions
+
+Depth/pose ControlNet, explicit workflow/Magic Edit LoRA selection, automatic
+subject masks, per-stage prompt recipes and trained relighting remain separate
+work. Qwen editing is available through its separate Generate provider, not this
+SDXL workflow adapter. ComfyUI, OneTrainer and IC-Light are not workflow providers.
+Full training-state resume remains separate from interrupted-job handling in
+[generation and training](GENERATION.md#lora-dataset-and-training).
 
 ## Iterative scenes
 

@@ -1,0 +1,56 @@
+{
+  "controlnet-canny-sdxl": {
+    "repository": "diffusers/controlnet-canny-sdxl-1.0",
+    "revision": "eb115a19a10d14909256db740ed109532ab1483c",
+    "files": [
+      {
+        "file": "config.json",
+        "url": "https://huggingface.co/diffusers/controlnet-canny-sdxl-1.0/resolve/eb115a19a10d14909256db740ed109532ab1483c/config.json",
+        "size": 1309,
+        "sha256": "81f9bfed178f666c332892cd568a78ed8918fe08aaee994d05428a75ab44f2ca"
+      },
+      {
+        "file": "diffusion_pytorch_model.fp16.safetensors",
+        "url": "https://huggingface.co/diffusers/controlnet-canny-sdxl-1.0/resolve/eb115a19a10d14909256db740ed109532ab1483c/diffusion_pytorch_model.fp16.safetensors",
+        "size": 2502139136,
+        "sha256": "b2e7d3921058a442cc80430d1ec8847f42599c705e2451c95e77cf4dcf8d6c25"
+      }
+    ]
+  },
+  "ip-adapter-plus-sdxl": {
+    "repository": "h94/IP-Adapter",
+    "revision": "018e402774aeeddd60609b4ecdb7e298259dc729",
+    "files": [
+      {
+        "file": "models/image_encoder/config.json",
+        "url": "https://huggingface.co/h94/IP-Adapter/resolve/018e402774aeeddd60609b4ecdb7e298259dc729/models/image_encoder/config.json",
+        "size": 560,
+        "sha256": "625d37b31afbf2f0792a87846b3654ee23f20568409e35b78a1f795b04e1a7a1"
+      },
+      {
+        "file": "models/image_encoder/model.safetensors",
+        "url": "https://huggingface.co/h94/IP-Adapter/resolve/018e402774aeeddd60609b4ecdb7e298259dc729/models/image_encoder/model.safetensors",
+        "size": 2528373448,
+        "sha256": "6ca9667da1ca9e0b0f75e46bb030f7e011f44f86cbfb8d5a36590fcd7507b030"
+      },
+      {
+        "file": "sdxl_models/ip-adapter-plus_sdxl_vit-h.safetensors",
+        "url": "https://huggingface.co/h94/IP-Adapter/resolve/018e402774aeeddd60609b4ecdb7e298259dc729/sdxl_models/ip-adapter-plus_sdxl_vit-h.safetensors",
+        "size": 847517512,
+        "sha256": "3f5062b8400c94b7159665b21ba5c62acdcd7682262743d7f2aefedef00e6581"
+      }
+    ]
+  },
+  "realesrgan-x4plus": {
+    "repository": "xinntao/Real-ESRGAN",
+    "revision": "v0.1.0",
+    "files": [
+      {
+        "file": "RealESRGAN_x4plus.pth",
+        "url": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth",
+        "size": 67040989,
+        "sha256": "4fa0d38905f75ac06eb49a7951b426670021be3018265fd191d2125df9d682f1"
+      }
+    ]
+  }
+}

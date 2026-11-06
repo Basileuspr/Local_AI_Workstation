@@ -56,9 +56,10 @@ def upload(client, project):
 def test_catalog_is_read_only_and_exposes_local_providers(client, tmp_path):
     catalog = client.get("/image-workflows/capabilities").json()
     assert catalog["execution_enabled"] is True
-    assert {p["id"] for p in catalog["providers"]} == {"local-sdxl", "ollama-vision", "pillow-lanczos"}
+    assert {p["id"] for p in catalog["providers"]} == {"local-sdxl", "ollama-vision", "pillow-lanczos",
+        "local-sdxl-controlnet", "local-sdxl-ip-adapter", "local-sdxl-outpaint", "local-realesrgan"}
     assert {item["id"] for item in catalog["operations"]} == {
-        "describe", "txt2img", "img2img", "inpaint", "controlnet", "upscale", "multi_reference"
+        "describe", "txt2img", "img2img", "inpaint", "controlnet", "upscale", "multi_reference", "outpaint"
     }
     assert client.get("/image-workflows").json() == {"workflows": [], "warnings": []}
     assert not (tmp_path / "image_workflows").exists()

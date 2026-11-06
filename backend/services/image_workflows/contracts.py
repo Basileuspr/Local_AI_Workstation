@@ -8,7 +8,7 @@ from .scene_state import Scene, build_prompt, FrameRef
 
 Id = Annotated[str, Field(pattern=r"^[0-9a-f]{32}$")]
 AssetId = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
-Operation = Literal["describe", "txt2img", "img2img", "inpaint", "controlnet", "upscale", "multi_reference"]
+Operation = Literal["describe", "txt2img", "img2img", "inpaint", "controlnet", "upscale", "multi_reference", "outpaint"]
 
 
 class Record(BaseModel):
@@ -56,6 +56,14 @@ class Stage(Record):
     strength: float = Field(default=0.55, ge=0, le=1)
     control_scale: float = Field(default=1, ge=0, le=2)
     control_kind: Literal["edges", "depth", "pose", "other"] = "edges"
+    control_input: Literal["map", "source"] = "map"
+    canny_low: int = Field(default=100, ge=0, le=255)
+    canny_high: int = Field(default=200, ge=1, le=255)
+    reference_scale: float = Field(default=0.6, ge=0, le=1.5)
+    outpaint_left: int = Field(default=64, ge=0, le=1024, multiple_of=8)
+    outpaint_right: int = Field(default=64, ge=0, le=1024, multiple_of=8)
+    outpaint_top: int = Field(default=64, ge=0, le=1024, multiple_of=8)
+    outpaint_bottom: int = Field(default=64, ge=0, le=1024, multiple_of=8)
     upscale_factor: int = Field(default=2, ge=2, le=4)
     analysis_kind: Literal["description", "scene", "edit_guidance", "reference"] = "description"
     reference_roles: list[Annotated[str, Field(min_length=1, max_length=300)]] = Field(default_factory=list, max_length=8)
@@ -63,6 +71,13 @@ class Stage(Record):
     @model_validator(mode="after")
     def supported_dimensions(self):
         validate_dimensions(self.width, self.height, self.allow_long_wait)
+        if self.canny_low >= self.canny_high:
+            raise ValueError("Canny low threshold must be below high threshold")
+        if self.operation == 'outpaint':
+            if self.outpaint_left + self.outpaint_right >= self.width or self.outpaint_top + self.outpaint_bottom >= self.height:
+                raise ValueError('Outpainting borders must leave room for the source')
+            if not any((self.outpaint_left, self.outpaint_right, self.outpaint_top, self.outpaint_bottom)):
+                raise ValueError('Choose at least one outpainting border')
         return self
 
 

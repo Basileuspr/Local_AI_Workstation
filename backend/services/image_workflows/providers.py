@@ -59,9 +59,10 @@ OPERATIONS = [
     {"id": "describe", "label": "Describe / OCR", "output": "text", "help": "Describe an image and transcribe its visible text. Suggestions must be reviewed before using them as prompts."},
     {"id": "img2img", "label": "Image to image", "output": "image", "help": "Rework a source image using your prompt. Higher strength permits larger changes; likeness is not guaranteed."},
     {"id": "inpaint", "label": "Masked editing", "output": "image", "help": "Edit the white area of a matching-size mask; black marks the area to preserve. Gray blends between source and result."},
-    {"id": "controlnet", "label": "ControlNet guidance", "output": "image", "help": "Use an uploaded control map for structure, such as pose, edges, or depth. Its type must match a future ControlNet adapter; no map is extracted yet."},
-    {"id": "upscale", "label": "Upscale", "output": "image", "help": "Resize with Lanczos on CPU. This changes dimensions without AI detail reconstruction."},
-    {"id": "multi_reference", "label": "Multi-reference editing", "output": "image", "help": "Use a source plus reference images for appearance or scene continuity. Requires a compatible future editing adapter."},
+    {"id": "controlnet", "label": "ControlNet guidance", "output": "image", "help": "Guide SDXL with Canny edges extracted from the source or an uploaded edge map. Control influence preserves structure; change strength controls redesign."},
+    {"id": "upscale", "label": "Upscale", "output": "image", "help": "Choose conventional Lanczos resizing or trained Real-ESRGAN detail reconstruction. Trained detail is an estimate, not recovered ground truth."},
+    {"id": "multi_reference", "label": "Multi-reference editing", "output": "image", "help": "Use a source plus up to eight images with IP-Adapter Plus. All references are pooled for appearance; identity and separate subjects are not guaranteed."},
+    {"id": "outpaint", "label": "Outpaint / extend canvas", "output": "image", "help": "Set the final canvas and new border widths. SDXL generates outside the fitted source; its interior pixels remain unchanged."},
 ]
 
 

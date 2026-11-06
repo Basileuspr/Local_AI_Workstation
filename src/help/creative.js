@@ -42,7 +42,7 @@ export const creativeHelp = {
     ['Stages / order', 'Runs top to bottom. Previous-image links follow the order; choose a specific image or stage for a fixed source.'],
     ['Operation / adapter', 'SDXL requires an installed compatible model, CUDA and all image-runtime packages. An unavailable provider shows its reason; use Workflow options → Refresh providers after setup or restart. Ollama vision describes images; Lanczos resizes on CPU. A stage without an available adapter cannot run.'],
     ['Prompt / settings', 'SDXL stages use prompts and generation settings. Describe / OCR reports content separately; Lanczos resizes without a prompt, preserves PNG transparency and saves a new image up to 24 megapixels. Originals stay unchanged.'],
-    ['References', 'Assign owned assets to the available roles. ControlNet and multi-reference adapters are not installed in this implementation.'],
+    ['References', 'Use optional SDXL Canny ControlNet for structural guidance, or IP-Adapter Plus to condition a processing stage on selected reference images. Readiness requires installed adapter files. Iterative scene identity notes remain separate from these processing stages.'],
     ['LoRA scope', 'Processing workflows and iterative scenes use the base SDXL model. They do not apply the adapter selected in Generate.'],
     ['Validate / Prepare snapshot', 'Saves pending edits and checks configuration. Prepare stores a read-only input snapshot without running generation.'],
     ['Run / Stop workflow', 'Uses the shared Prompt Queue. Stopping waits for the provider to exit; completed results remain available.'],

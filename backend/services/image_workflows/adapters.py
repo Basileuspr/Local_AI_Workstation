@@ -64,10 +64,12 @@ def sdxl_models():
 
 def capability_catalog(operations):
     from services.image_generation import manager
+    from .addon_models import readiness
     runtime = manager.runtime_status()
+    models = [{"id": m["id"], "name": m["name"]} for m in sdxl_models()]
     providers = [
         {"id": "local-sdxl", "name": "Local SDXL", "operations": ["txt2img", "img2img", "inpaint"],
-         "models": [{"id": m["id"], "name": m["name"]} for m in sdxl_models()],
+         "models": models,
          "resolution_limits": runtime.get("resolution_limits") or current_resolution_limits(),
          "available": bool(runtime.get("ready")),
          "unavailable_reason": None if runtime.get("ready") else runtime.get("error") or "The local SDXL runtime is not ready.",
@@ -77,6 +79,24 @@ def capability_catalog(operations):
         {"id": "pillow-lanczos", "name": "Lanczos resize (CPU)", "operations": ["upscale"],
          "models": [], "available": True, "help": "Conventional resampling with PNG transparency preserved, not AI detail reconstruction; maximum 24 megapixels."},
     ]
+    for identifier, name, operation, addon, packages, help_text in (
+        ('local-sdxl-controlnet', 'SDXL + Canny ControlNet', 'controlnet', 'controlnet-canny-sdxl', ('cv2',),
+         'Extract Canny edges from the source or use an uploaded edge map. Depth and pose models are not supported.'),
+        ('local-sdxl-ip-adapter', 'SDXL + IP-Adapter Plus', 'multi_reference', 'ip-adapter-plus-sdxl', (),
+         'Pool up to eight reference images to guide appearance. Reference influence is separate from source change strength; likeness is not guaranteed.'),
+        ('local-realesrgan', 'Real-ESRGAN trained upscale', 'upscale', 'realesrgan-x4plus', ('spandrel',),
+         'Tiled trained 4× super-resolution, optionally reduced to 2× or 3×. Inferred detail can differ from the original scene.'),
+    ):
+        ready, reason = readiness(addon, packages)
+        if operation != 'upscale' and not runtime.get('ready'):
+            ready, reason = False, runtime.get('error') or 'The local SDXL runtime is not ready.'
+        providers.append({'id': identifier, 'name': name, 'operations': [operation], 'models': [] if operation == 'upscale' else models,
+            'available': ready, 'unavailable_reason': reason, 'help': help_text,
+            'resolution_limits': runtime.get('resolution_limits') or current_resolution_limits()})
+    providers.append({'id': 'local-sdxl-outpaint', 'name': 'Local SDXL outpainting', 'operations': ['outpaint'],
+        'models': models, 'available': bool(runtime.get('ready')), 'unavailable_reason': runtime.get('error'),
+        'resolution_limits': runtime.get('resolution_limits') or current_resolution_limits(),
+        'help': 'Generate new borders around a fitted source. The fitted source area is preserved pixel-for-pixel.'})
     supported = {op for p in providers for op in p["operations"]}
     return {"schema_version": 1, "execution_enabled": True, "providers": providers,
             "operations": [{**op, "supported": op["id"] in supported} for op in operations]}
@@ -326,4 +346,6 @@ class OllamaProvider:
 
 
 def get_providers():
-    return {provider.key: provider for provider in (SDXLProvider(), PillowProvider(), OllamaProvider())}
+    from .advanced_adapters import ConditioningProvider, OutpaintProvider, RealESRGANProvider
+    return {provider.key: provider for provider in (SDXLProvider(), PillowProvider(), OllamaProvider(),
+        ConditioningProvider('controlnet'), ConditioningProvider('multi_reference'), OutpaintProvider(), RealESRGANProvider())}
