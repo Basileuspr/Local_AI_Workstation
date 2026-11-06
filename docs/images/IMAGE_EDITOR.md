@@ -49,23 +49,61 @@ and mask before generating. Manual color sampling does not require a model.
 ## Magic Edit
 
 Magic Edit copies the current edited result, including locked passes, into the
-existing workflow system. Describe the change, choose Whole image or Paint an
-area, select an installed SDXL model and strength, then generate a candidate.
-Compare, accept it explicitly as a new editor source, or discard it.
-Generation requires a ready SDXL runtime, including CUDA and its image packages.
-If it is unavailable, Magic Edit shows the reported reason and keeps editing
-available; installing requirements and restarting are separate setup steps.
+existing workflow system. Choose a mode, describe the change when needed, then
+generate a candidate. Compare, accept it explicitly as a new editor source, or
+discard it. Stop never accepts a result. Accepting starts a new editor source;
+exporting writes a separate PNG and does not overwrite the original file.
 
-The working copy has a 1,024-pixel longest side and at least 768 pixels on the
-other side. Proportional scaling and extended-edge padding avoid stretching narrow
+| Mode | Behavior |
+|---|---|
+| Gentle edit / refine | SDXL image-to-image, or inpainting for a painted area. |
+| Preserve structure | Canny ControlNet uses extracted source edges or an uploaded Canny map. Thresholds and control influence are adjustable. |
+| Use reference images | IP-Adapter Plus pools up to eight attached references as visual conditioning. It does not lock identity or assign each reference a separate visual role. |
+| Extend canvas | SDXL outpainting generates small borders. The full-size original interior is restored exactly inside a larger candidate. |
+| Enlarge | Trained Real-ESRGAN produces a 2x, 3x or 4x candidate. No prompt or SDXL model is needed. Result amount blends it with conventional enlargement. |
+
+**Use gentle defaults** restores 20% change strength, 50% result amount, 0.5
+ControlNet influence, 0.35 reference influence, 32 working-pixel borders and 2x
+enlargement. SDXL uses 24 scheduled steps and guidance 4. Result amount is an
+explicit source/result pixel blend; it further reduces changes after generation.
+The source and generated candidate remain separately available for comparison.
+The tested DreamShaper XL base is preferred if installed, while explicit model
+choices survive refresh. Other base models can still impose a strong style.
+
+Whole image or Paint an area applies to the first three modes. ControlNet and
+IP-Adapter guide the whole working image, then the final composite preserves
+everything outside the painted area. Ordinary masked editing also sends a mask
+to the SDXL inpainting model. Outpainting and enlargement operate on the whole
+canvas and keep their changed dimensions on acceptance/export.
+
+Generation needs the selected provider's installed runtime and assets. Optional
+models use the [workflow installation guide](IMAGE_WORKFLOWS.md#optional-conditioning-and-trained-upscaling).
+If unavailable, Magic Edit displays the reason. No models are downloaded here.
+
+For refinement, ControlNet and reference edits, the default working copy has a
+1,024-pixel longest side and at least 768 pixels on the other side. Proportional
+scaling and extended-edge padding avoid stretching narrow
 images. The result is cropped/resized back to the source dimensions; source alpha
 and unpainted pixels are restored. Unexpected output dimensions are rejected.
-AI may invent or change content inside the edited region.
+Outpainting uses the chosen working canvas as a maximum including borders and
+fits the interior to the source proportions, avoiding large accidental padding.
+Extremely narrow sources or borders leaving less than a 256-pixel interior are
+rejected before creating a run. New border widths scale back to the full-size
+source. AI can invent details, seams or objects; gentle settings do not guarantee
+likeness or photographic accuracy.
 
-Up to four references can be assigned roles. **Read references into guidance**
+Up to eight references can be assigned roles. **Read references into guidance**
 uses an installed Ollama vision model; review its text before generation.
-This is reference-derived text guidance, not direct reference-pixel conditioning
-or guaranteed likeness/style transfer. No models are installed automatically.
+The tested Qwen 3.5 9B is preferred when installed; an explicit choice is retained.
+Using one photo for several roles combines those roles into one reference input.
+This optional text guidance is distinct from IP-Adapter's direct image inputs.
+Roles affect the vision description only. Reference images are sent as visual
+conditioning only in the IP-Adapter mode. ControlNet/IP-Adapter accept one CLIP
+text chunk: condense long reviewed guidance rather than relying on truncation.
+Workflow snapshots record the mode, result amount, scope and original dimensions;
+the workflow output is the raw model image, while the editor candidate includes
+the final blend/mask/dimension restoration. Workflow and Magic Edit SDXL modes
+still do not apply Generate's LoRA selection.
 
 ## Character Parts export
 

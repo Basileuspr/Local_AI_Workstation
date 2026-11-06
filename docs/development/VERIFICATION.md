@@ -4,6 +4,44 @@ This is the consolidated evidence record, updated November 6, 2026.
 Current guides describe inspected source; dated tests below are not a certification
 of every feature, provider, installation or device.
 
+## November 6 Magic Edit integration and modest photo acceptance
+
+Image Editor's Magic Edit now routes refinement, Canny ControlNet, pooled
+IP-Adapter references, outpainting and trained enlargement through the workflow
+providers. Defaults are 20% source strength, 50% result blending, restrained
+conditioning, 32 working-pixel borders and 2x enlargement. Outpainting restores
+the full-size original inside its enlarged output; upscaling keeps its new size.
+
+- **1,704 frontend tests passed, 3 existing skips** across 214 files.
+- **106 focused backend tests passed** for workflows, execution and adapters;
+  existing FastAPI lifecycle deprecation warnings remain.
+- The full Image Editor walkthrough passed **15 check groups**, including
+  duplicate-photo reference roles, reference correction, masks, Stop, explicit
+  acceptance, exports, native pixels and existing manual editing controls.
+- The isolated Magic Edit walkthrough passed **7 synthetic cases and 7 check
+  groups**, including defaults in every mode, reference removal, model refresh,
+  mask undo/clear, guidance, compare/accept/export/discard and narrow layout.
+- **14 real local image cases passed** through the actual Magic Edit controls:
+  refinement, painted inpainting, source-edge ControlNet, uploaded-map ControlNet,
+  two-reference conditioning, outpainting and trained 2x enlargement on each of
+  two private photos. DreamShaper XL and Qwen 3.5 9B were used. Raw workflow
+  results, final blended candidates and accepted exports were retained privately.
+- Original hashes matched; every accepted PNG matched its candidate pixels.
+  Outpaint interiors matched the full-size source exactly. Painted surroundings
+  stayed unchanged. Whole-image diffusion candidates averaged 3.42–3.77 RGB
+  levels of change out of 255; this measures restraint, not likeness accuracy.
+- Visual review found modest overall edits and sharpening. Small generated
+  borders can still invent framing and show seams. The first custom vision
+  selection timed out; the tested installed Qwen 3.5 9B is now preferred, while
+  explicit selections survive refresh. Duplicate-photo roles are combined.
+- The live desktop UI check was stopped with Escape. No further computer control
+  or app restart followed; isolated acceptance continued. Restart is needed to
+  load the rebuilt renderer. CPU upscaling, maximum-size stress, eight-reference
+  inference and real 3x/4x examples were not exercised in this acceptance batch.
+
+No private photos, generated media, model weights or runtime data are published.
+See [Image Editor](../images/IMAGE_EDITOR.md#magic-edit) for use and boundaries.
+
 ## November 6 local conditioning, outpainting and trained upscaling
 
 Image Workflows now executes optional SDXL Canny ControlNet, pooled IP-Adapter Plus

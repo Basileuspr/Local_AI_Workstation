@@ -44,6 +44,7 @@ Keep environments, models and runtime data local to each computer.
 | `node scripts/qa-model-profiles.cjs` | Verify per-model context/thinking/output settings, actual request payloads, plain-text receipts, independent chat panes, reload persistence and narrow layouts with synthetic models |
 | `node scripts/qa-media-generation.cjs` | Verify Qwen reference uploads, Wan settings, cancellation and narrow layouts with synthetic jobs in isolated Chromium |
 | `node scripts/qa-workflow-advanced.cjs` | Verify Canny, multiple-reference, outpaint and trained-upscale controls with synthetic APIs in isolated Chromium |
+| `node scripts/qa-magic-edit.cjs` | Exercise actual Magic Edit controls, workflow API, native compositing and accept/export with isolated synthetic providers; `--real --photos <first.png> <second.png> --output <external-folder>` explicitly enables real-model acceptance |
 | `node scripts/qa-reverse-engineer.cjs` | Verify the full renderer's Reverse Engineer navigation, filtering, saved launchers, error handling and narrow layout with simulated desktop actions |
 | `node mobile-companion/scripts/qa-phone-workspace.cjs` | Verify Phone navigation, passive detection states, folder controls, Companion preservation and narrow layout with synthetic APIs in a disposable profile |
 | `npm run build:android` | Check, build and sign the APK with this PC's private signing identity |

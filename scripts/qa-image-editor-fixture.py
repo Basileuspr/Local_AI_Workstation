@@ -16,6 +16,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image, ImageDraw, ImageFilter
+import numpy  # Load native modules before workflow API worker threads use Torch.
 import uvicorn
 from routes import character_parts
 from services.character_parts import store

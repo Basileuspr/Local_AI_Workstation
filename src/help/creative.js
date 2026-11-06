@@ -29,11 +29,14 @@ export const creativeHelp = {
   ]], ['Reference colors and Magic Edit', [
     ['Reference color samples', 'Click the reference to sample a color, then apply it to an enclosed area or brush spot. Each sample keeps separate areas; changes affect the current pass.'],
     ['Apply color / fill / brush', 'When armed, click the edited image to apply the chosen color. Fill follows connected similar colors; brush spots control the area directly. Use Undo, a brush spot or lower tolerance if outlines have gaps.'],
-    ['Magic Edit', 'Describe the result and paint a specific area to change. Outside the selected mask is preserved in the accepted image. Review a generated candidate before accepting.'],
-    ['Reference guidance', 'An installed vision model converts references to editable text. Generation uses that text and the current image; it does not condition directly on reference pixels.'],
+    ['Magic Edit', 'Choose gentle refinement, Canny ControlNet, IP-Adapter references, outpainting or trained enlargement. Review and compare the candidate before accepting it as a new editor source. Stop or Discard leaves the current source unchanged.'],
+    ['Reference guidance', 'An installed vision model converts references to editable text for review. Direct visual conditioning is a separate option in the IP-Adapter mode.'],
     ['Skin-tone request', 'Opens Magic Edit with your current reference assigned to skin tone. Review guidance and paint the relevant area before generating.'],
-    ['Strength / working canvas', 'Lower strength stays closer to the source. Small images can use a larger working copy; accepted images keep their original proportions and dimensions.'],
-    ['Runtime', 'Magic Edit needs an installed compatible SDXL model, CUDA and all image-runtime packages. An unavailable runtime shows its reason. It does not download models or dependencies.'],
+    ['Gentle defaults / result amount', 'Starts at 20% change strength and a 50% source/result blend, with restrained edge/reference influence. Use gentle defaults restores those values, 32 working-pixel borders and 2x enlargement. Models can still alter fine details.'],
+    ['Working canvas / output size', 'Refinement, ControlNet and reference edits return to the original dimensions. Outpainting restores the original inside a larger canvas; trained enlargement retains its 2x, 3x or 4x size. The candidate shows its actual dimensions.'],
+    ['Painted area', 'Refinement uses an inpainting mask. ControlNet/reference modes condition the working image and clip the final result to the painted area. Unpainted source pixels and source alpha are preserved.'],
+    ['Visual references / roles', 'IP-Adapter pools the attached images as direct visual guidance. Roles only affect the optional Read references into guidance text. Review and shorten that text before generation; identity is not guaranteed.'],
+    ['Runtime', 'Each mode needs its installed provider. SDXL editing uses CUDA; Real-ESRGAN can use CUDA or CPU. An unavailable provider shows its reason. No models or dependencies are downloaded here.'],
     ['LoRA scope', 'Magic Edit uses the base SDXL model. The adapter selected in Generate does not carry into Magic Edit.'],
   ]]],
   workflows: [['Processing workflows', [

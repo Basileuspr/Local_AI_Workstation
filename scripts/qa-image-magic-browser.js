@@ -1,5 +1,5 @@
 // Runs in a hidden Electron renderer, using real ImageBitmap/Canvas PNG pixels.
-import { prepareMagicInput, maskBlob, combineMagicResult } from '../src/imageMagic';
+import { prepareMagicInput, maskBlob, combineMagicResult, combineMagicUpscale, combineMagicOutpaint, magicOutpaintLayout } from '../src/imageMagic';
 
 const assert = (condition, message) => { if (!condition) throw new Error(message); };
 async function pixels(blob) {
@@ -47,5 +47,18 @@ export async function checkMagicGeometry() {
     try { await combineMagicResult(source, await wrongSize.convertToBlob(), null, layout); } catch (e) { rejected = e.message.includes('dimensions'); }
     assert(rejected, 'Unexpected candidate dimensions rejected');
   }
-  return 'Magic Edit native canvas: working resolution, aspect/padding/crop alignment, source dimensions/alpha, mask alignment and untouched pixels verified for wide, tall, thumbnail and square sources';
+  const sourceCanvas=new OffscreenCanvas(400,300),ctx=sourceCanvas.getContext('2d');ctx.fillStyle='#285078';ctx.fillRect(0,0,400,300);
+  const source=await sourceCanvas.convertToBlob();
+  const generated=new OffscreenCanvas(800,600),g=generated.getContext('2d');g.fillStyle='#c86428';g.fillRect(0,0,800,600);
+  const blend=await pixels(await combineMagicResult(source,await generated.convertToBlob(),null,null,.5));
+  assert(String(pixel(blend,200,150))==='120,90,80,255','Half result amount blends exactly with source');
+  const upscale=await pixels(await combineMagicUpscale(source,await generated.convertToBlob(),2,.5));
+  assert(upscale.width===800&&upscale.height===600&&String(pixel(upscale,400,300))==='120,90,80,255','Gentle upscale retains enlarged dimensions and blends');
+  const geometry=magicOutpaintLayout(400,300,{width:768,height:768},{left:32,right:32,top:0,bottom:32});
+  const outer=new OffscreenCanvas(geometry.stageSize.width,geometry.stageSize.height),o=outer.getContext('2d');o.fillStyle='#c86428';o.fillRect(0,0,outer.width,outer.height);
+  const extended=await combineMagicOutpaint(source,await outer.convertToBlob(),geometry),out=await pixels(extended.blob),[left,top,right,bottom]=extended.sourceBox;
+  assert(right-left===400&&bottom-top===300&&out.width>400&&out.height>300,'Outpainting preserves original dimensions within expanded canvas');
+  for(let y=top;y<bottom;y++)for(let x=left;x<right;x++)assert(String(pixel(out,x,y))==='40,80,120,255','Original interior preserved exactly');
+  assert(String(pixel(out,0,0))==='200,100,40,255','New borders retained');
+  return 'Magic Edit canvas: proportional input/masks, original dimensions/alpha, untouched pixels, 50% blending, true enlarged outputs and exact outpaint interiors verified';
 }

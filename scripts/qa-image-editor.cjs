@@ -162,8 +162,10 @@ app.whenReady().then(async () => {
     await click('Add current reference source');
     await until(()=>js("document.querySelectorAll('.ie-magic-reference').length===2"),'second magic reference');
     await click('Read references into guidance');
-    await until(()=>js("document.querySelector('[aria-label=\"Reference guidance to apply\"]').value.includes('warm tan skin')"),'reference role guidance');
-    await setField('.ie-magic fieldset > label:nth-of-type(2) select','paint');
+    await until(()=>js("(()=>{const error=document.querySelector('.ie-magic [role=alert]')?.textContent;if(error)throw Error(error);return document.querySelector('[aria-label=\"Reference guidance to apply\"]').value.includes('warm tan skin')})()"),'reference role guidance');
+    assert.equal(await js("document.querySelector('[aria-label=\"Magic Edit result amount\"]').value"),'0.5');
+    await setField('[aria-label="Magic Edit result amount"]','1');
+    await setField('[aria-label="Magic Edit change area"]','paint');
     await until(()=>js("!!document.querySelector('.ie-mask-stage img')?.naturalWidth"),'mask source');
     await js("document.querySelector('.ie-mask-stage').scrollIntoView({block:'center'})");await pause(200);
     const center=await js("(()=>{const r=document.querySelector('.ie-mask-stage canvas').getBoundingClientRect();return{x:Math.round(r.left+r.width/2),y:Math.round(r.top+r.height/2)};})()");
@@ -183,7 +185,7 @@ app.whenReady().then(async () => {
     await click('Use this edited image');
     await until(()=>js("document.querySelector('.ie-file').textContent.includes('magic-edited.png') && !document.querySelector('.ie-import input').disabled"),'accepted candidate');
     await click('Export edited PNG');await until(()=>downloads.length===13,'accepted magic PNG');
-    const magic=spawnSync(python,['-c',"from PIL import Image;import sys,json;from pathlib import Path;p=Path(sys.argv[1]);a=Image.open(p/'line-art.png').convert('RGBA');b=Image.open(p/'magic-edited-edited.png').convert('RGBA');assert a.size==b.size==(640,400);assert b.getpixel((320,200))[:3]==(200,60,30);assert a.getchannel('A').tobytes()==b.getchannel('A').tobytes();assert all(a.getpixel((x,y))==b.getpixel((x,y)) for y in range(400) for x in range(640) if (x-320)**2+(y-200)**2>24**2);runs=[json.loads(l) for l in (p/'magic-requests.jsonl').read_text().splitlines()];r=next(r for r in runs if r['operation']=='describe');assert r['roles']==['Background detail and art style','Character skin tone'];assert r['references']==2;assert any(r['mask'] and 'warm tan skin' in r['prompt'] for r in runs)",work],{windowsHide:true,encoding:'utf8'});
+    const magic=spawnSync(python,['-c',"from PIL import Image;import sys,json;from pathlib import Path;p=Path(sys.argv[1]);a=Image.open(p/'line-art.png').convert('RGBA');b=Image.open(p/'magic-edited-edited.png').convert('RGBA');assert a.size==b.size==(640,400);assert b.getpixel((320,200))[:3]==(200,60,30);assert a.getchannel('A').tobytes()==b.getchannel('A').tobytes();assert all(a.getpixel((x,y))==b.getpixel((x,y)) for y in range(400) for x in range(640) if (x-320)**2+(y-200)**2>24**2);runs=[json.loads(l) for l in (p/'magic-requests.jsonl').read_text().splitlines()];r=next(r for r in runs if r['operation']=='describe');assert r['roles']==['Background detail and art style; Character skin tone'];assert r['references']==1;assert any(r['mask'] and 'warm tan skin' in r['prompt'] for r in runs)",work],{windowsHide:true,encoding:'utf8'});
     assert.equal(magic.status,0,magic.stderr);
     checks.push('Magic Edit real API/queue/mask/role pipeline with synthetic providers: reference guidance, stop, candidate preview, explicit accept; all pixels outside mask and alpha preserved');
 
@@ -219,7 +221,7 @@ app.whenReady().then(async () => {
     await until(()=>js("document.querySelector('[aria-label=\"Magic edit request\"]').value.startsWith('The image is all a singular color tone.')"),'comment prepared');
     assert.equal(await js("document.querySelector('[aria-label=\"Magic edit request\"]').value"),requested);
     assert.equal(await js("document.querySelector('.ie-magic-reference select').value"),'Character skin tone');
-    assert.equal(await js("document.querySelector('.ie-magic fieldset > label:nth-of-type(2) select').value"),'paint');
+    assert.equal(await js("document.querySelector('[aria-label=\"Magic Edit change area\"]').value"),'paint');
     assert.equal(await js("document.querySelectorAll('.ie-magic-candidate').length"),0);
     checks.push('reference correction comment prepares Magic Edit with source skin-tone role and painted-area scope, without auto-generating');
     await js("document.querySelector('.ie-reference').scrollIntoView({block:'start'})");await pause(250);
