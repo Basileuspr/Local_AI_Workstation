@@ -94,7 +94,7 @@ export default function LocalMediaGeneration({active = true}) {
       <div className="local-media-options">
         <label>Width<input type="number" min={128} max={video ? 832 : 1536} step={video ? 64 : 32} value={width} onChange={e => setWidth(e.target.value)}/></label>
         <label>Height<input type="number" min={128} max={video ? 832 : 1536} step={video ? 64 : 32} value={height} onChange={e => setHeight(e.target.value)}/></label>
-        <label>{model?.family === 'wan2.2-14b' ? 'Steps per expert' : 'Steps'}<input type="number" min={1} max={100} value={steps} onChange={e => setSteps(e.target.value)}/></label>
+        <label>{model?.family === 'wan2.2-14b' ? 'Steps per expert' : 'Steps'}<input type="number" min={1} max={100} value={steps} disabled={Boolean(model?.fixed_steps)} onChange={e => setSteps(e.target.value)}/></label>
         <label>Guidance<input type="number" min={1} max={20} step={0.5} value={guidance} onChange={e => setGuidance(e.target.value)}/></label>
         <label>Seed (blank = random)<input type="number" min={0} max={2147483647} value={seed} onChange={e => setSeed(e.target.value)}/></label>
         {video && <><label>Frames<select value={frames} onChange={e => setFrames(e.target.value)}>{[9,17,33,49,65,81].map(value => <option key={value}>{value}</option>)}</select></label>

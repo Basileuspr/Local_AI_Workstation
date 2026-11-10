@@ -67,9 +67,16 @@ downloads and writes a completed installation manifest only after verification.
 The catalog is in `scripts/media-model-catalog.json`; binaries and weights stay
 under the local `models` directory and are excluded from Git.
 
+Set `LAW_MEDIA_MODELS_DIR` to an absolute local folder to put just Qwen/Wan
+weights and their runtime on another drive. The installer and backend use the
+same setting; restart the app after changing it. Other model families retain
+their existing location. `--models-dir` overrides the installer destination
+only, so it must match the backend setting. These public downloads do not send
+Hugging Face account tokens, and the installer disables Hub telemetry.
+
 | Model ID | Purpose | References |
 |---|---|---|
-| `qwen-image-2.1-uncensored-q4` | [Qwen Image 2.1 Uncensored Q4](https://huggingface.co/abenzerps/Qwen-Image-2.1-Uncensored-Quantized), with the official quantized [Qwen3 VL encoder](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct-GGUF) | Up to four ordered images; describe what to change and preserve |
+| `qwen-image-2.1-turbo-q4` | [Qwen Image 2.1 Turbo Q4](https://huggingface.co/abenzerps/Qwen-Image-2.1-Turbo-Quantized), with the official quantized [Qwen3 VL encoder](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct-GGUF) | Up to four ordered images; describe what to change and preserve |
 | `wan2.2-ti2v-5b-q4` | [Wan 2.2 TI2V 5B Q4](https://huggingface.co/QuantStack/Wan2.2-TI2V-5B-GGUF), standard text/image-to-video | Optional first image |
 | `wan2.2-i2v-14b-uncensored` | [Wan 2.2 I2V 14B Uncensored](https://huggingface.co/rzgar/wan2.2-i2v-A14B-Uncensored-base), two-expert video model | One first image required |
 
@@ -77,6 +84,15 @@ The Wan checkpoints above are alternatives to the WAMU checkpoint used by the
 `kulkas2pintu/wan777` hosted Space, not copies of that Space's deployment. The
 uncensored labels come from the checkpoint publishers. No unrestricted-behavior
 guarantee or independent abliteration claim is made.
+
+These are community model distributions. The original projects are
+[Qwen Image 2.1](https://github.com/QwenLM/Qwen-Image-2.1) and
+[Wan 2.2](https://github.com/Wan-Video/Wan2.2); the local runtime comes from
+[stable-diffusion.cpp](https://github.com/leejet/stable-diffusion.cpp).
+The old Qwen Uncensored catalog revision is no longer available from its
+publisher. Turbo uses a distinct model ID, the published eight-step sigma
+schedule, and default guidance 1. Its step count is fixed to match that schedule.
+Existing historical results retain their original model names.
 
 Choose a model, enter a prompt, optionally upload reference images, then submit.
 For Wan, select the frame count and frame rate. The 14B model's Steps setting
@@ -95,6 +111,9 @@ not automatically retried with changed dimensions or models.
 Private recipes, outputs and bounded diagnostic logs live in
 `data/generated_media/<job-id>`. Reference-image access is checked again when
 the queued job starts, and temporary reference files are removed afterward.
+New Qwen/Wan exports omit the runtime's embedded generation metadata. Prompts
+remain in local history and diagnostic logs. Inference runs through a local CLI;
+downloading models contacts GitHub/Hugging Face and their download infrastructure.
 The **App media and documents** reset section includes these jobs and outputs.
 Existing SDXL close-variation controls remain in the **Image generation** tab.
 

@@ -166,6 +166,13 @@ def test_presets_reject_protected_paths_links_and_relative_paths(tmp_path):
         with pytest.raises(ValueError): workflow.set_preset('0',path)
 
 
+def test_exports_cannot_overlap_external_media_models(tmp_path, monkeypatch):
+    models = tmp_path / 'external-models'
+    monkeypatch.setattr(workflow, 'settings', replace(workflow.settings, media_model_storage_dir=models))
+    with pytest.raises(ValueError, match='outside'):
+        workflow.destination(str(models / 'exports'))
+
+
 def test_image_manager_move_and_external_recovery_preserve_id(tmp_path):
     root=tmp_path/'photos'; root.mkdir(); original=root/'one.png'; original.write_bytes(picture())
     folder=workflow.manager.add_folder(str(root)); workflow.manager.start('scan',{'folder_ids':[folder['id']],'recursive':True}); workflow.manager.worker.join(10)

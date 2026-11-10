@@ -1,8 +1,36 @@
 # Verification record and open findings
 
-This is the consolidated evidence record, updated November 6, 2026.
+This is the consolidated evidence record, updated November 10, 2026.
 Current guides describe inspected source; dated tests below are not a certification
 of every feature, provider, installation or device.
+
+## November 10 Qwen Turbo installation and media-model storage
+
+The unavailable Qwen Uncensored publisher revision is replaced by a separately
+identified, pinned Qwen Image 2.1 Turbo Q4 distribution from the same publisher.
+Its eight-step sigma preset and guidance-1 default match the publisher's recipe.
+`LAW_MEDIA_MODELS_DIR` now relocates Qwen/Wan weights and their native runtime
+independently of other models. Reset, media-library and export boundaries protect
+this additional model directory. New exports omit embedded generation metadata;
+local history and logs still retain prompts. Public model downloads omit account
+tokens and default to disabled Hub telemetry.
+
+- **119 focused backend tests passed** covering the provider, installer options,
+  configuration, reset, storage libraries and review/export destinations.
+- **1,704 frontend tests passed, 3 existing skips** across 214 files.
+- The isolated generation UI walkthrough passed reference submission, Turbo's
+  fixed eight-step/guidance-1 defaults, cancellation, Wan controls and narrow layout.
+- Publisher revision/file hashes were checked against Hugging Face metadata;
+  runtime archive hashes matched the maintainer's GitHub release metadata.
+  The pinned runtime source includes fixes for its six published security
+  advisories. Defender reported no threats in the downloaded runtime archives
+  and extracted files. The release binaries are unsigned; hash provenance and
+  antivirus checks do not constitute a reproducible build or a safety guarantee.
+- Model scan coverage differs by file and scanner. GGUF/SafeTensors avoid loading
+  repository Python code, but native parsers and model behavior retain residual
+  risk. Local installation receipts and detailed scan evidence remain private.
+- Existing FastAPI lifecycle deprecation warnings remain. These automated checks
+  do not establish real GPU generation quality, latency or maximum-size support.
 
 ## November 6 Magic Edit integration and modest photo acceptance
 

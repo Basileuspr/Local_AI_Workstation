@@ -118,7 +118,7 @@ def destination(path):
     if os.name=='nt':
         import ctypes
         if ctypes.windll.kernel32.GetDriveTypeW(str(value.anchor))==4: raise ValueError('Choose a local disk rather than a mapped network drive.')
-    for protected in (settings.data_dir.absolute(),settings.models_dir.absolute(),Path(__file__).resolve().parents[2]):
+    for protected in (settings.data_dir.absolute(),settings.models_dir.absolute(),settings.media_models_dir.absolute(),Path(__file__).resolve().parents[2]):
         if value==protected or value.is_relative_to(protected) or protected.is_relative_to(value):
             raise ValueError('Choose a destination outside application source, data and installed models.')
     parent=value

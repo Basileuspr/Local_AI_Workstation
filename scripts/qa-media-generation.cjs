@@ -26,7 +26,9 @@ if(!process.versions.electron){
     await until('window.mediaQA.uploads===1 && document.body.innerText.includes("cup.png")');
     await button('Generate image');await until('window.mediaQA.requests.length===1');
     assert.deepEqual(await js('window.mediaQA.requests[0].references'),['blob:synthetic']);
-    assert.equal(await js('window.mediaQA.requests[0].steps'),30);
+    assert.equal(await js('window.mediaQA.requests[0].steps'),8);
+    assert.equal(await js('window.mediaQA.requests[0].guidance'),1);
+    assert(await js(`[...document.querySelectorAll('label')].find(el=>el.textContent==='Steps').querySelector('input').disabled`));
     await until('document.body.innerText.includes("Stop")');await button('Stop');await until('window.mediaQA.jobs[0].status==="cancelled"');
     await button('Remove');await field('form select','wan');
     assert(await js('document.querySelector("button[type=submit]").disabled'));

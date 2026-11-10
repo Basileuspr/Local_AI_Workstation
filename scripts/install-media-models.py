@@ -10,6 +10,10 @@ import shutil
 import urllib.request
 import zipfile
 
+# These public, pinned downloads do not need account credentials or telemetry.
+os.environ.setdefault('HF_HUB_DISABLE_TELEMETRY', '1')
+os.environ.setdefault('HF_HUB_DISABLE_IMPLICIT_TOKEN', '1')
+
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG = json.loads((Path(__file__).with_name('media-model-catalog.json')).read_text())
 
@@ -56,7 +60,7 @@ def install_model(name, root):
             if shutil.disk_usage(root).free < asset['size'] + 1024**3:
                 raise ValueError('Insufficient disk space for ' + asset['file'])
             print(json.dumps({'model': name, 'file': asset['file'], 'status': 'downloading'}), flush=True)
-            downloaded = Path(hf_hub_download(asset['repo'], asset['file'], revision=asset['revision'], local_dir=staging))
+            downloaded = Path(hf_hub_download(asset['repo'], asset['file'], revision=asset['revision'], local_dir=staging, token=False))
             verify(downloaded, asset)
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.move(str(downloaded), target)
@@ -121,7 +125,7 @@ def main():
     parser.add_argument('--all', action='store_true')
     parser.add_argument('--runtime', action='store_true')
     parser.add_argument('--runtime-cache', type=Path)
-    parser.add_argument('--models-dir', type=Path, default=Path(os.environ.get('LAW_MODELS_DIR') or ROOT / 'models'))
+    parser.add_argument('--models-dir', type=Path, default=Path(os.environ.get('LAW_MEDIA_MODELS_DIR') or os.environ.get('LAW_MODELS_DIR') or ROOT / 'models'))
     args = parser.parse_args()
     root = args.models_dir.resolve(); root.mkdir(parents=True, exist_ok=True)
     if not args.models and not args.all and not args.runtime:

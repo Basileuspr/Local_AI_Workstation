@@ -47,12 +47,12 @@ def checked_root(root=None):
     candidate = Path(root if root is not None else settings.data_dir).absolute()
     resolved = candidate.resolve()
     # Never treat a filesystem root, home, project or model root or their parent as data.
-    for protected in (Path.home().resolve(), PROJECT_ROOT.resolve(), settings.models_dir.resolve()):
+    for protected in (Path.home().resolve(), PROJECT_ROOT.resolve(), settings.models_dir.resolve(), settings.media_models_dir.resolve()):
         if resolved == protected or resolved in protected.parents:
             raise ValueError("Reset refused: the configured data folder overlaps a protected folder.")
     if resolved == Path(resolved.anchor) or resolved != candidate:
         raise ValueError("Reset requires a dedicated data folder without redirected parents.")
-    if resolved.is_relative_to(settings.models_dir.resolve()):
+    if any(resolved.is_relative_to(path.resolve()) for path in (settings.models_dir, settings.media_models_dir)):
         raise ValueError("Reset refused: app data must be separate from installed models.")
     if candidate.exists() and (is_link(candidate) or not candidate.is_dir()):
         raise ValueError("Reset requires a regular data folder.")

@@ -46,6 +46,15 @@ def test_default_paths_live_under_the_project():
 
     assert settings.data_dir == config.PROJECT_ROOT / "data"
     assert settings.models_dir == config.PROJECT_ROOT / "models"
+    assert settings.media_models_dir == settings.models_dir
+
+
+def test_media_model_override_does_not_relocate_other_models(monkeypatch, tmp_path):
+    env(monkeypatch, "MODELS_DIR", str(tmp_path / 'models'))
+    env(monkeypatch, "MEDIA_MODELS_DIR", str(tmp_path / 'media-models'))
+    settings = load_settings()
+    assert settings.models_dir == tmp_path / 'models'
+    assert settings.media_models_dir == tmp_path / 'media-models'
 
 
 def test_default_origins_name_the_app_and_exclude_generic_browser_origins():

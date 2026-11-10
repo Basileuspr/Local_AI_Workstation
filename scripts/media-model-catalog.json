@@ -18,24 +18,26 @@
     ]
   },
   "models": {
-    "qwen-image-2.1-uncensored-q4": {
-      "name": "Qwen Image 2.1 Uncensored Q4",
+    "qwen-image-2.1-turbo-q4": {
+      "name": "Qwen Image 2.1 Turbo Q4",
       "family": "qwen-image-2.1",
       "kind": "image",
       "reference_mode": "edit",
-      "steps": 30,
-      "guidance": 6,
+      "steps": 8,
+      "fixed_steps": 8,
+      "sigmas": "qwen-image-2.1-turbo",
+      "guidance": 1,
       "files": {
         "diffusion": {
-          "repo": "abenzerps/Qwen-Image-2.1-Uncensored-Quantized",
-          "revision": "7959e658915f52274897fb573ffeda49de8dc16b",
-          "file": "qwen-image-2.1-UC-Q4_K_M.gguf",
-          "size": 4604558112,
-          "sha256": "e79c8a009f2ecbdb6c70fd663d9aea9ee304a0d91f347e4169a756b8ad141b41"
+          "repo": "abenzerps/Qwen-Image-2.1-Turbo-Quantized",
+          "revision": "24d33ddeffd21374e8b04a84f93eb73a645fc74e",
+          "file": "qwen-image-2.1-turbo-Q4_K_M.gguf",
+          "size": 4050916384,
+          "sha256": "14be42ddc6e324682dd8e073ab32a0a4b3b8cd93657d6ec419dae3cc5f22ef78"
         },
         "vae": {
-          "repo": "abenzerps/Qwen-Image-2.1-Uncensored-Quantized",
-          "revision": "7959e658915f52274897fb573ffeda49de8dc16b",
+          "repo": "abenzerps/Qwen-Image-2.1-Turbo-Quantized",
+          "revision": "24d33ddeffd21374e8b04a84f93eb73a645fc74e",
           "file": "vae/qwen_image_2.1_vae_bf16.safetensors",
           "size": 675509688,
           "sha256": "bb21f7473051e1ac368515dd3f2e15cd44d7a11748ee8823e1ddca3e4876b7c9"

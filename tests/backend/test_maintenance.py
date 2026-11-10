@@ -80,6 +80,14 @@ def test_protected_roots_rejected(path):
     with pytest.raises(ValueError): service.checked_root(path)
 
 
+def test_external_media_model_root_cannot_be_reset(tmp_path, monkeypatch):
+    from dataclasses import replace
+    models = tmp_path / 'external-models'
+    monkeypatch.setattr(service, 'settings', replace(service.settings, media_model_storage_dir=models))
+    for path in [models, models.parent, models / 'sdcpp']:
+        with pytest.raises(ValueError): service.checked_root(path)
+
+
 def test_linked_target_fails_before_any_deletion(data, monkeypatch):
     result = exported(data)
     original = service.is_link

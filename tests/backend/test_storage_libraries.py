@@ -26,6 +26,15 @@ def add(service, tmp_path, name):
     return service.add(str(parent), 'App Library', name)
 
 
+def test_library_cannot_overlap_external_media_models(libraries, tmp_path, monkeypatch):
+    from dataclasses import replace
+    models = tmp_path / 'external-models'
+    models.mkdir()
+    monkeypatch.setattr(storage, 'settings', replace(storage.settings, media_model_storage_dir=models))
+    with pytest.raises(ValueError, match='outside'):
+        libraries.add(str(models), 'Exports')
+
+
 def png(color='blue'):
     result = io.BytesIO(); Image.new('RGB', (12, 12), color).save(result, format='PNG'); return result.getvalue()
 

@@ -16,7 +16,7 @@ from config import settings
 from services.request_queue import queue, prepare_runtime, QueueCancelled
 
 CATALOG = json.loads((Path(__file__).resolve().parents[2] / 'scripts/media-model-catalog.json').read_text())
-MODELS_DIR = settings.models_dir
+MODELS_DIR = settings.media_models_dir
 OUTPUT_DIR = (settings.data_dir / 'generated_media').resolve()
 
 
@@ -94,6 +94,8 @@ def require_video_decoder(spec):
 
 def validate_request(request):
     spec, _ = model_files(request['model_id'])
+    if spec.get('fixed_steps') and request['steps'] != spec['fixed_steps']:
+        raise ValueError(f"This model requires exactly {spec['fixed_steps']} steps.")
     require_video_decoder(spec)
     if not runtime_ready():
         raise ValueError('Install the local CUDA runtime with scripts/install-media-models.py --runtime.')
@@ -127,7 +129,9 @@ def command(request, output, references):
             '-W', str(request['width']), '-H', str(request['height']), '--steps', str(request['steps']),
             '--cfg-scale', str(request['guidance']), '--seed', str(request['seed']),
             '--sampling-method', 'euler', '--mmap', '--auto-fit', 'on', '--max-vram', '6',
-            '--disable-prefetch', '--batched-cfg', 'off', '--vae-tiling', '-o', str(output)]
+            '--disable-prefetch', '--batched-cfg', 'off', '--vae-tiling', '--disable-image-metadata', '-o', str(output)]
+    if spec.get('sigmas'):
+        args += ['--sigmas', spec['sigmas']]
     if spec['kind'] == 'image':
         args += ['--llm', str(files['llm']), '--llm_vision', str(files['vision']),
                  '--model-args', 'qwen_image_2_1_prefix_cache_type=q4_0']

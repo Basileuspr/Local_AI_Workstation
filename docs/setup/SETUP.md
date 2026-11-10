@@ -77,6 +77,8 @@ transfer time; it does not guarantee every resolution fits.
 
 `LAW_DATA_DIR`, `LAW_MODELS_DIR` and `LAW_LOG_DIR` relocate their respective
 runtime areas. `LAW_IMAGE_MANAGER_DIR` controls the independent image catalog.
+`LAW_MEDIA_MODELS_DIR` relocates only Qwen/Wan weights and their native runtime;
+it defaults to `LAW_MODELS_DIR`. Restart the app after changing these settings.
 Do not put private data, credentials, models or compiled artifacts into commits.
 
 Follow [development](../development/DEVELOPMENT.md) to synchronize/rebuild source.

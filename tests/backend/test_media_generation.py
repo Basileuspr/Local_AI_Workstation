@@ -38,13 +38,14 @@ def installed(tmp_path, monkeypatch):
     return catalog
 
 
-def request(identifier='qwen-image-2.1-uncensored-q4', **kwargs):
+def request(identifier='qwen-image-2.1-turbo-q4', **kwargs):
+    kwargs.setdefault('steps', media.CATALOG['models'].get(identifier, {}).get('steps', 20))
     return MediaRequest(model_id=identifier, prompt='A ceramic cup', **kwargs).model_dump()
 
 
 def test_catalog_only_marks_complete_pinned_models_ready(installed):
     assert all(item['ready'] for item in media.catalog()['models'])
-    _, files = media.model_files('qwen-image-2.1-uncensored-q4')
+    _, files = media.model_files('qwen-image-2.1-turbo-q4')
     files['vision'].unlink()
     assert not media.catalog()['models'][0]['ready']
 
@@ -58,7 +59,7 @@ def test_runtime_requires_complete_installation_receipt_and_libraries(installed)
 
 
 def test_corrupt_model_receipt_is_reported_as_unavailable(installed):
-    path = media.MODELS_DIR / 'sdcpp/qwen-image-2.1-uncensored-q4/installation-manifest.json'
+    path = media.MODELS_DIR / 'sdcpp/qwen-image-2.1-turbo-q4/installation-manifest.json'
     path.write_text('[]')
     assert not media.catalog()['models'][0]['ready']
 
@@ -72,10 +73,10 @@ def test_missing_video_decoder_blocks_video_before_generation(installed, monkeyp
 
 
 def test_manifest_cannot_redirect_model_to_arbitrary_file(installed):
-    path = media.MODELS_DIR / 'sdcpp/qwen-image-2.1-uncensored-q4/installation-manifest.json'
+    path = media.MODELS_DIR / 'sdcpp/qwen-image-2.1-turbo-q4/installation-manifest.json'
     data = json.loads(path.read_text()); data['files']['diffusion'] = '../secret'
     path.write_text(json.dumps(data))
-    with pytest.raises(ValueError, match='inventory'): media.model_files('qwen-image-2.1-uncensored-q4')
+    with pytest.raises(ValueError, match='inventory'): media.model_files('qwen-image-2.1-turbo-q4')
 
 
 def test_path_traversal_rejected(installed):
@@ -100,7 +101,14 @@ def test_qwen_command_has_vision_and_multiple_ordered_references(installed, tmp_
     args = media.command(data, tmp_path/'out.png', [tmp_path/'first.png', tmp_path/'second.png'])
     assert args[args.index('-p')+1] == data['prompt']
     assert '--llm_vision' in args and '--mmap' in args and '--auto-fit' in args
+    assert args[args.index('--sigmas')+1] == 'qwen-image-2.1-turbo'
+    assert '--disable-image-metadata' in args
     assert [args[i+1] for i, item in enumerate(args) if item == '-r'] == [str(tmp_path/'first.png'), str(tmp_path/'second.png')]
+
+
+def test_turbo_rejects_steps_that_do_not_match_its_schedule(installed):
+    with pytest.raises(ValueError, match='exactly 8 steps'):
+        media.validate_request(request(steps=20))
 
 
 def test_wan_14b_uses_both_experts_video_mode_and_init_image(installed, tmp_path):
@@ -109,6 +117,7 @@ def test_wan_14b_uses_both_experts_video_mode_and_init_image(installed, tmp_path
     assert args[args.index('-M')+1] == 'vid_gen'
     assert '--high-noise-diffusion-model' in args and '--high-noise-steps' in args
     assert '-i' in args and '-r' not in args
+    assert '--disable-image-metadata' in args and '--sigmas' not in args
 
 
 def test_stop_terminates_runtime_during_silent_loading(tmp_path):
@@ -188,6 +197,21 @@ def test_installer_rejects_paths_and_changed_hash(tmp_path):
         with pytest.raises(ValueError): module.checked_path(tmp_path, path)
     data = tmp_path/'model'; data.write_bytes(b'bad')
     with pytest.raises(ValueError, match='SHA-256'): module.verify(data, {'size':3, 'sha256':'0'*64})
+
+
+def test_installer_all_and_runtime_only_options(tmp_path, monkeypatch):
+    spec = importlib.util.spec_from_file_location('media_installer', Path(__file__).resolve().parents[2]/'scripts/install-media-models.py')
+    module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+    calls = []
+    monkeypatch.setenv('LAW_MEDIA_MODELS_DIR', str(tmp_path))
+    monkeypatch.setattr(module, 'install_runtime', lambda root, cache: calls.append(('runtime', root)))
+    monkeypatch.setattr(module, 'install_model', lambda name, root: calls.append((name, root)))
+    monkeypatch.setattr(sys, 'argv', ['installer', '--runtime', '--all'])
+    assert module.main() == 0
+    assert calls == [('runtime', tmp_path), *[(name, tmp_path) for name in module.CATALOG['models']]]
+    calls.clear()
+    monkeypatch.setattr(sys, 'argv', ['installer', '--runtime'])
+    assert module.main() == 0 and calls == [('runtime', tmp_path)]
 
 
 def test_model_installer_recovers_pending_receipt_without_downloading(tmp_path, monkeypatch):

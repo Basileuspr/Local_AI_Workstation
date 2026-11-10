@@ -127,6 +127,7 @@ class Settings:
     ollama_keep_alive_seconds: int = 300
     face_intra_op_threads: int = 6
     image_manager_storage_dir: Path | None = None
+    media_model_storage_dir: Path | None = None
 
     # --- derived paths -----------------------------------------------------
     # Most app data follows data_dir. The external image catalog has its own
@@ -135,6 +136,10 @@ class Settings:
     @property
     def image_manager_dir(self) -> Path:
         return self.image_manager_storage_dir or self.data_dir.parent / (self.data_dir.name + "-image-manager")
+
+    @property
+    def media_models_dir(self) -> Path:
+        return self.media_model_storage_dir or self.models_dir
 
     @property
     def sessions_dir(self) -> Path:
@@ -191,6 +196,7 @@ class Settings:
             f"PDF OCR model {self.ocr_model}",
             f"data dir {self.data_dir}",
             f"models dir {self.models_dir}",
+            f"Qwen/Wan models dir {self.media_models_dir}",
             f"log dir {self.log_dir}",
             f"allowed origins {', '.join(self.allowed_origins)}",
         ]
@@ -230,6 +236,7 @@ def load_settings() -> Settings:
         ocr_min_page_chars=_env_int("OCR_MIN_PAGE_CHARS", 20, warnings, minimum=1),
         data_dir=data_dir,
         models_dir=models_dir,
+        media_model_storage_dir=_env_path("MEDIA_MODELS_DIR", models_dir, warnings),
         image_manager_storage_dir=_env_path("IMAGE_MANAGER_DIR", data_dir.parent / (data_dir.name + "-image-manager"), warnings),
         log_dir=log_dir,
         log_level=(_env("LOG_LEVEL") or "INFO").upper(),

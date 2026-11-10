@@ -125,7 +125,7 @@ class Libraries:
                 raise ValueError('Choose a local disk rather than a mapped network drive.')
         if not parent.is_dir(): raise ValueError('The selected parent folder or drive is unavailable.')
         target = no_links(parent / name)
-        for protected in (self.root, settings.models_dir.absolute(), Path(__file__).resolve().parents[2]):
+        for protected in (self.root, settings.models_dir.absolute(), settings.media_models_dir.absolute(), Path(__file__).resolve().parents[2]):
             if target == protected or target.is_relative_to(protected) or protected.is_relative_to(target):
                 raise ValueError('Choose a library outside app data, installed models, and application source.')
         with _lock:

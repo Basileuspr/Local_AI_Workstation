@@ -19,6 +19,12 @@ Recorded during the September 30, 2026 application-review follow-up. This is a
 local development version. It identifies captured source and is not a published
 stable release or a certification of all preexisting features.
 
+- November 10: Qwen Image 2.1 Turbo replaces the unavailable Qwen Uncensored
+  catalog revision. Qwen/Wan models support a separate local model directory,
+  and new exports omit embedded generation metadata. See the
+  [generation guide](docs/images/GENERATION.md#qwen-image-editing-and-wan-video)
+  and [verification record](docs/development/VERIFICATION.md#november-10-qwen-turbo-installation-and-media-model-storage).
+
 - October 30: **Testing Lab** adds saved, repeatable text-model evaluations for
   request accuracy, data/document facts, revised information, local performance
   and pasted online-model comparisons. Custom suite revisions, human reviews,
