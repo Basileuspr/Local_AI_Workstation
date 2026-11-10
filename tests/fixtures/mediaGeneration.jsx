@@ -6,6 +6,7 @@ import '../../src/styles.css';
 const models = [
   {id:'qwen',name:'Qwen Image 2.1 Turbo Q4',kind:'image',family:'qwen-image-2.1',reference_mode:'edit',steps:8,fixed_steps:8,guidance:1,ready:true},
   {id:'wan',name:'Wan 2.2 I2V 14B Uncensored',kind:'video',family:'wan2.2-14b',reference_mode:'required',steps:20,guidance:3.5,ready:true},
+  {id:'wan5',name:'Wan 2.2 TI2V 5B Q4',kind:'video',family:'wan2.2-5b',reference_mode:'optional',steps:50,guidance:5,width:832,height:480,ready:true},
 ];
 const state = {jobs:[],requests:[],uploads:0,errors:[]}; window.mediaQA = state;
 window.addEventListener('error',event=>state.errors.push(event.message));

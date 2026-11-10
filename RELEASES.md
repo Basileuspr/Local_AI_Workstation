@@ -25,6 +25,11 @@ stable release or a certification of all preexisting features.
   [generation guide](docs/images/GENERATION.md#qwen-image-editing-and-wan-video)
   and [verification record](docs/development/VERIFICATION.md#november-10-qwen-turbo-installation-and-media-model-storage).
 
+- November 10 generation follow-up: Wan 14B's high-noise checkpoint is prepared
+  with compatible tensor names while preserving its original bytes. Wan 5B uses
+  GPU-tested video defaults and accepts 480-pixel dimensions. See the
+  [real generation checks](docs/development/VERIFICATION.md#november-10-real-qwen-and-wan-generation).
+
 - October 30: **Testing Lab** adds saved, repeatable text-model evaluations for
   request accuracy, data/document facts, revised information, local performance
   and pasted online-model comparisons. Custom suite revisions, human reviews,

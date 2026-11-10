@@ -80,6 +80,20 @@ Hugging Face account tokens, and the installer disables Hub telemetry.
 | `wan2.2-ti2v-5b-q4` | [Wan 2.2 TI2V 5B Q4](https://huggingface.co/QuantStack/Wan2.2-TI2V-5B-GGUF), standard text/image-to-video | Optional first image |
 | `wan2.2-i2v-14b-uncensored` | [Wan 2.2 I2V 14B Uncensored](https://huggingface.co/rzgar/wan2.2-i2v-A14B-Uncensored-base), two-expert video model | One first image required |
 
+Wan 5B starts at 832 × 480, 50 steps and guidance 5, using the simple scheduler
+and flow shift 5. This recipe produced coherent text-to-video output in the
+November 10 local GPU checks; the earlier 20-step/discrete recipe produced
+corrupted imagery. Video dimensions accept multiples of 16, including 480.
+Selecting a model restores its suggested dimensions and generation defaults.
+
+The 14B publisher includes a tensor-name prefix that the runtime cannot load
+for the high-noise expert. The installer retains the original checkpoint and
+creates a compatible SafeTensors copy with renamed header keys and unchanged
+tensor data. Both the source and prepared file have pinned SHA-256 hashes.
+This requires approximately 14.55 GB of additional disk space. Existing installs
+can run the same model installer again; changes to generation defaults do not
+invalidate unchanged, pinned weight files.
+
 The Wan checkpoints above are alternatives to the WAMU checkpoint used by the
 `kulkas2pintu/wan777` hosted Space, not copies of that Space's deployment. The
 uncensored labels come from the checkpoint publishers. No unrestricted-behavior
@@ -107,6 +121,11 @@ automatic GPU/RAM/disk placement, a 6 GiB managed VRAM budget, sequential CFG an
 tiled VAE decoding reduce memory demand. Disk offloading can be very slow.
 Stop terminates the subprocess even while it is loading. Failed requests are
 not automatically retried with changed dimensions or models.
+
+The [November 10 GPU acceptance record](../development/VERIFICATION.md#november-10-real-qwen-and-wan-generation)
+covers a Qwen image, Wan 5B text/image-to-video, and Wan 14B image-to-video.
+These short synthetic examples do not establish quality for every prompt or
+maximum-size/long-video performance.
 
 Private recipes, outputs and bounded diagnostic logs live in
 `data/generated_media/<job-id>`. Reference-image access is checked again when

@@ -17,6 +17,15 @@
       }
     ]
   },
+  "preparations": {
+    "wan2.2-i2v-14b-uncensored": {
+      "high_noise": {
+        "operation": "strip-diffusion-prefix-v1",
+        "size": 14548568496,
+        "sha256": "d124b23ef0079328ff84b7f04c62e4824f99335d0ff9282e73ab73096ae2f334"
+      }
+    }
+  },
   "models": {
     "qwen-image-2.1-turbo-q4": {
       "name": "Qwen Image 2.1 Turbo Q4",
@@ -63,7 +72,11 @@
       "family": "wan2.2-5b",
       "kind": "video",
       "reference_mode": "optional",
-      "steps": 20,
+      "steps": 50,
+      "scheduler": "simple",
+      "flow_shift": 5,
+      "width": 832,
+      "height": 480,
       "guidance": 5,
       "files": {
         "diffusion": {

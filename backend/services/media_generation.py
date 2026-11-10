@@ -55,7 +55,8 @@ def model_files(identifier):
     manifest_path = local_path('sdcpp/' + identifier + '/installation-manifest.json')
     try:
         manifest = json.loads(manifest_path.read_text())
-        if manifest.get('spec') != spec:
+        # Generation defaults may change without changing any reviewed weight bytes.
+        if manifest.get('spec', {}).get('files') != spec['files']:
             raise ValueError('Model revision differs from the reviewed catalog. Run its installer again.')
         files = {}
         for role, asset in spec['files'].items():
@@ -65,6 +66,18 @@ def model_files(identifier):
             path = local_path(expected)
             if not path.is_file() or path.stat().st_size != asset['size']:
                 raise ValueError('Model installation is incomplete. Resume its installer.')
+            rule = CATALOG.get('preparations', {}).get(identifier, {}).get(role)
+            if rule:
+                preparation = rule['operation']
+                prepared = manifest.get('prepared_files', {}).get(role, {})
+                expected = 'sdcpp/prepared/' + asset['sha256'] + '/' + preparation + '.safetensors'
+                if (prepared.get('path') != expected or prepared.get('source_sha256') != asset['sha256']
+                        or prepared.get('preparation') != preparation or prepared.get('sha256') != rule['sha256']
+                        or prepared.get('size') != rule['size']):
+                    raise ValueError('Model needs a compatible local copy. Run its installer again.')
+                path = local_path(expected)
+                if not path.is_file() or path.stat().st_size != prepared.get('size'):
+                    raise ValueError('Prepared model is incomplete. Run its installer again.')
             files[role] = path
         return spec, files
     except (OSError, json.JSONDecodeError, TypeError, AttributeError, KeyError) as exc:
@@ -102,7 +115,7 @@ def validate_request(request):
     if not request['prompt'].strip():
         raise ValueError('Enter an image or motion prompt.')
     width, height = request['width'], request['height']
-    multiple = 32 if spec['kind'] == 'image' else 64
+    multiple = 32 if spec['kind'] == 'image' else 16
     if width % multiple or height % multiple or not 128 <= min(width, height) or max(width, height) > 1536:
         raise ValueError(f'Dimensions must be 128–1536 pixels and multiples of {multiple}.')
     if width * height > (1536**2 if spec['kind'] == 'image' else 832*832):
@@ -139,7 +152,9 @@ def command(request, output, references):
             args += ['-r', str(reference)]
     else:
         args += ['--t5xxl', str(files['t5']), '--video-frames', str(request['frames']), '--fps', str(request['fps']),
-                 '--flow-shift', '3', '--temporal-tiling']
+                 '--flow-shift', str(spec.get('flow_shift', 3)), '--temporal-tiling']
+        if spec.get('scheduler'):
+            args += ['--scheduler', spec['scheduler']]
         if references:
             args += ['-i', str(references[0])]
         if 'high_noise' in files:

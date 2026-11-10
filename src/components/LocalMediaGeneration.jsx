@@ -41,6 +41,7 @@ export default function LocalMediaGeneration({active = true}) {
   function choose(identifier) {
     const next = catalog.models.find(item => item.id === identifier);
     setModelId(identifier); setSteps(next?.steps || 20); setGuidance(next?.guidance || 5);
+    setWidth(next?.width || 512); setHeight(next?.height || 512);
     if (next?.kind === 'video') setReferences(previous => previous.slice(0, 1));
   }
   async function upload(event) {
@@ -78,7 +79,7 @@ export default function LocalMediaGeneration({active = true}) {
   }
   return <section ref={section} className="local-media-generation" aria-label="Qwen images and Wan video">
     <h1>Qwen images &amp; Wan video</h1>
-    <p>Edit images with Qwen, or animate an image with Wan. Jobs share the local model queue and continue when you leave this tab.</p>
+    <p>Create or edit images with Qwen, or generate video from text or an image with Wan. Jobs share the local model queue and continue when you leave this tab.</p>
     <p>Large models can take several minutes to load and much longer to generate while using disk offloading. Stop remains available during loading.</p>
     {error && <p role="alert">{error}</p>}
     {catalog && !catalog.runtime_ready && <p role="status">The local generation runtime is not installed. Follow the setup guide for Qwen and Wan.</p>}
@@ -92,8 +93,8 @@ export default function LocalMediaGeneration({active = true}) {
       <ul>{references.map((item, index) => <li key={`${item.reference}-${index}`}>{item.name || `Reference ${index+1}`} <button type="button" disabled={busy} onClick={() => setReferences(previous => previous.filter((_, i) => i !== index))}>Remove</button></li>)}</ul>
       {model?.kind === 'image' && <p>Describe what to change and what to preserve. Reference images are used in the listed order; exact identity is not guaranteed.</p>}
       <div className="local-media-options">
-        <label>Width<input type="number" min={128} max={video ? 832 : 1536} step={video ? 64 : 32} value={width} onChange={e => setWidth(e.target.value)}/></label>
-        <label>Height<input type="number" min={128} max={video ? 832 : 1536} step={video ? 64 : 32} value={height} onChange={e => setHeight(e.target.value)}/></label>
+        <label>Width<input type="number" min={128} max={video ? 832 : 1536} step={video ? 16 : 32} value={width} onChange={e => setWidth(e.target.value)}/></label>
+        <label>Height<input type="number" min={128} max={video ? 832 : 1536} step={video ? 16 : 32} value={height} onChange={e => setHeight(e.target.value)}/></label>
         <label>{model?.family === 'wan2.2-14b' ? 'Steps per expert' : 'Steps'}<input type="number" min={1} max={100} value={steps} disabled={Boolean(model?.fixed_steps)} onChange={e => setSteps(e.target.value)}/></label>
         <label>Guidance<input type="number" min={1} max={20} step={0.5} value={guidance} onChange={e => setGuidance(e.target.value)}/></label>
         <label>Seed (blank = random)<input type="number" min={0} max={2147483647} value={seed} onChange={e => setSeed(e.target.value)}/></label>

@@ -4,6 +4,42 @@ This is the consolidated evidence record, updated November 10, 2026.
 Current guides describe inspected source; dated tests below are not a certification
 of every feature, provider, installation or device.
 
+## November 10 real Qwen and Wan generation
+
+After the image queue finished, the desktop was fully restarted with the
+separate media-model directory. Real local inference exposed two issues that
+synthetic tests had not detected: Wan 14B's high-noise checkpoint names failed
+metadata validation, and Wan 5B's previous text-to-video recipe produced
+corrupted imagery despite a successful process exit and decodable video.
+
+The installer now prepares a pinned, byte-preserving tensor-payload copy for
+the high-noise expert, while retaining the original download. The copy changes
+only SafeTensors header names; the original and prepared hashes are checked.
+Defender found no threats in the prepared checkpoint. Wan 5B now defaults to
+832 × 480, 50 steps, simple scheduling and flow shift 5; the form and backend
+accept the required 16-pixel alignment. Generation defaults can change without
+weakening checks on publisher/revision/file/hash identities.
+
+- RTX 3070 (8 GiB): Qwen Turbo generated a coherent 512 × 512 image with its
+  fixed eight-step schedule. Wan 5B generated coherent text-to-video and
+  image-to-video clips. Wan 14B animated the generated reference at 256 × 256,
+  eight steps per expert. Each video contained 17 decodable, distinct frames.
+- Outputs were inspected visually as well as decoded. The PNG contained no
+  metadata fields; the WebM files retained only the runtime encoder identifier,
+  without embedded prompts or settings. Private recipes and logs remain local.
+- **34 focused backend tests passed**, including prepared-file provenance,
+  unsafe headers, payload preservation, corrupted copies, weight revision
+  changes, the new video recipe, and 480-pixel alignment.
+- The isolated desktop/narrow UI walkthrough passed five check groups, including
+  submission of the 832 × 480, 50-step text-only defaults and valid form controls.
+- The desktop production build and documentation-link check passed. Existing
+  large-bundle warnings remain. Full frontend/backend suites were not rerun for
+  this focused follow-up.
+- Coverage is limited to short synthetic sailboat examples. Qwen reference
+  editing, long clips, maximum sizes and broad prompt quality were not tested.
+  Failed diagnostic jobs remain in local history; they were not relabeled as
+  successful. Generated media, model files and private logs are not published.
+
 ## November 10 Qwen Turbo installation and media-model storage
 
 The unavailable Qwen Uncensored publisher revision is replaced by a separately

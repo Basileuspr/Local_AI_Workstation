@@ -19,7 +19,7 @@ if(!process.versions.electron){
     const until=async code=>{for(let i=0;i<100;i++){if(await js(code))return;await sleep(80);}throw Error('Timeout: '+code);};
     const field=(selector,value)=>js(`(()=>{const element=document.querySelector(${JSON.stringify(selector)});Object.getOwnPropertyDescriptor(Object.getPrototypeOf(element),'value').set.call(element,${JSON.stringify(value)});element.dispatchEvent(new Event(element.tagName==='SELECT'?'change':'input',{bubbles:true}));})()`);
     const button=text=>js(`[...document.querySelectorAll('button')].find(element=>element.textContent===${JSON.stringify(text)}).click()`);
-    await win.loadURL('app://local/tests/fixtures/mediaGeneration.html');await until('document.querySelectorAll("option").length===3');
+    await win.loadURL('app://local/tests/fixtures/mediaGeneration.html');await until('document.querySelectorAll("option").length===4');
     assert(await js('document.querySelector("button[type=submit]").disabled'));
     await field('form select','qwen');await field('textarea','Make the cup blue; preserve its shape.');
     await js(`(()=>{const input=document.querySelector('input[type=file]'),transfer=new DataTransfer();transfer.items.add(new File(['synthetic'],'cup.png',{type:'image/png'}));input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
@@ -37,10 +37,15 @@ if(!process.versions.electron){
     await until('window.mediaQA.uploads===2 && !document.querySelector("button[type=submit]").disabled');
     await button('Generate video');await until('window.mediaQA.requests.length===2');
     assert.equal(await js('window.mediaQA.requests[1].frames'),17);
+    await button('Remove');await field('form select','wan5');
+    await button('Generate video');await until('window.mediaQA.requests.length===3');
+    const wan5=await js('window.mediaQA.requests[2]');
+    assert.equal(wan5.width,832);assert.equal(wan5.height,480);assert.equal(wan5.steps,50);assert.deepEqual(wan5.references,[]);
+    assert(await js('document.querySelector("form").checkValidity()'));
     await sleep(200);fs.writeFileSync(path.join(work,'desktop.png'),(await win.webContents.capturePage(undefined,{stayHidden:true,stayAwake:true})).toPNG());
     win.setSize(430,1000);await sleep(250);assert(await js('document.documentElement.scrollWidth<=innerWidth'));
     fs.writeFileSync(path.join(work,'narrow.png'),(await win.webContents.capturePage(undefined,{stayHidden:true,stayAwake:true})).toPNG());
     assert.deepEqual(await js('window.mediaQA.errors'),[]);
-    console.log(JSON.stringify({ok:true,checks:['Qwen reference upload and submit','Cancel during loading','Wan required reference and video settings','430px layout and no browser errors'],artifacts:work}));
+    console.log(JSON.stringify({ok:true,checks:['Qwen reference upload and submit','Cancel during loading','Wan required reference and video settings','Wan 5B text-to-video defaults and valid 832x480 form','430px layout and no browser errors'],artifacts:work}));
   }).catch(error=>{console.error(error);process.exitCode=1;}).finally(()=>{clearTimeout(timeout);win?.destroy();app.exit(process.exitCode||0);});
 }
