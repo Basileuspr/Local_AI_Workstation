@@ -72,9 +72,11 @@ function durationEstimate(job, completed) {
   const pool = completed.filter(row => row.gpu === usedGpu(job));
   const matched = job.timing_profile ? pool.filter(row => row.kind === job.kind && row.profile === job.timing_profile) : [];
   const kind = pool.filter(row => row.kind === job.kind);
-  const selected = matched.length ? matched : kind.length ? kind : pool;
+  // Video workloads vary enormously by model, dimensions and frame count.
+  // Never use a fast chat/image average as a video completion promise.
+  const selected = job.kind === 'media-generation' ? matched : matched.length ? matched : kind.length ? kind : pool;
   return {duration: mean(selected), samples: selected.length,
-    basis: matched.length ? job.kind === 'gif' ? 'Matching GIF settings' : 'Matching image settings' : kind.length ? 'Same task type average' : selected.length ? 'Overall average · rough fallback' : 'No completed samples'};
+    basis: matched.length ? job.kind === 'gif' ? 'Matching GIF settings' : job.kind === 'media-generation' ? 'Matching media settings' : 'Matching image settings' : selected.length && kind.length ? 'Same task type average' : selected.length ? 'Overall average · rough fallback' : 'No completed samples'};
 }
 
 function liveImageDuration(job, active) {
@@ -108,7 +110,7 @@ export function calculateQueueTiming(snapshot, records) {
     if (job.status === 'cancelling') { remaining = null; reason = 'Waiting for the worker to stop'; }
     else if (valid(live) && live > 0) {
       remaining = live;
-      estimate.basis = 'Live image steps + available timing history'; reason = '';
+      estimate.basis = job.kind === 'media-generation' ? 'Live generation steps; decoding and saving add time' : 'Live image steps + available timing history'; reason = '';
     }
     jobs[job.id] = {...estimate, elapsed, remaining, wait: 0, finish: remaining, reason};
     lanes.set(laneFor(job), {remaining, reason});

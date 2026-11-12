@@ -13,18 +13,21 @@ import "./PromptQueue.css";
 const QueueContext = createContext({ jobs: [], error: "", paused: false });
 const pending = (job) => ["queued", "running", "cancelling"].includes(job.status);
 export function usePromptQueue() { return useContext(QueueContext); }
-const names = { 'local-file': 'Video processing', 'video-vision': 'Video vision', gif: "GIF Maker", chat: "Chat", image: "Image", training: "LoRA training", analysis: "LoRA analysis", compact: "Chat memory", workflow: "Image workflow", "character-parts": "Character regions" };
+const names = { 'media-generation': 'Image / video generation', 'local-file': 'Video processing', 'video-vision': 'Video vision', gif: "GIF Maker", chat: "Chat", image: "Image", training: "LoRA training", analysis: "LoRA analysis", compact: "Chat memory", workflow: "Image workflow", "character-parts": "Character regions" };
 
 export function PromptQueueProvider({ children }) {
   const [data, setData] = useState({ jobs: [], error: "", paused: false });
   const [reports, setReports] = useState(loadQueueTiming);
   const reportRef = useRef(reports);
   const imageQueueRef = useRef("");
+  const activityRef = useRef('');
   const [persistent, setPersistent] = useState(true);
   useEffect(() => {
     return queueObserver().subscribe({ data: next => {
           const imageState = JSON.stringify(next.jobs?.filter(job => job.kind === "image").map(job => [job.request_id, job.status]));
           if (imageQueueRef.current !== imageState) { imageQueueRef.current = imageState; invalidatePolling("image-tasks"); }
+          const activity = JSON.stringify([next.gpu_owner, next.paused, next.jobs?.map(job => [job.id, job.status, job.stage])]);
+          if (activityRef.current !== activity) { activityRef.current = activity; invalidatePolling('runtime', 'media-jobs'); }
           const updated = recordQueueTiming(reportRef.current, next);
           if (JSON.stringify(updated) !== JSON.stringify(reportRef.current)) {
             reportRef.current = updated; setReports(updated);
@@ -111,7 +114,7 @@ export default function PromptQueue({ onOpenDestination }) {
     } catch (failure) {
       setActionError(failure.message);
     } finally {
-      invalidatePolling("queue", "image-tasks", "runtime");
+      invalidatePolling("queue", "image-tasks", "media-jobs", "runtime");
       setCancelling((current) => current.filter((id) => id !== job.id));
     }
   }
@@ -121,7 +124,9 @@ export default function PromptQueue({ onOpenDestination }) {
       onClick={event => { if (canOpen && !event.target.closest("button, a, input")) void open(job); }}>
       <div className="queue-job-heading"><span className="queue-kind">{names[job.kind] || job.kind}</span><span className="queue-state">{job.status === "queued" ? `Waiting · #${job.position}` : job.status}</span></div>
       <h3>{canOpen ? <button type="button" className="queue-open" onClick={() => open(job)} title="Open this request's destination">{job.label}</button> : job.label}</h3>
-      {job.stage && <p>Stage: {["workflow", "gif"].includes(job.kind) ? job.stage : job.stage === "analysis" ? "Dataset analysis" : "Local training"}</p>}
+      {job.stage && <p>Stage: {['chat', 'compact'].includes(job.kind) ? chatStageLabel(job.stage) : job.stage === 'analysis' ? 'Dataset analysis' : job.stage}</p>}
+      {job.stage_detail && <p>{job.stage_detail}</p>}
+      {job.kind === 'media-generation' && pending(job) && <progress aria-label="Media generation steps" max={job.progress?.total_steps || 1} value={job.progress?.step || undefined}/>}
       <p>Submitted {new Date(job.created_at).toLocaleTimeString()}{job.started_at ? ` · started ${new Date(job.started_at).toLocaleTimeString()}` : ""}{job.finished_at ? ` · finished ${new Date(job.finished_at).toLocaleTimeString()}` : ""}</p>
       <QueueJobTiming jobId={job.id}/>
       {job.error && <p className="queue-error">{job.error}</p>}

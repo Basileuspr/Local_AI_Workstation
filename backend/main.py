@@ -476,8 +476,9 @@ async def reset_runtime():
         return await _reset_runtime()
     queue.paused = True
     try:
+        stopped = 0
         for job in list(queue.jobs):
-            await queue.cancel(job)
+            stopped += int(await queue.cancel(job))
         # Wait for provider cleanup before unloading; never launch the next job
         # in the gap between cancellation and actual GPU release.
         deadline = asyncio.get_running_loop().time() + 35
@@ -485,7 +486,9 @@ async def reset_runtime():
             if asyncio.get_running_loop().time() >= deadline:
                 raise HTTPException(409, "A cancelled request is still stopping. Try Reset / Unload again once it exits.")
             await asyncio.sleep(0.15)
-        return await _reset_runtime()
+        result = await _reset_runtime()
+        result['queue_requests_stopped'] = stopped
+        return result
     finally:
         queue.paused = False
 

@@ -12,6 +12,9 @@ async def list_queue(request: Request = None):
     for job in snapshot["jobs"]:
         if job["kind"] == "image" and job["status"] == "running":
             job["progress"] = manager.generation_progress(job["request_id"])
+        elif job["kind"] == "media-generation" and job["status"] in {"running", "cancelling"}:
+            from services.media_generation import jobs
+            job["progress"] = jobs.progress(job["request_id"])
     return conditional_status(request, snapshot)
 
 

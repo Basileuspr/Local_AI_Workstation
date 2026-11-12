@@ -127,6 +127,21 @@ covers a Qwen image, Wan 5B text/image-to-video, and Wan 14B image-to-video.
 These short synthetic examples do not establish quality for every prompt or
 maximum-size/long-video performance.
 
+Running Qwen/Wan requests appear above the form with a preparation bar, elapsed
+time and Stop. Once generation steps begin, the bar shows measured steps and
+an approximate remaining generation time; decoding and saving add time. Wan
+14B counts both experts, so 30 steps per expert means 60 total generation steps.
+Loading, prompt/reference encoding and disk offloading may take several minutes
+without a reliable completion estimate. Hardware utilization is a separate
+measurement and is not the percentage of a generation job completed.
+
+The runtime bubble and Prompt Queue use the same active-job status, including
+preparation and stopping. Clicking a media job in Prompt Queue opens this tab.
+Switching tabs preserves accepted jobs. If progress cannot be refreshed, the
+last report is marked unavailable and its elapsed clock freezes until recovery;
+a model-inventory failure does not hide job progress. Queue history estimates
+for media require matching model/settings rather than unrelated chat durations.
+
 Private recipes, outputs and bounded diagnostic logs live in
 `data/generated_media/<job-id>`. Reference-image access is checked again when
 the queued job starts, and temporary reference files are removed afterward.

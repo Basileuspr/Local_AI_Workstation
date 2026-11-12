@@ -12,6 +12,10 @@ export const queueObserver = () => sharedPollingObserver("queue", {
   read: options => readPollingJson(apiUrl("/queue"), options),
   interval: (value, context) => inventoryDelay("queue", value, context), active: pendingQueue,
 });
+export const mediaJobsObserver = () => sharedPollingObserver('media-jobs', {
+  read: options => readPollingJson(apiUrl('/media-generation/jobs'), options),
+  interval: (value, context) => inventoryDelay('queue', value, context), active: pendingQueue,
+});
 export const imageTasksObserver = clientId => sharedPollingObserver(`image-tasks:${clientId}`, {
   read: options => readPollingJson(apiUrl(`/image-generation/tasks?client_id=${encodeURIComponent(clientId)}`), options),
   interval: (value, context) => inventoryDelay("images", value, context), active: pendingImages,

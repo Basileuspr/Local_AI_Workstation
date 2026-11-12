@@ -100,6 +100,7 @@ function AppInner() {
   const [refreshing, setRefreshing] = useState(false);
   const [imageLibraryTarget, setImageLibraryTarget] = useState(null);
   const [queueDataset, setQueueDataset] = useState(null);
+  const [queueGeneration, setQueueGeneration] = useState(null);
   const [viewerInputs,setViewerInputs] = useState({});
   const [designExample, setDesignExample] = useState(null);
   function addDesignExample(id) {
@@ -366,6 +367,7 @@ function AppInner() {
     }
     if (destination.projectId) dispatch({ type: "SET_ACTIVE_LORA_PROJECT", payload: destination.projectId });
     if (destination.datasetId) setQueueDataset({ id: destination.datasetId, request: Date.now() });
+    if (destination.tab === 'generate') setQueueGeneration({mode: destination.generationMode || 'images', request: Date.now()});
     dispatch({ type: "SET_SIDEBAR_TAB", payload: destination.tab });
   }
 
@@ -535,6 +537,7 @@ function AppInner() {
           <div className="pane" data-capture-tab="generate" hidden={!visible("generate")}>
             <ImageStudio
               active={visible("generate")}
+              openGeneration={queueGeneration}
               onNewChat={handleNewChat}
               onSessionSaved={handleSessionSaved}
             />

@@ -95,7 +95,7 @@ export function invalidatePolling(...prefixes) {
 }
 
 export async function fetchWorkload(url, options) {
-  invalidatePolling("queue", "image-tasks", "runtime", "status");
+  invalidatePolling("queue", "image-tasks", "media-jobs", "runtime", "status");
   try { return await fetch(url, options); }
-  finally { invalidatePolling("queue", "image-tasks", "runtime", "status"); }
+  finally { invalidatePolling("queue", "image-tasks", "media-jobs", "runtime", "status"); }
 }

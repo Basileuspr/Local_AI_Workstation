@@ -523,6 +523,7 @@ html, body {
 .runtime-dot { width: 6px; height: 6px; flex: 0 0 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 5px color-mix(in srgb, var(--green) 70%, transparent); }
 .runtime-indicator.busy { color: var(--accent); }
 .runtime-indicator.busy .runtime-dot { background: var(--accent); box-shadow: 0 0 7px color-mix(in srgb, var(--accent) 80%, transparent); }
+.runtime-indicator.unavailable .runtime-dot { background:var(--warning, #e5b85b); box-shadow:none; }
 .runtime-reset-btn { width: 100%; padding: 7px 8px; border: 1px solid var(--border); border-radius: 5px; background: var(--bg-input); color: var(--text-dim); font: 11px var(--font-body); cursor: pointer; }
 .runtime-reset-btn:hover { border-color: var(--accent); color: var(--accent); }
 .runtime-reset-btn:disabled { opacity: 0.45; cursor: wait; }

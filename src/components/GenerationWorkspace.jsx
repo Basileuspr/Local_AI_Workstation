@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import ImageStudio from './ImageStudio';
 import LocalMediaGeneration from './LocalMediaGeneration';
 
-export default function GenerationWorkspace({active = true}) {
+export default function GenerationWorkspace({active = true, openGeneration}) {
   const [mode, setMode] = useState('images');
+  useEffect(() => {if (openGeneration) setMode(openGeneration.mode);}, [openGeneration]);
   return <div className="generation-workspace">
     <div className="local-media-tabs" role="group" aria-label="Generation workspace">
       <button aria-pressed={mode === 'images'} onClick={() => setMode('images')}>Image generation</button>

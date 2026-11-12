@@ -1,6 +1,9 @@
 import {useEffect, useRef, useState} from 'react';
 import {apiUrl} from '../api';
-import {fetchWorkload} from '../polling';
+import {fetchWorkload, createPollingObserver, readPollingJson} from '../polling';
+import {mediaJobsObserver} from '../appPolling';
+import {pendingJob} from '../pollingPolicies';
+import MediaGenerationProgress from './MediaGenerationProgress';
 import './LocalMediaGeneration.css';
 
 export async function mediaRequest(path, body) {
@@ -19,25 +22,28 @@ export default function LocalMediaGeneration({active = true}) {
   const [width, setWidth] = useState(512), [height, setHeight] = useState(512), [steps, setSteps] = useState(20);
   const [guidance, setGuidance] = useState(5), [seed, setSeed] = useState(''), [frames, setFrames] = useState(17), [fps, setFps] = useState(16);
   const [references, setReferences] = useState([]), [error, setError] = useState(''), [busy, setBusy] = useState(false);
+  const [pollError, setPollError] = useState(''), [catalogError, setCatalogError] = useState('');
+  const [receivedAt, setReceivedAt] = useState(0), [clock, setClock] = useState(Date.now());
+  const [accepted, setAccepted] = useState(''), [stopping, setStopping] = useState([]);
+  const pending = jobs.filter(pendingJob), history = jobs.filter(job => !pendingJob(job));
   const model = catalog?.models.find(item => item.id === modelId);
   const video = model?.kind === 'video';
   useEffect(() => {if (!active) section.current?.querySelectorAll('video').forEach(player => player.pause());}, [active]);
-  async function refresh() {
-    const [next, history] = await Promise.all([mediaRequest('/models'), mediaRequest('/jobs')]);
-    setCatalog(next); setJobs(history.jobs);
-  }
   useEffect(() => {
     if (!active) return;
-    let alive = true, timer;
-    async function poll() {
-      try {
-        const [next, history] = await Promise.all([mediaRequest('/models'), mediaRequest('/jobs')]);
-        if (alive) {setCatalog(next); setJobs(history.jobs);}
-      } catch (failure) {if (alive) setError(failure.message);}
-      finally {if (alive) timer = setTimeout(poll, 2500);}
-    }
-    poll(); return () => {alive = false; clearTimeout(timer);};
+    // Model inventory failures must not hide live progress or Stop controls.
+    const models = createPollingObserver({read: options => readPollingJson(apiUrl('/media-generation/models'), options), interval: () => 30000});
+    const detachModels = models.subscribe({data: next => {setCatalog(next); setCatalogError('');}, error: failure => setCatalogError(failure.message)});
+    const detachJobs = mediaJobsObserver().subscribe({data: next => {
+      setJobs(next.jobs); setPollError(''); setReceivedAt(Date.now()); setClock(Date.now());
+    }, error: () => setPollError('Progress connection unavailable. Last reported jobs are retained; reconnecting…')});
+    return () => {detachModels(); detachJobs();};
   }, [active]);
+  useEffect(() => {
+    if (!active || !pending.length || pollError) return;
+    const timer = setInterval(() => setClock(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [active, pending.length, pollError]);
   function choose(identifier) {
     const next = catalog.models.find(item => item.id === identifier);
     setModelId(identifier); setSteps(next?.steps || 20); setGuidance(next?.guidance || 5);
@@ -66,22 +72,39 @@ export default function LocalMediaGeneration({active = true}) {
   async function submit(event) {
     event.preventDefault(); setBusy(true); setError('');
     try {
-      await mediaRequest('/jobs', {model_id: modelId, prompt, negative_prompt: negative, width: Number(width), height: Number(height),
+      const result = await mediaRequest('/jobs', {model_id: modelId, prompt, negative_prompt: negative, width: Number(width), height: Number(height),
         steps: Number(steps), guidance: Number(guidance), seed: seed === '' ? null : Number(seed),
         references: references.map(item => item.reference), frames: Number(frames), fps: Number(fps)});
-      await refresh();
+      setAccepted(result.id); mediaJobsObserver().invalidate();
     } catch (failure) {setError(failure.message);}
     finally {setBusy(false);}
   }
   async function stop(identifier) {
-    try {await mediaRequest(`/jobs/${identifier}/cancel`, {}); await refresh();}
+    setError(''); setStopping(previous => [...previous, identifier]);
+    try {await mediaRequest(`/jobs/${identifier}/cancel`, {}); mediaJobsObserver().invalidate();}
     catch (failure) {setError(failure.message);}
+    finally {setStopping(previous => previous.filter(id => id !== identifier));}
+  }
+  function jobCard(job) {
+    return <article key={job.id}>
+      <h3>{job.name}</h3>
+      {pendingJob(job) ? <MediaGenerationProgress job={job} unavailable={Boolean(pollError)} age={Math.max(0, clock - receivedAt) / 1000}/>
+        : <p role="status">{job.status} · {job.phase}{Number.isFinite(job.progress?.elapsed_seconds) ? ` · ${Math.round(job.progress.elapsed_seconds)}s elapsed` : ''}</p>}
+      <p>Seed {job.request.seed}</p><p>{job.request.prompt}</p>{job.error && <p role="alert">{job.error}</p>}
+      {pendingJob(job) && <button type="button" disabled={job.status === 'cancelling' || stopping.includes(job.id)} onClick={() => stop(job.id)}>{job.status === 'cancelling' || stopping.includes(job.id) ? 'Stopping…' : 'Stop'}</button>}
+      {job.url && <>{job.kind === 'video' ? <video controls preload="metadata" src={apiUrl(job.url)}/> : <img alt="Generated image" loading="lazy" src={apiUrl(job.url)}/>}
+        <a href={apiUrl(job.url + '?download=true')} download>Save {job.kind}</a></>}
+    </article>;
   }
   return <section ref={section} className="local-media-generation" aria-label="Qwen images and Wan video">
     <h1>Qwen images &amp; Wan video</h1>
     <p>Create or edit images with Qwen, or generate video from text or an image with Wan. Jobs share the local model queue and continue when you leave this tab.</p>
     <p>Large models can take several minutes to load and much longer to generate while using disk offloading. Stop remains available during loading.</p>
     {error && <p role="alert">{error}</p>}
+    {catalogError && <p role="alert">Model availability could not be refreshed. {catalogError}</p>}
+    {pollError && <p role="alert">{pollError}</p>}
+    {accepted && !jobs.some(job => job.id === accepted) && <p role="status">Request accepted. Waiting for its queue status…</p>}
+    {pending.length > 0 && <section aria-label="Active generations"><h2>Running &amp; waiting ({pending.length})</h2><div className="local-media-history">{pending.map(jobCard)}</div></section>}
     {catalog && !catalog.runtime_ready && <p role="status">The local generation runtime is not installed. Follow the setup guide for Qwen and Wan.</p>}
     <form onSubmit={submit}>
       <label>Model<select value={modelId} onChange={event => choose(event.target.value)} disabled={busy}>
@@ -104,13 +127,7 @@ export default function LocalMediaGeneration({active = true}) {
       <button disabled={busy || !model?.ready || !catalog?.runtime_ready || model?.reference_mode === 'required' && !references.length} type="submit">{busy ? 'Preparing…' : video ? 'Generate video' : 'Generate image'}</button>
     </form>
     <h2>Generation history</h2>
-    {!jobs.length && <p>Completed images and videos will appear here.</p>}
-    <div className="local-media-history">{jobs.map(job => <article key={job.id}>
-      <h3>{job.name}</h3><p role="status">{job.status} · {job.phase}{job.step != null ? ` · ${job.step}/${job.total_steps}` : ''} · Seed {job.request.seed}</p>
-      <p>{job.request.prompt}</p>{job.error && <p role="alert">{job.error}</p>}
-      {['queued','running','cancelling'].includes(job.status) && <button disabled={job.status === 'cancelling'} onClick={() => stop(job.id)}>Stop</button>}
-      {job.url && <>{job.kind === 'video' ? <video controls preload="metadata" src={apiUrl(job.url)}/> : <img alt="Generated image" loading="lazy" src={apiUrl(job.url)}/>}
-        <a href={apiUrl(job.url + '?download=true')} download>Save {job.kind}</a></>}
-    </article>)}</div>
+    {!history.length && <p>Completed images and videos will appear here.</p>}
+    <div className="local-media-history">{history.map(jobCard)}</div>
   </section>;
 }

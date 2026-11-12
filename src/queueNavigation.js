@@ -1,4 +1,5 @@
 export function queueDestination(job) {
+  if (job.kind === 'media-generation') return {tab: 'generate', generationMode: 'media', requestId: job.request_id || job.id};
   if (job.kind === 'evaluation') return { tab: 'testing-lab' };
   if (job.kind === 'coding') return { tab: 'coding-coordinator' };
   if (job.kind === 'coordinator-media') return { tab: 'coordinator' };

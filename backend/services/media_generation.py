@@ -14,6 +14,7 @@ import uuid
 
 from config import settings
 from services.request_queue import queue, prepare_runtime, QueueCancelled
+from services.media_progress import RuntimeProgress
 
 CATALOG = json.loads((Path(__file__).resolve().parents[2] / 'scripts/media-model-catalog.json').read_text())
 MODELS_DIR = settings.media_models_dir
@@ -170,7 +171,7 @@ def run_process(args, directory, cancel, progress):
                                stdin=subprocess.DEVNULL, text=True, encoding='utf-8', errors='replace',
                                creationflags=creationflags)
     tail = []
-    expected_steps = int(args[args.index('--steps') + 1]) if '--steps' in args else None
+    reporter = RuntimeProgress(args, progress)
     def read_output():
         # Private, bounded diagnostics beside the private job recipe; never published.
         with (directory / 'runtime.log').open('w', encoding='utf-8', newline='') as log:
@@ -180,14 +181,7 @@ def run_process(args, directory, cancel, progress):
                     chunk = line.encode('utf-8')[:5 * 1024**2 - written].decode('utf-8', errors='ignore')
                     log.write(chunk); log.flush(); written += len(chunk.encode('utf-8'))
                 tail.append(line[-1200:]); del tail[:-12]
-                match = re.search(r'(\d+)\s*/\s*(\d+)\s*[-|]', line)
-                if match:
-                    if 'MB/s' not in line and 'GB/s' not in line and int(match[2]) == expected_steps:
-                        progress('Generating', int(match[1]), int(match[2]))
-                elif 'encoding' in line.lower():
-                    progress('Encoding prompt or reference', None, None)
-                elif 'decoding' in line.lower():
-                    progress('Decoding output', None, None)
+                reporter.feed(line)
     reader = threading.Thread(target=read_output, daemon=True); reader.start()
     try:
         while process.poll() is None:
@@ -230,6 +224,7 @@ def generate(request, directory, cancel, progress):
         run_process(command(request, output, references), directory, cancel, progress)
         if not output.is_file() or not output.stat().st_size:
             raise RuntimeError('The runtime exited without a complete output.')
+        progress('Validating output', None, None)
         if spec['kind'] == 'image':
             from PIL import Image
             with Image.open(output) as image:
@@ -262,7 +257,7 @@ class MediaJobs:
                     if not isinstance(item.get('request'), dict) or not isinstance(item['request'].get('prompt'), str): continue
                     if item.get('kind') not in {'image', 'video'}: continue
                     if item['status'] in {'queued', 'running', 'cancelling'}:
-                        item.update(status='failed', error='Backend stopped before generation finished.')
+                        item.update(status='failed', phase='Interrupted', error='Backend stopped before generation finished.')
                     self.jobs[item['id']] = item
                 except (ValueError, OSError, KeyError): continue
             self.loaded = True
@@ -271,10 +266,31 @@ class MediaJobs:
         path = OUTPUT_DIR / item['id'] / 'job.json'
         temp = path.with_suffix('.part'); temp.write_text(json.dumps(item), encoding='utf-8'); temp.replace(path)
 
+    def progress(self, identifier):
+        with self.lock:
+            item = self.jobs.get(identifier)
+            return self._progress(item, time.time()) if item else None
+
+    @staticmethod
+    def _progress(item, now):
+        end = item.get('finished_at') or (now if item['status'] in {'queued', 'running', 'cancelling'} else None)
+        start = item.get('started_at')
+        step, total = item.get('step') or 0, item.get('total_steps') or 0
+        rate = item.get('seconds_per_step')
+        remaining = rate * (total - step) if rate and step < total and item.get('phase') == 'Generating' and item['status'] == 'running' else None
+        return {'phase': item.get('phase'), 'detail': item.get('detail', ''), 'step': step, 'total_steps': total,
+                'elapsed_seconds': max(0, end - start) if start and end else None,
+                'waiting_seconds': max(0, (start or end) - item['created_at']) if start or end else None,
+                'estimated_remaining_seconds': remaining,
+                'last_activity_seconds': max(0, end - item['updated_at']) if end and item.get('updated_at') else None}
+
     def snapshots(self):
         self.load()
+        queued = {job['request_id']: job for job in queue.snapshot()['jobs'] if job['kind'] == 'media-generation'}
         with self.lock:
-            return [dict(item, url=f'/media-generation/jobs/{item["id"]}/output' if item['status'] == 'completed' and item.get('output') else None)
+            return [dict(item, status='cancelling' if queued.get(item['id'], {}).get('status') == 'cancelling' else item['status'],
+                         position=queued.get(item['id'], {}).get('position'), progress=self._progress(item, time.time()),
+                         url=f'/media-generation/jobs/{item["id"]}/output' if item['status'] == 'completed' and item.get('output') else None)
                     for item in sorted(self.jobs.values(), key=lambda item: item['created_at'], reverse=True)[:100]]
 
     async def submit(self, request):
@@ -284,7 +300,9 @@ class MediaJobs:
         directory = OUTPUT_DIR / identifier; directory.mkdir()
         item = {'id': identifier, 'model_id': request['model_id'], 'name': spec['name'], 'kind': spec['kind'],
                 'status': 'queued', 'created_at': time.time(), 'request': request, 'phase': 'Queued', 'error': None}
-        job = queue.enqueue('media-generation', spec['name'], request_id=identifier, model=request['model_id'])
+        profile = ':'.join(str(request.get(key)) for key in ('model_id', 'width', 'height', 'frames', 'steps', 'guidance'))
+        profile += f":refs={len(request.get('references', []))}"
+        job = queue.enqueue('media-generation', spec['name'], request_id=identifier, model=request['model_id'], timing_profile=profile)
         try:
             with self.lock:
                 self.jobs[identifier] = item; self.save(item)
@@ -297,12 +315,18 @@ class MediaJobs:
 
     async def execute(self, job, item, directory):
         failure = None
-        def progress(phase, step, total):
+        def progress(phase, step, total, **detail):
             with self.lock:
-                item.update(phase=phase, step=step, total_steps=total)
+                if phase != item.get('phase'):
+                    item.pop('seconds_per_step', None)
+                item.update(phase=phase, updated_at=time.time(), detail=detail.pop('detail', ''), **detail)
+                if step is not None: item['step'] = step
+                if total is not None: item['total_steps'] = total
+            queue.set_stage(job, phase, item.get('detail'))
         try:
             await queue.wait(job)
             with self.lock: item.update(status='running', started_at=time.time()); self.save(item)
+            progress('Preparing GPU; releasing other models', None, None)
             await prepare_runtime('media-generation')
             from services.image_generation import manager
             await asyncio.to_thread(manager.unload_for_training)

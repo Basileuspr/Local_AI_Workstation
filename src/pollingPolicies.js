@@ -1,7 +1,7 @@
 export const pendingJob = job => ["queued", "running", "cancelling", "saving"].includes(job?.status);
 export const pendingQueue = data => Boolean(data?.jobs?.some(pendingJob));
 export const pendingImages = data => Boolean(data?.tasks?.some(pendingJob));
-export const busyRuntime = data => Boolean(data?.gpu_owner || data?.active_chat_requests || data?.image?.generating || data?.workflow?.running);
+export const busyRuntime = data => Boolean(data?.gpu_owner || data?.active_chat_requests || data?.image?.generating || data?.workflows?.active_runs?.some(pendingJob) || data?.workflow?.running);
 const backoff = failures => Math.min(30000, 2000 * 2 ** Math.min(4, Math.max(0, failures - 1)));
 export function inventoryDelay(kind, data, { failures = 0, idleCount = 1 } = {}) {
   if (failures) return backoff(failures);

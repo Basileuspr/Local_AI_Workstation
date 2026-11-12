@@ -1,8 +1,37 @@
 # Verification record and open findings
 
-This is the consolidated evidence record, updated November 10, 2026.
+This is the consolidated evidence record, updated November 12, 2026.
 Current guides describe inspected source; dated tests below are not a certification
 of every feature, provider, installation or device.
+
+## November 12 media progress and runtime status
+
+Live inspection found the runtime bubble reporting idle while a Wan 14B worker
+was still active. Its local log showed memory offloading and later generation
+steps; the media panel had no progress bar or remaining-time display. The runtime
+bubble now follows the shared queue, and media progress distinguishes preparation,
+both video experts, decoding, saving, stopping and unavailable observations.
+Media job polling is independent of model inventory and resumes on tab return,
+focus and reconnection. Runtime-reset receipts include media requests stopped.
+
+- Frontend suite: **1,715 passed, three skipped** across 215 files.
+- Focused backend media, queue, GPU coordination, status and hardware telemetry:
+  **97 passed**, with four existing FastAPI lifecycle deprecation warnings.
+- Hidden Chromium: ten check groups passed, including uploads/submission,
+  cancellation, progress/ETA, tab return, model-inventory failure, interrupted
+  progress/recovery, terminal idle status and a 430-pixel layout.
+- The parser was replayed against private local Qwen, Wan 5B and two-expert Wan
+  14B logs. A subprocess test verified live step reporting before process exit
+  and cancellation without prematurely releasing the GPU reservation.
+- Desktop production compilation passed in an isolated output folder. Existing
+  bundle-size, dependency eval and browser-module warnings remain. The running
+  video was preserved; the updated backend was not restarted or tested with a
+  newly submitted real-model generation during this change. The full backend,
+  bundled Media Manager and physical companion checks were not run.
+
+Generation ETA covers measured generation steps; decoding and saving add time.
+Preparation has no numeric estimate until matching history or measured steps
+are available. Hardware load does not imply a job-completion percentage.
 
 ## November 10 real Qwen and Wan generation
 

@@ -3,8 +3,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useStore, useDispatch, useRefs } from "../useStore.jsx";
 import * as api from "../api";
 import { runtimeObserver } from "../appPolling";
+import { runtimeIndicator } from '../runtimeStatus';
+import { usePromptQueue } from './PromptQueue';
 import { chatSubmissionQueue } from "../chatSubmissionQueue";
-import { chatStageLabel } from "../chatActivity";
 import { useDualChat } from "../ChatPane";
 import { useChatWorkspace } from "../ChatWorkspace";
 import PromptPhraseButtons from "./PromptPhraseButtons";
@@ -24,6 +25,7 @@ export default function Sidebar({ onLoadSession, onNewChat, onNavigate, imageLib
   const refs = useRefs();
   const [deleted, setDeleted] = useState([]);
   const [runtimeStatus, setRuntimeStatus] = useState(null);
+  const promptQueue = usePromptQueue();
   const [isResetting, setIsResetting] = useState(false);
   const [renaming, setRenaming] = useState(null);
 
@@ -67,7 +69,8 @@ export default function Sidebar({ onLoadSession, onNewChat, onNavigate, imageLib
   }, []);
 
   useEffect(() => {
-    return runtimeObserver().subscribe({ data: setRuntimeStatus,
+    return runtimeObserver().subscribe({ data: next => setRuntimeStatus({...next, unavailable: false}),
+      recovered: () => setRuntimeStatus(current => current ? {...current, unavailable: false} : current),
       error: () => setRuntimeStatus(current => ({ ...current, unavailable: true })) });
   }, [refreshRuntime]);
 
@@ -86,8 +89,8 @@ export default function Sidebar({ onLoadSession, onNewChat, onNavigate, imageLib
     try {
       const result = await api.resetRuntime();
       const unloaded = result.ollama_models_unloaded?.length || 0;
-      const stopped = (result.chat_requests_stopped || 0) + (result.image_requests_stopped || 0);
-      const summary = `Runtime reset complete: ${stopped} task${stopped === 1 ? "" : "s"} stopped, ${unloaded} Ollama model${unloaded === 1 ? "" : "s"} unloaded`;
+      const stopped = result.queue_requests_stopped ?? ((result.chat_requests_stopped || 0) + (result.image_requests_stopped || 0));
+      const summary = `Runtime reset ${result.reset ? 'complete' : 'incomplete'}: ${stopped} task${stopped === 1 ? "" : "s"} stopped, ${unloaded} Ollama model${unloaded === 1 ? "" : "s"} unloaded`;
       showToast(summary, result.reset ? "success" : "error");
     } catch (error) {
       showToast(error.message || "Could not reset local runtimes", "error");
@@ -97,26 +100,7 @@ export default function Sidebar({ onLoadSession, onNewChat, onNavigate, imageLib
     }
   }
 
-  const runtimeActivities = [];
-  if (runtimeStatus?.active_chat_requests) runtimeActivities.push("chat");
-  if (runtimeStatus?.gpu_owner?.startsWith("workflow:")) runtimeActivities.push("image workflow");
-  if (runtimeStatus?.gpu_owner?.startsWith("image-generation")) runtimeActivities.push("image generation");
-  else if (runtimeStatus?.gpu_owner === "pdf-ocr") runtimeActivities.push("PDF OCR");
-  else if (runtimeStatus?.gpu_owner?.startsWith("lora")) runtimeActivities.push("LoRA");
-  const loadedRuntimeCount = new Set([
-    ...(runtimeStatus?.ollama_loaded_models || []),
-    ...(runtimeStatus?.image?.loaded_model ? [`image:${runtimeStatus.image.loaded_model}`] : []),
-  ]).size;
-  const modelActivity = runtimeStatus?.chat_activity?.find(job => ["running", "cancelling"].includes(job.status));
-  const runtimeLabel = runtimeStatus?.unavailable
-    ? "Runtime status unavailable"
-    : modelActivity
-      ? `${modelActivity.status === "cancelling" ? "Stopping Request" : chatStageLabel(modelActivity.stage)}${modelActivity.model ? ` · ${modelActivity.model}` : ""}`
-    : runtimeActivities.length
-      ? `Running: ${runtimeActivities.join(" + ")}`
-      : loadedRuntimeCount
-        ? `Idle; ${loadedRuntimeCount} model runtime${loadedRuntimeCount === 1 ? "" : "s"} loaded`
-        : "GPU/model runtimes idle";
+  const runtimeView = runtimeIndicator(runtimeStatus, promptQueue);
 
   async function handleRestore(item) {
     try {
@@ -300,9 +284,9 @@ export default function Sidebar({ onLoadSession, onNewChat, onNavigate, imageLib
       </div>
 
       <div id="sidebar-footer">
-        <span className={`runtime-indicator ${runtimeActivities.length ? "busy" : ""}`} title={modelActivity?.stage_detail || "Live local model and GPU activity"} role="status">
+        <span className={`runtime-indicator ${runtimeView.busy ? "busy" : ""}${runtimeView.unavailable ? " unavailable" : ""}`} title={runtimeView.detail || "Live local model and GPU activity"} role="status">
           <span className="runtime-dot" aria-hidden="true" />
-          {runtimeLabel}
+          {runtimeView.label}
         </span>
         <button type="button" className="runtime-reset-btn" onClick={handleGlobalReset} disabled={isResetting}>
           {isResetting ? "Resetting..." : "Reset / Unload"}
