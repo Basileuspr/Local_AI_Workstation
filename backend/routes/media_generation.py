@@ -4,6 +4,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, ConfigDict
 from starlette.concurrency import run_in_threadpool
 from services import media_generation as media
+from services.image_vault import LockedImageError
 
 router = APIRouter(prefix='/media-generation', tags=['media-generation'])
 
@@ -52,11 +53,14 @@ async def cancel(identifier: str):
 async def output(identifier: str, download: bool = False):
     media.jobs.load()
     item = media.jobs.jobs.get(identifier)
-    if not item or item['status'] != 'completed' or item.get('output') not in {'output.png', 'output.webm'}:
+    if not item:
         raise HTTPException(404, 'Completed output not found.')
-    path = media.OUTPUT_DIR / item['id'] / item['output']
-    if not path.is_file() or path.resolve() != path:
-        raise HTTPException(404, 'Output file is missing.')
+    try:
+        path = await run_in_threadpool(media.output_path, item)
+    except LockedImageError as exc:
+        raise HTTPException(403, str(exc)) from exc
+    except (OSError, ValueError) as exc:
+        raise HTTPException(404, 'Completed output not found.') from exc
     return FileResponse(path, media_type='image/png' if item['kind'] == 'image' else 'video/webm',
                         filename=f'{item["model_id"]}-{identifier[:8]}{path.suffix}',
-                        content_disposition_type='attachment' if download else 'inline')
+                        content_disposition_type='attachment' if download else 'inline', headers={'Cache-Control': 'no-store'})

@@ -226,8 +226,8 @@ export async function listSessions() {
   return data.sessions || [];
 }
 
-export async function listSessionImages(hidden = false) {
-  const res = await fetch(apiUrl(`/sessions/images${hidden ? "?hidden=true" : ""}`));
+export async function listSessionImages(hidden = false, {signal} = {}) {
+  const res = await fetch(apiUrl(`/sessions/images${hidden ? "?hidden=true" : ""}`), {signal, cache: 'no-store'});
   if (!res.ok) {
     throw new Error("Could not load chat images");
   }

@@ -27,7 +27,7 @@ import ImageReview from './ImageReview';
 import ImageStitcher, { StitchFrameButton } from './ImageStitcher';
 import { useImageStitcher, selectionInPickOrder } from '../imageStitcher';
 
-export default function ImageGallery({ images, onOpen, onRemove, onDelete, onImagesRemoved, active = true, workspaceTarget, onNavigate }) {
+export default function ImageGallery({ images, onOpen, onRemove, onDelete, onImagesRemoved, active = true, workspaceTarget, onNavigate, sessionError }) {
   const iterate = useAnalyzeIterate();
   const destinations = useImageDestinations();
   const stitcher = useImageStitcher();
@@ -36,7 +36,7 @@ export default function ImageGallery({ images, onOpen, onRemove, onDelete, onIma
   const [query, setQuery] = useState("");
   const [compact, setCompact] = useState(true);
   const [page, setPage] = useState(0);
-  const library = useImageLibrary(active);
+  const library = useImageLibrary(active, {watchMedia: true});
   const [hiddenImages, setHiddenImages] = useState([]);
   const [folderEditor, setFolderEditor] = useState(null);
   const [filing, setFiling] = useState(null);
@@ -97,14 +97,14 @@ export default function ImageGallery({ images, onOpen, onRemove, onDelete, onIma
 
   const workspace = <section className="image-library-workspace" aria-label="Image library" data-density={compact ? "compact" : "comfortable"}>
     <header className="image-library-header"><div><p className="image-library-eyebrow">Image library</p><h1>{title}</h1></div>
+      <label className="image-library-collection">Collection<select aria-label="Image collection" value={folder} onChange={event => chooseFolder(event.target.value)}>
+        {collections.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+        {library.folders.map(item => <option key={item.id} value={`folder:${item.id}`}>{item.name}</option>)}
+      </select></label>
       </header>
     <ScrollToolbar as="div" label="Gallery controls" className="image-library-toolbar">
       <button type="button" className="stitcher-launch" aria-pressed={stitcher.enabled} disabled={stitcher.busy} onClick={() => stitcher.setEnabled(!stitcher.enabled)}>Image stitcher{stitcher.frames.length ? ` (${stitcher.frames.length})` : ''}</button>
       <button type="button" disabled={!destinations} onClick={() => destinations.openGifMaker()}>GIF Maker</button>
-      <label className="image-library-mobile-collection">Collection<select aria-label="Image collection" value={folder} onChange={event => chooseFolder(event.target.value)}>
-        {collections.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-        {library.folders.map(item => <option key={item.id} value={`folder:${item.id}`}>{item.name}</option>)}
-      </select></label>
       <input type="search" aria-label="Search image library" placeholder={folder === "workflows" ? "Search workflows or runs…" : "Search images or chats…"}
         value={query} onChange={event => { setQuery(event.target.value); setPage(0); }} />
       <div className="image-library-density" role="group" aria-label="Thumbnail size">
@@ -118,6 +118,8 @@ export default function ImageGallery({ images, onOpen, onRemove, onDelete, onIma
       </div></details>}
     </ScrollToolbar>
     {(error || library.error) && <p role="alert">{error || library.error}</p>}
+    {sessionError && ['general', 'hidden'].includes(folder) && <p role="alert">{sessionError}</p>}
+    {library.warnings?.map(warning => <p role="status" key={warning}>{warning}</p>)}
     <ImageStitcher stitcher={stitcher} active={active} />
     {folder === 'review' && <ImageReview active={active} />}
     {folder === "workflows" && <WorkflowImageLibrary active={active} stitcher={stitcher} onFile={setFiling} onLock={lockImages} searchQuery={query} workspace />}

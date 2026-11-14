@@ -16,7 +16,7 @@ import { useSelection, useBatchAction } from "../useSelection";
 import { applySessionRename } from '../sessionPersistence';
 import { ChatSessionItem, ChatRenameDialog } from './ChatListActions';
 
-export default function Sidebar({ onLoadSession, onNewChat, onNavigate, imageLibraryTarget, imagesActive }) {
+export default function Sidebar({ onLoadSession, onNewChat, onNavigate, imageLibraryTarget, imagesActive, imageGalleryError }) {
   const state = useStore();
   const chats = useDualChat(), workspace = useChatWorkspace();
   const dual = workspace?.pin?.kind === "chat";
@@ -275,6 +275,7 @@ export default function Sidebar({ onLoadSession, onNewChat, onNavigate, imageLib
 
         <div hidden={activeSidebarTab !== "images"}>
           <ImageGallery images={sessionImages} onOpen={onLoadSession} active={imagesActive ?? activeSidebarTab === "images"}
+            sessionError={imageGalleryError}
             workspaceTarget={imageLibraryTarget} onNavigate={onNavigate}
             onImagesRemoved={galleryImagesRemoved}
             onRemove={handleRemoveGalleryImage} onDelete={handlePermanentlyDeleteGalleryImage} />

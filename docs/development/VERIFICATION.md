@@ -4,6 +4,38 @@ This is the consolidated evidence record, updated November 13, 2026.
 Current guides describe inspected source; dated tests below are not a certification
 of every feature, provider, installation or device.
 
+## November 13 live Gallery and Qwen history
+
+Gallery now observes chat images whenever visible, including both Generate and
+Chat side panes. Completion and library changes invalidate a serial observer;
+older in-flight responses cannot overwrite the refreshed list. Disconnections
+retain existing images and retry. Collection navigation lives in the Gallery
+header at wide and narrow sizes; its portal has a separate content host so pin
+headings and drafts survive navigation.
+
+Completed Qwen stills are imported through the ordinary image library, with
+original seeds and stable model/job provenance. Historical jobs beyond the latest
+100 entries are included. Imports and retained receipts are saved atomically;
+repeated requests, identical outputs, deletion during inspection and backend
+restart do not duplicate or resurrect copies. Failed writes preserve originals
+and can retry. Videos and unfinished runs are excluded. Locking a copy also
+blocks its source preview/download; restoring makes it available again.
+
+- Frontend: **1,722 passed, three skipped** across 216 files.
+- Affected backend suites: **167 passed**, three existing dependency/lifecycle
+  warnings. Coverage includes media generation, import recovery, collection
+  actions/privacy, stitching, visual review and workflow exports, using isolated
+  data/log/model/catalog paths.
+- `node scripts/qa-gallery-live.cjs`: **five check groups passed** in isolated
+  production Chromium, including completion beside Generate and Chat, Qwen
+  completion while Generate is hidden, collection/folder selection, recovery,
+  430px layout, pin persistence and unchanged generation drafts. Renderer
+  compilation passed; screenshots were inspected.
+
+These checks use synthetic jobs and image files. No real GPU generation, live
+library migration or phone acceptance was run. Deployed assets and the running
+application were left for the separately coordinated build/restart window.
+
 ## November 13 hardening and streamlining
 
 Replaced PyPDF2 with pypdf 7.1.0 in chat/Knowledge and Folder Review. A real PDF

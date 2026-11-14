@@ -111,9 +111,12 @@ Existing historical results retain their original model names.
 Choose a model, enter a prompt, optionally upload reference images, then submit.
 For Wan, select the frame count and frame rate. The 14B model's Steps setting
 applies separately to its high-noise and low-noise experts. Results stay in this
-tab's generation history; save images as PNG and videos as WebM. These jobs are
-not attached to a chat automatically. Restarting the backend marks unfinished
-jobs as interrupted; it does not silently replay them.
+tab's generation history; save images as PNG and videos as WebM. Completed Qwen
+images also appear automatically in Gallery's General and Saved collections,
+including existing outputs when Gallery opens. Gallery owns independent copies;
+deleting one preserves the generation original and does not recreate the copy.
+These jobs are not attached to a chat automatically. Restarting the backend marks
+unfinished jobs as interrupted; it does not silently replay them.
 
 Jobs use the same GPU admission queue as other workstation tasks. The provider
 unloads the idle image pipeline before starting its subprocess. Memory mapping,

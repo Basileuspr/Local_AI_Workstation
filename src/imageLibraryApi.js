@@ -19,7 +19,7 @@ export async function request(path = "", method = "GET", body, token, { signal }
   return data;
 }
 
-export const list = () => request();
+export const list = ({signal} = {}) => request('', 'GET', undefined, undefined, {signal});
 export const folder = (name, id) => request(id ? `/folders/${id}` : "/folders", id ? "PUT" : "POST", { name });
 export const deleteFolder = id => request(`/folders/${id}`, "DELETE");
 export const tag = (name, id) => request(id ? `/tags/${id}` : "/tags", id ? "PUT" : "POST", { name });

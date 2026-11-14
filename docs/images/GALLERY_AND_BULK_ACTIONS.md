@@ -10,6 +10,20 @@ Liked/Disliked and custom folders. Review-only imports are excluded from General
 Use search and filters to narrow the view. The viewer can move across pages;
 Escape closes it without discarding a draft edit.
 
+Gallery refreshes while visible, including when pinned beside Generate or Chat.
+The **Collection** picker in its header remains available in both side-by-side
+and stacked panes, even when the sidebar is showing another workspace. Connection
+failures retain the last loaded images and show a notice while retrying.
+
+Completed Qwen images appear in General and Saved Images. Opening Gallery also
+imports earlier completed Qwen outputs, including jobs older than the generation
+history's latest 100 entries. Each output is imported once as a managed library
+copy with its seed and source-job reference. Filing, hiding, rating and locking
+use the usual library controls. Deleting a library copy does not reimport it on
+refresh; its independent original remains in generation history. Locking a copy
+also blocks the original generation preview/download until restored. Wan videos
+remain in generation history.
+
 The enlarged viewer has **+ / −**, **Fit**, **100%**, mouse-wheel zoom and drag
 pan. At higher zoom it loads the original, including stitched grids; it does not
 enlarge the small preview. Keyboard **+ / −**, **0** (Fit) and **1** (100%) also

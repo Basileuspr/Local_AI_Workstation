@@ -99,7 +99,10 @@ def save_stitch(request: StitchRequest):
 
 
 @router.get("")
-def listing(): return call(library.public_index)
+def listing():
+    from services.media_generation import jobs
+    warnings = call(jobs.sync_gallery)
+    return {**call(library.public_index), 'warnings': warnings}
 
 
 @router.post("/folders")

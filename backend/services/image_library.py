@@ -62,6 +62,11 @@ def read_index():
         raise ValueError("Image library is unreadable. Its files were preserved.")
     data.setdefault("tags", [])
     if not isinstance(data["tags"], list): raise ValueError("Image tags are unreadable. Their records were preserved.")
+    imports = data.get('media_imports', {})
+    if not isinstance(imports, dict) or any(not isinstance(key, str) or not re.fullmatch(r'[0-9a-f]{32}', key)
+                                          or not isinstance(value, str) or not re.fullmatch(r'[0-9a-f]{32}', value)
+                                          for key, value in imports.items()):
+        raise ValueError('Image import receipts are unreadable. Existing records were preserved.')
     return data
 
 
@@ -110,7 +115,8 @@ def public_index():
     from services import image_vault
     with LOCK:
         index = read_index()
-        value = {**index, "images": [decorate(item, include_names=False) for item in index["images"] if not image_vault.is_locked(item["sha256"])]}
+        value = {**{key: value for key, value in index.items() if key != 'media_imports'},
+                 "images": [decorate(item, include_names=False) for item in index["images"] if not image_vault.is_locked(item["sha256"])]}
     return visual_review_names.library_index(value)
 
 
@@ -161,6 +167,7 @@ def _import_file(path, metadata, origin=None, folder_id=None):
     image_vault.require_public(metadata["sha256"])
     with LOCK:
         index = read_index()
+        media_job = origin.get('job_id') if origin and origin.get('kind') == 'media-generation' else None
         if origin and origin.get("workflow_id"):
             from services.image_workflows import store
             try: store.get(origin["workflow_id"])
@@ -173,6 +180,8 @@ def _import_file(path, metadata, origin=None, folder_id=None):
                 existing["folder_ids"].append(folder_id); changed = True
             if origin and origin.get("kind") == "review" and not existing.get("review_only"):
                 existing["review_only"] = True; changed = True
+            if media_job and index.get('media_imports', {}).get(media_job) != existing['id']:
+                index.setdefault('media_imports', {})[media_job] = existing['id']; changed = True
             if changed: save_index(index)
             return decorate(existing)
         item = {**metadata, "id": uuid.uuid4().hex, "folder_ids": [folder_id] if folder_id else [], "rating": None,
@@ -192,6 +201,10 @@ def _import_file(path, metadata, origin=None, folder_id=None):
             raise
         item.update(media_id='library:'+item['id'],media_type='image',path=str(destination.absolute()),file_state='present')
         index["images"].append(item)
+        if media_job:
+            # Persist import and receipt together. Retain the receipt on deletion
+            # so automatic discovery cannot recreate a deliberately removed copy.
+            index.setdefault('media_imports', {})[media_job] = item['id']
         try: save_index(index)
         except BaseException:
             destination.unlink(missing_ok=True)

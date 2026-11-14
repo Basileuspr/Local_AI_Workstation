@@ -78,11 +78,14 @@ const CharacterCreator = lazy(() => import('./components/CharacterCreator'));
 import {CharacterWorkspaceProvider} from './CharacterWorkspace';
 import { get as getWorkflow } from "./imageWorkflowApi";
 import { useAppPopupDismissal } from './useDismissiblePopup';
+import useSessionGallery from './useSessionGallery';
 
 function AppInner() {
   useAppPopupDismissal();
   const state = useStore();
   const chatWorkspace = useChatWorkspace();
+  const galleryVisible = workspaceVisible(resolveActiveTab(state.activeSidebarTab), chatWorkspace.pin, 'images', chatWorkspace.workspacePin);
+  const sessionGallery = useSessionGallery(galleryVisible);
   const chats = useDualChat();
   const chatState = useRef(chats); chatState.current = chats;
   const dualChat = state.activeSidebarTab === "chats" && chatWorkspace.pin?.kind === "chat";
@@ -137,13 +140,6 @@ function AppInner() {
       dispatch({ type: "SET_SIDEBAR_TAB", payload: "dashboard" });
     }
   }, [dispatch]);
-  useEffect(() => {
-    const refreshImages = () => { void api.listSessionImages().then(images => dispatch({ type: "SET_SESSION_IMAGES", payload: images })).catch(() => {}); };
-    const storage = event => { if (event.key === "image-library-revision") refreshImages(); };
-    window.addEventListener("image-library-changed", refreshImages); window.addEventListener("storage", storage);
-    return () => { window.removeEventListener("image-library-changed", refreshImages); window.removeEventListener("storage", storage); };
-  }, [dispatch]);
-
   useEffect(() => {
     savePreferences(pickPreferences(state));
   }, [
@@ -255,9 +251,6 @@ function AppInner() {
       if (state.activeSidebarTab === "chats") {
         const sessions = await api.listSessions();
         dispatch({ type: "SET_SESSIONS", payload: sessions });
-      } else if (state.activeSidebarTab === "images") {
-        const images = await api.listSessionImages();
-        dispatch({ type: "SET_SESSION_IMAGES", payload: images });
       } else if (state.activeSidebarTab === "knowledge") {
         const docs = await api.listKnowledgeBase();
         dispatch({ type: "SET_KB_DOCUMENTS", payload: docs });
@@ -348,13 +341,10 @@ function AppInner() {
   );
 
   const handleSessionSaved = useCallback(async () => {
+    sessionGallery.refresh();
     const sessions = await api.listSessions();
     dispatch({ type: "SET_SESSIONS", payload: sessions });
-    if (state.activeSidebarTab === "images") {
-      const images = await api.listSessionImages();
-      dispatch({ type: "SET_SESSION_IMAGES", payload: images });
-    }
-  }, [dispatch, state.activeSidebarTab]);
+  }, [dispatch, sessionGallery.refresh]);
 
   async function openQueueDestination(destination) {
     if (destination.sessionId && destination.sessionId !== state.currentSessionId) {
@@ -440,6 +430,7 @@ function AppInner() {
         pinNotice={activeTab === "chats" ? chatWorkspace.storageError : chatWorkspace.workspaceStorageError}
         sidebar={closeNavigation => <Sidebar
         imagesActive={visible("images")}
+        imageGalleryError={sessionGallery.error}
         imageLibraryTarget={imageLibraryTarget}
         onNavigate={closeNavigation}
         onNewChat={() => { closeNavigation(); return handleNewChat(); }}
@@ -490,7 +481,9 @@ function AppInner() {
           <div className="pane" data-capture-tab="neural-network" hidden={!visible("neural-network")}><NeuralNetworkVisualizer /></div>
           <div className="pane" data-capture-tab="break-room" hidden={!visible("break-room")}><BreakRoom active={visible("break-room")} /></div>
           <div className="pane" data-capture-tab="image-editor" hidden={!visible("image-editor")}><ImageEditor /></div>
-          <div className="pane image-library-pane" data-capture-tab="images" hidden={!visible("images")} ref={setImageLibraryTarget} />
+          <div className="pane image-library-pane" data-capture-tab="images" hidden={!visible("images")}>
+            <div className="image-library-content" ref={setImageLibraryTarget} />
+          </div>
           <div className="pane" data-capture-tab="review" hidden={!visible("review")}><ImageReview active={visible("review")} onOpenSource={handleLoadSession} /></div>
           <div className="pane" data-capture-tab="queue" hidden={!visible("queue")}>
             <PromptQueue onOpenDestination={openQueueDestination} />

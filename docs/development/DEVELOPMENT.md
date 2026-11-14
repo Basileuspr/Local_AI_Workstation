@@ -43,6 +43,7 @@ Keep environments, models and runtime data local to each computer.
 | `node scripts/qa-durable-memory.cjs` | Verify Memory navigation, editing, pause/resume, conflicts, draft preservation, export and narrow panes with synthetic data in isolated Chromium |
 | `node scripts/qa-model-profiles.cjs` | Verify per-model context/thinking/output settings, actual request payloads, plain-text receipts, independent chat panes, reload persistence and narrow layouts with synthetic models |
 | `node scripts/qa-hardening.cjs` | Verify deferred workspace mounting, preserved drafts/background jobs, completed-message rendering, checklist actions and slow Face/LoRA polling in an isolated production renderer |
+| `node scripts/qa-gallery-live.cjs` | Verify live Gallery updates beside Generate/Chat, Qwen completion, collection navigation, disconnection recovery, drafts and narrow panes with synthetic APIs in isolated production Chromium |
 | `node scripts/qa-media-generation.cjs` | Verify Qwen reference uploads, Wan settings, cancellation and narrow layouts with synthetic jobs in isolated Chromium |
 | `node scripts/qa-workflow-advanced.cjs` | Verify Canny, multiple-reference, outpaint and trained-upscale controls with synthetic APIs in isolated Chromium |
 | `node scripts/qa-magic-edit.cjs` | Exercise actual Magic Edit controls, workflow API, native compositing and accept/export with isolated synthetic providers; `--real --photos <first.png> <second.png> --output <external-folder>` explicitly enables real-model acceptance |

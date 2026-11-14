@@ -243,6 +243,7 @@ def generate(request, directory, cancel, progress):
 class MediaJobs:
     def __init__(self):
         self.jobs = {}; self.tasks = {}; self.lock = threading.RLock(); self.loaded = False
+        self.gallery_lock = threading.Lock()
 
     def load(self):
         with self.lock:
@@ -265,6 +266,47 @@ class MediaJobs:
     def save(self, item):
         path = OUTPUT_DIR / item['id'] / 'job.json'
         temp = path.with_suffix('.part'); temp.write_text(json.dumps(item), encoding='utf-8'); temp.replace(path)
+
+    def sync_gallery(self):
+        """Import completed stills once, including history from before Gallery integration.
+
+        The library atomically records each import and retains its receipt after
+        deletion, so later refreshes cannot resurrect a removed copy.
+        Videos and unfinished outputs remain in generation history.
+        """
+        from datetime import datetime, timezone
+        from services import image_library as library, image_vault as vault
+        self.load()
+        warnings = []
+        with self.gallery_lock:
+            with library.LOCK:
+                imported = set(library.read_index().get('media_imports', {}))
+            with self.lock:
+                candidates = [dict(item) for item in self.jobs.values()
+                              if item['status'] == 'completed' and item['kind'] == 'image'
+                              and item['id'] not in imported]
+            for item in candidates:
+                try:
+                    path = output_path(item)
+                    name = f'{item.get("name") or "Generated image"} - {item["id"][:8]}.png'
+                    metadata = library.inspect_file(path, name)
+                    metadata['created_at'] = datetime.fromtimestamp(item['created_at'], timezone.utc).isoformat()
+                    seed = item['request'].get('seed')
+                    if isinstance(seed, int) and not isinstance(seed, bool) and 0 <= seed <= 2**31 - 1:
+                        metadata['seed'] = seed
+                    origin = {'kind': 'media-generation', 'job_id': item['id'], 'model_id': item.get('model_id')}
+                    with library.LOCK:
+                        # Filing/restoring/deleting may have changed the catalog
+                        # while we inspected bytes. Recheck before committing.
+                        if item['id'] not in library.read_index().get('media_imports', {}):
+                            library._import_file(path, metadata, origin)
+                except vault.LockedImageError:
+                    # Locking is intentional; restoring in Locked Images makes
+                    # the existing hash available again without exposing it here.
+                    continue
+                except (OSError, ValueError, KeyError, TypeError, OverflowError):
+                    warnings.append(f'Generated image {item["id"][:8]} could not be added to Gallery. Its source was preserved; refresh to retry.')
+        return warnings
 
     def progress(self, identifier):
         with self.lock:
@@ -365,6 +407,19 @@ class MediaJobs:
     async def shutdown(self):
         for identifier in list(self.tasks): await self.cancel(identifier)
         if self.tasks: await asyncio.gather(*list(self.tasks.values()), return_exceptions=True)
+
+
+def output_path(item):
+    if (item.get('status') != 'completed' or not re.fullmatch('[a-f0-9]{32}', item.get('id', ''))
+            or item.get('output') != {'image': 'output.png', 'video': 'output.webm'}.get(item.get('kind'))):
+        raise ValueError('Completed output not found.')
+    path = OUTPUT_DIR / item['id'] / item['output']
+    if not path.is_file() or path.resolve() != path or not path.is_relative_to(OUTPUT_DIR):
+        raise ValueError('Output file is missing.')
+    if item['kind'] == 'image':
+        from services.image_vault import guard_path
+        guard_path(path)
+    return path
 
 
 jobs = MediaJobs()

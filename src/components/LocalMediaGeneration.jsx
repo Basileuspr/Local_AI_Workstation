@@ -4,6 +4,7 @@ import {fetchWorkload, createPollingObserver, readPollingJson} from '../polling'
 import {mediaJobsObserver} from '../appPolling';
 import {pendingJob} from '../pollingPolicies';
 import MediaGenerationProgress from './MediaGenerationProgress';
+import ProtectedImage from '../ImagePrivacy';
 import './LocalMediaGeneration.css';
 
 export async function mediaRequest(path, body) {
@@ -92,7 +93,7 @@ export default function LocalMediaGeneration({active = true}) {
         : <p role="status">{job.status} · {job.phase}{Number.isFinite(job.progress?.elapsed_seconds) ? ` · ${Math.round(job.progress.elapsed_seconds)}s elapsed` : ''}</p>}
       <p>Seed {job.request.seed}</p><p>{job.request.prompt}</p>{job.error && <p role="alert">{job.error}</p>}
       {pendingJob(job) && <button type="button" disabled={job.status === 'cancelling' || stopping.includes(job.id)} onClick={() => stop(job.id)}>{job.status === 'cancelling' || stopping.includes(job.id) ? 'Stopping…' : 'Stop'}</button>}
-      {job.url && <>{job.kind === 'video' ? <video controls preload="metadata" src={apiUrl(job.url)}/> : <img alt="Generated image" loading="lazy" src={apiUrl(job.url)}/>}
+      {job.url && <>{job.kind === 'video' ? <video controls preload="metadata" src={apiUrl(job.url)}/> : <ProtectedImage alt="Generated image" loading="lazy" src={apiUrl(job.url)}/>}
         <a href={apiUrl(job.url + '?download=true')} download>Save {job.kind}</a></>}
     </article>;
   }
