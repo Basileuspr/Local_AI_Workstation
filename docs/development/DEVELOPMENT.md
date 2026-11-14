@@ -42,6 +42,7 @@ Keep environments, models and runtime data local to each computer.
 | `node scripts/qa-testing-lab.cjs` | Verify Testing Lab controls, exports, saved history, scrolling and narrow layouts with a synthetic hidden Chromium fixture |
 | `node scripts/qa-durable-memory.cjs` | Verify Memory navigation, editing, pause/resume, conflicts, draft preservation, export and narrow panes with synthetic data in isolated Chromium |
 | `node scripts/qa-model-profiles.cjs` | Verify per-model context/thinking/output settings, actual request payloads, plain-text receipts, independent chat panes, reload persistence and narrow layouts with synthetic models |
+| `node scripts/qa-hardening.cjs` | Verify deferred workspace mounting, preserved drafts/background jobs, completed-message rendering, checklist actions and slow Face/LoRA polling in an isolated production renderer |
 | `node scripts/qa-media-generation.cjs` | Verify Qwen reference uploads, Wan settings, cancellation and narrow layouts with synthetic jobs in isolated Chromium |
 | `node scripts/qa-workflow-advanced.cjs` | Verify Canny, multiple-reference, outpaint and trained-upscale controls with synthetic APIs in isolated Chromium |
 | `node scripts/qa-magic-edit.cjs` | Exercise actual Magic Edit controls, workflow API, native compositing and accept/export with isolated synthetic providers; `--real --photos <first.png> <second.png> --output <external-folder>` explicitly enables real-model acceptance |
@@ -104,6 +105,33 @@ If npm 10 fails while updating Vitest with `Cannot read properties of null
 invocation. This does not replace global npm. A subsequent `npm ci` with npm
 10.9.3 installed the resulting lockfile successfully. Do not bypass peer checks
 with `--force` or `--legacy-peer-deps` to hide a resolver failure.
+
+## Updating and auditing Python dependencies
+
+`pip check` detects incompatible requirements, not security advisories. Audit the
+installed application environment using a separate tool environment so the audit
+tool cannot silently upgrade the application's own dependencies:
+
+```powershell
+$auditRoot = Join-Path $env:TEMP ('law-audit-' + [guid]::NewGuid().ToString('N'))
+py -3.13 -m venv $auditRoot
+$auditPython = Join-Path $auditRoot 'Scripts\python.exe'
+& $auditPython -m pip install pip-audit
+& $auditPython -m pip_audit --path (Join-Path (Get-Location) 'venv\Lib\site-packages')
+```
+
+Review advisories, dependency constraints and upstream release notes before
+upgrading. Keep a local environment inventory/recovery copy outside the repository;
+resolve compatible versions, update `requirements.lock.txt` and affected direct
+requirements, install them, and run `pip check`, the audit and relevant tests.
+Do not force a newer CUDA/Torch stack solely to clear another package's warning.
+Audit output includes skipped distributions and duplicate advisory aliases;
+record those limits and unresolved findings in [VERIFICATION.md](VERIFICATION.md).
+
+The PDF parser is `pypdf`, replacing the abandoned `PyPDF2` package. Existing
+environments also need `venv\Scripts\python.exe -m pip uninstall --yes PyPDF2`
+after installing the new requirements; `scripts/setup-windows.ps1` does this.
+The setup helper preserves current Torch/transformer choices through the lockfile.
 
 ## Workspace scrolling and input focus
 

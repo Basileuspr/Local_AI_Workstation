@@ -3,6 +3,9 @@ export const pendingQueue = data => Boolean(data?.jobs?.some(pendingJob));
 export const pendingImages = data => Boolean(data?.tasks?.some(pendingJob));
 export const busyRuntime = data => Boolean(data?.gpu_owner || data?.active_chat_requests || data?.image?.generating || data?.workflows?.active_runs?.some(pendingJob) || data?.workflow?.running);
 const backoff = failures => Math.min(30000, 2000 * 2 ** Math.min(4, Math.max(0, failures - 1)));
+export function taskDelay(interval, { failures = 0, hidden = false } = {}) {
+  return failures ? backoff(failures) : hidden ? Math.max(10000, interval) : interval;
+}
 export function inventoryDelay(kind, data, { failures = 0, idleCount = 1 } = {}) {
   if (failures) return backoff(failures);
   if ((kind === "queue" ? pendingQueue : pendingImages)(data)) return kind === "queue" ? 750 : 1000;

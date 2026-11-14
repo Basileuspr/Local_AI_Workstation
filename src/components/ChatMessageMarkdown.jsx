@@ -4,12 +4,12 @@ import ChatChecklistEditor from "./ChatChecklistEditor";
 import ChatChecklistHistory from "./ChatChecklistHistory";
 import { checklistItems } from "../markdownTasks";
 import { useDispatch } from "../useStore";
-import { useChatWorkspace } from "../ChatWorkspace";
+import { useChatWorkspaceActions } from "../ChatWorkspace";
 import * as api from "../api";
 import "./ChatWorkspace.css";
 
 export default function ChatMessageMarkdown({ message, sessionId, streaming = false, onImageClick, inSidePane = false }) {
-  const dispatch = useDispatch(), workspace = useChatWorkspace();
+  const dispatch = useDispatch(), workspace = useChatWorkspaceActions();
   const draftKey = `${sessionId}:${message.id}:${inSidePane ? "side" : "chat"}`;
   const [editing, setEditing] = useState(() => workspace?.checklistDrafts.current.get(draftKey) || null);
   const [busy, setBusy] = useState(false), [error, setError] = useState("");

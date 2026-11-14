@@ -343,3 +343,24 @@ def test_local_reader_decodes_supported_stills_without_mutating_generic_guard(tm
         local.load(); assert local.size == (32, 24)
     assert Image.MAX_IMAGE_PIXELS == 1
     with pytest.raises(Image.DecompressionBombError): Image.open(path)
+
+
+def test_local_webp_preserves_frames_metadata_and_corruption_checks(tmp_path, monkeypatch):
+    from services.image_manager_metadata import open_local_image
+    path = tmp_path / 'animated.webp'
+    with Image.new('RGBA', (32, 24), (20, 40, 60, 128)) as first, Image.new('RGBA', (32, 24), (80, 100, 120, 64)) as second:
+        first.save(path, format='WEBP', lossless=True, save_all=True, append_images=[second], duration=[100, 200], loop=2, xmp=b'fixture metadata')
+    with Image.open(path) as normal:
+        expected = []
+        for index in range(normal.n_frames):
+            normal.seek(index); expected.append(normal.convert('RGBA').tobytes())
+    monkeypatch.setattr(Image, 'MAX_IMAGE_PIXELS', 1)
+    with open_local_image(path) as local:
+        assert local.n_frames == 2 and local.info['loop'] == 2 and local.info['xmp'] == b'fixture metadata'
+        for index, pixels in enumerate(expected):
+            local.seek(index); assert local.convert('RGBA').tobytes() == pixels
+    assert Image.MAX_IMAGE_PIXELS == 1
+    path.write_bytes(path.read_bytes()[:40])
+    with pytest.raises((OSError, ValueError)):
+        with open_local_image(path) as local:
+            local.load()

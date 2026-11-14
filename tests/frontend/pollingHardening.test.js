@@ -1,6 +1,6 @@
 import {afterEach,expect,it,vi} from 'vitest';
 import {createPollingObserver} from '../../src/polling';
-import {busyRuntime, inventoryDelay} from '../../src/pollingPolicies';
+import {busyRuntime, inventoryDelay, taskDelay} from '../../src/pollingPolicies';
 afterEach(()=>vi.useRealTimers());
 it('shares one read, isolates a stale subscriber and fetches fully on reconnect',async()=>{
   vi.useFakeTimers();
@@ -58,4 +58,27 @@ it('refreshes on focus, reconnect and visibility return and removes every listen
 it('keeps video queues and workflow runtime activity polling while work is active',()=>{
   expect(inventoryDelay('queue',{jobs:[{kind:'media-generation',status:'running'}]},{hidden:true})).toBe(750);
   expect(busyRuntime({workflows:{active_runs:[{status:'running'}]}})).toBe(true);
+});
+
+it('waits for a slow task request, backs off failures and stops at completion',async()=>{
+  vi.useFakeTimers();
+  let finish;
+  const read=vi.fn().mockImplementationOnce(()=>new Promise(resolve=>{finish=resolve;}))
+    .mockRejectedValueOnce(Error('offline')).mockResolvedValue({value:{status:'complete'}});
+  const data=vi.fn();
+  const observer=createPollingObserver({read,interval:(value,context)=>value?.status==='complete'?null:taskDelay(900,context)});
+  const detach=observer.subscribe({data});
+  await vi.advanceTimersByTimeAsync(4000);expect(read).toHaveBeenCalledOnce();
+  finish({value:{status:'running'}});await vi.advanceTimersByTimeAsync(900);
+  expect(read).toHaveBeenCalledTimes(2);
+  await vi.advanceTimersByTimeAsync(1999);expect(read).toHaveBeenCalledTimes(2);
+  await vi.advanceTimersByTimeAsync(1);expect(data).toHaveBeenLastCalledWith({status:'complete'});
+  await vi.advanceTimersByTimeAsync(60000);expect(read).toHaveBeenCalledTimes(3);
+  detach();expect(vi.getTimerCount()).toBe(0);
+});
+
+it('reduces background task polling and bounds repeated failure delays',()=>{
+  expect(taskDelay(900,{hidden:true})).toBe(10000);
+  expect(taskDelay(1500,{failures:1})).toBe(2000);
+  expect(taskDelay(900,{failures:100})).toBe(30000);
 });

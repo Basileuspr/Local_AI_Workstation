@@ -1,5 +1,6 @@
 import { Children, cloneElement, isValidElement, createContext, useEffect, useRef, useState } from "react";
 import { DesktopCapabilitiesProvider, StartupNotice, WorkspaceBoundary } from "./Compatibility";
+import DeferredWorkspace from './DeferredWorkspace';
 import "./AppLayout.css";
 import { ChatPinControls, WorkspacePinControls } from "../ChatWorkspace";
 import { useStore } from "../useStore";
@@ -205,7 +206,11 @@ export default function AppLayout({ activeTab, sidebar, children, onRefresh, ref
             pinned && <div className="pinned-pane-heading" key="pin-heading"><strong>{pinnedTitle}</strong>
               <WorkspaceInfo tab={pinnedTab === "second-chat" ? "chats" : pinnedTab} learningRate={loraLearningRate} />
               <button type="button" onClick={() => { onUnpin?.(); requestAnimationFrame(() => document.querySelector('[aria-label="Workspace options"]')?.focus()); }} aria-label="Close side pane">{pinnedTab === "second-chat" ? "Close ×" : "Unpin ×"}</button></div>,
-            child.props.children && <WorkspaceBoundary key="workspace-content">{child.props.children}</WorkspaceBoundary>);
+            child.props.children && <WorkspaceBoundary key="workspace-content">
+              <DeferredWorkspace active={!child.props.hidden || child.props['data-capture-tab'] === 'chats'}>
+                {child.props.children}
+              </DeferredWorkspace>
+            </WorkspaceBoundary>);
         })}
         <ResizableDivider label={secondChat ? "Resize Chat A and Chat B" : activeTab === "chats" ? "Resize chat and pinned pane" : `Resize ${titles[activeTab]} and ${pinnedTitle || "side pane"}`} className="chat-pane-divider" controls="app-workspace-panes"
           hidden={!split} orientation={stacked ? "horizontal" : "vertical"} value={ratio} min={limits.min} max={limits.max}

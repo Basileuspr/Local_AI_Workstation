@@ -1,8 +1,73 @@
 # Verification record and open findings
 
-This is the consolidated evidence record, updated November 12, 2026.
+This is the consolidated evidence record, updated November 13, 2026.
 Current guides describe inspected source; dated tests below are not a certification
 of every feature, provider, installation or device.
+
+## November 13 hardening and streamlining
+
+Replaced PyPDF2 with pypdf 7.1.0 in chat/Knowledge and Folder Review. A real PDF
+content stream ending in a comment without a newline now finishes and preserves
+its text, verified in a subprocess with a ten-second deadline. Installed
+dependencies and recorded requirements were updated together; the superseded
+parser was removed. Setup now removes it from existing environments too.
+
+Unvisited workspaces defer mounting; visited workspaces retain drafts and job
+owners. Twenty streamed updates left an earlier message's Markdown untouched,
+while its checklist editing and pinning still worked. Chat/model settings,
+independent panes and reload persistence passed the existing profile walkthrough.
+Synthetic generation continued while hidden and appeared with the same prompt
+and progress when pinned beside chat. Slow Face/LoRA requests never overlapped;
+completion refreshed dataset/history/adapter views and stopped their observers.
+
+Local Ollama requests share bounded backend-owned transports with independent
+request cookies/timeouts and no inherited environment proxies. A loopback HTTP
+server verified connection reuse, cookie isolation and shutdown. Imports reuse
+spooled files, bound simultaneous decoders, and retain file ownership through
+cancellation. PDFium rendering and DOCX chat/editor imports accepted disk-backed
+streams. Large owner-selected WebP files retain the existing pixel-count policy
+using a local decoder subclass; generic Pillow guards remain unchanged. Animated
+frames, metadata and corrupt-file rejection are regression-tested.
+
+- Frontend: **1,717 passed, three skipped** across 215 files.
+- Full backend: **2,495 passed, five skipped**, 26 dependency/lifecycle warnings.
+  Two Java-tooling tests lacked `javac`; three tests lacked Windows directory
+  symlink permissions. Tests used isolated data, logs, model and catalog paths.
+- Bundled Media Manager: **23 passed**.
+- Desktop and hosted mobile production compilation passed in isolated output
+  folders. Existing large-chunk, dependency `eval` and browser-module warnings
+  remain; these builds did not replace deployed assets or build identity.
+- Isolated production Chromium: **ten check groups passed** across hardening and
+  model-profile walkthroughs; these use synthetic APIs, jobs and models.
+- Python dependency compatibility: `pip check` passed.
+- All **196 locked packages** matched the installed versions; Torch, torchvision,
+  Diffusers, Transformers, datasets, Accelerate, Chroma and pypdf imports passed.
+- JavaScript advisory scan: zero reported vulnerabilities.
+- Documentation links and PowerShell setup syntax passed.
+
+Python advisory findings fell from 26 packages to **two packages**, with six
+distinct remaining advisories (the feed emits eight rows because of aliases):
+
+- **ChromaDB 1.5.9:** the feed reports no patched version for server
+  [collection creation code injection](https://github.com/advisories/GHSA-f4j7-r4q5-qw2c),
+  [collection update code injection](https://github.com/advisories/GHSA-36p7-vc44-83pf),
+  [RBAC scope checks](https://github.com/advisories/GHSA-xph7-9rjv-w5fr) and
+  [cross-tenant authorization](https://github.com/advisories/GHSA-2wm9-hf6c-p5cr).
+  This application uses embedded `PersistentClient`, supplies Ollama embeddings,
+  and does not expose Chroma's HTTP server or accept remote embedding configurations.
+  That reduces the described exposure; it does not make the package audit clean.
+- **setuptools 81.0.0:** the installed Torch wheel requires setuptools below 82.
+  The remaining [macOS source-manifest issue](https://github.com/advisories/GHSA-h35f-9h28-mq5c)
+  is fixed in 83, and [Windows legacy wheel installation path escape](https://github.com/advisories/GHSA-xmj3-9gf7-h52w)
+  in 84.1. Normal setup uses pip, not the affected legacy wheel installer. Keep
+  untrusted legacy builds out of this application venv; upgrading Torch is a
+  separate compatibility change, not silently forced by this pass.
+
+The audit could not match CUDA-specific Torch/torchvision distributions to PyPI;
+those versions and the transformer stack were retained. No new real-model GPU
+generation, physical-phone acceptance, native Android build or fresh full-environment
+installation was performed. No live backend restart or deployed-asset replacement
+was performed by this pass. These are source and isolated-environment checks.
 
 ## November 12 media progress and runtime status
 

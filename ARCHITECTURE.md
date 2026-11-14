@@ -25,6 +25,18 @@ renderer. React communicates with FastAPI; backend services coordinate Ollama,
 local generation runtimes, queues and persistence. Native desktop capabilities
 pass through explicit preload/IPC contracts.
 
+Workspaces mount on their first visit and then remain mounted when hidden, so
+drafts and background jobs keep their owners. Chat stays mounted from startup.
+Completed chat Markdown uses stable message references and a separate actions
+context to avoid reparsing history on each streamed token. Face/LoRA observation
+uses serial polling; detaching an observer never cancels the underlying job.
+
+The backend owns an event-loop-local Ollama connection pool, closed after worker
+shutdown. Request scopes retain separate cookies and timeouts and bypass environment
+proxies. Document routes reuse spooled uploads and bound decoding concurrency;
+cancellation waits for a running decoder before its input file is closed. These
+controls do not impose a new file-size limit.
+
 ## Boundaries to preserve
 
 - Normal desktop API access is loopback-bound and uses a session credential.

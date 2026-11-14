@@ -21,18 +21,18 @@ const json = (body) => ({
 export const listProviders = () => request("/providers");
 export const installModels = () => request("/providers/install", { method: "POST" });
 
-export const listDatasets = () => request("/datasets");
+export const listDatasets = (options) => request("/datasets", options);
 export const createDataset = (name) => request("/datasets", json({ name }));
-export const getDataset = (id) => request(`/datasets/${id}`);
+export const getDataset = (id, options) => request(`/datasets/${id}`, options);
 export const renameDataset = (id, name) => request(`/datasets/${id}`, { ...json({ name }), method: "PUT" });
 export const deleteDataset = (id) => request(`/datasets/${id}`, { method: "DELETE" });
 export const saveSettings = (id, settings) =>
   request(`/datasets/${id}/settings`, { ...json({ settings }), method: "PUT" });
 
 export const extractFrom = (id, sources, name = "") => request(`/datasets/${id}/extract`, json({ sources, name }));
-export const listRuns = id => request(`/datasets/${id}/runs`);
+export const listRuns = (id, options) => request(`/datasets/${id}/runs`, options);
 export const renameRun = (id, runId, name) => request(`/datasets/${id}/runs/${runId}`, { ...json({ name }), method: "PUT" });
-export const getRun = (id) => request(`/datasets/${id}/run`);
+export const getRun = (id, options) => request(`/datasets/${id}/run`, options);
 export const stopRun = (id, runId) => request(`/datasets/${id}/run/stop${runId ? `?run_id=${encodeURIComponent(runId)}` : ""}`, { method: "POST" });
 export const recrop = (id, faceIds) => request(`/datasets/${id}/recrop`, json({ face_ids: faceIds || [] }));
 

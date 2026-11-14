@@ -204,7 +204,7 @@ def test_chat_route_resolves_saved_upload_and_bypasses_text_model_and_tools(sess
         assert 'ROLEPLAY MUST OVERRIDE' not in str(data)
         return response('Invoice 314\nTotal: $42.00')
     original_client = httpx.AsyncClient
-    monkeypatch.setattr(main.httpx, 'AsyncClient', lambda **kwargs: original_client(transport=httpx.MockTransport(provider), **kwargs))
+    monkeypatch.setattr(main.httpx, 'AsyncClient', lambda **kwargs: original_client(**{**kwargs, 'transport': httpx.MockTransport(provider)}))
     session = session_store.create_session()
     saved = session_store.append_messages(session['id'], [{'id': 'scan-message', 'role': 'user', 'content': '[Image uploaded: scan.png]', 'images': [picture()]}])
     messages = saved['messages'] + [{'role': 'user', 'content': 'Transcribe this image'}]

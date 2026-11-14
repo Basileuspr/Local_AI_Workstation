@@ -4,6 +4,34 @@ from services import file_parser
 original_graphics_probe = file_parser._pdf_graphical_pages
 
 
+def test_pdf_trailing_comment_finishes_without_losing_text(tmp_path):
+    """CVE-2023-36464 used to loop forever at EOF; bound the regression worker."""
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+    from pypdf import PdfWriter
+    from pypdf.generic import DictionaryObject, NameObject, DecodedStreamObject
+
+    writer = PdfWriter()
+    page = writer.add_blank_page(width=300, height=300)
+    font = DictionaryObject({NameObject('/Type'): NameObject('/Font'),
+        NameObject('/Subtype'): NameObject('/Type1'), NameObject('/BaseFont'): NameObject('/Helvetica')})
+    page[NameObject('/Resources')] = DictionaryObject({NameObject('/Font'):
+        DictionaryObject({NameObject('/F1'): writer._add_object(font)})})
+    stream = DecodedStreamObject()
+    stream.set_data(b'BT /F1 12 Tf 20 260 Td (Preserved PDF text.) Tj ET % no newline at EOF')
+    page[NameObject('/Contents')] = writer._add_object(stream)
+    source = tmp_path / 'trailing-comment.pdf'
+    writer.write(source)
+    env = {**os.environ, 'PYTHONPATH': str(Path(__file__).resolve().parents[2] / 'backend')}
+    result = subprocess.run([sys.executable, '-B', '-c',
+        'import sys; from pathlib import Path; from services.file_parser import _extract_pdf_page_texts; '
+        'print(_extract_pdf_page_texts(Path(sys.argv[1]).read_bytes())[0])', str(source)],
+        env=env, capture_output=True, text=True, timeout=10, check=True)
+    assert 'Preserved PDF text.' in result.stdout
+
+
 @pytest.fixture(autouse=True)
 def no_graphics_probe(monkeypatch):
     monkeypatch.setattr(file_parser, '_pdf_graphical_pages', lambda _data: [])
@@ -176,8 +204,8 @@ def test_visual_failure_keeps_native_text_and_reports_missing_coverage(monkeypat
 
 def test_real_pdf_vector_chart_is_detected_on_a_text_rich_page():
     import io
-    from PyPDF2 import PdfWriter
-    from PyPDF2.generic import DictionaryObject, NameObject, DecodedStreamObject
+    from pypdf import PdfWriter
+    from pypdf.generic import DictionaryObject, NameObject, DecodedStreamObject
     writer = PdfWriter()
     writer.add_blank_page(width=300, height=300)
     page = writer.pages[0]
@@ -192,4 +220,12 @@ def test_real_pdf_vector_chart_is_detected_on_a_text_rich_page():
     assert len(file_parser._extract_pdf_page_texts(data)[0]) >= file_parser.settings.ocr_min_page_chars
     assert original_graphics_probe(data) == [0]
     assert file_parser._render_pdf_page_png(data, 0).startswith(b'\x89PNG')
+    # Starlette's spooled upload is shared by native parsing and PDFium OCR.
+    from tempfile import SpooledTemporaryFile
+    with SpooledTemporaryFile(max_size=1) as upload:
+        upload.write(data)
+        assert file_parser._extract_pdf_page_texts(upload) == file_parser._extract_pdf_page_texts(data)
+        assert original_graphics_probe(upload) == [0]
+        assert file_parser._render_pdf_page_png(upload, 0).startswith(b'\x89PNG')
+        assert not upload.closed
 

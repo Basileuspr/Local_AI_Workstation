@@ -8,6 +8,8 @@ import { useEffect, useRef, useState } from "react";
 import { QueueRequestStatus } from "./PromptQueue";
 import { useDispatch, useStore } from "../useStore.jsx";
 import * as api from "../api";
+import { createPollingObserver } from '../polling';
+import { taskDelay } from '../pollingPolicies';
 import LoraAnalysisProgress from "./LoraAnalysisProgress";
 import { useLoraInfo } from "../workspaceInfoContext";
 import CharacterLinks from "./CharacterLinks";
@@ -112,24 +114,31 @@ export default function LoraStudio({ active = true }) {
   useEffect(() => {
     if (!project?.id || !["queued", "starting", "running", "cancelling"].includes(project.training?.status)) return undefined;
     let disposed = false;
-    const interval = setInterval(async () => {
-      try {
-        const training = await api.getLoraTraining(project.id);
+    const running = training => ["queued", "starting", "running", "cancelling"].includes(training?.status);
+    const observer = createPollingObserver({
+      read: async ({ signal }) => {
+        const training = await api.getLoraTraining(project.id, { signal });
+        if (!running(training)) {
+          const [list, updated] = await Promise.all([api.listLoraProjects({ signal }), api.getLoraProject(project.id, { signal })]);
+          return { value: { training, list, updated } };
+        }
+        return { value: { training } };
+      },
+      interval: (value, context) => value && !running(value.training) ? null : taskDelay(1500, context),
+    });
+    const detach = observer.subscribe({
+      data: ({ training, list, updated }) => {
         if (disposed) return;
-        if (!["queued", "starting", "running", "cancelling"].includes(training.status)) {
-          const [list, updated] = await Promise.all([api.listLoraProjects(), api.getLoraProject(project.id)]);
-          if (!disposed) {
-            setProjects(list);
-            setProject(current => current?.id === project.id ? updated : current);
-          }
+        if (updated) {
+          setProjects(list);
+          setProject(current => current?.id === project.id ? updated : current);
         } else {
           setProject((current) => current?.id === project.id ? { ...current, training } : current);
         }
-      } catch (error) {
-        toast(error.message || "Could not refresh training", "error");
-      }
-    }, 1500);
-    return () => { disposed = true; clearInterval(interval); };
+      },
+      error: error => { if (!disposed) toast(error.message || "Could not refresh training", "error"); },
+    });
+    return () => { disposed = true; detach(); };
   }, [project?.id, project?.training?.status]);
 
   useEffect(() => {

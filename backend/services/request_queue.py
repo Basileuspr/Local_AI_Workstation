@@ -5,6 +5,8 @@ prompts to disk. History is limited to the current backend run.
 """
 from __future__ import annotations
 
+from services import ollama_http
+
 import asyncio
 import inspect
 import threading
@@ -228,7 +230,7 @@ async def prepare_runtime(kind):
     else:
         import httpx
         try:
-            async with httpx.AsyncClient(timeout=20) as client:
+            async with ollama_http.client(timeout=20) as client:
                 response = await client.get(f"{settings.ollama_base_url}/api/ps")
                 response.raise_for_status()
                 for model in response.json().get("models", []):

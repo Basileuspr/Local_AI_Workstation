@@ -11,6 +11,7 @@ from contextlib import aclosing
 from typing import Any
 
 import httpx
+from services import ollama_http
 from PIL import Image, ImageOps
 from services.upload_images import open_upload_image
 
@@ -116,7 +117,7 @@ def normalize_analysis(project: dict, raw: dict, model: str) -> dict:
 
 async def list_vision_models() -> list[dict]:
     try:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=5.0)) as client:
+        async with ollama_http.client(timeout=httpx.Timeout(30.0, connect=5.0)) as client:
             response = await client.get(f"{settings.ollama_base_url}/api/tags")
             response.raise_for_status()
             models = response.json().get("models") or []
@@ -281,7 +282,7 @@ async def analyze_project(project: dict, model: str) -> dict:
         results = []
         batches = (selected_images[offset:offset + ANALYSIS_BATCH_SIZE] for offset in range(0, len(selected_images), ANALYSIS_BATCH_SIZE))
         pool = PreparationPool(batches, prepare_batch, lambda batch: sum(image_working_bytes(item, MAX_IMAGE_EDGE) for item in batch), plan)
-        async with httpx.AsyncClient(timeout=httpx.Timeout(600.0, connect=10.0)) as client:
+        async with ollama_http.client(timeout=httpx.Timeout(600.0, connect=10.0)) as client:
             async with aclosing(prepared_items(pool)) as prepared:
                 async for batch, encoded, filenames in prepared:
                     _progress[project["id"]]["cpu_assistance"] = pool.snapshot()

@@ -28,6 +28,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from services.knowledge_node_options import KnowledgeNodeOptions, KnowledgeNodeIcon
 from services.knowledge_notes import KnowledgeNodeDraft
 from services.file_parser import parse_file
+from services.import_processing import process as process_import
 from services.request_queue import queue, QueueCancelled, prepare_runtime
 from services.knowledge_base import (
     add_document,
@@ -186,10 +187,10 @@ async def parse_uploaded_file(file: UploadFile = File(...)):
     This does NOT add the file to the knowledge base.
     It's a one-time read for the current conversation.
     """
-    contents = await file.read()
-    # PDF and DOCX extraction is CPU-bound and can take seconds on a large
-    # document; off the event loop so other requests keep being served.
-    result = await run_in_threadpool(parse_file, contents, file.filename)
+    try:
+        result = await process_import(parse_file, file.file, file.filename)
+    finally:
+        await file.close()
 
     if result["error"]:
         raise HTTPException(status_code=400, detail=result["error"])
@@ -214,8 +215,10 @@ async def add_to_knowledge_base(client_request: Request, file: UploadFile = File
     
     After this, the document is searchable via the query endpoint.
     """
-    contents = await file.read()
-    parsed = await run_in_threadpool(parse_file, contents, file.filename)
+    try:
+        parsed = await process_import(parse_file, file.file, file.filename)
+    finally:
+        await file.close()
 
     if parsed["error"]:
         raise HTTPException(status_code=400, detail=parsed["error"])

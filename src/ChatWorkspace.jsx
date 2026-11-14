@@ -1,10 +1,12 @@
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useStore, useDispatch } from "./useStore";
 import { CHAT_PINS_KEY, WORKSPACE_PINS_KEY, loadChatPins, loadWorkspacePins, validChatPin, validWorkspacePin, pinnableTabs, workspacePinnableTabs } from "./chatPins";
 import { appTabLabels, resolveActiveTab } from "./navigation";
 
 const Context = createContext(null);
+const ActionsContext = createContext(null);
 export const useChatWorkspace = () => useContext(Context);
+export const useChatWorkspaceActions = () => useContext(ActionsContext);
 
 export function ChatWorkspaceProvider({ children, remember = true }) {
   const state = useStore(), dispatch = useDispatch();
@@ -17,10 +19,11 @@ export function ChatWorkspaceProvider({ children, remember = true }) {
   const previous = useRef(state.currentSessionId), seen = useRef(null);
   const checklistDrafts = useRef(new Map());
   const pin = Object.hasOwn(pins, key) ? pins[key] : null;
-  function setPin(value) {
+  const setPin = useCallback(value => {
     const clean = validChatPin(value);
     setPins(current => { const next = { ...current }; if (clean) next[key] = clean; else delete next[key]; return next; });
-  }
+  }, [key]);
+  const actions = useMemo(() => ({ setPin, checklistDrafts }), [setPin]);
   function setWorkspacePin(value) {
     const clean = validWorkspacePin(activeTab, value);
     setWorkspacePins(current => {
@@ -61,7 +64,9 @@ export function ChatWorkspaceProvider({ children, remember = true }) {
   const title = pin?.kind === "chat" ? "Chat B · Separate conversation" : pin?.kind === "tool" ? appTabLabels[pin.tab] : pin?.kind === "document" ? artifact?.name || "Document" : "Checklist";
   function pinTool(tab) { setPin({ kind: "tool", tab }); dispatch({ type: "SET_SIDEBAR_TAB", payload: "chats" }); }
   return <Context.Provider value={{ pin, setPin, pinTool, artifact, message, title, storageError, checklistDrafts,
-    workspacePin, setWorkspacePin, workspaceStorageError }}>{children}</Context.Provider>;
+    workspacePin, setWorkspacePin, workspaceStorageError }}>
+    <ActionsContext.Provider value={actions}>{children}</ActionsContext.Provider>
+  </Context.Provider>;
 }
 
 export function WorkspacePinControls({ activeTab }) {

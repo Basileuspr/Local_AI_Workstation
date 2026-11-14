@@ -609,8 +609,8 @@ async function loraRequest(path = "", options) {
   return await res.json();
 }
 
-export async function listLoraProjects() {
-  const data = await loraRequest("/projects");
+export async function listLoraProjects(options) {
+  const data = await loraRequest("/projects", options);
   return data.projects || [];
 }
 
@@ -623,8 +623,8 @@ export async function listLoraVisionModels() {
   return data.models || [];
 }
 
-export async function getLoraProject(projectId) {
-  return loraRequest(`/projects/${encodeURIComponent(projectId)}`);
+export async function getLoraProject(projectId, options) {
+  return loraRequest(`/projects/${encodeURIComponent(projectId)}`, options);
 }
 
 export async function createLoraProject(project) {
@@ -698,8 +698,8 @@ export async function analyzeAndTrainLora(projectId) {
   return loraRequest(`/projects/${encodeURIComponent(projectId)}/analyze-and-train`, { method: "POST" });
 }
 
-export async function getLoraTraining(projectId) {
-  return loraRequest(`/projects/${encodeURIComponent(projectId)}/training`);
+export async function getLoraTraining(projectId, options) {
+  return loraRequest(`/projects/${encodeURIComponent(projectId)}/training`, options);
 }
 
 export async function cancelLoraTraining(projectId) {

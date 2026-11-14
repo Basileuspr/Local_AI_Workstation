@@ -1,7 +1,8 @@
-"""Rich document conversion, entirely in memory using python-docx.
+"""Rich document conversion from bytes or spooled uploads using python-docx.
 
 Imports are normalized editable copies, never edits to the original package.
-No Word, COM, subprocesses, filesystem paths, external links or AI are used.
+No Word, COM, subprocesses, external links or AI are used. Request scopes own
+temporary upload files; imports never modify their source.
 """
 import base64
 import binascii
@@ -22,6 +23,7 @@ from docx.text.run import Run
 from lxml import etree
 from services.upload_images import open_upload_image
 from PIL import Image
+from services.import_processing import source as file_source
 from services.document_page_layout import (DEFAULT_PAGE_DETAILS, PAGINATION, validate_page_details,
                                            write_page_details, read_page_details)
 from services.document_tables import table_grid, write_table, read_table
@@ -345,7 +347,7 @@ def _checked_package(raw):
     if not raw:
         raise ValueError('Open a nonempty DOCX file.')
     try:
-        with zipfile.ZipFile(BytesIO(raw)) as archive:
+        with file_source(raw) as stream, zipfile.ZipFile(stream) as archive:
             entries = archive.infolist()
             names = [entry.filename for entry in entries]
             if len(set(names)) != len(names):
@@ -370,7 +372,8 @@ def _checked_package(raw):
 def import_docx(raw):
     names = _checked_package(raw)
     try:
-        document = Document(BytesIO(raw))
+        with file_source(raw) as stream:
+            document = Document(stream)
     except Exception as exc:
         raise ValueError('The DOCX file cannot be read.') from exc
     warnings = [COPY_NOTICE]

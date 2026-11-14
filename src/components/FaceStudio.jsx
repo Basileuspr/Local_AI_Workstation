@@ -5,6 +5,8 @@ import {preventSelectionText} from '../fileSelection';
 import ImageThumbnail, { ThumbnailRetryButton } from "./ImageThumbnail";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as faces from "../faceApi";
+import { createPollingObserver } from '../polling';
+import { taskDelay } from '../pollingPolicies';
 import { list as listLibrary, imageUrl } from "../imageLibraryApi";
 import FreshFileInput from "./FreshFileInput";
 import {useCharacterWorkspace} from '../CharacterWorkspace';
@@ -116,19 +118,32 @@ export default function FaceStudio({ active }) {
   useEffect(() => {
     if (importing || !datasetId || !run || TERMINAL.has(run.status)) return;
     let alive = true;
-    const timer = setInterval(async () => {
-      try {
-        const next = (await faces.getRun(datasetId)).run;
-        if (!alive) return;
-        setRun(next);
+    const observer = createPollingObserver({
+      read: async ({ signal }) => {
+        const next = (await faces.getRun(datasetId, { signal })).run;
+        const value = { run: next };
         if (next && TERMINAL.has(next.status)) {
-          await loadDataset(datasetId);
-          await refreshDatasets();
+          const [updated, history, list] = await Promise.all([
+            faces.getDataset(datasetId, { signal }), faces.listRuns(datasetId, { signal }), faces.listDatasets({ signal }),
+          ]);
+          Object.assign(value, { updated, history, list });
         }
-      } catch { /* transient; the next tick retries */ }
-    }, 900);
-    return () => { alive = false; clearInterval(timer); };
-  }, [datasetId, run?.status, importing, loadDataset, refreshDatasets]);
+        return { value };
+      },
+      interval: (next, context) => next?.run && TERMINAL.has(next.run.status) ? null : taskDelay(900, context),
+    });
+    const detach = observer.subscribe({ data: next => {
+      if (!alive) return;
+      setRun(next.run);
+      if (next.updated) {
+        setDataset(next.updated);
+        setRunHistory(next.history.runs);
+        setDatasets(next.list.datasets);
+        if (next.updated.settings) setThreshold(next.updated.settings.similar_threshold);
+      }
+    } });
+    return () => { alive = false; detach(); };
+  }, [datasetId, run?.status, importing]);
 
   const allFaces = dataset?.faces || [];
   const visible = useMemo(

@@ -46,6 +46,10 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Electron runtime installation failed. Check the download error above, then rerun setup.' }
     & $python -m pip install -r requirements-core.txt
     if ($LASTEXITCODE -ne 0) { throw 'Core Python installation failed. Check the pip error above; the app is not ready yet.' }
+    # pypdf replaces the abandoned PyPDF2 parser. Installing a new package name
+    # does not remove the vulnerable old distribution from an existing venv.
+    & $python -m pip uninstall --yes PyPDF2
+    if ($LASTEXITCODE -ne 0) { throw 'The superseded PDF parser could not be removed. Close the app and rerun setup.' }
     if ($InstallProfile -eq 'Full') {
         & $python -m pip install -r requirements.lock.txt
         if ($LASTEXITCODE -ne 0) { Write-Warning 'Full dependency installation failed. Continuing with installed components; optional AI features may be unavailable.' }

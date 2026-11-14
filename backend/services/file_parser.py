@@ -19,14 +19,15 @@ import httpx
 
 from config import settings
 from services.gpu_coordination import gpu_coordinator
+from services.import_processing import source as file_source, text as read_text
 
 
-def parse_file(file_bytes: bytes, filename: str) -> dict:
+def parse_file(file_bytes, filename: str) -> dict:
     """
     Extract text from a file based on its extension.
     
     Args:
-        file_bytes: Raw file content as bytes
+        file_bytes: Bytes or a seekable upload file (owned by the caller)
         filename: Original filename (used to detect format)
     
     Returns:
@@ -79,18 +80,16 @@ def parse_file(file_bytes: bytes, filename: str) -> dict:
 def _parse_text(file_bytes: bytes) -> str:
     """Plain text and markdown — just decode the bytes."""
     # Try UTF-8 first, fall back to latin-1 which never fails
-    try:
-        return file_bytes.decode("utf-8")
-    except UnicodeDecodeError:
-        return file_bytes.decode("latin-1")
+    return read_text(file_bytes)
 
 
 def _extract_pdf_page_texts(file_bytes: bytes) -> list[str]:
     """Return one native text-layer value per PDF page."""
-    from PyPDF2 import PdfReader
+    from pypdf import PdfReader
 
-    reader = PdfReader(io.BytesIO(file_bytes))
-    return [(page.extract_text() or "").strip() for page in reader.pages]
+    with file_source(file_bytes) as stream:
+        reader = PdfReader(stream)
+        return [(page.extract_text() or "").strip() for page in reader.pages]
 
 
 def _render_pdf_page_png(file_bytes: bytes, page_index: int) -> bytes:
@@ -150,6 +149,7 @@ def _transcribe_page_png(page_png: bytes, page_number: int, keep_alive: int | st
             }],
         },
         timeout=settings.ocr_timeout_seconds,
+        trust_env=False,
     )
     response.raise_for_status()
     message = response.json().get("message") or {}
@@ -293,7 +293,8 @@ def _parse_docx(file_bytes: bytes) -> tuple[str, dict]:
     from services.upload_images import open_upload_image
     from PIL import Image, ImageOps
 
-    doc = Document(io.BytesIO(file_bytes))
+    with file_source(file_bytes) as stream:
+        doc = Document(stream)
     images, warnings = [], []
     table_count = 0
     image_count = 0

@@ -6,8 +6,8 @@ import time
 
 import httpx
 from PIL import Image
-from PyPDF2 import PdfWriter
-from PyPDF2.generic import DictionaryObject, NameObject, DecodedStreamObject
+from pypdf import PdfWriter
+from pypdf.generic import DictionaryObject, NameObject, DecodedStreamObject
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient

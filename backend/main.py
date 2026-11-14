@@ -12,6 +12,7 @@ from services.chat_canvas import CanvasContext
 from services import thinking_trace
 from starlette.concurrency import run_in_threadpool
 import httpx
+from services import ollama_http
 import json
 import os
 import re
@@ -86,6 +87,7 @@ from services.build_info import read_build_info
 APP_BUILD = read_build_info()
 app = FastAPI(title="Local AI Workstation", version=APP_BUILD["package_version"])
 app.state.build_info = APP_BUILD
+app.router.add_event_handler("startup", ollama_http.start)
 
 from services.maintenance_gate import MaintenanceMiddleware, router as maintenance_router
 app.add_middleware(MaintenanceMiddleware)
@@ -121,19 +123,19 @@ from routes.web_system import router as web_system_router
 from services.web_research import manager as web_research_manager
 from services.web_lookup import manager as web_lookup_manager
 app.include_router(web_system_router)
-app.add_event_handler('startup', web_research_manager.startup)
-app.add_event_handler('shutdown', web_research_manager.close)
-app.add_event_handler('startup', web_lookup_manager.startup)
-app.add_event_handler('shutdown', web_lookup_manager.close)
+app.router.add_event_handler('startup', web_research_manager.startup)
+app.router.add_event_handler('shutdown', web_research_manager.close)
+app.router.add_event_handler('startup', web_lookup_manager.startup)
+app.router.add_event_handler('shutdown', web_lookup_manager.close)
 app.include_router(browser_media_router)
 from routes.media_generation import router as media_generation_router
 from services.media_generation import jobs as media_generation_jobs
 app.include_router(media_generation_router)
-app.add_event_handler('shutdown', media_generation_jobs.shutdown)
+app.router.add_event_handler('shutdown', media_generation_jobs.shutdown)
 from routes.reels import router as reels_router
 app.include_router(reels_router)
 from services import reels_store
-app.add_event_handler('startup', reels_store.listing)  # Recover before opening Reels.
+app.router.add_event_handler('startup', reels_store.listing)  # Recover before opening Reels.
 app.include_router(sessions_router)
 app.include_router(audio_router)
 app.include_router(files_router)
@@ -170,17 +172,17 @@ app.include_router(folder_review_router)
 from routes.coding_coordinator import router as coding_coordinator_router
 from services.coding_coordinator import manager as coding_manager
 app.include_router(coding_coordinator_router)
-app.add_event_handler('startup', lambda: coding_manager())
+app.router.add_event_handler('startup', lambda: coding_manager())
 async def close_coding_coordinator():
     await coding_manager().close()
-app.add_event_handler('shutdown', close_coding_coordinator)
+app.router.add_event_handler('shutdown', close_coding_coordinator)
 from routes.coordinator import router as coordinator_router
 from services.coordinator import manager as coordinator_manager
 app.include_router(coordinator_router)
-app.add_event_handler('startup', lambda: coordinator_manager())
+app.router.add_event_handler('startup', lambda: coordinator_manager())
 async def close_coordinator():
     await coordinator_manager().close()
-app.add_event_handler('shutdown', close_coordinator)
+app.router.add_event_handler('shutdown', close_coordinator)
 app.include_router(memory_router)
 app.include_router(prompt_index_router)
 app.include_router(image_generation_router)
@@ -203,8 +205,8 @@ async def close_evaluations():
     service = getattr(app.state, 'evaluation_manager', None)
     if service:
         await service.close()
-app.add_event_handler('startup', start_evaluations)
-app.add_event_handler('shutdown', close_evaluations)
+app.router.add_event_handler('startup', start_evaluations)
+app.router.add_event_handler('shutdown', close_evaluations)
 from routes.bridge import router as bridge_router
 app.include_router(bridge_router)
 from mobile_companion.routes import router as mobile_router
@@ -244,6 +246,9 @@ initialize_database()
 
 
 # --- Data Models ---
+
+app.router.add_event_handler("shutdown", ollama_http.close)
+
 
 class ChatMessage(BaseModel):
     role: str
@@ -397,7 +402,7 @@ async def service_status():
     }
 
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
+        async with ollama_http.client(timeout=5.0) as client:
             response = await client.get(f"{OLLAMA_BASE_URL}/api/tags")
             response.raise_for_status()
             names = [m.get("name", "") for m in response.json().get("models", [])]
@@ -524,7 +529,7 @@ async def _reset_runtime():
     unloaded_models: list[str] = []
     ollama_errors: list[str] = []
     try:
-        async with httpx.AsyncClient(timeout=20.0) as client:
+        async with ollama_http.client(timeout=20.0) as client:
             response = await client.get(f"{OLLAMA_BASE_URL}/api/ps")
             response.raise_for_status()
             loaded_models = [
@@ -565,7 +570,7 @@ async def runtime_status():
     loaded_models: list[str] = []
     ollama_error = None
     try:
-        async with httpx.AsyncClient(timeout=3.0) as client:
+        async with ollama_http.client(timeout=3.0) as client:
             response = await client.get(f"{OLLAMA_BASE_URL}/api/ps")
             response.raise_for_status()
             loaded_models = [
@@ -591,7 +596,7 @@ async def runtime_status():
 @app.get("/models")
 async def list_models():
     try:
-        async with httpx.AsyncClient(timeout=20.0) as client:
+        async with ollama_http.client(timeout=20.0) as client:
             response = await client.get(f"{OLLAMA_BASE_URL}/api/tags")
             response.raise_for_status()
             data = response.json()
@@ -791,7 +796,7 @@ async def _compact_memory(request: CompactMemoryRequest):
         active_generation_tasks[request.request_id] = task
     from services.chat_context import compact_history
     try:
-        async with httpx.AsyncClient(timeout=90.0, trust_env=False) as client:
+        async with ollama_http.client(timeout=90.0) as client:
             think = await thinking_trace.resolve_thinking(client, OLLAMA_BASE_URL, request.model, prefer_brief=True)
             return await compact_history(client, OLLAMA_BASE_URL, model=request.model,
                 previous=(request.previous_summary or "").strip(), messages=request.messages,
@@ -953,7 +958,7 @@ async def _chat(request: ChatRequest, client_request: Request):
                 return {"model": model, "stage": "responding", "detail": detail}
 
             try:
-                async with httpx.AsyncClient(timeout=httpx.Timeout(600.0, connect=10.0), trust_env=False) as client:
+                async with ollama_http.client(timeout=httpx.Timeout(600.0, connect=10.0)) as client:
                     async for data in stream_transcription(client, OLLAMA_BASE_URL, messages_to_send, request.model,
                             client_request.is_disconnected, prepare=prepare, progress=progress):
                         yield data
@@ -1199,7 +1204,7 @@ async def _chat(request: ChatRequest, client_request: Request):
             elif job:
                 queue.set_stage(job, "preparing_model", f"Preparing {request.model}; loading if needed, then processing its prompt")
                 yield f"data: {json.dumps({'runtime_status': chat_runtime_activity(job)})}\n\n"
-            async with httpx.AsyncClient(
+            async with ollama_http.client(
                 timeout=httpx.Timeout(600.0, connect=10.0)
             ) as client:
                 think = await thinking_trace.resolve_thinking(client, OLLAMA_BASE_URL, request.model, request.think) if request.think is not None else await thinking_trace.resolve_thinking(client, OLLAMA_BASE_URL, request.model)

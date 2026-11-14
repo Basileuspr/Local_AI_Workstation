@@ -1,5 +1,6 @@
 """Model handoff under the running request's GPU lease, never on pane focus."""
 import httpx
+from services import ollama_http
 
 from services.request_queue import QueueCancelled, queue
 
@@ -34,7 +35,7 @@ async def prepare_chat_model(job, model, base_url, *, options=None, request_queu
 
     check()
     yield stage("checking_model", f"Checking loaded models for {model}")
-    async with httpx.AsyncClient(timeout=httpx.Timeout(600.0, connect=10.0)) as client:
+    async with ollama_http.client(timeout=httpx.Timeout(600.0, connect=10.0)) as client:
         response = await client.get(f"{base_url}/api/ps")
         response.raise_for_status()
         loaded = list(dict.fromkeys(item.get("name") or item.get("model")

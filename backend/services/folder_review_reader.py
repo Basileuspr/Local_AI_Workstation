@@ -133,7 +133,7 @@ def extract(raw, name, max_chars, cancel=lambda: None):
                                     if not isinstance(value, bytes) and key not in {37500, 37510}}
         return {'kind': 'image', 'text': '', 'status': 'metadata_only', 'metadata': metadata, 'coverage': coverage}
     if extension == '.pdf':
-        from PyPDF2 import PdfReader
+        from pypdf import PdfReader
         reader = PdfReader(io.BytesIO(raw))
         if reader.is_encrypted:
             return {'kind': 'pdf', 'text': '', 'status': 'unreadable', 'metadata': {**metadata, 'encrypted': True}, 'coverage': {**coverage, 'reason': 'Encrypted PDF; no password or OCR attempted.'}}

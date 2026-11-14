@@ -3,7 +3,7 @@ import ChatSpeak from './ChatSpeak';
 import {chatSpeech} from '../chatSpeech';
 import ProtectedImage from "../ImagePrivacy";
 import ImageItemActions from "./ImageItemActions";
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { useStore, useDispatch } from "../useStore.jsx";
 import MarkdownMessage from "./MarkdownMessage";
 import ChatMessageMarkdown from "./ChatMessageMarkdown";
@@ -44,6 +44,15 @@ function avatarFor(role) {
   if (role === "assistant") return "AI";
   return "i";
 }
+
+// Completed content keeps its message reference when another reply streams.
+// Stable props and a separate actions context avoid reparsing the whole history.
+export const MessageMarkdown = memo(function MessageMarkdown({ message, messageId, sessionId, streaming, onImagePreview }) {
+  return summarizeContent(message) === message.content
+    ? <ChatMessageMarkdown message={message} sessionId={sessionId} streaming={streaming}
+        onImageClick={image => onImagePreview({ ...image, chat_session_id: sessionId, id: `${messageId}:inline:${image.url}` })} />
+    : <MarkdownMessage>{summarizeContent(message)}</MarkdownMessage>;
+});
 
 export default function MessageList({ onNewChat, onSessionSaved }) {
   const state = useStore();
@@ -321,11 +330,9 @@ export default function MessageList({ onNewChat, onSessionSaved }) {
                       ))}
                     </div>
                   )}
-                  {summarizeContent(message) === message.content
-                    ? <ChatMessageMarkdown key={`${currentSessionId}:${messageId}`} message={message} sessionId={currentSessionId}
-                        streaming={state.isGenerating && index === conversationHistory.length - 1}
-                        onImageClick={image => setImagePreview({ ...image, chat_session_id: currentSessionId, id: `${messageId}:inline:${image.url}` })} />
-                    : <MarkdownMessage>{summarizeContent(message)}</MarkdownMessage>}
+                  <MessageMarkdown key={`${currentSessionId}:${messageId}`} message={message} messageId={messageId}
+                    sessionId={currentSessionId} streaming={state.isGenerating && index === conversationHistory.length - 1}
+                    onImagePreview={setImagePreview} />
                   {message.role==='assistant'&&message.content&&<ReplyInfluences message={message}/>}
                   {message.knowledge_sources && <details className="knowledge-sources"><summary>Knowledge supplied: {message.knowledge_sources.length} excerpts</summary>
                     {message.knowledge_sources.length ? <ul>{message.knowledge_sources.map((source, i) => <li key={i}>{source.filename} — excerpt {source.chunk_index + 1}, {source.characters} characters</li>)}</ul> : <p>No Knowledge excerpts were supplied for this reply.</p>}

@@ -2,7 +2,7 @@
 from datetime import datetime, timezone
 from contextlib import contextmanager, nullcontext
 import struct
-from PIL import Image, ImageFile, TiffImagePlugin, UnidentifiedImageError
+from PIL import Image, ImageFile, TiffImagePlugin, WebPImagePlugin, UnidentifiedImageError
 
 FORMATS = {'JPEG', 'PNG', 'WEBP', 'BMP', 'TIFF', 'AVIF', 'GIF'}
 
@@ -13,6 +13,28 @@ class _LocalTiffImageFile(TiffImagePlugin.TiffImageFile):
         # Override only this local reader, preserving global upload safeguards.
         if self._im is None: self.im = Image.core.new(self.mode, self._tile_size)
         ImageFile.ImageFile.load_prepare(self)
+
+
+class _LocalWebPImageFile(WebPImagePlugin.WebPImageFile):
+    def _open(self):
+        # Pillow 13 also checks pixel count inside the WebP constructor. Keep
+        # the existing owner-selected large-image workflow without changing
+        # the process-wide guard. The current libwebp still validates/decodes
+        # the complete container; inherited frame and metadata readers remain.
+        data = self.fp.read()
+        if not WebPImagePlugin._accept(data[:16]):
+            raise SyntaxError('Not a WebP file')
+        self._decoder = WebPImagePlugin._webp.WebPAnimDecoder(data)
+        self._size, loop, background, self.n_frames, self.rawmode = self._decoder.get_info()
+        self.info['loop'] = loop
+        self.info['background'] = tuple((background >> shift) & 255 for shift in (16, 8, 0, 24))
+        self.is_animated = self.n_frames > 1
+        self._mode = 'RGB' if self.rawmode == 'RGBX' else self.rawmode
+        for key, chunk in [('icc_profile', 'ICCP'), ('exif', 'EXIF'), ('xmp', 'XMP ')]:
+            value = self._decoder.get_chunk(chunk)
+            if value:
+                self.info[key] = value
+        self._reset(reset=False)
 
 
 @contextmanager
@@ -35,6 +57,7 @@ def open_local_image(path, *, formats=FORMATS):
             accepted = accept(prefix) if accept else True
             if not accepted or isinstance(accepted, str): continue
             if name == 'TIFF': factory = _LocalTiffImageFile
+            if name == 'WEBP': factory = _LocalWebPImageFile
             stream.seek(0)
             try:
                 image = factory(stream, str(getattr(path, 'name', path)))
